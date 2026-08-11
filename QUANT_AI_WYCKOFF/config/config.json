@@ -1,0 +1,30 @@
+{
+    "project_name": "QUANT_AI_WYCKOFF",
+    "version": "1.0.0",
+    "symbol": "EURUSD",
+    "timeframe": "M15",
+    "llm_provider": "groq",
+    "llm_model": "llama-3.3-70b-versatile",
+    "risk": {
+        "risk_per_trade_percent": 1.0,
+        "max_daily_loss_percent": 3.0,
+        "max_open_trades": 2,
+        "trailing_stop_enabled": true,
+        "trailing_stop_pips": 15,
+        "risk_percent": 1.0,
+        "atr_multiplier": 1.5
+    },
+    "mt5": {
+        "server": "DemoServer",
+        "login": 12345678,
+        "timeout": 60000
+    },
+    "system": {
+        "bot_active": false,
+        "api_key": ""
+    },
+    "strategy": {
+        "timeframe": "H4",
+        "llm_model": "gpt-4o"
+    }
+}

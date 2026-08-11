@@ -1,0 +1,17 @@
+{
+  "last_updated": null,
+  "symbol": "EURUSD",
+  "timeframe": "M15",
+  "current_phase": "PHASE_A",
+  "trading_range": {
+    "support_level": null,
+    "resistance_level": null,
+    "preliminary_support": null,
+    "selling_climax": null,
+    "automatic_rally": null,
+    "secondary_test": null
+  },
+  "spring_detected": false,
+  "sos_detected": false,
+  "notes": "Initial state snapshot memory for Wyckoff state machine"
+}
