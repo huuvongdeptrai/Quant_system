@@ -1,0 +1,28 @@
+{
+    "project_name": "Quant_AI",
+    "version": "1.0.0",
+    "risk": {
+        "risk_percent": 1.0,
+        "max_daily_drawdown_pct": 3.0,
+        "max_total_risk_pct": 2.0,
+        "max_lot": 5.0,
+        "rr_ratio": 2.0
+    },
+    "mt5": {
+        "server": "DemoServer",
+        "login": 12345678,
+        "timeout": 60000
+    },
+    "system": {
+        "bot_active": true,
+        "api_key": "AQ.Ab8RN6LTZix-5ds6cr_lSDDPb055YNZcAnwm-9evgiWDBIrVFA",
+        "symbol": "XAUUSD",
+        "force_macro_sync": false
+    },
+    "strategy": {
+        "timeframe": "M15",
+        "llm_model": "local_train",
+        "strategy_name": "ICT Zones Pro",
+        "execution_mode": "Auto"
+    }
+}

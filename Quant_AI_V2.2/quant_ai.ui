@@ -1,0 +1,546 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>1300</width><height>850</height></rect></property>
+  <property name="windowTitle"><string>Quant AI - Professional Terminal</string></property>
+  <property name="styleSheet">
+   <string>
+    QMainWindow { background-color: #0A0C10; color: #E5E7EB; font-family: "Segoe UI", sans-serif; }
+    QSplitter::handle { background-color: #1F2328; width: 3px; }
+    QSplitter::handle:hover { background-color: #58A6FF; }
+    QSplitter::handle:horizontal { width: 3px; }
+    QTabWidget#tabWidget::pane { border: none; border-top: 1px solid #1F2328; background: #0A0C10; }
+    QTabWidget#tabWidget &gt; QTabBar::tab { background: transparent; color: #6E7681; padding: 12px 20px; font-weight: 600; font-size: 13px; border: none; border-bottom: 2px solid transparent; text-transform: uppercase; }
+    QTabWidget#tabWidget &gt; QTabBar::tab:selected { color: #58A6FF; border-bottom: 2px solid #58A6FF; }
+    QFrame#sidebar { background-color: #0D1117; }
+    QLabel#watchlistTitle { color: #FFFFFF; font-weight: 800; font-size: 16px; margin-bottom: 10px; }
+    QTreeWidget#treeWatchlist { background-color: #0D1117; color: #C9D1D9; border: none; font-size: 12px; font-family: "Consolas", "Roboto Mono", monospace; font-weight: bold; outline: none; }
+    QTreeWidget#treeWatchlist::item { border-bottom: 1px solid #1F2328; padding: 3px 2px; }
+    QTreeWidget#treeWatchlist::item:hover { background-color: #161B22; }
+    QTreeWidget#treeWatchlist::item:selected { background-color: #1F2328; color: #FFFFFF; }
+    QTreeWidget#treeWatchlist QHeaderView::section { background-color: #0D1117; color: #6E7681; font-weight: 600; border: none; border-bottom: 1px solid #1F2328; padding: 5px; font-size: 11px; text-transform: uppercase; }
+    
+    QGroupBox { border: 1px solid #444C56; border-radius: 8px; margin-top: 15px; padding-top: 35px; background-color: #1C2128; }
+    QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 10px 20px; color: #58A6FF; font-weight: 800; font-size: 12px; text-transform: uppercase; }
+    QLabel.settingLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+    QComboBox, QDoubleSpinBox, QSpinBox, QLineEdit { background-color: #2D333B; border: 1px solid #535E6C; color: #FFFFFF; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; }
+    QComboBox:hover, QDoubleSpinBox:hover, QSpinBox:hover, QLineEdit:hover { border: 1px solid #58A6FF; background-color: #373E47; }
+    QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus, QLineEdit:focus { border: 1px solid #58A6FF; background-color: #0D1117; }
+    QCheckBox { color: #FFFFFF; font-size: 13px; font-weight: bold; }
+    
+    QTableWidget { background-color: #0D1117; color: #E5E7EB; border: 1px solid #1F2328; border-radius: 6px; font-family: "Consolas", "Roboto Mono", monospace; font-size: 13px; alternate-background-color: #161B22; selection-background-color: transparent; outline: none; gridline-color: transparent; }
+    QTableWidget QWidget { background-color: transparent; }
+    QTableWidget::item { padding: 8px 12px; border-bottom: 1px solid #1F2328; }
+    QTableWidget::item:hover { background-color: #1F2328; }
+    QHeaderView::section { background-color: #010409; color: #8B949E; border: none; border-bottom: 2px solid #30363D; padding: 12px 10px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+    
+    QFrame.statCard { background: #0D1117; border: 1px solid #1F2328; border-radius: 6px; }
+    QLabel.statTitle { color: #6E7681; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    QLabel.statValue { color: #E5E7EB; font-size: 26px; font-weight: bold; font-family: "Consolas"; }
+    QTabWidget#subTabStats::pane { border: none; border-top: 1px solid #1F2328; }
+    QTabWidget#subTabStats &gt; QTabBar::tab { background: transparent; color: #8B949E; padding: 10px 15px; font-weight: bold; font-size: 12px; border: none; border-bottom: 2px solid transparent; margin-right: 5px; }
+    QTabWidget#subTabStats &gt; QTabBar::tab:selected { color: #58A6FF; border-bottom: 2px solid #58A6FF; }
+    QPushButton.btnExport { background-color: transparent; color: #8B949E; border: 1px solid #30363D; padding: 6px 15px; border-radius: 4px; font-weight: bold; }
+   </string>
+  </property>
+
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="spacing"><number>0</number></property>
+    <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+    <item>
+     <widget class="QSplitter" name="mainSplitter">
+      <property name="orientation"><enum>Qt::Horizontal</enum></property>
+      
+      <widget class="QFrame" name="sidebar">
+       <property name="minimumSize"><size><width>260</width><height>0</height></size></property>
+       <property name="maximumSize"><size><width>280</width><height>16777215</height></size></property>
+       <layout class="QVBoxLayout">
+        <property name="spacing"><number>10</number></property>
+        <property name="leftMargin"><number>15</number></property>
+        <property name="rightMargin"><number>15</number></property>
+        <property name="topMargin"><number>20</number></property>
+        <item><layout class="QHBoxLayout">
+             <item>
+              <widget class="QLabel" name="watchlistTitle">
+               <property name="text"><string>WATCHLIST</string></property>
+               <property name="styleSheet"><string>color: #8B949E; font-weight: bold; font-size: 13px;</string></property>
+              </widget>
+             </item>
+             <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+             <item>
+              <widget class="QPushButton" name="btnOpenSearch">
+               <property name="text"><string>+</string></property>
+               <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+               <property name="styleSheet"><string>QPushButton { background: transparent; color: #8B949E; font-weight: bold; font-size: 18px; border: none; padding: 0px 5px; } QPushButton:hover { color: #E5E7EB; }</string></property>
+              </widget>
+             </item>
+            </layout></item>
+        <item>
+         
+           </item>
+           <item>
+            <widget class="QTreeWidget" name="treeWatchlist">
+             <column><property name="text"><string>Mã</string></property></column>
+             <column><property name="text"><string>Giá</string></property></column>
+             <column><property name="text"><string>Thay đổi</string></property></column>
+             <column><property name="text"><string>%Thay đổi</string></property></column>
+            </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameSidebarAccount">
+          <property name="styleSheet"><string>QFrame#frameSidebarAccount { background-color: #161B22; border-top: 1px solid #30363D; border-bottom: none; border-left: none; border-right: none; }</string></property>
+          <property name="minimumSize"><size><width>0</width><height>150</height></size></property>
+          <property name="maximumSize"><size><width>16777215</width><height>150</height></size></property>
+          <layout class="QVBoxLayout">
+           <property name="spacing"><number>5</number></property>
+           <property name="leftMargin"><number>15</number></property>
+           <property name="topMargin"><number>15</number></property>
+           <property name="rightMargin"><number>15</number></property>
+           <property name="bottomMargin"><number>15</number></property>
+           <item>
+            <layout class="QHBoxLayout">
+             <item>
+              <widget class="QLabel" name="labelStatus">
+               <property name="text"><string>🔴 CHƯA KẾT NỐI</string></property>
+               <property name="styleSheet"><string>color: #F23645; font-weight: bold; font-size: 11px;</string></property>
+              </widget>
+             </item>
+             <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+             <item>
+              <widget class="QPushButton" name="btnOpenLogin">
+               <property name="text"><string>+ Add</string></property>
+               <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+               <property name="styleSheet"><string>QPushButton { background: transparent; color: #58A6FF; font-weight: bold; font-size: 11px; border: none; } QPushButton:hover { color: #79C0FF; }</string></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           
+           
+           
+            <item>
+             <widget class="QFrame" name="frameBalanceCard">
+              <property name="styleSheet"><string>QFrame { background: #161B22; border: 1px solid #30363D; border-radius: 8px; }</string></property>
+              <layout class="QVBoxLayout">
+               <property name="leftMargin"><number>10</number></property>
+               <property name="topMargin"><number>8</number></property>
+               <property name="rightMargin"><number>10</number></property>
+               <property name="bottomMargin"><number>8</number></property>
+               <property name="spacing"><number>6</number></property>
+               <item>
+                <layout class="QHBoxLayout">
+                 <item><widget class="QLabel"><property name="text"><string>Số dư</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+                 <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                 <item><widget class="QLabel" name="valBalance"><property name="text"><string>$ 0.00</string></property><property name="styleSheet"><string>color: #E5E7EB; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout">
+                 <item><widget class="QLabel"><property name="text"><string>Vốn</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+                 <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                 <item><widget class="QLabel" name="valEquity"><property name="text"><string>$ 0.00</string></property><property name="styleSheet"><string>color: #3FB950; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <item>
+             <widget class="QFrame" name="frameMarginCard">
+              <property name="styleSheet"><string>QFrame { background: #161B22; border: 1px solid #30363D; border-radius: 8px; }</string></property>
+              <layout class="QHBoxLayout">
+               <property name="leftMargin"><number>10</number></property>
+               <property name="topMargin"><number>8</number></property>
+               <property name="rightMargin"><number>10</number></property>
+               <property name="bottomMargin"><number>8</number></property>
+               <item><widget class="QLabel"><property name="text"><string>Ký quỹ</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+               <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+               <item><widget class="QLabel" name="valMarginLevel"><property name="text"><string>0.00%</string></property><property name="styleSheet"><string>color: #FF9800; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
+              </layout>
+             </widget>
+            </item>
+
+
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      
+      
+      <widget class="QWidget" name="mainContentWidget">
+       <layout class="QVBoxLayout">
+        <property name="spacing"><number>0</number></property>
+        <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+        <item>
+         <widget class="QTabWidget" name="tabWidget">
+          <property name="currentIndex"><number>0</number></property>
+          
+          
+          <widget class="QWidget" name="tab1">
+           <attribute name="title"><string>CÀI ĐẶT</string></attribute>
+           <layout class="QVBoxLayout">
+            <property name="leftMargin"><number>30</number></property>
+            <property name="topMargin"><number>20</number></property>
+            <property name="rightMargin"><number>30</number></property>
+            <property name="bottomMargin"><number>20</number></property>
+            <item>
+             <widget class="QScrollArea">
+              <property name="widgetResizable"><bool>true</bool></property>
+              <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+              <property name="styleSheet"><string>background: transparent;</string></property>
+              <widget class="QWidget">
+               <layout class="QVBoxLayout">
+                <property name="spacing"><number>25</number></property>
+                
+                <item>
+                 <widget class="QGroupBox" name="group1">
+                  <property name="title"><string>LÕI THUẬT TOÁN</string></property>
+                                    <layout class="QGridLayout">
+                   <property name="horizontalSpacing"><number>40</number></property><property name="verticalSpacing"><number>15</number></property>
+                   <property name="leftMargin"><number>25</number></property><property name="topMargin"><number>10</number></property><property name="rightMargin"><number>25</number></property><property name="bottomMargin"><number>25</number></property>
+                   <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Khung thời gian</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="0" column="1"><widget class="QLabel"><property name="text"><string>Mô hình AI Core</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="0" column="2"><widget class="QLabel"><property name="text"><string>Ép Xu Hướng</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="1" column="0"><widget class="QComboBox" name="comboTimeframe" /></item>
+                   <item row="1" column="1"><widget class="QComboBox" name="comboAIModel" /></item>
+                   <item row="1" column="2"><widget class="QComboBox" name="comboBias" /></item>
+                   <item row="2" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Chiến lược Giao dịch:</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="3" column="0" colspan="3"><widget class="QComboBox" name="comboStrategy" /></item>
+                   <item row="4" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Phiên giao dịch cho phép:</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="5" column="0"><widget class="QCheckBox"><property name="text"><string>Phiên Á</string></property></widget></item>
+                   <item row="5" column="1"><widget class="QCheckBox"><property name="text"><string>Phiên Âu</string></property><property name="checked"><bool>true</bool></property></widget></item>
+                   <item row="5" column="2"><widget class="QCheckBox"><property name="text"><string>Phiên Mỹ</string></property><property name="checked"><bool>true</bool></property></widget></item>
+                  </layout>
+                 </widget>
+                </item>
+                
+                <item>
+                 <widget class="QGroupBox" name="group2">
+                  <property name="title"><string>QUẢN TRỊ RỦI RO</string></property>
+                  <layout class="QGridLayout">
+                   <property name="horizontalSpacing"><number>40</number></property><property name="verticalSpacing"><number>15</number></property>
+                   <property name="leftMargin"><number>25</number></property><property name="topMargin"><number>10</number></property><property name="rightMargin"><number>25</number></property><property name="bottomMargin"><number>25</number></property>
+                   <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Rủi ro tối đa / Lệnh (%)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="0" column="1"><widget class="QLabel"><property name="text"><string>Max Drawdown Ngày (%)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="0" column="2"><widget class="QLabel"><property name="text"><string>Chuỗi thua tối đa</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="1" column="0"><widget class="QDoubleSpinBox"><property name="value"><double>1.0</double></property></widget></item>
+                   <item row="1" column="1"><widget class="QDoubleSpinBox"><property name="value"><double>5.0</double></property></widget></item>
+                   <item row="1" column="2"><widget class="QSpinBox"><property name="value"><number>3</number></property></widget></item>
+                   <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Dời SL Trailing (Pips)</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="2" column="1"><widget class="QLabel"><property name="text"><string>Bảo toàn vốn Breakeven (Pips)</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="3" column="0"><widget class="QSpinBox"><property name="value"><number>15</number></property></widget></item>
+                   <item row="3" column="1"><widget class="QSpinBox"><property name="value"><number>10</number></property></widget></item>
+                  </layout>
+                 </widget>
+                </item>
+                
+                <item>
+                 <widget class="QGroupBox" name="group3">
+                  <property name="title"><string>BỘ LỌC NÂNG CAO THỰC THI</string></property>
+                  <layout class="QGridLayout">
+                   <property name="horizontalSpacing"><number>40</number></property><property name="verticalSpacing"><number>15</number></property>
+                   <property name="leftMargin"><number>25</number></property><property name="topMargin"><number>10</number></property><property name="rightMargin"><number>25</number></property><property name="bottomMargin"><number>25</number></property>
+                   <item row="0" column="0" colspan="3"><widget class="QCheckBox"><property name="text"><string>Tránh Tin Tức (News Filter)</string></property><property name="checked"><bool>true</bool></property><property name="styleSheet"><string>color: #58A6FF; margin-bottom: 10px;</string></property></widget></item>
+                   <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Ngừng trade trước tin (phút)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="1" column="1"><widget class="QLabel"><property name="text"><string>Trượt giá tối đa Slippage (points)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                   <item row="1" column="2"><widget class="QLabel"><property name="text"><string /></property></widget></item>
+                   <item row="2" column="0"><widget class="QSpinBox"><property name="value"><number>30</number></property></widget></item>
+                   <item row="2" column="1"><widget class="QSpinBox"><property name="value"><number>20</number></property></widget></item>
+                  </layout>
+                 </widget>
+                </item>
+                
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          
+          
+          <widget class="QWidget" name="tab2">
+           <attribute name="title"><string>BIỂU ĐỒ</string></attribute>
+           <layout class="QVBoxLayout">
+            <item>
+             <widget class="QSplitter" name="chartSplitter">
+              <property name="orientation"><enum>Qt::Horizontal</enum></property>
+              <widget class="QFrame" name="frameChartArea">
+               <property name="styleSheet"><string>background-color: #0D1117; border: 1px dashed #30363D; border-radius: 6px;</string></property>
+               <layout class="QVBoxLayout"><item><widget class="QLabel"><property name="text"><string>KHU VỰC BIỂU ĐỒ</string></property><property name="alignment"><set>Qt::AlignCenter</set></property><property name="styleSheet"><string>color: #6E7681; font-weight: bold; border: none;</string></property></widget></item></layout>
+              </widget>
+              <widget class="QFrame" name="frameAIArea">
+               <property name="minimumSize"><size><width>320</width><height>0</height></size></property>
+               <layout class="QVBoxLayout">
+                <item><widget class="QLabel"><property name="text"><string>PHÂN TÍCH XU HƯỚNG</string></property><property name="styleSheet"><string>color: #58A6FF; font-weight: bold; font-size: 14px;</string></property></widget></item>
+                <item><widget class="QTextEdit"><property name="readOnly"><bool>true</bool></property><property name="styleSheet"><string>background-color: #0D1117; color: #C9D1D9; border: 1px solid #1F2328; border-radius: 6px; padding: 15px;</string></property></widget></item>
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          
+          
+          <widget class="QWidget" name="tab3">
+           <attribute name="title"><string>THỐNG KÊ</string></attribute>
+           <layout class="QVBoxLayout">
+            <property name="spacing"><number>20</number></property>
+            <property name="leftMargin"><number>20</number></property>
+            <property name="topMargin"><number>20</number></property>
+            <property name="rightMargin"><number>20</number></property>
+            <property name="bottomMargin"><number>20</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_stats">
+            <item>
+             <widget class="QFrame" name="frameTotalTrades">
+              <property name="styleSheet"><string>QFrame { background-color: #161B22; border: 1px solid #30363D; border-radius: 6px; } QLabel { border: none; }</string></property>
+              <layout class="QVBoxLayout">
+               <item>
+                <widget class="QLabel" name="lblTotalTradesTitle">
+                 <property name="text"><string>TỔNG LỆNH</string></property>
+                 <property name="styleSheet"><string>color: #8B949E; font-size: 11px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="valTotalTrades">
+                 <property name="text"><string>13</string></property>
+                 <property name="styleSheet"><string>color: #E5E7EB; font-size: 24px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            
+            <item>
+             <widget class="QFrame" name="frameWinRate">
+              <property name="styleSheet"><string>QFrame { background-color: #161B22; border: 1px solid #30363D; border-radius: 6px; } QLabel { border: none; }</string></property>
+              <layout class="QVBoxLayout">
+               <item>
+                <widget class="QLabel" name="lblWinRateTitle">
+                 <property name="text"><string>TỈ LỆ THẮNG</string></property>
+                 <property name="styleSheet"><string>color: #8B949E; font-size: 11px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="valWinRate">
+                 <property name="text"><string>23.08%</string></property>
+                 <property name="styleSheet"><string>color: #E5E7EB; font-size: 24px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            
+            <item>
+             <widget class="QFrame" name="frameNetProfit">
+              <property name="styleSheet"><string>QFrame { background-color: #161B22; border: 1px solid #30363D; border-radius: 6px; } QLabel { border: none; }</string></property>
+              <layout class="QVBoxLayout">
+               <item>
+                <widget class="QLabel" name="lblNetProfitTitle">
+                 <property name="text"><string>LỢI NHUẬN RÒNG</string></property>
+                 <property name="styleSheet"><string>color: #8B949E; font-size: 11px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="valNetProfit">
+                 <property name="text"><string>+$176.56</string></property>
+                 <property name="styleSheet"><string>color: #E5E7EB; font-size: 20px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            
+            <item>
+             <widget class="QFrame" name="frameRR">
+              <property name="styleSheet"><string>QFrame { background-color: #161B22; border: 1px solid #30363D; border-radius: 6px; } QLabel { border: none; }</string></property>
+              <layout class="QVBoxLayout">
+               <item>
+                <widget class="QLabel" name="lblRRTitle">
+                 <property name="text"><string>TỈ LỆ R:R</string></property>
+                 <property name="styleSheet"><string>color: #8B949E; font-size: 11px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="valRR">
+                 <property name="text"><string>1.17</string></property>
+                 <property name="styleSheet"><string>color: #E5E7EB; font-size: 24px; font-weight: bold;</string></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QTabWidget" name="subTabStats">
+              <property name="currentIndex"><number>1</number></property>
+              
+              
+              <widget class="QWidget" name="subTabCal">
+               <attribute name="title"><string>PnL HÀNG NGÀY</string></attribute>
+               <layout class="QVBoxLayout">
+                <item>
+                 <layout class="QHBoxLayout">
+                  <item><widget class="QPushButton" name="btnCalToday"><property name="text"><string>Hôm nay</string></property><property name="styleSheet"><string>background: transparent; color: white; border: 1px solid #30363D; padding: 6px 15px; border-radius: 4px; font-weight: bold;</string></property></widget></item>
+                  <item><widget class="QPushButton" name="btnCalPrev"><property name="text"><string>&lt;</string></property><property name="maximumWidth"><number>30</number></property><property name="styleSheet"><string>background: #1F2328; color: white; border-radius: 4px; padding: 6px;</string></property></widget></item>
+                  <item><widget class="QLabel" name="lblCalMonth"><property name="text"><string>Tháng Chín 2026</string></property><property name="styleSheet"><string>color: white; font-size: 16px; font-weight: bold; margin: 0 10px;</string></property></widget></item>
+                  <item><widget class="QPushButton" name="btnCalNext"><property name="text"><string>&gt;</string></property><property name="maximumWidth"><number>30</number></property><property name="styleSheet"><string>background: #1F2328; color: white; border-radius: 4px; padding: 6px;</string></property></widget></item>
+                  <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                  <item><widget class="QLabel"><property name="text"><string>Số liệu thống kê hàng tháng:</string></property><property name="styleSheet"><string>color: #8B949E;</string></property></widget></item>
+                  <item><widget class="QLabel" name="lblCalMonthlyStats"><property name="text"><string>-6,06 $</string></property><property name="styleSheet"><string>background: #3C1618; color: #F23645; padding: 4px 10px; border-radius: 10px; font-weight: bold;</string></property></widget></item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QTableWidget" name="tableCalendar">
+                  <column><property name="text"><string>T2</string></property></column>
+                  <column><property name="text"><string>T3</string></property></column>
+                  <column><property name="text"><string>T4</string></property></column>
+                  <column><property name="text"><string>T5</string></property></column>
+                  <column><property name="text"><string>T6</string></property></column>
+                  <column><property name="text"><string>T7</string></property></column>
+                  <column><property name="text"><string>CN</string></property></column>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+              
+              
+              <widget class="QWidget" name="subTabTrades">
+               <attribute name="title"><string>CÁC GIAO DỊCH ĐÃ ĐÓNG</string></attribute>
+               <layout class="QVBoxLayout">
+                <property name="leftMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="topMargin"><number>15</number></property><property name="bottomMargin"><number>0</number></property>
+                <item>
+                 <layout class="QHBoxLayout">
+                  <property name="spacing"><number>20</number></property>
+                  <item>
+                   <layout class="QVBoxLayout">
+                    <item><widget class="QLabel"><property name="text"><string>Sắp xếp theo</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                    <item><widget class="QComboBox" name="comboLogFilter"><item><property name="text"><string>Giờ đóng lệnh ↓</string></property></item></widget></item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QVBoxLayout">
+                    <item><widget class="QLabel"><property name="text"><string>Tìm kiếm tag hoặc mã số</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+                    <item><widget class="QLineEdit" name="searchStats"><property name="placeholderText"><string>Tìm kiếm mã lệnh, tag...</string></property></widget></item>
+                   </layout>
+                  </item>
+                  <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                  <item>
+                   <layout class="QVBoxLayout">
+                    
+                    <item><widget class="QPushButton" name="btnExportTrades"><property name="text"><string>Xuất</string></property><property name="styleSheet"><string>background-color: #007AFF; color: white; padding: 8px 25px; border-radius: 4px; font-weight: bold;</string></property></widget></item>
+                   </layout>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QTableWidget" name="tableHistory">
+                  <property name="alternatingRowColors"><bool>true</bool></property>
+                  <column><property name="text"><string>Lệnh</string></property></column>
+                  <column><property name="text"><string>Giờ đóng lệnh</string></property></column>
+                  <column><property name="text"><string>Khối lượng</string></property></column>
+                  <column><property name="text"><string>Mã</string></property></column>
+                  <column><property name="text"><string>PnL</string></property></column>
+                  <column><property name="text"><string>Số pip</string></property></column>
+                  <column><property name="text"><string>Thời lượng</string></property></column>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+              
+              
+              <widget class="QWidget" name="subTabCharts">
+               <attribute name="title"><string>BIỂU ĐỒ</string></attribute>
+               <layout class="QVBoxLayout">
+                <item>
+                 <layout class="QGridLayout">
+                  <property name="spacing"><number>20</number></property>
+                  <item row="0" column="0">
+                   <widget class="QGroupBox" name="chartEquity"><property name="title"><string>Giờ vào lệnh</string></property><property name="styleSheet"><string>QGroupBox { background: #0D1117; border-radius: 8px; margin-top: 20px; border: none; } QGroupBox::title { color: #E5E7EB; font-weight: bold; font-size: 14px; top: 10px; left: 15px; }</string></property></widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QGroupBox" name="chartLongShort"><property name="title"><string>Mua &amp; Bán</string></property><property name="styleSheet"><string>QGroupBox { background: #0D1117; border-radius: 8px; margin-top: 20px; border: none; } QGroupBox::title { color: #E5E7EB; font-weight: bold; font-size: 14px; top: 10px; left: 15px; }</string></property></widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QGroupBox" name="chartProfitBySymbol"><property name="title"><string>Khối lượng</string></property><property name="styleSheet"><string>QGroupBox { background: #0D1117; border-radius: 8px; margin-top: 20px; border: none; } QGroupBox::title { color: #E5E7EB; font-weight: bold; font-size: 14px; top: 10px; left: 15px; }</string></property></widget>
+                  </item>
+                  <item row="1" column="1"><widget class="QGroupBox" name="chartHourly"><property name="title"><string>Mã</string></property></widget></item></layout>
+                </item>
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          
+          <widget class="QWidget" name="tab4">
+           <attribute name="title"><string>NHẬT KÝ</string></attribute>
+           <layout class="QVBoxLayout">
+            <property name="leftMargin"><number>30</number></property><property name="topMargin"><number>20</number></property><property name="rightMargin"><number>30</number></property><property name="bottomMargin"><number>20</number></property>
+            <item>
+             <layout class="QHBoxLayout">
+              <item><widget class="QLabel"><property name="text"><string>LỌC MỨC ĐỘ:</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+              <item><widget class="QComboBox"><item><property name="text"><string>TẤT CẢ</string></property></item></widget></item>
+              <item><widget class="QLineEdit" name="searchLog"><property name="placeholderText"><string>Tìm kiếm mã lệnh, từ khóa...</string></property></widget></item>
+              <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+              <item><widget class="QCheckBox" name="checkAutoScroll"><property name="text"><string>Tự động cuộn</string></property><property name="checked"><bool>true</bool></property></widget></item>
+              <item><widget class="QPushButton" name="btnClearLogs"><property name="text"><string>XÓA TRỐNG</string></property><property name="styleSheet"><string>background: transparent; color: #8B949E; border: 1px solid #30363D; padding: 6px 15px; border-radius: 4px; font-weight: bold;</string></property></widget></item>
+              <item><widget class="QPushButton" name="btnExportLogs"><property name="text"><string>XUẤT FILE</string></property><property name="class"><string>btnExport</string></property></widget></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QTableWidget" name="tableLogs">
+              <property name="alternatingRowColors"><bool>true</bool></property>
+              <column><property name="text"><string>THỜI GIAN</string></property></column>
+              <column><property name="text"><string>MỨC ĐỘ</string></property></column>
+              <column><property name="text"><string>NỘI DUNG</string></property></column>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          
+
+    <widget class="QWidget" name="tab_5">
+     <attribute name="title">
+      <string>LỊCH KINH TẾ</string>
+     </attribute>
+     <layout class="QVBoxLayout" name="verticalLayout_tab5">
+      <property name="leftMargin"><number>0</number></property>
+      <property name="topMargin"><number>0</number></property>
+      <property name="rightMargin"><number>0</number></property>
+      <property name="bottomMargin"><number>0</number></property>
+      <item>
+       <widget class="QTableWidget" name="tableEconomicCalendar">
+        <property name="styleSheet">
+         <string>QTableWidget { background-color: transparent; border: none; gridline-color: #30363D; color: #E5E7EB; font-size: 13px; } QHeaderView::section { background-color: #010409; color: #8B949E; font-weight: bold; padding: 10px; border: none; border-bottom: 1px solid #30363D; text-transform: uppercase; } QTableWidget::item { padding: 15px; border-bottom: 1px solid #21262D; }</string>
+        </property>
+        <property name="showGrid"><bool>false</bool></property>
+        <property name="alternatingRowColors"><bool>true</bool></property>
+        <property name="selectionMode"><enum>QAbstractItemView::NoSelection</enum></property>
+        <property name="columnCount"><number>7</number></property>
+        <column><property name="text"><string>Giờ (VN)</string></property></column>
+        <column><property name="text"><string>Quốc gia</string></property></column>
+        <column><property name="text"><string>Sự kiện</string></property></column>
+        <column><property name="text"><string>Mức độ</string></property></column>
+        <column><property name="text"><string>Thực tế</string></property></column>
+        <column><property name="text"><string>Dự báo</string></property></column>
+        <column><property name="text"><string>Kỳ trước</string></property></column>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+</ui>

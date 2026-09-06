@@ -1,0 +1,31 @@
+{
+    "Groq_Alpha": {
+        "type": "openai_compatible",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key": "",
+        "default_model": "llama3-8b-8192"
+    },
+    "Local_LLM_Ollama": {
+        "type": "openai_compatible",
+        "base_url": "http://localhost:11434/v1",
+        "api_key": "ollama",
+        "default_model": "llama3"
+    },
+    "OpenAI_GPT4": {
+        "type": "openai_compatible",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "",
+        "default_model": "gpt-4o"
+    },
+    "Gemini_Pro": {
+        "type": "openai_compatible",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "api_key": "YOUR_GEMINI_API_KEY",
+        "default_model": "gemini-1.5-pro"
+    },
+    "MT5_SERVER": "EGlobalTrade-Demo",
+    "MT5_ACCOUNT": 291779,
+    "MT5_PASSWORD": "YOUR_MT5_PASSWORD",
+    "TELEGRAM_BOT_TOKEN": "YOUR_TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID": "6632729378"
+}
