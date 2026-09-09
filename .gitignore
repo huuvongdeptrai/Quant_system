@@ -22,3 +22,6 @@ env/
 # (Tùy chọn) Bỏ qua file Word/Excel nếu chỉ muốn lưu code
 # *.docx
 # *.xlsx
+
+Quant_AI_V2.2/docs/
+Quant_AI_V2.2/*.docx
