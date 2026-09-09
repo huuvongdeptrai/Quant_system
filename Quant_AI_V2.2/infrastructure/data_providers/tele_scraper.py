@@ -6,6 +6,7 @@ import redis
 from telethon import TelegramClient, events
 from dotenv import load_dotenv
 from loguru import logger
+from pathlib import Path
 
 load_dotenv()
 
@@ -65,7 +66,7 @@ async def handler(event):
     if news_data:
         logger.success("Phát hiện tin tức Kinh tế Thực tế (Actuals)! Đang bắn lên Event-Bus...")
         # Ghi log ra file để lưu trữ
-        with open("data/news_actual.json", "w", encoding="utf-8") as f:
+        with open(Path("data") / "news_actual.json", "w", encoding="utf-8") as f:
             json.dump({"actual": event.raw_text}, f, ensure_ascii=False)
             
         # Bắn tín hiệu qua Redis Pub/Sub
@@ -80,7 +81,7 @@ async def fetch_history_on_startup():
     logger.info("Đang đồng bộ dữ liệu Vĩ mô (Smart Sync) dựa trên Lịch kinh tế...")
     try:
         # Đọc lịch kinh tế từ XML
-        xml_path = "data/ff_calendar.xml"
+        xml_path = Path("data") / "ff_calendar.xml"
         if not os.path.exists(xml_path):
             logger.warning("Không tìm thấy Lịch kinh tế để đồng bộ.")
             return
@@ -156,7 +157,7 @@ async def fetch_history_on_startup():
             combined_actuals = "
 ---
 ".join(all_actuals)
-            with open("data/news_actual.json", "w", encoding="utf-8") as f:
+            with open(Path("data") / "news_actual.json", "w", encoding="utf-8") as f:
                 json.dump({"actual": combined_actuals}, f, ensure_ascii=False)
             logger.success("Đã đồng bộ xong dữ liệu quá khứ. Đánh thức AI...")
             r.publish('MACRO_NEWS', json.dumps({"source": "SMART_SYNC", "raw_text": "Cập nhật hàng loạt"}))

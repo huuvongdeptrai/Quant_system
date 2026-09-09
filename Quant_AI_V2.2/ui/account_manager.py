@@ -1,7 +1,8 @@
 import os, json
-import MetaTrader5 as mt5
+from infrastructure.brokers.mt5_safe import mt5
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QApplication
 from core.event_bus import event_bus
+from loguru import logger
 
 class LoginDialog(QDialog):
     def __init__(self, window):
@@ -9,7 +10,14 @@ class LoginDialog(QDialog):
         self.window = window
         self.setWindowTitle("KẾT NỐI BROKER MT5")
         self.setFixedSize(350, 300)
-        self.setStyleSheet("QDialog { background-color: #0D1117; color: white; } QLabel { color: white; font-weight: bold; } QLineEdit { background: #21262D; color: white; border: 1px solid #30363D; padding: 5px; border-radius: 4px; } QPushButton { padding: 8px; font-weight: bold; border-radius: 4px; }")
+        # Áp dụng UI/UX Standards: Bỏ viền QLineEdit nếu không cần thiết, dùng padding và background tĩnh
+        self.setStyleSheet("""
+            QDialog { background-color: #0D1117; color: white; }
+            QLabel { color: white; font-weight: bold; }
+            QLineEdit { background: #21262D; color: white; border: none; padding: 8px; border-radius: 4px; }
+            QLineEdit:focus { border: 1px solid #58A6FF; }
+            QPushButton { padding: 8px; font-weight: bold; border-radius: 4px; }
+        """)
         
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Tên Server (Ví dụ: Exness-MT5-Real)"))
@@ -30,11 +38,13 @@ class LoginDialog(QDialog):
         self.lbl_msg.setStyleSheet("color: #F23645;")
         layout.addWidget(self.lbl_msg)
         
+        # Sử dụng khoảng trắng thay vì viền để tạo Grouping
+        layout.addSpacing(20)
         btn_layout = QHBoxLayout()
-        self.btn_login = QPushButton("LƯU & KẾT NỐI")
-        self.btn_login.setStyleSheet("background-color: #238636; color: white; border: none;")
+        self.btn_login = QPushButton("ĐĂNG NHẬP")
+        self.btn_login.setStyleSheet("background-color: #238636; color: white; border: none; font-size: 13px;")
         self.btn_logout = QPushButton("ĐĂNG XUẤT")
-        self.btn_logout.setStyleSheet("background-color: transparent; border: 1px solid #DA3633; color: #DA3633;")
+        self.btn_logout.setStyleSheet("background-color: transparent; border: none; color: #F23645; text-decoration: underline;")
         btn_layout.addWidget(self.btn_login)
         btn_layout.addWidget(self.btn_logout)
         layout.addLayout(btn_layout)
@@ -46,7 +56,8 @@ class LoginDialog(QDialog):
                 if 'MT5_SERVER' in cfg: self.inp_server.setText(cfg['MT5_SERVER'])
                 if 'MT5_ACCOUNT' in cfg: self.inp_account.setText(str(cfg['MT5_ACCOUNT']))
                 if 'MT5_PASSWORD' in cfg: self.inp_password.setText(cfg['MT5_PASSWORD'])
-            except: pass
+            except Exception as e:
+                logger.error(f"Lỗi đọc config: {e}")
             
         self.btn_login.clicked.connect(self.do_login)
         self.btn_logout.clicked.connect(self.do_logout)
@@ -60,7 +71,8 @@ class LoginDialog(QDialog):
             self.lbl_msg.setText("THIẾU THÔNG TIN")
             return
         try: acc = int(acc_str)
-        except: 
+        except Exception as e:
+            logger.warning(f"Lỗi chuyển đổi tài khoản thành số: {e}")
             self.lbl_msg.setText("TÀI KHOẢN PHẢI LÀ SỐ")
             return
             
@@ -68,8 +80,10 @@ class LoginDialog(QDialog):
         self.lbl_msg.setStyleSheet("color: #F2C94C;")
         QApplication.processEvents()
         
-        if not mt5.initialize():
-            self.lbl_msg.setText("LỖI KHỞI TẠO MT5")
+        if not mt5.initialize(login=acc, password=pwd, server=server):
+            err = mt5.last_error()
+            logger.error(f"Lỗi khởi tạo MT5: {err}")
+            self.lbl_msg.setText(f"LỖI KHỞI TẠO MT5 ({err[0]}, {err[1]})")
             self.lbl_msg.setStyleSheet("color: #F23645;")
             return
             
@@ -86,7 +100,8 @@ class LoginDialog(QDialog):
             if os.path.exists(env_path):
                 try:
                     with open(env_path, 'r', encoding='utf-8') as f: cfg = json.load(f)
-                except: pass
+                except Exception as e:
+                    logger.error(f"Lỗi đọc config: {e}")
             cfg['MT5_SERVER'] = server
             cfg['MT5_ACCOUNT'] = acc
             cfg['MT5_PASSWORD'] = pwd

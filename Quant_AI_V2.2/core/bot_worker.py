@@ -1,34 +1,29 @@
 
 import time
 from datetime import datetime
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 from PySide6 import QtCore
-import logging
-from logging.handlers import RotatingFileHandler
+from loguru import logger
 import os
+from pathlib import Path
 
-os.makedirs("logs", exist_ok=True)
-logger = logging.getLogger("BotWorker")
-logger.setLevel(logging.INFO)
-handler = RotatingFileHandler("logs/bot_worker.log", maxBytes=10*1024*1024, backupCount=5, encoding="utf-8")
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(handler)
+# Cấu hình loguru (Rule 4 & Clean Paths)
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+logger.add(log_dir / "bot_worker.log", rotation="10 MB", retention=5, enqueue=True, encoding="utf-8")
 
-from core.risk_manager import RiskManager
-from core.execution_manager import ExecutionManager
-from core.preprocessor import DataPreprocessor
-from core.ict_strategy import ICTZonesProStrategy
-from core.ai.decision_gate import DecisionGate
-from core.telegram_notifier import telegram_notifier
 import pandas as pd
+from infrastructure.notifications.telegram_notifier import telegram_notifier
+
+DEFAULT_LOOKBACK_BARS = 300
 
 class WorkerSignals(QtCore.QObject):
     log_msg = QtCore.Signal(str, str, str, str)
 
 class BotWorker(QtCore.QThread):
-    def __init__(self, symbols: list[str] = ["XAUUSD"], timeframe: int = mt5.TIMEFRAME_M15, strategy_name: str = "ICT", ai_model_name: str = "qwen2.5"):
+    def __init__(self, strategy, risk_manager, execution_manager, data_preprocessor, decision_gate, 
+                 symbols: list[str] = ["XAUUSD"], timeframe: int = mt5.TIMEFRAME_M15, 
+                 strategy_name: str = "ICT", ai_model_name: str = "qwen2.5"):
         super().__init__()
         self.is_running = True
         self.symbols = symbols
@@ -43,16 +38,17 @@ class BotWorker(QtCore.QThread):
         # ==================================================
         self.trade_mode = "AUTO" 
         
-        self.risk_mgr = RiskManager(default_risk_pct=1.0)
-        self.exec_mgr = ExecutionManager()
-        self.prep = DataPreprocessor()
-        self.ict = ICTZonesProStrategy(config={'lookback_bars': 300})
-        self.gate = DecisionGate()
+        # Dependency Injection (Rule 6)
+        self.risk_mgr = risk_manager
+        self.exec_mgr = execution_manager
+        self.prep = data_preprocessor
+        self.ict = strategy
+        self.gate = decision_gate
         
         # Khởi tạo sớm AI Engine nếu dùng chiến lược AI để tránh giật lag lúc khớp lệnh
         self.ai_engine = None
         if self.strategy_name == "AI":
-            from core.ai.analysis_engine import AnalysisEngine
+            from infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
             self.ai_engine = AnalysisEngine(model_name=self.ai_model_name)
 
     def log(self, level: str, msg: str, color: str):
@@ -111,7 +107,7 @@ class BotWorker(QtCore.QThread):
         elif self.strategy_name == "AI":
             self.log("INFO", f"Đang gọi Local AI phân tích {sym}...", "#8B949E")
             if not self.ai_engine:
-                from core.ai.analysis_engine import AnalysisEngine
+                from infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
                 self.ai_engine = AnalysisEngine(model_name=self.ai_model_name)
             
             ai_res = self.ai_engine.analyze(sym)

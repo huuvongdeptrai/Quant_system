@@ -3,10 +3,7 @@ import numpy as np
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+from loguru import logger
 
 
 
@@ -410,8 +407,8 @@ class ICTZonesProStrategy:
                 with open(state_file, "r") as f:
                     old_state = json.load(f)
                     prev_obs = old_state.get("active_obs", [])
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Lỗi đọc state cũ: {e}")
                 
         # Ghi nhận Order Block hiện tại
         serialized_obs = []
@@ -431,8 +428,8 @@ class ICTZonesProStrategy:
         try:
             with open(state_file, "w") as f:
                 json.dump({"strategy": "ICT_Zones_Pro", "active_obs": serialized_obs}, f, indent=4)
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Lỗi lưu state: {e}")
             
         l_score, l_top, l_btm = calc_confluence(is_long=True)
         s_score, s_top, s_btm = calc_confluence(is_long=False)

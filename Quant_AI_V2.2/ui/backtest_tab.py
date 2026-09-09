@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
                                QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox, QDateEdit)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt, QDate
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 import pandas as pd
 import numpy as np
 import pyqtgraph as pg

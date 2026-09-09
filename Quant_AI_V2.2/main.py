@@ -1,5 +1,5 @@
 import sys, os
-import MetaTrader5 as mt5
+from infrastructure.brokers.mt5_safe import mt5
 from PySide6.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Qt, QTimer, QFile, QIODevice, QObject
 from PySide6.QtUiTools import QUiLoader
@@ -96,7 +96,26 @@ class QuantTerminal(QObject):
             tf = self.window.comboTimeframe.currentData() if hasattr(self.window, 'comboTimeframe') else mt5.TIMEFRAME_M15
             strategy = self.window.comboStrategy.currentData() if hasattr(self.window, 'comboStrategy') else 'ICT'
             ai_model = self.window.comboAIModel.currentText() if hasattr(self.window, 'comboAIModel') else 'qwen2.5'
-            self.bot_thread = BotWorker(symbols=['XAUUSD'], timeframe=tf, strategy_name=strategy, ai_model_name=ai_model)
+            
+            # Khởi tạo các thành phần cốt lõi và tiêm (inject) vào BotWorker
+            from core.risk_manager import RiskManager
+            from infrastructure.brokers.execution_manager import ExecutionManager
+            from core.preprocessor import DataPreprocessor
+            from core.ict_strategy import ICTZonesProStrategy
+            from infrastructure.ai_engines.ai.decision_gate import DecisionGate
+            from core.bot_worker import DEFAULT_LOOKBACK_BARS
+            
+            risk_mgr = RiskManager(default_risk_pct=1.0)
+            exec_mgr = ExecutionManager()
+            prep = DataPreprocessor()
+            ict_strat = ICTZonesProStrategy(config={'lookback_bars': DEFAULT_LOOKBACK_BARS})
+            gate = DecisionGate()
+            
+            self.bot_thread = BotWorker(
+                strategy=ict_strat, risk_manager=risk_mgr, execution_manager=exec_mgr, 
+                data_preprocessor=prep, decision_gate=gate,
+                symbols=['XAUUSD'], timeframe=tf, strategy_name=strategy, ai_model_name=ai_model
+            )
             self.bot_thread.signals.log_msg.connect(event_bus.log_event.emit)
             if hasattr(self.window, 'comboBias'):
                 self.bot_thread.trade_mode = self.window.comboBias.currentData()

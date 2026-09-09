@@ -3,7 +3,7 @@ import json
 import time
 import MetaTrader5 as mt5
 from openai import OpenAI
-from core.macro.macro_regime import MacroRegimeEngine
+from infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
 from loguru import logger
 
 env_path = r'C:\Users\vong2\OneDrive\Tài liệu\Quant_System\Quant_AI_V2.2\.env'
@@ -112,14 +112,33 @@ class AnalysisEngine:
         macro_data = self.macro_engine.generate_macro_report()
         prompt = self._build_prompt(symbol, macro_data, tech_data)
 
+        schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "market_analysis",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "trend_macro": {"type": "string", "enum": ["Tăng", "Giảm", "Đi ngang"]},
+                        "trend_intraday": {"type": "string", "enum": ["Tăng", "Giảm", "Đi ngang"]},
+                        "scenario_a": {"type": "string"},
+                        "scenario_b": {"type": "string"}
+                    },
+                    "required": ["trend_macro", "trend_intraday", "scenario_a", "scenario_b"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        }
+
         try:
-            logger.info(f'[{symbol}] Calling {self.model_name}...')
+            logger.info(f'[{symbol}] Calling {self.model_name} with Structured Outputs...')
 
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{'role': 'user', 'content': prompt}],
                 temperature=0.0,
-                response_format={'type': 'json_object'}
+                response_format=schema
             )
 
             result_text = response.choices[0].message.content

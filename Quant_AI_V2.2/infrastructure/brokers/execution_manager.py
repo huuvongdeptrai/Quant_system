@@ -1,4 +1,4 @@
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 
 class ExecutionManager:
     def __init__(self, magic_number: int = 999999):

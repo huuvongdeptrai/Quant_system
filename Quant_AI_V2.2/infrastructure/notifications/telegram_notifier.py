@@ -1,8 +1,6 @@
 import os, json, threading
 import requests
-import logging
-
-logger = logging.getLogger("TelegramNotifier")
+from loguru import logger
 
 class TelegramNotifier:
     def __init__(self):

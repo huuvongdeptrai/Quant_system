@@ -1,5 +1,5 @@
 
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 import pandas as pd
 from datetime import datetime
 

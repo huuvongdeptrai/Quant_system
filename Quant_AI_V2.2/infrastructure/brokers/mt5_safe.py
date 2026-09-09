@@ -1,8 +1,6 @@
 import threading
 import MetaTrader5 as _mt5
-import logging
-
-logger = logging.getLogger("MT5Safe")
+from loguru import logger
 
 class MT5SafeController:
     _instance = None
@@ -24,9 +22,9 @@ class MT5SafeController:
             return wrapper
         return attr
 
-    def initialize(self):
+    def initialize(self, *args, **kwargs):
         with self._mt5_lock:
-            return _mt5.initialize()
+            return _mt5.initialize(*args, **kwargs)
             
     def login(self, account, password, server):
         with self._mt5_lock:

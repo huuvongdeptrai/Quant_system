@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from core.mt5_safe import mt5
-from core.ai.decision_gate import DecisionGate
+from infrastructure.brokers.mt5_safe import mt5
+from infrastructure.ai_engines.ai.decision_gate import DecisionGate
 from openai import OpenAI
 
 # ----------------- CONFIGURATION -----------------

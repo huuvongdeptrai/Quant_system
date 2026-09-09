@@ -1,4 +1,4 @@
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 
 class RiskManager:
     def __init__(self, default_risk_pct: float = 1.0):

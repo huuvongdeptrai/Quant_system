@@ -2,7 +2,7 @@
 from PySide6.QtCore import QThread, Signal
 import pandas as pd
 import numpy as np
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 import os
 import sys
 

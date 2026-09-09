@@ -5,7 +5,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QPicture, QPainter
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton,
                                 QWidget, QLabel, QFrame, QScrollArea)
-from core.mt5_safe import mt5
+from infrastructure.brokers.mt5_safe import mt5
 import pandas as pd
 from datetime import datetime
 import json
@@ -86,8 +86,8 @@ class AIAnalyzerThread(QtCore.QThread):
 
     def run(self):
         try:
-            from core.ai.analysis_engine import AnalysisEngine
-            from core.ai.decision_gate import DecisionGate
+            from infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
+            from infrastructure.ai_engines.ai.decision_gate import DecisionGate
             model_name = self.active_id if self.active_id else 'qwen2.5'
             engine = AnalysisEngine(model_name=model_name)
 

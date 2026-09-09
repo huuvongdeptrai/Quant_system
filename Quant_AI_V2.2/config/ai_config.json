@@ -24,8 +24,8 @@
         "default_model": "gemini-1.5-pro"
     },
     "MT5_SERVER": "EGlobalTrade-Demo",
-    "MT5_ACCOUNT": 291779,
-    "MT5_PASSWORD": "YOUR_MT5_PASSWORD",
+    "MT5_ACCOUNT": 294016,
+    "MT5_PASSWORD": "Mq@jPbP2",
     "TELEGRAM_BOT_TOKEN": "YOUR_TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID": "6632729378"
 }

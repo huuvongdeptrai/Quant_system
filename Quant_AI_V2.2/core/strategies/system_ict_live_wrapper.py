@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from loguru import logger
 from core.ict_strategy import ICTZonesProStrategy
 
 def generate_signals(df):
@@ -23,12 +24,12 @@ def generate_signals(df):
     tps = np.zeros(len(df))
     
     # --- TỐI ƯU HÓA SIÊU TỐC ---
-    print("Đang tiền xử lý toàn bộ Ma trận Chỉ báo (ATR, Z-Score, Volume)...")
+    logger.info("Đang tiền xử lý toàn bộ Ma trận Chỉ báo (ATR, Z-Score, Volume)...")
     df_calc = engine._calculate_indicators(df)
     engine._calculate_indicators = lambda x: x
     
     start_idx = 110
-    print(f"Bắt đầu giả lập Live Trading cho {len(df) - start_idx} nến. Vui lòng đợi...")
+    logger.info(f"Bắt đầu giả lập Live Trading cho {len(df) - start_idx} nến. Vui lòng đợi...")
     
     for i in range(start_idx, len(df)):
         current_window = df_calc.iloc[:i]
@@ -45,11 +46,11 @@ def generate_signals(df):
             tps[i] = res.get('tp1', 0)
             
         if i % 500 == 0:
-            print(f"Đã xử lý {i}/{len(df)} nến...")
+            logger.info(f"Đã xử lý {i}/{len(df)} nến...")
             
     df['signal'] = signals
     df['sl'] = sls
     df['tp'] = tps
     
-    print("Hoàn tất Backtest toàn bộ Logic!")
+    logger.info("Hoàn tất Backtest toàn bộ Logic!")
     return df

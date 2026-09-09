@@ -1,5 +1,5 @@
-from core.mt5_safe import mt5
-from core.macro.macro_regime import MacroRegimeEngine
+from infrastructure.brokers.mt5_safe import mt5
+from infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
 from loguru import logger
 
 # Nguong xac dinh "gia o gan S/R" (20% bien do)

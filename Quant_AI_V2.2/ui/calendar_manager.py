@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (QHeaderView, QWidget, QHBoxLayout,
                                 QLabel, QAbstractItemView, QTableWidgetItem)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from core.macro.calendar_engine import CalendarEngine
+from infrastructure.data_providers.macro.calendar_engine import CalendarEngine
 
 # Windows Qt khong render Unicode flag emoji -> dung badge text mau
 COUNTRY_COLORS = {
