@@ -22,3 +22,17 @@ env/
 # (Tùy chọn) Bỏ qua file Word/Excel nếu chỉ muốn lưu code
 # *.docx
 # *.xlsx
+
+# ========================================================
+# BẢO MẬT: Khóa các file cấu hình chứa Mật khẩu MT5, API Keys
+# ========================================================
+config/ai_config.json
+config/config.json
+config/*.local.json
+*.pem
+*.key
+*.pfx
+
+# SQLite database files
+*.db
+*.sqlite3

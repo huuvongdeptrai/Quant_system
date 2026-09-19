@@ -1,24 +1,34 @@
+from datetime import datetime
+import re
 import os
 import csv
-from PySide6.QtWidgets import QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox
+from PySide6.QtWidgets import (
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QMessageBox,
+)
 from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from core.event_bus import event_bus
 
+
 class LogManager:
     def __init__(self, window):
         self.window = window
-        self.tb = self.window.tableLogs if hasattr(self.window, 'tableLogs') else None
+        self.tb = self.window.tableLogs if hasattr(self.window, "tableLogs") else None
+        if self.tb:
+            self.tb.setProperty("class", "log_table")
         if self.tb:
             self.setup_ui()
             event_bus.log_event.connect(self.on_log_event)
-            
+
             # Đọc tên nút từ UI (thường là btnClearLogs, btnExportLogs)
-            if hasattr(self.window, 'btnClearLogs'):
+            if hasattr(self.window, "btnClearLogs"):
                 self.window.btnClearLogs.clicked.connect(self.clear_logs)
-            if hasattr(self.window, 'btnExportLogs'):
+            if hasattr(self.window, "btnExportLogs"):
                 self.window.btnExportLogs.clicked.connect(self.export_logs)
-            if hasattr(self.window, 'searchLog'):
+            if hasattr(self.window, "searchLog"):
                 self.window.searchLog.textChanged.connect(self.filter_logs)
 
     def setup_ui(self):
@@ -33,26 +43,37 @@ class LogManager:
         self.tb.setShowGrid(False)
 
     def on_log_event(self, time_str, level, msg, color_hex):
-        if not self.tb: return
+        if not self.tb:
+            return
+        # Fallback: nếu time_str không phải timestamp hợp lệ, tự tạo
+        if not re.match(r"\d{2}:\d{2}", time_str):
+            time_str = datetime.now().strftime("%H:%M:%S")
         row = self.tb.rowCount()
         self.tb.insertRow(row)
-        
+
         i_time = QTableWidgetItem(time_str)
         i_level = QTableWidgetItem(level)
         i_msg = QTableWidgetItem(msg)
-        
+
         i_time.setForeground(QColor("#8B949E"))
         i_level.setForeground(QColor(color_hex))
         i_msg.setForeground(QColor("#E5E7EB"))
-        
+
         self.tb.setItem(row, 0, i_time)
         self.tb.setItem(row, 1, i_level)
         self.tb.setItem(row, 2, i_msg)
-        self.tb.scrollToBottom()
-        self.filter_logs() # Cập nhật hiển thị ngay lập tức
+
+        auto_scroll = True
+        if hasattr(self.window, "checkAutoScroll"):
+            auto_scroll = self.window.checkAutoScroll.isChecked()
+        if auto_scroll:
+            self.tb.scrollToBottom()
+
+        self.filter_logs()
 
     def filter_logs(self):
-        if not self.tb or not hasattr(self.window, 'searchLog'): return
+        if not self.tb or not hasattr(self.window, "searchLog"):
+            return
         query = self.window.searchLog.text().lower()
         for i in range(self.tb.rowCount()):
             match = False
@@ -66,12 +87,15 @@ class LogManager:
     def clear_logs(self):
         if self.tb:
             self.tb.setRowCount(0)
-            
+
     def export_logs(self):
-        if not self.tb: return
-        export_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "exported_logs.csv")
+        if not self.tb:
+            return
+        export_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "data", "exported_logs.csv"
+        )
         try:
-            with open(export_path, 'w', newline='', encoding='utf-8') as f:
+            with open(export_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(["Time", "Level", "Message"])
                 for row in range(self.tb.rowCount()):
@@ -79,6 +103,8 @@ class LogManager:
                     l = self.tb.item(row, 1).text() if self.tb.item(row, 1) else ""
                     m = self.tb.item(row, 2).text() if self.tb.item(row, 2) else ""
                     writer.writerow([t, l, m])
-            QMessageBox.information(self.window, "Thành công", f"Đã xuất log ra:\n{export_path}")
+            QMessageBox.information(
+                self.window, "Thành công", f"Đã xuất log ra:\n{export_path}"
+            )
         except Exception as e:
             QMessageBox.critical(self.window, "Lỗi", f"Không thể xuất file: {e}")

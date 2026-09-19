@@ -1,0 +1,495 @@
+
+
+/* ========================================================
+
+   BASE FONT FIX
+
+   Use point-based sizing (10pt) instead of pixel-based (13px)
+
+   to prevent QFont::setPointSize <= 0 (-1) warnings in
+
+   Qt composite widgets (QCalendarWidget, QDateEdit, etc.)
+
+   ======================================================== */
+
+QWidget {
+
+    font-size: 10pt;
+
+    font-family: 'Segoe UI', sans-serif;
+
+}
+
+
+
+QCalendarWidget QWidget {
+
+    font-size: 9pt;
+
+}
+
+
+
+/* ========================================================
+
+   GLOBAL THEME: GITHUB DARK FINTECH
+
+   ======================================================== */
+
+QMainWindow, QWidget#centralwidget, QTabWidget::pane {
+
+    background-color: #0D1117;
+
+}
+
+
+
+QTabWidget::pane {
+
+    border: 1px solid #30363D;
+
+    border-radius: 6px;
+
+    top: -1px;
+
+}
+
+
+
+QTabBar::tab {
+
+    background-color: #0D1117;
+
+    color: #8B949E;
+
+    padding: 10px 20px;
+
+    border: none;
+
+    border-bottom: 2px solid transparent;
+
+    font-weight: bold;
+
+    font-size: 13px;
+
+}
+
+QTabBar::tab:selected {
+
+    color: #C9D1D9;
+
+    border-bottom: 2px solid #58A6FF;
+
+}
+
+QTabBar::tab:hover {
+
+    color: #C9D1D9;
+
+}
+
+
+
+/* ========================================================
+
+   GROUP BOXES (CARDS)
+
+   ======================================================== */
+
+QGroupBox {
+
+    background-color: #161B22;
+
+    border: 1px solid #30363D;
+
+    border-radius: 8px;
+
+    margin-top: 24px;
+
+    font-size: 12px;
+
+    font-weight: bold;
+
+    color: #58A6FF;
+
+}
+
+QGroupBox::title {
+
+    subcontrol-origin: margin;
+
+    subcontrol-position: top left;
+
+    left: 12px;
+
+    padding: 0 4px;
+
+    color: #58A6FF;
+
+    text-transform: uppercase;
+
+}
+
+
+
+/* ========================================================
+
+   INPUTS & CONTROLS
+
+   ======================================================== */
+
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {
+
+    background-color: #0D1117;
+
+    border: 1px solid #30363D;
+
+    border-radius: 4px;
+
+    padding: 6px 12px;
+
+    color: #C9D1D9;
+
+    font-family: 'Consolas', 'Segoe UI';
+
+    font-size: 13px;
+
+    min-height: 24px;
+
+}
+
+QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QLineEdit:hover {
+
+    border: 1px solid #8B949E;
+
+}
+
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {
+
+    border: 1px solid #58A6FF;
+
+    background-color: #0D1117;
+
+}
+
+QComboBox::drop-down { border: none; width: 20px; }
+
+QComboBox QAbstractItemView {
+
+    background-color: #161B22;
+
+    border: 1px solid #30363D;
+
+    color: #C9D1D9;
+
+    selection-background-color: #1F6FEB;
+
+    selection-color: white;
+
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+
+    width: 16px;
+
+    background-color: transparent;
+
+}
+
+
+
+/* Standard Checkboxes (Nút tích kiểm) */
+QCheckBox {
+    color: #C9D1D9;
+    font-weight: bold;
+    spacing: 8px;
+    min-height: 24px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid #444C56;
+    background-color: #161B22;
+    image: none;
+}
+QCheckBox::indicator:hover {
+    border-color: #58A6FF;
+}
+QCheckBox::indicator:checked {
+    background-color: #1F6FEB;
+    border: 1px solid #1F6FEB;
+    image: url(ui/assets/check_icon.svg);
+}
+QCheckBox::indicator:disabled {
+    background-color: #21262D;
+    border: 1px solid #30363D;
+    image: none;
+}
+
+/* Feature Toggle Switches (Nút gạt Bật/Tắt) */
+QCheckBox[class="switch"] { min-height: 30px; }
+QCheckBox[class="switch"]::indicator {
+    width: 40px; height: 20px; border: none; background: transparent;
+}
+QCheckBox[class="switch"]::indicator:unchecked { image: url(ui/assets/switch_off.svg); }
+QCheckBox[class="switch"]::indicator:unchecked:hover { image: url(ui/assets/switch_off_hover.svg); }
+QCheckBox[class="switch"]::indicator:checked { image: url(ui/assets/switch_on.svg); }
+QCheckBox[class="switch"]::indicator:checked:hover { image: url(ui/assets/switch_on_hover.svg); }
+
+
+
+QPushButton {
+
+    background-color: #21262D;
+
+    color: #C9D1D9;
+
+    border: 1px solid #30363D;
+
+    border-radius: 4px;
+
+    padding: 8px 16px;
+
+    font-weight: bold;
+
+    min-height: 24px;
+
+}
+
+QPushButton:hover { background-color: #30363D; border-color: #8B949E; }
+
+QPushButton:pressed { background-color: #161B22; }
+
+
+
+QLabel { color: #8B949E; font-weight: bold; }
+
+
+
+/* ========================================================
+
+   SCROLLBARS
+
+   ======================================================== */
+
+QScrollBar:vertical { background-color: #0D1117; width: 14px; margin: 0px; }
+
+QScrollBar::handle:vertical { background-color: #30363D; min-height: 30px; border-radius: 7px; margin: 2px; }
+
+QScrollBar::handle:vertical:hover { background-color: #58A6FF; }
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; background: none; }
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
+
+
+
+QScrollBar:horizontal { background-color: #0D1117; height: 14px; margin: 0px; }
+
+QScrollBar::handle:horizontal { background-color: #30363D; min-width: 30px; border-radius: 7px; margin: 2px; }
+
+QScrollBar::handle:horizontal:hover { background-color: #58A6FF; }
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; background: none; }
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none; }
+
+
+
+/* ========================================================
+
+   DATA TABLES & TREES
+
+   ======================================================== */
+
+QHeaderView {
+
+    background-color: #161B22;
+
+    border: none;
+
+}
+
+QHeaderView::section {
+
+    background-color: #161B22;
+
+    color: #8B949E;
+
+    border: none;
+
+    border-bottom: 1px solid #30363D;
+
+    border-right: 1px solid #30363D;
+
+    padding: 6px;
+
+    font-size: 13px;
+
+    font-weight: bold;
+
+}
+
+
+
+QTreeWidget[class="watchlist_tree"] {
+
+    background-color: #0D1117;
+
+    color: #C9D1D9;
+
+    font-size: 11px;
+
+    border: none;
+
+    outline: none;
+
+}
+
+QTreeWidget[class="watchlist_tree"] QHeaderView::section {
+
+    font-size: 11px;
+
+    padding: 4px 2px;
+
+}
+
+
+
+QTableWidget[class="log_table"] {
+
+    background-color: #0D1117;
+
+    border: none;
+
+    color: #C9D1D9;
+
+    outline: none;
+
+}
+
+QTableWidget[class="log_table"]::item {
+
+    border-bottom: 1px solid #21262D;
+
+    padding: 4px;
+
+}
+
+QTableWidget[class="log_table"]::item:hover {
+
+    background-color: #161B22;
+
+}
+
+QTableWidget[class="log_table"]::item:selected {
+
+    background-color: transparent;
+
+    color: #C9D1D9;
+
+}
+
+
+
+QDialog[class="symbol_search_dialog"] {
+
+    background-color: #0D1117;
+
+}
+
+QMenu[class="context_menu"] {
+
+    background: #161B22;
+
+    color: #E5E7EB;
+
+    border: 1px solid #30363D;
+
+}
+
+QMenu[class="context_menu"]::item:selected {
+
+    background: #21262D;
+
+}
+
+
+
+
+
+/* ========================================================
+
+   SIDEBAR ACCOUNT WIDGETS
+
+   ======================================================== */
+
+QPushButton#btnOpenLogin, QPushButton[class="btn_sidebar_gear"] {
+
+    background-color: transparent;
+
+    border: none;
+
+    border-radius: 4px;
+
+    padding: 2px;
+
+    min-height: 22px;
+
+    max-height: 22px;
+
+    min-width: 22px;
+
+    max-width: 22px;
+
+}
+
+QPushButton#btnOpenLogin:hover, QPushButton[class="btn_sidebar_gear"]:hover {
+
+    background-color: #21262D;
+
+}
+
+QPushButton#btnOpenLogin:pressed, QPushButton[class="btn_sidebar_gear"]:pressed {
+
+    background-color: #30363D;
+
+}
+
+
+
+QLabel#valBalance {
+
+    color: #FFFFFF;
+
+    font-size: 14px;
+
+    font-weight: bold;
+
+    font-family: 'Consolas', monospace;
+
+}
+
+QLabel#valEquity {
+
+    font-size: 14px;
+
+    font-weight: bold;
+
+    font-family: 'Consolas', monospace;
+
+}
+
+QLabel#valMargin {
+
+    font-size: 14px;
+
+    font-weight: bold;
+
+    font-family: 'Consolas', monospace;
+
+}
+

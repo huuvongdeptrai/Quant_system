@@ -92,8 +92,8 @@
         <item>
          <widget class="QFrame" name="frameSidebarAccount">
           <property name="styleSheet"><string>QFrame#frameSidebarAccount { background-color: #161B22; border-top: 1px solid #30363D; border-bottom: none; border-left: none; border-right: none; }</string></property>
-          <property name="minimumSize"><size><width>0</width><height>150</height></size></property>
-          <property name="maximumSize"><size><width>16777215</width><height>150</height></size></property>
+          <property name="minimumSize"><size><width>0</width><height>165</height></size></property>
+          <property name="maximumSize"><size><width>16777215</width><height>165</height></size></property>
           <layout class="QVBoxLayout">
            <property name="spacing"><number>5</number></property>
            <property name="leftMargin"><number>15</number></property>
@@ -113,7 +113,7 @@
               <widget class="QPushButton" name="btnOpenLogin">
                <property name="text"><string>+ Add</string></property>
                <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
-               <property name="styleSheet"><string>QPushButton { background: transparent; color: #58A6FF; font-weight: bold; font-size: 11px; border: none; } QPushButton:hover { color: #79C0FF; }</string></property>
+               
               </widget>
              </item>
             </layout>
@@ -132,14 +132,14 @@
                <property name="spacing"><number>6</number></property>
                <item>
                 <layout class="QHBoxLayout">
-                 <item><widget class="QLabel"><property name="text"><string>Số dư</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+                 <item><widget class="QLabel"><property name="text"><string>Số dư</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 11px;</string></property></widget></item>
                  <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
                  <item><widget class="QLabel" name="valBalance"><property name="text"><string>$ 0.00</string></property><property name="styleSheet"><string>color: #E5E7EB; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
                 </layout>
                </item>
                <item>
                 <layout class="QHBoxLayout">
-                 <item><widget class="QLabel"><property name="text"><string>Vốn</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+                 <item><widget class="QLabel"><property name="text"><string>Vốn</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 11px;</string></property></widget></item>
                  <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
                  <item><widget class="QLabel" name="valEquity"><property name="text"><string>$ 0.00</string></property><property name="styleSheet"><string>color: #3FB950; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
                 </layout>
@@ -156,7 +156,7 @@
                <property name="topMargin"><number>8</number></property>
                <property name="rightMargin"><number>10</number></property>
                <property name="bottomMargin"><number>8</number></property>
-               <item><widget class="QLabel"><property name="text"><string>Ký quỹ</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 10px; letter-spacing: 1px;</string></property></widget></item>
+               <item><widget class="QLabel"><property name="text"><string>Ký quỹ</string></property><property name="styleSheet"><string>color: #8B949E; font-size: 11px;</string></property></widget></item>
                <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
                <item><widget class="QLabel" name="valMarginLevel"><property name="text"><string>0.00%</string></property><property name="styleSheet"><string>color: #FF9800; font-size: 15px; font-weight: bold; font-family: "Consolas";</string></property></widget></item>
               </layout>
@@ -210,10 +210,12 @@
                    <item row="1" column="2"><widget class="QComboBox" name="comboBias" /></item>
                    <item row="2" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Chiến lược Giao dịch:</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
                    <item row="3" column="0" colspan="3"><widget class="QComboBox" name="comboStrategy" /></item>
-                   <item row="4" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Phiên giao dịch cho phép:</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
-                   <item row="5" column="0"><widget class="QCheckBox"><property name="text"><string>Phiên Á</string></property></widget></item>
-                   <item row="5" column="1"><widget class="QCheckBox"><property name="text"><string>Phiên Âu</string></property><property name="checked"><bool>true</bool></property></widget></item>
-                   <item row="5" column="2"><widget class="QCheckBox"><property name="text"><string>Phiên Mỹ</string></property><property name="checked"><bool>true</bool></property></widget></item>
+                   <item row="4" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Chế độ Bộ lọc (Gate Mode):</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="5" column="0" colspan="3"><widget class="QComboBox" name="comboGateMode" /></item>
+                   <item row="6" column="0" colspan="3"><widget class="QLabel"><property name="text"><string>Phiên giao dịch cho phép:</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
+                   <item row="7" column="0"><widget class="QCheckBox" name="chkSessionAsian"><property name="text"><string>Phiên Á</string></property></widget></item>
+                   <item row="7" column="1"><widget class="QCheckBox" name="chkSessionLondon"><property name="text"><string>Phiên Âu</string></property><property name="checked"><bool>true</bool></property></widget></item>
+                   <item row="7" column="2"><widget class="QCheckBox" name="chkSessionNY"><property name="text"><string>Phiên Mỹ</string></property><property name="checked"><bool>true</bool></property></widget></item>
                   </layout>
                  </widget>
                 </item>
@@ -227,13 +229,13 @@
                    <item row="0" column="0"><widget class="QLabel"><property name="text"><string>Rủi ro tối đa / Lệnh (%)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
                    <item row="0" column="1"><widget class="QLabel"><property name="text"><string>Max Drawdown Ngày (%)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
                    <item row="0" column="2"><widget class="QLabel"><property name="text"><string>Chuỗi thua tối đa</string></property><property name="class"><string>settingLabel</string></property></widget></item>
-                   <item row="1" column="0"><widget class="QDoubleSpinBox"><property name="value"><double>1.0</double></property></widget></item>
-                   <item row="1" column="1"><widget class="QDoubleSpinBox"><property name="value"><double>5.0</double></property></widget></item>
-                   <item row="1" column="2"><widget class="QSpinBox"><property name="value"><number>3</number></property></widget></item>
+                   <item row="1" column="0"><widget class="QDoubleSpinBox" name="spinRiskPerTrade"><property name="value"><double>1.0</double></property></widget></item>
+                   <item row="1" column="1"><widget class="QDoubleSpinBox" name="spinMaxDrawdown"><property name="value"><double>5.0</double></property></widget></item>
+                   <item row="1" column="2"><widget class="QSpinBox" name="spinMaxLosingStreak"><property name="value"><number>3</number></property></widget></item>
                    <item row="2" column="0"><widget class="QLabel"><property name="text"><string>Dời SL Trailing (Pips)</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
                    <item row="2" column="1"><widget class="QLabel"><property name="text"><string>Bảo toàn vốn Breakeven (Pips)</string></property><property name="class"><string>settingLabel</string></property><property name="styleSheet"><string>margin-top: 15px;</string></property></widget></item>
-                   <item row="3" column="0"><widget class="QSpinBox"><property name="value"><number>15</number></property></widget></item>
-                   <item row="3" column="1"><widget class="QSpinBox"><property name="value"><number>10</number></property></widget></item>
+                   <item row="3" column="0"><widget class="QSpinBox" name="spinTrailingPips"><property name="value"><number>15</number></property></widget></item>
+                   <item row="3" column="1"><widget class="QSpinBox" name="spinBreakevenPips"><property name="value"><number>10</number></property></widget></item>
                   </layout>
                  </widget>
                 </item>
@@ -244,12 +246,12 @@
                   <layout class="QGridLayout">
                    <property name="horizontalSpacing"><number>40</number></property><property name="verticalSpacing"><number>15</number></property>
                    <property name="leftMargin"><number>25</number></property><property name="topMargin"><number>10</number></property><property name="rightMargin"><number>25</number></property><property name="bottomMargin"><number>25</number></property>
-                   <item row="0" column="0" colspan="3"><widget class="QCheckBox"><property name="text"><string>Tránh Tin Tức (News Filter)</string></property><property name="checked"><bool>true</bool></property><property name="styleSheet"><string>color: #58A6FF; margin-bottom: 10px;</string></property></widget></item>
+                   <item row="0" column="0" colspan="3"><widget class="QCheckBox" name="chkNewsFilter"><property name="text"><string>Tránh Tin Tức (News Filter)</string></property><property name="checked"><bool>true</bool></property><property name="styleSheet"><string>color: #58A6FF; margin-bottom: 10px;</string></property></widget></item>
                    <item row="1" column="0"><widget class="QLabel"><property name="text"><string>Ngừng trade trước tin (phút)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
                    <item row="1" column="1"><widget class="QLabel"><property name="text"><string>Trượt giá tối đa Slippage (points)</string></property><property name="class"><string>settingLabel</string></property></widget></item>
                    <item row="1" column="2"><widget class="QLabel"><property name="text"><string /></property></widget></item>
-                   <item row="2" column="0"><widget class="QSpinBox"><property name="value"><number>30</number></property></widget></item>
-                   <item row="2" column="1"><widget class="QSpinBox"><property name="value"><number>20</number></property></widget></item>
+                   <item row="2" column="0"><widget class="QSpinBox" name="spinNewsPause"><property name="value"><number>30</number></property></widget></item>
+                   <item row="2" column="1"><widget class="QSpinBox" name="spinSlippage"><property name="value"><number>20</number></property></widget></item>
                   </layout>
                  </widget>
                 </item>

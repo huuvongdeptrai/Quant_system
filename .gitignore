@@ -25,3 +25,9 @@ env/
 
 Quant_AI_V2.2/docs/
 Quant_AI_V2.2/*.docx
+
+*.zip
+.vscode/
+Quant_AI_V2.2/config/ai_config.json
+
+GEMINI.md
