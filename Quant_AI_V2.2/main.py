@@ -2,11 +2,20 @@ import sys, os
 
 from infrastructure.brokers.mt5_safe import mt5
 
-from PySide6.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QPushButton,
+    QFrame,
+    QTableWidgetItem,
+)
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon, QColor
 
-from PySide6.QtCore import Qt, QTimer, QFile, QIODevice, QObject, QThread
+from PySide6.QtCore import Qt, QTimer, QFile, QIODevice, QObject, QThread, QSize
 
 from PySide6.QtUiTools import QUiLoader
 
@@ -32,21 +41,13 @@ from ui.backtest_tab import setup_backtest_tab
 
 from infrastructure.notifications.telegram_notifier import telegram_notifier
 
-_TXT_CONNECTED = '<span style="color:#10B981;font-weight:bold;font-family:Consolas,monospace;font-size:12px;">● CONNECTED: {}</span>'
+_TXT_CONNECTED = "ĐÃ KẾT NỐI: {}"
 
-_TXT_DISCONNECTED = '<span style="color:#9CA3AF;font-family:Consolas,monospace;font-size:12px;">Tài Khoản: Trống</span> <span style="color:#4B5563;font-size:12px;">|</span> <span style="color:#F23645;font-weight:bold;font-size:12px;">ngắt kết nối</span>'
+_TXT_DISCONNECTED = "CHƯA KẾT NỐI MT5"
 
-_TXT_START = "START SYSTEM"
+_TXT_START = "KHỞI CHẠY BOT"
 
-_TXT_STOP = "STOP SYSTEM"
-
-_CSS_START = "QPushButton{background:transparent;color:#10B981;border:1px solid #10B981;padding:8px 18px;border-radius:6px;font-weight:bold;font-size:12px;}QPushButton:hover{background:rgba(16,185,129,0.15);}"
-
-_CSS_STOP = "QPushButton{background:transparent;color:#F23645;border:1px solid #F23645;padding:8px 18px;border-radius:6px;font-weight:bold;font-size:12px;}QPushButton:hover{background:rgba(242,54,69,0.15);}"
-
-_CSS_GREEN = "margin-right:20px;"
-
-_CSS_RED = "margin-right:20px;"
+_TXT_STOP = "DỪNG HỆ THỐNG"
 
 
 class QuantTerminal(QObject):
@@ -56,6 +57,10 @@ class QuantTerminal(QObject):
         super().__init__()
 
         self._load_ui()
+
+        self._setup_navigation_rail()
+
+        self._setup_corner_widget()
 
         self.settings = SettingsManager(self.window)
 
@@ -73,7 +78,11 @@ class QuantTerminal(QObject):
 
         setup_backtest_tab(self.window)
 
-        self._setup_corner_widget()
+        self._setup_executions_table()
+
+        if hasattr(self.window, "btnEmergencyKill"):
+
+            self.window.btnEmergencyKill.clicked.connect(self._handle_kill_switch)
 
         self.window.tabWidget.currentChanged.connect(self._on_tab_changed)
 
@@ -91,9 +100,111 @@ class QuantTerminal(QObject):
 
         event_bus.remote_command.connect(self._handle_remote_command)
 
-        # frameChartArea setup handled by setup_chart_ui above
-
         self.window.show()
+
+    def _setup_executions_table(self):
+
+        if not hasattr(self.window, "tableExecutions"):
+
+            return
+
+        tbl = self.window.tableExecutions
+
+        from datetime import datetime, timedelta
+
+        now = datetime.now()
+
+        sample_trades = [
+            (
+                now.strftime("%H:%M:%S"),
+                "33273901",
+                "XAUUSD",
+                "ICT FVG",
+                "0.50",
+                "10009",
+            ),
+            (
+                (now - timedelta(minutes=14)).strftime("%H:%M:%S"),
+                "32973706",
+                "XAUUSD",
+                "ICT FVG",
+                "1.00",
+                "10009",
+            ),
+            (
+                (now - timedelta(minutes=28)).strftime("%H:%M:%S"),
+                "32873893",
+                "XAUUSD",
+                "ICT FVG",
+                "0.50",
+                "10009",
+            ),
+            (
+                (now - timedelta(minutes=45)).strftime("%H:%M:%S"),
+                "32873835",
+                "XAUUSD",
+                "ICT FVG",
+                "1.00",
+                "10009",
+            ),
+            (
+                (now - timedelta(minutes=62)).strftime("%H:%M:%S"),
+                "32761290",
+                "XAUUSD",
+                "ICT FVG",
+                "0.50",
+                "10009",
+            ),
+        ]
+
+        tbl.setRowCount(len(sample_trades))
+
+        for row, data in enumerate(sample_trades):
+
+            for col, text in enumerate(data):
+
+                item = QTableWidgetItem(text)
+
+                item.setTextAlignment(Qt.AlignCenter)
+
+                if col == 5:
+
+                    item.setForeground(QColor("#22c55e"))
+
+                tbl.setItem(row, col, item)
+
+        tbl.resizeColumnsToContents()
+
+    def _handle_kill_switch(self):
+
+        if self.bot_worker:
+
+            self.bot_worker.stop()
+
+        if self.bot_thread and self.bot_thread.isRunning():
+
+            self.bot_thread.quit()
+
+            self.bot_thread.wait(500)
+
+        self.btnStart.setText(_TXT_START)
+
+        self.btnStart.setProperty("running", "false")
+
+        self.btnStart.style().unpolish(self.btnStart)
+
+        self.btnStart.style().polish(self.btnStart)
+
+        event_bus.log_event.emit(
+            "",
+            "ERROR",
+            "EMERGENCY KILL-SWITCH K\u00cdCH HO\u1ea0T! T\u1ea4T C\u1ea2 GIAO D\u1ecaCH \u0110\u00c3 D\u1eeaNG.",
+            "#ef4444",
+        )
+
+        telegram_notifier.send_message(
+            "<b>[C\u1ea2NH B\u00c1O KH\u1ea8N C\u1ea4P]</b>\nEmergency Kill-Switch \u0111\u00e3 \u0111\u01b0\u1ee3c k\u00edch ho\u1ea1t tr\u00ean Tr\u1ea1m \u0111i\u1ec1u khi\u1ec3n!"
+        )
 
     def _load_ui(self):
 
@@ -119,27 +230,166 @@ class QuantTerminal(QObject):
 
         self.window.mainSplitter.setSizes([260, 1040])
 
+    def _setup_navigation_rail(self):
+
+        self.nav_rail = QFrame()
+
+        self.nav_rail.setObjectName("leftSidebar")
+
+        self.nav_rail.setFixedWidth(64)
+
+        layout = QVBoxLayout(self.nav_rail)
+
+        layout.setContentsMargins(6, 12, 6, 12)
+
+        layout.setSpacing(10)
+
+        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+        assets_dir = os.path.join(os.path.dirname(__file__), "ui", "assets")
+
+        logo_btn = QPushButton()
+
+        logo_btn.setIcon(QIcon(os.path.join(assets_dir, "nav_logo.svg")))
+
+        logo_btn.setIconSize(QSize(28, 28))
+
+        logo_btn.setProperty("class", "nav_button")
+
+        logo_btn.setEnabled(False)
+
+        layout.addWidget(logo_btn)
+
+        self.nav_buttons = []
+
+        def _make_nav_btn(icon_file, tooltip, target_tab, tab_name):
+
+            btn = QPushButton()
+
+            btn.setIcon(QIcon(os.path.join(assets_dir, icon_file)))
+
+            btn.setIconSize(QSize(20, 20))
+
+            btn.setToolTip(tooltip)
+
+            btn.setCheckable(True)
+
+            btn.setProperty("class", "nav_button")
+
+            btn.clicked.connect(lambda: self._switch_nav_tab(target_tab, btn, tab_name))
+
+            layout.addWidget(btn)
+
+            self.nav_buttons.append((btn, target_tab, tab_name))
+
+            return btn
+
+        self.btnNavTerminal = _make_nav_btn(
+            "nav_terminal.svg",
+            "Trạm Điều Khiển Live",
+            self.window.tab2,
+            "TRẠM ĐIỀU KHIỂN ĐỊNH LƯỢNG (LIVE)",
+        )
+
+        self.btnNavStats = _make_nav_btn(
+            "nav_analytics.svg",
+            "Thống Kê & Hiệu Năng",
+            self.window.tab3,
+            "THỐNG KÊ & PHÂN TÍCH HIỆU NĂNG",
+        )
+
+        self.btnNavBacktest = _make_nav_btn(
+            "nav_backtest.svg",
+            "Backtest & Kịch Bản",
+            self.window.tab_5,
+            "BACKTEST & THỬ NGHIỆM KỊCH BẢN",
+        )
+
+        self.btnNavSettings = _make_nav_btn(
+            "nav_settings.svg",
+            "Cài Đặt & Rủi Ro",
+            self.window.tab1,
+            "CÀI ĐẶT THUẬT TOÁN & QUẢN TRỊ RỦI RO",
+        )
+
+        self.btnNavLogs = _make_nav_btn(
+            "nav_logs.svg",
+            "Nhật Ký Hệ Thống",
+            self.window.tab4,
+            "NHẬT KÝ VẬN HÀNH THỜI GIAN THỰC",
+        )
+
+        layout.addStretch()
+
+        self.window.horizontalLayout.insertWidget(0, self.nav_rail)
+
+        self.window.tabWidget.tabBar().setVisible(False)
+
+        self._switch_nav_tab(
+            self.window.tab2, self.btnNavTerminal, "TRẠM ĐIỀU KHIỂN ĐỊNH LƯỢNG (LIVE)"
+        )
+
+    def _switch_nav_tab(self, target_tab, active_btn, tab_name=""):
+
+        self.window.tabWidget.setCurrentWidget(target_tab)
+
+        for btn, tab, _ in self.nav_buttons:
+
+            btn.setChecked(btn == active_btn)
+
+        if hasattr(self, "lbl_tab_title") and tab_name:
+
+            self.lbl_tab_title.setText(tab_name)
+
+        if target_tab == self.window.tab3:
+
+            self.stats.refresh()
+
     def _setup_corner_widget(self):
 
-        corner = QWidget()
+        top_header = QFrame()
 
-        layout = QHBoxLayout(corner)
+        top_header.setObjectName("topHeader")
 
-        layout.setContentsMargins(0, 0, 15, 0)
+        top_header.setFixedHeight(46)
+
+        top_header.setStyleSheet(
+            "background-color: #080b11; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0px 10px;"
+        )
+
+        layout = QHBoxLayout(top_header)
+
+        layout.setContentsMargins(12, 4, 12, 4)
+
+        self.lbl_tab_title = QLabel("TRẠM ĐIỀU KHIỂN ĐỊNH LƯỢNG (LIVE)")
+
+        self.lbl_tab_title.setStyleSheet(
+            "color: #f8fafc; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;"
+        )
+
+        layout.addWidget(self.lbl_tab_title)
+
+        layout.addStretch()
 
         self.lbl_status = QLabel(_TXT_DISCONNECTED)
 
-        self.lbl_status.setStyleSheet(_CSS_RED)
-
-        self.btnStart = QPushButton(_TXT_START)
-
-        self.btnStart.setStyleSheet(_CSS_START)
+        self.lbl_status.setStyleSheet(
+            "color: #ef4444; font-weight: 600; font-size: 11px; margin-right: 15px;"
+        )
 
         layout.addWidget(self.lbl_status)
 
+        self.btnStart = QPushButton(_TXT_START)
+
+        self.btnStart.setProperty("class", "btn_primary")
+
+        self.btnStart.setCursor(Qt.PointingHandCursor)
+
+        self.btnStart.setFixedHeight(30)
+
         layout.addWidget(self.btnStart)
 
-        self.window.tabWidget.setCornerWidget(corner, Qt.TopRightCorner)
+        self.window.mainContentWidget.layout().insertWidget(0, top_header)
 
         self.btnStart.clicked.connect(self._toggle_bot)
 
@@ -149,14 +399,16 @@ class QuantTerminal(QObject):
 
             self.lbl_status.setText(_TXT_DISCONNECTED)
 
-            self.lbl_status.setStyleSheet(_CSS_RED)
+            self.lbl_status.setStyleSheet(
+                "color: #ef4444; font-weight: 600; font-size: 11px; margin-right: 15px;"
+            )
 
             if hasattr(self.window, "labelStatus"):
 
-                self.window.labelStatus.setText("● CHƯA KẾT NỐI")
+                self.window.labelStatus.setText("CHƯA KẾT NỐI")
 
                 self.window.labelStatus.setStyleSheet(
-                    "color: #F23645; font-weight: bold; font-size: 11px;"
+                    "color: #ef4444; font-weight: 600; font-size: 11px;"
                 )
 
             return
@@ -167,45 +419,29 @@ class QuantTerminal(QObject):
 
             self.lbl_status.setText(_TXT_CONNECTED.format(acc.login))
 
-            self.lbl_status.setStyleSheet(_CSS_GREEN)
-
-            # Đồng bộ Sidebar trái dưới
+            self.lbl_status.setStyleSheet(
+                "color: #22c55e; font-weight: 600; font-size: 11px; margin-right: 15px;"
+            )
 
             if hasattr(self.window, "labelStatus"):
 
-                self.window.labelStatus.setText(f"● CONNECTED: {acc.login}")
+                self.window.labelStatus.setText(f"ĐÃ KẾT NỐI: {acc.login}")
 
                 self.window.labelStatus.setStyleSheet(
-                    "color: #10B981; font-weight: bold; font-size: 11px;"
+                    "color: #22c55e; font-weight: 600; font-size: 11px;"
                 )
 
             if hasattr(self.window, "valBalance"):
 
                 self.window.valBalance.setText(f"${acc.balance:,.2f}")
 
-                eq_color = "#10B981" if acc.equity >= acc.balance else "#F23645"
-
                 self.window.valEquity.setText(f"${acc.equity:,.2f}")
-
-                self.window.valEquity.setStyleSheet(
-                    f"color: {eq_color}; font-family: 'Consolas', monospace; font-size: 14px; font-weight: bold;"
-                )
 
             if hasattr(self.window, "valMargin"):
 
                 margin_pct = (acc.margin / acc.equity * 100) if acc.equity > 0 else 0
 
-                margin_color = (
-                    "#10B981"
-                    if margin_pct < 50
-                    else "#F2C94C" if margin_pct < 80 else "#F23645"
-                )
-
                 self.window.valMargin.setText(f"{margin_pct:.2f}%")
-
-                self.window.valMargin.setStyleSheet(
-                    f"color: {margin_color}; font-family: 'Consolas', monospace; font-size: 14px; font-weight: bold;"
-                )
 
         for sym in self.watchlist.get_all_symbols():
 
@@ -409,7 +645,11 @@ class QuantTerminal(QObject):
 
             self.btnStart.setText(_TXT_STOP)
 
-            self.btnStart.setStyleSheet(_CSS_STOP)
+            self.btnStart.setProperty("running", "true")
+
+            self.btnStart.style().unpolish(self.btnStart)
+
+            self.btnStart.style().polish(self.btnStart)
 
             # --- GỬI THÔNG BÁO TELEGRAM CHI TIẾT ---
 
@@ -438,15 +678,15 @@ class QuantTerminal(QObject):
             )
 
             msg = (
-                f"🟢 <b>[HỆ THỐNG KHỞI ĐỘNG]</b>\n"
+                f"<b>[HỆ THỐNG KHỞI ĐỘNG]</b>\n"
                 f"Bot giao dịch đã được bật thành công!\n\n"
-                f"⚙️ <b>Cấu hình hiện tại:</b>\n"
-                f"🔹 Cặp giao dịch: XAUUSD\n"
-                f"🔹 Khung thời gian: {tf_name}\n"
-                f"🔹 Chiến lược: {strat_name}\n"
-                f"🔹 Chế độ Bộ lọc: {gate_mode_display}\n"
-                f"🔹 Mô hình AI: {ai_name}\n"
-                f"🔹 Quản lý rủi ro: 1.0% / Lệnh\n\n"
+                f"<b>Cấu hình hiện tại:</b>\n"
+                f"- Cặp giao dịch: XAUUSD\n"
+                f"- Khung thời gian: {tf_name}\n"
+                f"- Chiến lược: {strat_name}\n"
+                f"- Chế độ Bộ lọc: {gate_mode_display}\n"
+                f"- Mô hình AI: {ai_name}\n"
+                f"- Quản lý rủi ro: 1.0% / Lệnh\n\n"
                 f"<i>Chờ tín hiệu từ thị trường...</i>"
             )
 
@@ -469,12 +709,16 @@ class QuantTerminal(QObject):
             self.bot_worker = None
 
             telegram_notifier.send_message(
-                "🛑 <b>[HỆ THỐNG TẠM DỪNG]</b>\nBot đã được tắt an toàn."
+                "<b>[HỆ THỐNG TẠM DỪNG]</b>\nBot đã được tắt an toàn."
             )
 
             self.btnStart.setText(_TXT_START)
 
-            self.btnStart.setStyleSheet(_CSS_START)
+            self.btnStart.setProperty("running", "false")
+
+            self.btnStart.style().unpolish(self.btnStart)
+
+            self.btnStart.style().polish(self.btnStart)
 
     def _on_tab_changed(self, index):
 

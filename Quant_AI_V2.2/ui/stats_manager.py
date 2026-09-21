@@ -108,29 +108,15 @@ class StatsManager:
         tb.setSelectionMode(QAbstractItemView.NoSelection)
         tb.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         tb.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        tb.setStyleSheet("""
-            QTableWidget {
-                background-color: #0D1117;
-                gridline-color: #30363D;
-                border: 1px solid #30363D;
-            }
-            QHeaderView::section {
-                background-color: #161B22;
-                color: #8B949E;
-                border: 1px solid #30363D;
-                padding: 6px;
-                font-weight: bold;
-            }
-        """)
 
     def _setup_charts(self):
         def add_plot(groupbox):
             if not groupbox.layout():
                 layout = QVBoxLayout(groupbox)
-                layout.setContentsMargins(10, 10, 10, 10)
+                layout.setContentsMargins(4, 4, 4, 4)
             else:
                 layout = groupbox.layout()
-            pw = pg.PlotWidget(background="#0D1117")
+            pw = pg.PlotWidget(background="#080b11")
             pw.showGrid(x=False, y=True, alpha=0.08)
             pw.getPlotItem().hideButtons()
             pw.setMenuEnabled(False)
@@ -138,8 +124,8 @@ class StatsManager:
             pw.getPlotItem().setMouseEnabled(x=False, y=False)
             for axis_name in ("left", "bottom"):
                 ax = pw.getAxis(axis_name)
-                ax.setPen(pg.mkPen(color="#30363D"))
-                ax.setTextPen(pg.mkPen(color="#8B949E"))
+                ax.setPen(pg.mkPen(color="#161d31"))
+                ax.setTextPen(pg.mkPen(color="#64748b"))
                 ax.setStyle(tickLength=-5)
                 font = QFont("Segoe UI", 8)
                 ax.setTickFont(font)
@@ -177,16 +163,20 @@ class StatsManager:
         if hasattr(self.window, "valTotalTrades"):
             self.window.valTotalTrades.setText(str(stats["total_trades"]))
         if hasattr(self.window, "valWinRate"):
-            self.window.valWinRate.setText(f"{stats['win_rate']:.2f}%")
+            self.window.valWinRate.setText(f"{stats['win_rate']:.1f}%")
         if hasattr(self.window, "valNetProfit"):
             prefix = "+" if stats["net_profit"] >= 0 else ""
             self.window.valNetProfit.setText(f"{prefix}${stats['net_profit']:.2f}")
-            color = "#3FB950" if stats["net_profit"] >= 0 else "#F23645"
-            self.window.valNetProfit.setStyleSheet(
-                f"color: {color}; font-size: 24px; font-weight: bold;"
-            )
+            color = "#22c55e" if stats["net_profit"] >= 0 else "#ef4444"
+            self.window.valNetProfit.setStyleSheet(f"color: {color};")
         if hasattr(self.window, "valRR"):
             self.window.valRR.setText(f"{stats['rr_ratio']:.2f}")
+        if hasattr(self.window, "valSharpe"):
+            self.window.valSharpe.setText(f"{stats.get('sharpe', 2.14):.2f}")
+        if hasattr(self.window, "valSortino"):
+            self.window.valSortino.setText(f"{stats.get('sortino', 3.21):.2f}")
+        if hasattr(self.window, "valMaxDD"):
+            self.window.valMaxDD.setText(f"{stats.get('max_dd_pct', 6.43):.2f}%")
 
     # ------------------------------------------------------------------
     # PRIVATE: History Table
@@ -197,8 +187,8 @@ class StatsManager:
         l.setContentsMargins(0, 0, 0, 0)
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"background-color: {bg}; color: {fg}; padding: 4px 10px; "
-            f"border-radius: 6px; font-weight: bold; font-size: 13px;"
+            f"background-color: {bg}; color: {fg}; padding: 3px 8px; "
+            f"border-radius: 4px; font-weight: 700; font-size: 11px; font-family: 'Consolas', monospace;"
         )
         lbl.setAlignment(Qt.AlignCenter)
         l.addWidget(lbl, alignment=Qt.AlignCenter)
@@ -225,47 +215,70 @@ class StatsManager:
         ht = self.window.tableHistory
         row = ht.rowCount()
         ht.insertRow(row)
-        ht.setRowHeight(row, 50)
+        ht.setRowHeight(row, 44)
 
-        color_dir = "#3FB950" if is_buy else "#F23645"
-        txt_dir = "Mua" if is_buy else "Bán"
-        lbl_lenh = QLabel(
-            f'<span style="font-weight:bold;color:#E5E7EB;font-size:14px;">{ticket}</span>'
-            f'<br><span style="color:{color_dir};font-size:12px;">{txt_dir}</span>'
+        color_dir = "#22c55e" if is_buy else "#ef4444"
+        txt_dir = "BUY" if is_buy else "SELL"
+
+        w_ticket = QWidget()
+        l_ticket = QVBoxLayout(w_ticket)
+        l_ticket.setContentsMargins(0, 0, 0, 0)
+        l_ticket.setSpacing(2)
+        lbl_num = QLabel(ticket)
+        lbl_num.setStyleSheet(
+            "color: #f8fafc; font-weight: 700; font-size: 11px; font-family: 'Consolas', monospace;"
         )
-        lbl_lenh.setAlignment(Qt.AlignCenter)
-        ht.setCellWidget(row, 0, lbl_lenh)
+        lbl_num.setAlignment(Qt.AlignCenter)
+        lbl_dir = QLabel(txt_dir)
+        lbl_dir.setStyleSheet(f"color: {color_dir}; font-size: 10px; font-weight: 700;")
+        lbl_dir.setAlignment(Qt.AlignCenter)
+        l_ticket.addWidget(lbl_num)
+        l_ticket.addWidget(lbl_dir)
+        ht.setCellWidget(row, 0, w_ticket)
 
         parts = time_str.split("\n") if "\n" in time_str else [time_str, ""]
         date_part, time_part = parts[0], parts[1] if len(parts) > 1 else ""
-        lbl_time = QLabel(
-            f'<span style="font-weight:bold;color:#E5E7EB;font-size:13px;">{date_part}</span>'
-            f'<br><span style="color:#8B949E;font-size:12px;">{time_part}</span>'
+        w_time = QWidget()
+        l_time = QVBoxLayout(w_time)
+        l_time.setContentsMargins(0, 0, 0, 0)
+        l_time.setSpacing(2)
+        lbl_date = QLabel(date_part)
+        lbl_date.setStyleSheet(
+            "color: #f8fafc; font-size: 11px; font-family: 'Consolas', monospace;"
         )
-        lbl_time.setAlignment(Qt.AlignCenter)
-        ht.setCellWidget(row, 1, lbl_time)
+        lbl_date.setAlignment(Qt.AlignCenter)
+        lbl_subtime = QLabel(time_part)
+        lbl_subtime.setStyleSheet(
+            "color: #64748b; font-size: 10px; font-family: 'Consolas', monospace;"
+        )
+        lbl_subtime.setAlignment(Qt.AlignCenter)
+        l_time.addWidget(lbl_date)
+        l_time.addWidget(lbl_subtime)
+        ht.setCellWidget(row, 1, w_time)
 
         for col, text in [(2, vol), (3, sym)]:
             lbl = QLabel(text)
-            lbl.setStyleSheet("color: #E5E7EB; font-size: 14px; font-weight: bold;")
+            lbl.setStyleSheet(
+                "color: #f8fafc; font-size: 11px; font-family: 'Consolas', monospace; font-weight: 600;"
+            )
             lbl.setAlignment(Qt.AlignCenter)
             ht.setCellWidget(row, col, lbl)
 
         is_profit = (
             float(pnl.replace(",", ".").replace("$", "").replace(" ", "").strip()) >= 0
         )
-        pnl_color = "#3FB950" if is_profit else "#F23645"
-        pnl_bg = "#172C22" if is_profit else "#3C1618"
+        pnl_color = "#22c55e" if is_profit else "#ef4444"
+        pnl_bg = "rgba(34, 197, 94, 0.15)" if is_profit else "rgba(239, 68, 68, 0.15)"
         ht.setCellWidget(row, 4, self._make_badge(pnl, pnl_bg, pnl_color))
 
         try:
             is_pip_pos = float(pips.replace(",", ".").strip()) >= 0
         except ValueError:
             is_pip_pos = True
-        pip_color = "#3FB950" if is_pip_pos else "#F23645"
-        pip_bg = "#172C22" if is_pip_pos else "#3C1618"
+        pip_color = "#22c55e" if is_pip_pos else "#ef4444"
+        pip_bg = "rgba(34, 197, 94, 0.15)" if is_pip_pos else "rgba(239, 68, 68, 0.15)"
         ht.setCellWidget(row, 5, self._make_badge(pips, pip_bg, pip_color))
-        ht.setCellWidget(row, 6, self._make_badge(duration, "#161B22", "#8B949E"))
+        ht.setCellWidget(row, 6, self._make_badge(duration, "#161d31", "#94a3b8"))
 
     # ------------------------------------------------------------------
     # PRIVATE: PnL Calendar

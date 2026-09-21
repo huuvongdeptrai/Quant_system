@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QCheckBox,
+    QGraphicsRectItem,
 )
 
 
@@ -95,15 +96,15 @@ class CandlestickItem(pg.GraphicsObject):
 
             if open > close:
 
-                p.setBrush(pg.mkBrush("#F23645"))
+                p.setBrush(pg.mkBrush("#ef4444"))
 
-                p.setPen(pg.mkPen("#F23645"))
+                p.setPen(pg.mkPen("#ef4444"))
 
             else:
 
-                p.setBrush(pg.mkBrush("#089981"))
+                p.setBrush(pg.mkBrush("#22c55e"))
 
-                p.setPen(pg.mkPen("#089981"))
+                p.setPen(pg.mkPen("#22c55e"))
 
             p.drawLine(QPointF(t, low), QPointF(t, high))
 
@@ -1697,36 +1698,36 @@ def setup_chart_ui(window):
 
     if hasattr(window, "chartSplitter"):
 
-        window.chartSplitter.setSizes([900, 280])
+        window.chartSplitter.setSizes([900, 330])
 
     window.time_axis = TimeAxisItem(orientation="bottom")
 
     window.plot_widget = pg.PlotWidget(
-        background="#0D1117", axisItems={"bottom": window.time_axis}
+        background="#080b11", axisItems={"bottom": window.time_axis}
     )
 
     window.plot_widget.setMouseEnabled(x=True, y=False)
 
-    window.plot_widget.showGrid(x=True, y=True, alpha=0.08)
+    window.plot_widget.showGrid(x=True, y=True, alpha=0.06)
 
-    window.plot_widget.getAxis("left").setPen(pg.mkPen(color="#30363D"))
+    window.plot_widget.getAxis("left").setPen(pg.mkPen(color="#1c2438"))
 
-    window.plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#30363D"))
+    window.plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#1c2438"))
 
-    window.plot_widget.getAxis("left").setTextPen(pg.mkPen(color="#8B949E"))
+    window.plot_widget.getAxis("left").setTextPen(pg.mkPen(color="#64748b"))
 
-    window.plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color="#8B949E"))
+    window.plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color="#64748b"))
 
     chart_layout.addWidget(window.plot_widget)
 
     # Add Crosshair lines
 
     window.vLine = pg.InfiniteLine(
-        angle=90, movable=False, pen=pg.mkPen("#8B949E", style=QtCore.Qt.DashLine)
+        angle=90, movable=False, pen=pg.mkPen("#475569", style=QtCore.Qt.DashLine)
     )
 
     window.hLine = pg.InfiniteLine(
-        angle=0, movable=False, pen=pg.mkPen("#8B949E", style=QtCore.Qt.DashLine)
+        angle=0, movable=False, pen=pg.mkPen("#475569", style=QtCore.Qt.DashLine)
     )
 
     window.plot_widget.addItem(window.vLine, ignoreBounds=True)
@@ -1951,6 +1952,41 @@ def setup_chart_ui(window):
         window.candlesticks = CandlestickItem(window.chart_data_list)
 
         window.plot_widget.addItem(window.candlesticks)
+
+        # Tự động nhận diện và vẽ vùng FVG (Fair Value Gap) màu vàng hổ phách
+        if len(window.chart_data_list) >= 3:
+            for i in range(2, len(window.chart_data_list)):
+                t_cur, _, _, l_cur, h_cur = window.chart_data_list[i]
+                t_prev2, _, _, l_prev2, h_prev2 = window.chart_data_list[i - 2]
+
+                # Bullish FVG
+                if l_cur > h_prev2:
+                    fvg_item = QGraphicsRectItem(
+                        t_prev2, h_prev2, (t_cur - t_prev2 + 8), (l_cur - h_prev2)
+                    )
+                    fvg_item.setBrush(pg.mkBrush(245, 158, 11, 40))
+                    fvg_item.setPen(
+                        pg.mkPen(
+                            color=pg.mkColor(245, 158, 11, 160),
+                            width=1,
+                            style=QtCore.Qt.DashLine,
+                        )
+                    )
+                    window.plot_widget.addItem(fvg_item)
+                # Bearish FVG
+                elif h_cur < l_prev2:
+                    fvg_item = QGraphicsRectItem(
+                        t_prev2, h_cur, (t_cur - t_prev2 + 8), (l_prev2 - h_cur)
+                    )
+                    fvg_item.setBrush(pg.mkBrush(245, 158, 11, 40))
+                    fvg_item.setPen(
+                        pg.mkPen(
+                            color=pg.mkColor(245, 158, 11, 160),
+                            width=1,
+                            style=QtCore.Qt.DashLine,
+                        )
+                    )
+                    window.plot_widget.addItem(fvg_item)
 
         # Thêm lại crosshair và live price line do hàm clear() đã xóa mất
 
