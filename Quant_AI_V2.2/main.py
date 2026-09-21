@@ -103,74 +103,31 @@ class QuantTerminal(QObject):
         self.window.show()
 
     def _setup_executions_table(self):
-
         if not hasattr(self.window, "tableExecutions"):
-
             return
 
         tbl = self.window.tableExecutions
-
-        from datetime import datetime, timedelta
-
-        now = datetime.now()
+        tbl.verticalHeader().setDefaultSectionSize(26)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setShowGrid(False)
 
         sample_trades = [
-            (
-                now.strftime("%H:%M:%S"),
-                "33273901",
-                "XAUUSD",
-                "ICT FVG",
-                "0.50",
-                "10009",
-            ),
-            (
-                (now - timedelta(minutes=14)).strftime("%H:%M:%S"),
-                "32973706",
-                "XAUUSD",
-                "ICT FVG",
-                "1.00",
-                "10009",
-            ),
-            (
-                (now - timedelta(minutes=28)).strftime("%H:%M:%S"),
-                "32873893",
-                "XAUUSD",
-                "ICT FVG",
-                "0.50",
-                "10009",
-            ),
-            (
-                (now - timedelta(minutes=45)).strftime("%H:%M:%S"),
-                "32873835",
-                "XAUUSD",
-                "ICT FVG",
-                "1.00",
-                "10009",
-            ),
-            (
-                (now - timedelta(minutes=62)).strftime("%H:%M:%S"),
-                "32761290",
-                "XAUUSD",
-                "ICT FVG",
-                "0.50",
-                "10009",
-            ),
+            ("09:38:12m", "33273901", "XAUUSD", "FVG", "0.50", "10009"),
+            ("10:22:18m", "32973709", "XAUUSD", "FVG", "1.00", "10009"),
+            ("09:35:22m", "32873893", "XAUUSD", "FVG", "0.50", "10009"),
+            ("09:45:28m", "32873835", "XAUUSD", "FVG", "1.00", "10009"),
+            ("11:12:04m", "32761290", "XAUUSD", "FVG", "0.50", "10009"),
         ]
 
         tbl.setRowCount(len(sample_trades))
-
         for row, data in enumerate(sample_trades):
-
             for col, text in enumerate(data):
-
                 item = QTableWidgetItem(text)
-
                 item.setTextAlignment(Qt.AlignCenter)
-
-                if col == 5:
-
+                if col == 3:
                     item.setForeground(QColor("#22c55e"))
-
+                elif col == 5:
+                    item.setForeground(QColor("#64748b"))
                 tbl.setItem(row, col, item)
 
         tbl.resizeColumnsToContents()
@@ -228,7 +185,11 @@ class QuantTerminal(QObject):
 
         self.window.closeEvent = self.closeEvent
 
-        self.window.mainSplitter.setSizes([260, 1040])
+        if hasattr(self.window, "sidebar"):
+            self.window.sidebar.setVisible(False)
+        self.window.mainSplitter.setSizes([0, 1200])
+        if hasattr(self.window, "chartSplitter"):
+            self.window.chartSplitter.setSizes([920, 320])
 
     def _setup_navigation_rail(self):
 
@@ -346,52 +307,19 @@ class QuantTerminal(QObject):
             self.stats.refresh()
 
     def _setup_corner_widget(self):
-
-        top_header = QFrame()
-
-        top_header.setObjectName("topHeader")
-
-        top_header.setFixedHeight(46)
-
-        top_header.setStyleSheet(
-            "background-color: #080b11; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0px 10px;"
-        )
-
-        layout = QHBoxLayout(top_header)
-
-        layout.setContentsMargins(12, 4, 12, 4)
-
         self.lbl_tab_title = QLabel("TRẠM ĐIỀU KHIỂN ĐỊNH LƯỢNG (LIVE)")
-
-        self.lbl_tab_title.setStyleSheet(
-            "color: #f8fafc; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;"
-        )
-
-        layout.addWidget(self.lbl_tab_title)
-
-        layout.addStretch()
-
         self.lbl_status = QLabel(_TXT_DISCONNECTED)
-
         self.lbl_status.setStyleSheet(
             "color: #ef4444; font-weight: 600; font-size: 11px; margin-right: 15px;"
         )
-
-        layout.addWidget(self.lbl_status)
-
         self.btnStart = QPushButton(_TXT_START)
-
         self.btnStart.setProperty("class", "btn_primary")
-
         self.btnStart.setCursor(Qt.PointingHandCursor)
-
         self.btnStart.setFixedHeight(30)
-
-        layout.addWidget(self.btnStart)
-
-        self.window.mainContentWidget.layout().insertWidget(0, top_header)
-
         self.btnStart.clicked.connect(self._toggle_bot)
+
+        if hasattr(self.window, "layoutPipelinePills"):
+            self.window.layoutPipelinePills.addWidget(self.btnStart)
 
     def _on_tick(self):
 

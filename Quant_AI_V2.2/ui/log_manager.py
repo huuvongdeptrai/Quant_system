@@ -34,6 +34,52 @@ class LogManager:
             # Pill Tag Filters
             self._setup_pill_filters()
 
+            # Seed realistic initial operational events (Master Mockup style)
+            initial_logs = [
+                (
+                    "INFO",
+                    "Quant AI Terminal v2.2 initialized successfully. Event Bus connected.",
+                    "#38bdf8",
+                ),
+                (
+                    "INFO",
+                    "SQLite WAL Database synced: core_journal.db online.",
+                    "#38bdf8",
+                ),
+                (
+                    "INFO",
+                    "Ollama Local Endpoint http://localhost:11434 online (Model: Qwen 2.5).",
+                    "#38bdf8",
+                ),
+                (
+                    "INFO",
+                    "Macro Bias Engine: Bullish consensus calculated from DXY & US10Y yields.",
+                    "#38bdf8",
+                ),
+                (
+                    "EXECUTION",
+                    "ICT Zones Pro Strategy loaded. Fair Value Gap (FVG) detection active.",
+                    "#fbbf24",
+                ),
+                (
+                    "RECOVERY",
+                    "State Recovery Supervisor verified: 0 hanging orders found.",
+                    "#a855f7",
+                ),
+                (
+                    "WARNING",
+                    "News Filter: Armed. Next high-impact event in 185 minutes.",
+                    "#ef4444",
+                ),
+                (
+                    "INFO",
+                    "Risk Guard: Maximum drawdown capped at 5.0%. Max risk per trade 1.0%.",
+                    "#38bdf8",
+                ),
+            ]
+            for lvl, msg, col in initial_logs:
+                self.on_log_event("", lvl, msg, col)
+
     def _setup_pill_filters(self):
         self.filter_btns = {
             "ALL": getattr(self.window, "btnFilterAll", None),

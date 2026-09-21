@@ -27,7 +27,15 @@ QDialog {
 /* --------------------------------------------------------------------------
    2. CARDS, PANELS & CONTAINERS
    -------------------------------------------------------------------------- */
-QFrame.card, QGroupBox {
+QFrame.card {
+    background-color: #101524;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    margin: 0px;
+    padding: 8px 12px;
+}
+
+QGroupBox {
     background-color: #101524;
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 8px;
@@ -36,6 +44,13 @@ QFrame.card, QGroupBox {
     font-size: 11px;
     font-weight: 600;
     color: #64748b;
+}
+
+QFrame#cardSharpe, QFrame#cardProfitFactor, QFrame#cardMaxDD, QFrame#cardWinRate, QFrame#cardNetPnL {
+    min-height: 65px;
+    max-height: 75px;
+    padding: 6px 12px;
+    margin: 0px;
 }
 
 QGroupBox::title {
@@ -529,6 +544,31 @@ QPushButton[class="pill_filter_active"] {
     max-height: 26px;
 }
 
+QPushButton#btnFilterAll {
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+QPushButton#btnFilterInfo {
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+QPushButton#btnFilterExec {
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fbbf24;
+}
+
+QPushButton#btnFilterRecovery {
+    border-color: rgba(168, 85, 247, 0.4);
+    color: #a855f7;
+}
+
+QPushButton#btnFilterWarn {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+}
+
 QTableWidget#tableLogs {
     font-family: 'Consolas', 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -539,6 +579,11 @@ QTableWidget#tableCalendar {
     background-color: #101524;
     border: 1px solid rgba(255, 255, 255, 0.07);
     gridline-color: rgba(255, 255, 255, 0.05);
+    font-size: 11px;
+}
+
+QTableWidget#tableCalendar::item {
+    padding: 4px 6px;
 }
 
 QTextEdit#txtBtConsole {
