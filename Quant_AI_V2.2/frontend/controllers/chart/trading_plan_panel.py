@@ -327,7 +327,15 @@ def update_order_proposal_html(
             window.barSignalExpiry.setValue(100)
         if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
             if is_bot_active or exec_mode == "FULL-AUTO":
-                window.btnApproveOrder.setText("BOT AUTO MANAGING (TRAILING SL)")
+                ts_on = False
+                try:
+                    cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "config", "settings.json")
+                    if os.path.exists(cfg_p):
+                        with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                            ts_on = json.load(f_cfg).get("enable_trailing_stop", False)
+                except Exception:
+                    pass
+                window.btnApproveOrder.setText("BOT AUTO MANAGING (TRAILING SL)" if ts_on else "BOT AUTO MANAGING (TARGET TP/SL)")
             else:
                 window.btnApproveOrder.setText("POSITION IN MARKET")
             window.btnApproveOrder.setEnabled(False)
@@ -531,21 +539,27 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             if w:
                 w.setStyleSheet(key_style)
 
-    # Checklist values and vector icons
-    if hasattr(window, "lblChk1Val") and window.lblChk1Val:
-        window.lblChk1Val.setStyleSheet(f"color: {bull_color}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border: none; background: transparent;")
-    if hasattr(window, "lblChk2Val") and window.lblChk2Val:
-        window.lblChk2Val.setStyleSheet(f"color: {text_sec}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 600; border: none; background: transparent;")
-    if hasattr(window, "lblChk3Val") and window.lblChk3Val:
-        window.lblChk3Val.setStyleSheet(f"color: {text_sec}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 600; border: none; background: transparent;")
-
+    # Dynamic Checklist status and vector icons
     svg_file = "check_vector_emerald.svg" if is_dark else "check_vector_light.svg"
     icon_path = os.path.join(assets_dir, svg_file)
-    if os.path.exists(icon_path):
-        chk_pixmap = QIcon(icon_path).pixmap(12, 12)
-        for ic_name in ["lblChk1Icon", "lblChk2Icon", "lblChk3Icon"]:
-            if hasattr(window, ic_name) and getattr(window, ic_name):
-                getattr(window, ic_name).setPixmap(chk_pixmap)
+    chk_pixmap = QIcon(icon_path).pixmap(12, 12) if os.path.exists(icon_path) else None
+
+    for val_name, ic_name in [("lblChk1Val", "lblChk1Icon"), ("lblChk2Val", "lblChk2Icon"), ("lblChk3Val", "lblChk3Icon")]:
+        val_w = getattr(window, val_name, None)
+        ic_w = getattr(window, ic_name, None)
+        if val_w is not None:
+            txt = val_w.text().lower()
+            is_unmet = any(w in txt for w in ["awaiting", "monitoring", "standby", "pending", "no ", "--", "scanning", "sideways"])
+            if is_unmet:
+                val_w.setStyleSheet(f"color: {text_sec}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 500; border: none; background: transparent;")
+                if ic_w:
+                    ic_w.setVisible(False)
+            else:
+                val_w.setStyleSheet(f"color: {bull_color}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border: none; background: transparent;")
+                if ic_w:
+                    ic_w.setVisible(True)
+                    if chk_pixmap:
+                        ic_w.setPixmap(chk_pixmap)
 
     # Card 2 values
     if hasattr(window, "lblEntryVal") and window.lblEntryVal:
@@ -716,6 +730,7 @@ def setup_trading_plan_cards(window, is_dark=False):
         icon_path = os.path.join(assets_dir, svg_file)
         if os.path.exists(icon_path):
             lbl_ic.setPixmap(QIcon(icon_path).pixmap(12, 12))
+        lbl_ic.setVisible(False)
 
         setattr(window, f"lblKey_{v_obj_name}", lbl_k)
         setattr(window, v_obj_name, lbl_v)
@@ -883,7 +898,7 @@ def start_signal_expiry_countdown(window, duration_sec=None):
     """Start dynamic real-time 1-second countdown timer for Trading Plan signal expiration."""
     if duration_sec is None:
         try:
-            cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "settings.json")
+            cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "config", "settings.json")
             if os.path.exists(cfg_p):
                 with open(cfg_p, "r", encoding="utf-8") as f:
                     data = json.load(f)

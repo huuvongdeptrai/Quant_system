@@ -472,17 +472,27 @@ def _update_panel_with_result(window, result):
         pts_default = 10.0 if "XAU" in clean_sym else 100.0
         live_sl = float(live_pos.sl) if live_pos.sl > 0 else (live_entry - pts_default if pos_side == "BUY" else live_entry + pts_default)
         live_tp = float(live_pos.tp) if live_pos.tp > 0 else (live_entry + pts_default * 2.0 if pos_side == "BUY" else live_entry - pts_default * 2.0)
-        status_txt = "BOT AUTO MANAGING (TRAILING SL)" if (is_bot_active or exec_mode == "FULL-AUTO") else "LIVE POSITION IN MARKET"
+        # Check trailing stop setting
+        ts_on = False
+        try:
+            cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "config", "settings.json")
+            if os.path.exists(cfg_p):
+                with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                    ts_on = json.load(f_cfg).get("enable_trailing_stop", False)
+        except Exception:
+            pass
+
+        status_txt = ("BOT AUTO MANAGING (TRAILING SL)" if ts_on else "BOT AUTO MANAGING (TARGET TP/SL)") if (is_bot_active or exec_mode == "FULL-AUTO") else "LIVE POSITION IN MARKET"
 
         kwargs_order = {
             "sym": clean_sym,
             "has_signal": True,
             "signal_type": pos_side,
-            "model_name": f"{strat_name} (ACTIVE #{live_pos.ticket})",
+            "model_name": strat_name,
             "grade": f"PNL: {pnl_str}",
-            "chk1": f"POSITION: #{live_pos.ticket} {pos_side} {live_vol:.2f}L",
-            "chk2": f"OPEN: {live_entry:.{digits}f} | CURR: {live_pos.price_current:.{digits}f}",
-            "chk3": f"FLOATING PROFIT: {pnl_str}",
+            "chk1": f"{pos_side} STRUCTURE CONFIRMED",
+            "chk2": f"ASIAN {'HIGH' if pos_side == 'SELL' else 'LOW'} SWEPT",
+            "chk3": "M15 FVG MITIGATED",
             "entry": live_entry,
             "sl": live_sl,
             "tp": live_tp,
@@ -523,11 +533,11 @@ def _update_panel_with_result(window, result):
             "sym": clean_sym,
             "has_signal": True,
             "signal_type": o_side,
-            "model_name": f"{strat_name} (PENDING #{o.ticket})",
+            "model_name": strat_name,
             "grade": f"PENDING #{o.ticket}",
-            "chk1": f"ORDER: #{o.ticket} {o_type_name}",
-            "chk2": f"ENTRY: {o_entry:.{digits}f} | VOL: {o_vol:.2f}L",
-            "chk3": f"STATUS: PLACED IN MT5 (WAITING FILL)",
+            "chk1": f"{o_side} SETUP CONFIRMED",
+            "chk2": f"LIMIT ORDER AT {o_entry:.{digits}f}",
+            "chk3": "AWAITING FILL IN MARKET",
             "entry": o_entry,
             "sl": o_sl,
             "tp": o_tp,
@@ -578,9 +588,9 @@ def _update_panel_with_result(window, result):
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
         elif is_ict:
-            chk1 = f"STRUCTURE: {htf_text.upper()}"
-            chk2 = "LIQUIDITY: ASIAN SWEEP"
-            chk3 = f"{obs_cnt} OB & {fvgs_cnt} FVG"
+            chk1 = f"{strat_sig} STRUCTURE CONFIRMED"
+            chk2 = f"ASIAN {'HIGH' if strat_sig == 'SELL' else 'LOW'} SWEPT"
+            chk3 = "M15 FVG MITIGATED"
         elif is_ema:
             chk1 = f"TREND: {htf_text.upper()}"
             chk2 = "SIGNAL: MOVING AVERAGE CROSSOVER"
@@ -618,15 +628,15 @@ def _update_panel_with_result(window, result):
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
         elif is_ict:
             chk1 = f"STRUCTURE: {bias_desc} ({htf_text.upper()})"
-            chk2 = "LIQUIDITY: MONITORING ASIAN HIGH/LOW"
-            chk3 = f"ORDER BLOCKS & FVG: {obs_cnt} OB | {fvgs_cnt} FVG"
+            chk2 = "LIQUIDITY: AWAITING ASIAN SWEEP"
+            chk3 = "CONFLUENCE: AWAITING FVG MITIGATION"
         elif is_ema:
             chk1 = f"TREND: {htf_text.upper()}"
             chk2 = "SIGNAL: AWAITING MOVING AVERAGE CROSSOVER"
             chk3 = "STATUS: MONITORING VOLATILITY"
         else:
             chk1 = f"STRUCTURE: {htf_text.upper()}"
-            chk2 = f"STATUS: {strat_name} SCANNING"
+            chk2 = f"STATUS: AWAITING SIGNAL"
             chk3 = f"PRICE ZONE: {pos_text.upper()}"
 
         kwargs_order = {
