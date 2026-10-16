@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
     QWidget, QGraphicsRectItem, QMenu, QMessageBox, QTableWidgetItem
 )
+from loguru import logger
 
 from backend.infrastructure.brokers.mt5_safe import mt5
 from backend.infrastructure.brokers.execution_manager import ExecutionManager
@@ -1074,30 +1075,91 @@ def setup_chart_ui(window):
     window.plot_widget.sigXRangeChanged.connect(update_y_range)
 
     def _show_chart_context_menu(pos):
-        from PySide6.QtWidgets import QMenu
+        from PySide6.QtWidgets import QMenu, QFileDialog
+        from PySide6.QtGui import QImage, QPainter
+        is_dark = getattr(window, "is_dark_theme", True)
+
         menu = QMenu(window.plot_widget)
-        menu.setStyleSheet(
-            "QMenu { background-color: #0c0c0c; color: #cbd5e1; border: 1px solid #1c1c1c; "
-            "font-family: 'Consolas', monospace; font-size: 11px; padding: 4px; } "
-            "QMenu::item { padding: 4px 14px; } "
-            "QMenu::item:selected { background-color: #262626; color: #ffffff; border-radius: 2px; }"
-        )
+
+        if is_dark:
+            menu_style = (
+                "QMenu { background-color: #0c0e17; color: #f8fafc; border: 1px solid #272d3b; "
+                "border-radius: 4px; padding: 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
+                "QMenu::item { padding: 6px 20px 6px 14px; border-radius: 3px; color: #e2e8f0 !important; background-color: transparent; } "
+                "QMenu::item:selected { background-color: #1e293b; color: #38bdf8 !important; } "
+                "QMenu::item:disabled { color: #64748b !important; } "
+                "QMenu::separator { height: 1px; background-color: #272d3b; margin: 4px 6px; }"
+            )
+        else:
+            menu_style = (
+                "QMenu { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
+                "border-radius: 4px; padding: 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
+                "QMenu::item { padding: 6px 20px 6px 14px; border-radius: 3px; color: #0f172a !important; background-color: transparent; } "
+                "QMenu::item:selected { background-color: #f1f5f9; color: #0284c7 !important; } "
+                "QMenu::item:disabled { color: #94a3b8 !important; } "
+                "QMenu::separator { height: 1px; background-color: #e2e8f0; margin: 4px 6px; }"
+            )
+
+        menu.setStyleSheet(menu_style)
 
         tf_menu = menu.addMenu("TIMEFRAME")
+        tf_menu.setStyleSheet(menu_style)
         tfs = [
             ("M1", mt5.TIMEFRAME_M1), ("M5", mt5.TIMEFRAME_M5), ("M15", mt5.TIMEFRAME_M15),
             ("M30", mt5.TIMEFRAME_M30), ("H1", mt5.TIMEFRAME_H1), ("H4", mt5.TIMEFRAME_H4),
             ("D1", mt5.TIMEFRAME_D1),
         ]
         for tf_n, tf_v in tfs:
-            prefix = "[x] " if tf_n == window.current_tf_str else "    "
+            prefix = "✓  " if tf_n == window.current_tf_str else "    "
             act = tf_menu.addAction(f"{prefix}{tf_n}")
             act.triggered.connect(lambda chk=False, v=tf_v, n=tf_n: change_timeframe(v, n))
 
         menu.addSeparator()
         act_ind = menu.addAction("INDICATORS...")
         act_ind.triggered.connect(lambda: _open_indicators() if hasattr(window, "open_indicators") else None)
+
+        menu.addSeparator()
+        act_reset = menu.addAction("RESET VIEW (AUTO-SCALE)")
+        def _do_reset():
+            if hasattr(window, "chart_data_list") and window.chart_data_list:
+                tot = len(window.chart_data_list)
+                vb = min(120, tot)
+                window.plot_widget.setXRange(tot - vb, tot + 5)
+                update_y_range()
+        act_reset.triggered.connect(_do_reset)
+
+        act_export = menu.addAction("EXPORT CHART IMAGE...")
+        def _do_export():
+            try:
+                raw_sym = getattr(window, "current_sym", "CHART") or "CHART"
+                clean_sym = raw_sym.split("\n")[0].strip()
+                tf_k = getattr(window, "current_tf_str", "H1")
+                default_name = f"{clean_sym}_{tf_k}_chart.png"
+                file_path, _ = QFileDialog.getSaveFileName(
+                    window, "Export Chart Image", default_name, "PNG Images (*.png);;All Files (*)"
+                )
+                if file_path:
+                    img = QImage(window.plot_widget.size(), QImage.Format_ARGB32)
+                    img.fill(QtCore.Qt.transparent)
+                    painter = QPainter(img)
+                    window.plot_widget.render(painter)
+                    painter.end()
+                    img.save(file_path)
+                    from backend.core.event_bus import event_bus
+                    event_bus.log_event.emit("", "SUCCESS", f"Chart exported to {file_path}", "#10b981")
+            except Exception as e:
+                logger.error(f"[ChartCanvas] Failed to export chart image: {e}")
+        act_export.triggered.connect(_do_export)
+
         menu.exec(window.plot_widget.mapToGlobal(pos))
+
+    # Vô hiệu hóa context menu mặc định của pyqtgraph để ngăn 2 menu đè lên nhau
+    if hasattr(window.plot_widget, "plotItem") and hasattr(window.plot_widget.plotItem, "vb"):
+        window.plot_widget.plotItem.vb.setMenuEnabled(False)
+    if hasattr(window.plot_widget, "getViewBox"):
+        vb = window.plot_widget.getViewBox()
+        if vb is not None:
+            vb.setMenuEnabled(False)
 
     window.plot_widget.setContextMenuPolicy(Qt.CustomContextMenu)
     window.plot_widget.customContextMenuRequested.connect(_show_chart_context_menu)

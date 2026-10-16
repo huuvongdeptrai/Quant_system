@@ -1368,11 +1368,11 @@ QPushButton#btnModifyOrder, QPushButton#btnDiscardOrder {
     padding: 1px 4px !important;
 }
 
-/* Institutional Menus & Dialogs (Light Theme) */
+/* Institutional Menus & Dialogs (Dark Theme) */
 QMenu {
-    background-color: #ffffff;
-    color: #0f172a;
-    border: 1px solid #cbd5e1;
+    background-color: #0c0e17;
+    color: #f8fafc;
+    border: 1px solid #272d3b;
     border-radius: 4px;
     padding: 4px;
     font-family: 'Segoe UI', -apple-system, sans-serif;
@@ -1381,22 +1381,25 @@ QMenu {
 QMenu::item {
     padding: 6px 20px;
     border-radius: 3px;
-    color: #0f172a;
+    color: #e2e8f0;
 }
 QMenu::item:selected {
-    background-color: #f1f5f9;
-    color: #0284c7;
+    background-color: #1e293b;
+    color: #38bdf8;
+}
+QMenu::item:disabled {
+    color: #475569;
 }
 QMenu::separator {
     height: 1px;
-    background-color: #e2e8f0;
+    background-color: #272d3b;
     margin: 4px 6px;
 }
 
 QDialog {
-    background-color: #ffffff;
-    color: #0f172a;
-    border: 1px solid #cbd5e1;
+    background-color: #080b11;
+    color: #f8fafc;
+    border: 1px solid #272d3b;
 }
 
 
