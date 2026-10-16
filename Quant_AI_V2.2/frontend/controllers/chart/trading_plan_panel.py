@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
     QWidget, QProgressBar, QSizePolicy
 )
+from loguru import logger
 
 def update_order_proposal_html(
     window,
@@ -57,11 +58,16 @@ def update_order_proposal_html(
         for line_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
             if hasattr(window, line_name):
                 l_obj = getattr(window, line_name)
-                if l_obj is not None and hasattr(window, "plot_widget"):
+                if l_obj is not None:
                     try:
-                        window.plot_widget.removeItem(l_obj)
+                        l_obj.setVisible(False)
                     except Exception:
                         pass
+                    if hasattr(window, "plot_widget"):
+                        try:
+                            window.plot_widget.removeItem(l_obj)
+                        except Exception:
+                            pass
 
         # Card 1: Mô hình thiết lập (Standby)
         if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
@@ -174,32 +180,38 @@ def update_order_proposal_html(
 
     # Cập nhật đường ngang trên biểu đồ nến
     order_action_name = "BUY LIMIT" if signal_type == "BUY" else "SELL LIMIT"
-    if hasattr(window, "line_order_entry") and window.line_order_entry:
-        window.line_order_entry.setValue(entry)
-        window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
-        if hasattr(window, "plot_widget"):
-            try:
-                window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
-            except Exception:
-                pass
+    try:
+        if hasattr(window, "line_order_entry") and window.line_order_entry:
+            window.line_order_entry.setValue(entry)
+            window.line_order_entry.setVisible(True)
+            window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
+            if hasattr(window, "plot_widget"):
+                try:
+                    window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
+                except Exception:
+                    pass
 
-    if hasattr(window, "line_order_sl") and window.line_order_sl:
-        window.line_order_sl.setValue(sl)
-        window.line_order_sl.label.setFormat(f"STOP LOSS: {sl_p:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
-        if hasattr(window, "plot_widget"):
-            try:
-                window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
-            except Exception:
-                pass
+        if hasattr(window, "line_order_sl") and window.line_order_sl:
+            window.line_order_sl.setValue(sl)
+            window.line_order_sl.setVisible(True)
+            window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+            if hasattr(window, "plot_widget"):
+                try:
+                    window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
+                except Exception:
+                    pass
 
-    if hasattr(window, "line_order_tp") and window.line_order_tp:
-        window.line_order_tp.setValue(tp)
-        window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
-        if hasattr(window, "plot_widget"):
-            try:
-                window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
-            except Exception:
-                pass
+        if hasattr(window, "line_order_tp") and window.line_order_tp:
+            window.line_order_tp.setValue(tp)
+            window.line_order_tp.setVisible(True)
+            window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
+            if hasattr(window, "plot_widget"):
+                try:
+                    window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(f"[TradingPlanPanel] Failed to update chart order lines: {e}")
 
     # Card 1: Mô hình thiết lập (Active)
     if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
@@ -733,7 +745,7 @@ def start_signal_expiry_countdown(window, duration_sec=None):
         window.btnApproveOrder.setText("APPROVE ORDER")
 
     from PySide6.QtCore import QTimer
-    timer = QTimer(window)
+    timer = QTimer(window if isinstance(window, QtCore.QObject) else None)
     timer.setInterval(1000)
 
     def _tick():
@@ -761,10 +773,17 @@ def start_signal_expiry_countdown(window, duration_sec=None):
                 window.lblSignalExpiry.setStyleSheet("color: #ef4444; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
             for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
                 if hasattr(window, l_name):
-                    try:
-                        window.plot_widget.removeItem(getattr(window, l_name))
-                    except Exception:
-                        pass
+                    l_obj = getattr(window, l_name)
+                    if l_obj is not None:
+                        try:
+                            l_obj.setVisible(False)
+                        except Exception:
+                            pass
+                        if hasattr(window, "plot_widget"):
+                            try:
+                                window.plot_widget.removeItem(l_obj)
+                            except Exception:
+                                pass
             window.order_proposal_active = False
 
     timer.timeout.connect(_tick)

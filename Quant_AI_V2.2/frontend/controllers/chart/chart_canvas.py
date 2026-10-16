@@ -780,10 +780,16 @@ def setup_chart_ui(window):
             window.order_proposal_active = False
             for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
                 if hasattr(window, l_name):
-                    try:
-                        window.plot_widget.removeItem(getattr(window, l_name))
-                    except Exception:
-                        pass
+                    l_obj = getattr(window, l_name)
+                    if l_obj is not None:
+                        try:
+                            l_obj.setVisible(False)
+                        except Exception:
+                            pass
+                        try:
+                            window.plot_widget.removeItem(l_obj)
+                        except Exception:
+                            pass
             # Refresh live blotter in terminal
             if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "blotter_buttons"):
                 qt = window.quant_terminal
@@ -821,6 +827,18 @@ def setup_chart_ui(window):
                 window.lblSignalExpiry.setStyleSheet("color: #10b981; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
             event_bus.log_event.emit("", "SUCCESS", f"Simulated execution: {side_str} {lot_size:.2f} lots {sym} @ {entry_p:.{dig}f}", "#10b981")
             window.order_proposal_active = False
+            for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
+                if hasattr(window, l_name):
+                    l_obj = getattr(window, l_name)
+                    if l_obj is not None:
+                        try:
+                            l_obj.setVisible(False)
+                        except Exception:
+                            pass
+                        try:
+                            window.plot_widget.removeItem(l_obj)
+                        except Exception:
+                            pass
 
     def _on_modify():
         if hasattr(window, "line_order_entry"):
@@ -838,15 +856,18 @@ def setup_chart_ui(window):
 
     def _on_discard():
         window.order_proposal_active = False
-        if hasattr(window, "line_order_entry"):
-            try: window.plot_widget.removeItem(window.line_order_entry)
-            except Exception: pass
-        if hasattr(window, "line_order_sl"):
-            try: window.plot_widget.removeItem(window.line_order_sl)
-            except Exception: pass
-        if hasattr(window, "line_order_tp"):
-            try: window.plot_widget.removeItem(window.line_order_tp)
-            except Exception: pass
+        for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
+            if hasattr(window, l_name):
+                l_obj = getattr(window, l_name)
+                if l_obj is not None:
+                    try:
+                        l_obj.setVisible(False)
+                    except Exception:
+                        pass
+                    try:
+                        window.plot_widget.removeItem(l_obj)
+                    except Exception:
+                        pass
         if hasattr(window, "btnApproveOrder"):
             window.btnApproveOrder.setEnabled(False)
             window.btnApproveOrder.setText("DISCARDED")
