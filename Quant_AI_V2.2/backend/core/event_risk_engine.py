@@ -105,7 +105,7 @@ class EventRiskEngine:
         if not self._news_events_cache or self.pause_window_mins <= 0:
             return False, ""
 
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)  # Giờ VN
+        now_ts = datetime.now(timezone.utc).timestamp()
         window_sec = self.pause_window_mins * 60
 
         for e in self._news_events_cache:
@@ -133,7 +133,7 @@ class EventRiskEngine:
         if not self._news_events_cache or not self.exec_mgr:
             return []
 
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)
+        now_ts = datetime.now(timezone.utc).timestamp()
         defense_sec = self.defense_window_mins * 60
 
         # Tìm các sự kiện đỏ sắp diễn ra trong khoảng [now, now + 15 phút]

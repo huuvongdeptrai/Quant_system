@@ -1,5 +1,6 @@
 import requests
 import datetime
+import re
 from loguru import logger
 
 
@@ -12,9 +13,84 @@ class CalendarEngine:
             "Referer": "https://www.tradingview.com/",
         }
 
+    @staticmethod
+    def classify_impact(raw_importance: int, title: str, country: str = "") -> int:
+        """
+        ĐÁNH GIÁ CHÍNH XÁC TẦM QUAN TRỌNG CỦA TIN TỨC VĨ MÔ (INSTITUTIONAL TIERING):
+        - Tier 0 (0): Low Impact (Tin xám / vàng) - Khảo sát vùng, chỉ số thứ cấp, đấu thầu, ngày nghỉ.
+                      -> KHÔNG BAO GIỜ dừng bot giao dịch.
+        - Tier 1 (1): Medium Impact (Tin cam) - Báo cáo kinh tế thứ cấp (Doanh số bán lẻ, Nhà ở, Khảo sát niềm tin).
+                      -> Hiển thị thông tin trực quan, không dừng bot.
+        - Tier 2 (2): High Impact (Tin đỏ - Siêu bão vĩ mô) - CPI, Core PCE, NFP, Quyết định Lãi suất, FOMC, ISM, Phát biểu Thống đốc tối cao.
+                      -> KÍCH HOẠT DỪNG GIAO DỊCH (Trading Halt) và Cơ chế phòng vệ vị thế trước tin.
+        """
+        title_upper = title.strip().upper()
+
+        # 1. BẢO VỆ CHỐNG BÁO ĐỘNG GIẢ (NEGATIVE FILTERS / DEMOTIONS)
+        # Khảo sát chi nhánh địa phương của Fed (Regional Fed: NY, Dallas, Philly, Kansas, Richmond, v.v.)
+        regional_fed_patterns = [
+            r'\bNY FED\b', r'\bNEW YORK FED\b', r'\bPHILLY FED\b', r'\bPHILADELPHIA FED\b',
+            r'\bDALLAS FED\b', r'\bRICHMOND FED\b', r'\bKANSAS FED\b', r'\bCHICAGO FED\b',
+            r'\bCLEVELAND FED\b', r'\bATLANTA FED\b', r'\bST\.? LOUIS FED\b', r'\bMINNEAPOLIS FED\b',
+            r'\bSAN FRANCISCO FED\b'
+        ]
+        if any(re.search(rf, title_upper) for rf in regional_fed_patterns):
+            return 0  # Low impact tuyệt đối
+
+        # Các chỉ số và hoạt động thứ cấp không đủ sức gây biến động bão
+        demote_to_low = [
+            'SERVICES ACTIVITY', 'MANUFACTURING ACTIVITY', 'BUSINESS OUTLOOK',
+            'SURVEY', 'MORTGAGE', 'WEEKLY', 'REDBOOK',
+            'CRUDE OIL INVENTORIES', 'EIA', 'API', 'NATURAL GAS',
+            'AUCTION', 'HOLIDAY', 'CAR REGISTRATIONS'
+        ]
+        if any(kw in title_upper for kw in demote_to_low):
+            return 0
+
+        # Dữ liệu nhà ở và cấp phép thứ cấp (không gây bão thị trường tiền tệ) hạ về Medium
+        housing_data = [
+            'EXISTING HOME SALES', 'NEW HOME SALES', 'BUILDING PERMITS', 'HOUSING STARTS', 'HOME SALES'
+        ]
+        if any(kw in title_upper for kw in housing_data):
+            return 1
+
+        # 2. ĐỊNH DANH SIÊU SỰ KIỆN TIER-1 (POSITIVE RED RULES)
+        tier1_macro = [
+            r'\bINTEREST RATE\b', r'\bRATE DECISION\b', r'\bRATE STATEMENT\b',
+            r'\bFOMC STATEMENT\b', r'\bFOMC PRESS CONFERENCE\b', r'\bFOMC MEETING\b',
+            r'\bFOMC ECONOMIC PROJECTIONS\b',
+            r'\bECB MONETARY POLICY\b', r'\bECB PRESS CONFERENCE\b',
+            r'\bBOE BANK RATE\b', r'\bBOE MONETARY POLICY\b',
+            r'\bBOJ MONETARY POLICY\b',
+            r'\bCPI\b', r'\bCORE CPI\b', r'\bPCE PRICE INDEX\b', r'\bCORE PCE\b', r'\bINFLATION RATE\b',
+            r'\bNON-?FARM\b', r'\bNFP\b',
+            r'\bGDP\b', r'\bGROSS DOMESTIC PRODUCT\b',
+            r'\bISM MANUFACTURING\b', r'\bISM SERVICES\b'
+        ]
+        if any(re.search(p, title_upper) for p in tier1_macro):
+            return 2
+
+        # Phát biểu của Người đứng đầu NHTW tối cao (Chủ tịch / Thống đốc)
+        top_leaders = [
+            r'\bPOWELL\b', r'\bFED CHAIR\b',
+            r'\bLAGARDE\b', r'\bECB PRESIDENT\b',
+            r'\bBAILEY\b', r'\bBOE GOV\b',
+            r'\bUEDA\b', r'\bBOJ GOV\b'
+        ]
+        if any(re.search(p, title_upper) for p in top_leaders):
+            return 2
+
+        # 3. BASELINE THEO XẾP HẠNG THỰC TẾ CỦA NHÀ CUNG CẤP (TRADINGVIEW)
+        if raw_importance == 1:
+            return 2
+        elif raw_importance == 0:
+            return 1
+        else:
+            return 0
+
     def fetch_events(self):
         # Lấy sự kiện chuẩn 1 Tuần (Từ Thứ 2 đến Chủ nhật của tuần hiện tại)
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
 
         # Tìm Thứ 2 (Monday) của tuần này
         monday = now - datetime.timedelta(days=now.weekday())
@@ -53,40 +129,43 @@ class CalendarEngine:
                         with open(tele_db_path, "r", encoding="utf-8") as f:
                             tele_events = json.load(f)
                         events.extend(tele_events)
-                        # Sắp xếp lại theo thời gian giảm dần
                         events.sort(key=lambda x: x.get("date", ""), reverse=True)
-                    except:
+                    except Exception:
                         pass
 
                 processed_events = []
                 for e in events:
-                    dt_utc = datetime.datetime.strptime(
-                        e.get("date", start_date), "%Y-%m-%dT%H:%M:%S.000Z"
-                    )
-                    dt_vn = dt_utc + datetime.timedelta(hours=7)
+                    date_str = e.get("date", start_date)
+                    try:
+                        dt_utc = datetime.datetime.strptime(
+                            date_str, "%Y-%m-%dT%H:%M:%S.000Z"
+                        ).replace(tzinfo=datetime.timezone.utc)
+                    except Exception:
+                        try:
+                            dt_utc = datetime.datetime.fromisoformat(
+                                date_str.replace("Z", "+00:00")
+                            )
+                            if dt_utc.tzinfo is None:
+                                dt_utc = dt_utc.replace(tzinfo=datetime.timezone.utc)
+                        except Exception:
+                            dt_utc = datetime.datetime.now(datetime.timezone.utc)
 
+                    # Giờ hiển thị VN (UTC+7) trên giao diện người dùng
+                    dt_vn = dt_utc.astimezone(datetime.timezone(datetime.timedelta(hours=7)))
                     time_str = dt_vn.strftime("%d/%m %H:%M")
 
                     raw_imp = e.get("importance", -1)
-                    imp = raw_imp + 1  # Map -1,0,1 to 0,1,2
-
                     title = e.get("title", "")
                     country = e.get("country", "")
-                    title_upper = title.upper()
 
-                    # Nâng cấp lên Đỏ nếu có từ khóa chính sách tiền tệ / vĩ mô trọng yếu
-                    major_keywords = [
-                        "CPI", "FOMC", "RATE", "NFP", "FED", "ECB", "BOE", "BOJ",
-                        "RBA", "BOC", "SNB", "RBNZ", "GDP", "EMPLOYMENT", "INFLATION"
-                    ]
-                    if any(kw in title_upper for kw in major_keywords):
-                        imp = 2
+                    # Đánh giá tầm quan trọng chính xác khoa học
+                    imp = self.classify_impact(raw_imp, title, country)
 
                     processed_events.append(
                         {
                             "time": time_str,
-                            "sort_key": dt_vn.timestamp(),
-                            "country": e.get("country", ""),
+                            "sort_key": dt_utc.timestamp(),  # Chuẩn UTC epoch timestamp (giây tuyệt đối)
+                            "country": country,
                             "title": title,
                             "impact": imp,
                             "actual": str(e.get("actual", "")),

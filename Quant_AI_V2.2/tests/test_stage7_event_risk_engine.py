@@ -49,7 +49,7 @@ class TestStage7EventRiskEngine:
     # 2. News Pause Window Checking
     # -------------------------------------------------------------
     def test_check_news_impact_for_symbol(self):
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)
+        now_ts = datetime.now(timezone.utc).timestamp()
         # Fake 1 tin đỏ US CPI lúc now + 10 phút (trong window 30 phút)
         self.engine._news_events_cache = [
             {
@@ -80,7 +80,7 @@ class TestStage7EventRiskEngine:
     def test_pre_news_defense_auto_breakeven_large_profit(
         self, mock_info, mock_tick, mock_positions
     ):
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)
+        now_ts = datetime.now(timezone.utc).timestamp()
         # Tin đỏ trong 10 phút tới (nằm trong defense_window 15m)
         self.engine._news_events_cache = [
             {"country": "US", "title": "FOMC", "impact": 2, "sort_key": now_ts + 600}
@@ -133,7 +133,7 @@ class TestStage7EventRiskEngine:
     def test_pre_news_defense_partial_close_50(
         self, mock_info, mock_tick, mock_positions
     ):
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)
+        now_ts = datetime.now(timezone.utc).timestamp()
         self.engine._news_events_cache = [
             {"country": "US", "title": "NFP", "impact": 2, "sort_key": now_ts + 600}
         ]
@@ -187,7 +187,7 @@ class TestStage7EventRiskEngine:
     def test_pre_news_defense_losing_position_ignored(
         self, mock_info, mock_tick, mock_positions
     ):
-        now_ts = datetime.now(timezone.utc).timestamp() + (7 * 3600)
+        now_ts = datetime.now(timezone.utc).timestamp()
         self.engine._news_events_cache = [
             {"country": "US", "title": "CPI", "impact": 2, "sort_key": now_ts + 600}
         ]
@@ -243,3 +243,37 @@ class TestStage7EventRiskEngine:
         ok, curr, max_s = self.engine.check_spread_normalization("EURUSD")
         assert ok is False
         assert curr == 65
+
+    # -------------------------------------------------------------
+    # 7. Institutional-Grade Precision News Classifier Tests
+    # -------------------------------------------------------------
+    def test_precision_news_classifier(self):
+        from backend.infrastructure.data_providers.macro.calendar_engine import CalendarEngine
+
+        # Regional Fed surveys MUST be Low Impact (0), NEVER Red
+        assert CalendarEngine.classify_impact(-1, "NY Fed Services Activity Index", "US") == 0
+        assert CalendarEngine.classify_impact(0, "Dallas Fed Manufacturing Index", "US") == 0
+        assert CalendarEngine.classify_impact(-1, "Philly Fed Business Outlook", "US") == 0
+
+        # Speeches of regular Fed Governors MUST NOT be Red unless Fed Chair
+        assert CalendarEngine.classify_impact(0, "Fed Hammack Speech", "US") == 1
+        assert CalendarEngine.classify_impact(0, "Fed Waller Speech", "US") == 1
+        assert CalendarEngine.classify_impact(0, "Fed Barkin Speech", "US") == 1
+
+        # Fed Chair / Top Central Bank Leaders MUST be Red (2)
+        assert CalendarEngine.classify_impact(0, "Fed Chair Powell Speech", "US") == 2
+        assert CalendarEngine.classify_impact(0, "ECB President Lagarde Speech", "EU") == 2
+        assert CalendarEngine.classify_impact(0, "BoE Gov Bailey Speech", "GB") == 2
+
+        # True Market-Moving Tier-1 Events MUST be Red (2)
+        assert CalendarEngine.classify_impact(0, "CPI s.a", "US") == 2
+        assert CalendarEngine.classify_impact(1, "Core Inflation Rate MoM", "US") == 2
+        assert CalendarEngine.classify_impact(0, "Core PCE Price Index MoM", "US") == 2
+        assert CalendarEngine.classify_impact(1, "Non-Farm Payrolls", "US") == 2
+        assert CalendarEngine.classify_impact(1, "FOMC Statement", "US") == 2
+        assert CalendarEngine.classify_impact(0, "GDP YoY", "US") == 2
+        assert CalendarEngine.classify_impact(0, "ISM Manufacturing PMI", "US") == 2
+
+        # Secondary indicators should be Medium or Low
+        assert CalendarEngine.classify_impact(1, "Existing Home Sales", "US") == 1
+        assert CalendarEngine.classify_impact(-1, "EIA Crude Oil Stocks", "US") == 0

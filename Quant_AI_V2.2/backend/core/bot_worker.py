@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from backend.infrastructure.brokers.mt5_safe import mt5
 from PySide6 import QtCore
 from loguru import logger
@@ -202,7 +202,7 @@ class BotWorker(QtCore.QObject):
                 return self.event_risk.check_news_impact_for_symbol(symbol)
             self.event_risk.refresh_events_if_needed()
             events = self.event_risk._news_events_cache
-            now_ts = datetime.utcnow().timestamp() + (7 * 3600)
+            now_ts = datetime.now(timezone.utc).timestamp()
             window_sec = self.news_pause_mins * 60
             for e in events:
                 if e.get("impact", 0) >= 2:
