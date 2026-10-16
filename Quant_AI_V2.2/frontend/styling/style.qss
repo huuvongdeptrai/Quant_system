@@ -1428,3 +1428,136 @@ QDateEdit::down-arrow {
     width: 8px;
     height: 6px;
 }
+
+/* --------------------------------------------------------------------------
+   15. QCALENDARWIDGET (DARK THEME)
+   -------------------------------------------------------------------------- */
+QCalendarWidget {
+    background-color: #101524;
+    border: 1px solid #272d3b;
+    border-radius: 8px;
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+}
+
+QCalendarWidget QWidget {
+    background-color: #101524;
+    alternate-background-color: #101524;
+    color: #f8fafc;
+}
+
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #161d2d;
+    border-bottom: 1px solid #272d3b;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    min-height: 38px;
+}
+
+QCalendarWidget QToolButton {
+    color: #f8fafc;
+    background-color: transparent;
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    border: none;
+    border-radius: 4px;
+    margin: 3px;
+    padding: 3px 8px;
+}
+
+QCalendarWidget QToolButton:hover {
+    background-color: #272d3b;
+    color: #ffffff;
+}
+
+QCalendarWidget QToolButton:pressed {
+    background-color: #334155;
+}
+
+QCalendarWidget QToolButton#qt_calendar_prevmonth {
+    qproperty-icon: url("frontend/assets/chevron_left.svg");
+    qproperty-iconSize: 14px 14px;
+    min-width: 24px;
+    max-width: 28px;
+}
+
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    qproperty-icon: url("frontend/assets/chevron_right.svg");
+    qproperty-iconSize: 14px 14px;
+    min-width: 24px;
+    max-width: 28px;
+}
+
+QCalendarWidget QSpinBox#qt_calendar_yearedit {
+    background-color: #161d2d;
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #272d3b;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin-right: 4px;
+}
+
+QCalendarWidget QMenu {
+    background-color: #161d2d;
+    color: #f8fafc;
+    border: 1px solid #272d3b;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QCalendarWidget QMenu::item {
+    padding: 4px 16px;
+    border-radius: 4px;
+    color: #f8fafc;
+}
+
+QCalendarWidget QMenu::item:selected {
+    background-color: #0284c7;
+    color: #ffffff;
+}
+
+QCalendarWidget QTableView {
+    background-color: #101524;
+    alternate-background-color: #101524;
+    color: #f8fafc;
+    border: none;
+    font-size: 11px;
+    outline: none;
+    selection-background-color: #0284c7;
+    selection-color: #ffffff;
+}
+
+QCalendarWidget QTableView::item:hover {
+    background-color: #1e293b;
+    border-radius: 4px;
+}
+
+QCalendarWidget QTableView::item:selected {
+    background-color: #0284c7;
+    color: #ffffff;
+    border-radius: 4px;
+}
+
+QCalendarWidget QTableView QHeaderView::section {
+    background-color: #101524;
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 11px;
+    border: none;
+    border-bottom: 1px solid #272d3b;
+    padding: 4px 0px;
+}
+
+QCalendarWidget QAbstractItemView:enabled {
+    color: #f8fafc;
+    background-color: #101524;
+    selection-background-color: #0284c7;
+    selection-color: #ffffff;
+}
+
+QCalendarWidget QAbstractItemView:disabled {
+    color: #475569;
+}
+

@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea
+    QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget
 )
 from PySide6.QtCore import Qt, QUrl, QSize, QDate
 from PySide6.QtGui import QColor, QFont, QIcon, QDesktopServices
@@ -73,18 +73,26 @@ class BacktestWorkbenchController:
 
     def _setup_controls(self):
         # Date pickers
+        today = QDate.currentDate()
         self.dateBtFrom = getattr(self.window, "dateBtFrom", None)
         if self.dateBtFrom:
             self.dateBtFrom.setFixedHeight(32)
             self.dateBtFrom.setFixedWidth(102)
-            today = QDate.currentDate()
             self.dateBtFrom.setDate(today.addDays(-30))
+            cal_from = self.dateBtFrom.calendarWidget()
+            if cal_from:
+                cal_from.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+                cal_from.setGridVisible(False)
 
         self.dateBtTo = getattr(self.window, "dateBtTo", None)
         if self.dateBtTo:
             self.dateBtTo.setFixedHeight(32)
             self.dateBtTo.setFixedWidth(102)
-            self.dateBtTo.setDate(QDate.currentDate())
+            self.dateBtTo.setDate(today)
+            cal_to = self.dateBtTo.calendarWidget()
+            if cal_to:
+                cal_to.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+                cal_to.setGridVisible(False)
 
         # Timeframe & Strategy
         if hasattr(self.window, "comboBtTf"):
