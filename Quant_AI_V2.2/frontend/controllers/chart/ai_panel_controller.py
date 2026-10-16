@@ -588,17 +588,17 @@ def _update_panel_with_result(window, result):
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
         elif is_ict:
-            chk1 = f"{strat_sig} STRUCTURE CONFIRMED"
-            chk2 = f"ASIAN {'HIGH' if strat_sig == 'SELL' else 'LOW'} SWEPT"
-            chk3 = "M15 FVG MITIGATED"
+            chk1 = f"{strat_sig} Structure Confirmed"
+            chk2 = f"Asian {'High' if strat_sig == 'SELL' else 'Low'} Swept"
+            chk3 = "FVG Mitigated"
         elif is_ema:
-            chk1 = f"TREND: {htf_text.upper()}"
-            chk2 = "SIGNAL: MOVING AVERAGE CROSSOVER"
-            chk3 = f"RISK / REWARD: {abs(tp_val - entry_val) / max(0.001, abs(entry_val - sl_val)):.1f}R"
+            chk1 = "Trend Confirmed"
+            chk2 = "EMA Crossover Confirmed"
+            chk3 = f"Risk / Reward: {abs(tp_val - entry_val) / max(0.001, abs(entry_val - sl_val)):.1f}R"
         else:
-            chk1 = f"STRUCTURE: {htf_text.upper()}"
-            chk2 = f"STRATEGY SIGNAL: {strat_sig}"
-            chk3 = f"CONFIDENCE: {conf_pct}"
+            chk1 = f"{strat_sig} Setup Confirmed"
+            chk2 = f"Strategy Signal: {strat_sig}"
+            chk3 = f"Confidence: {conf_pct}"
 
         kwargs_order = {
             "sym": clean_sym,
@@ -621,23 +621,32 @@ def _update_panel_with_result(window, result):
             "is_bot_active": is_bot_active,
         }
     else:
-        bias_desc = "BULLISH" if bias_val > 0 else ("BEARISH" if bias_val < 0 else "SIDEWAYS")
+        htf_raw = str(result.get("_htf_bias", "--")).upper()
+        if htf_raw in ("NEUTRAL", "SIDEWAYS", "--") or "đi ngang" in str(htf_text).lower() or bias_val == 0:
+            chk1_ict = "Awaiting Clear Trend"
+        elif htf_raw == "BULLISH" and bias_val >= 0:
+            chk1_ict = "Bullish Bias Confirmed"
+        elif htf_raw == "BEARISH" and bias_val <= 0:
+            chk1_ict = "Bearish Bias Confirmed"
+        else:
+            chk1_ict = "Awaiting Trend Confirmation"
+
         ai_model = f"{strat_name}"
 
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
         elif is_ict:
-            chk1 = f"STRUCTURE: {bias_desc} ({htf_text.upper()})"
-            chk2 = "LIQUIDITY: AWAITING ASIAN SWEEP"
-            chk3 = "CONFLUENCE: AWAITING FVG MITIGATION"
+            chk1 = chk1_ict
+            chk2 = "Awaiting Asian Sweep"
+            chk3 = "Awaiting Mitigation"
         elif is_ema:
-            chk1 = f"TREND: {htf_text.upper()}"
-            chk2 = "SIGNAL: AWAITING MOVING AVERAGE CROSSOVER"
-            chk3 = "STATUS: MONITORING VOLATILITY"
+            chk1 = f"{htf_raw} Trend" if htf_raw in ("BULLISH", "BEARISH") else "Awaiting Trend Direction"
+            chk2 = "Awaiting EMA Crossover"
+            chk3 = "Monitoring Volatility"
         else:
-            chk1 = f"STRUCTURE: {htf_text.upper()}"
-            chk2 = f"STATUS: AWAITING SIGNAL"
-            chk3 = f"PRICE ZONE: {pos_text.upper()}"
+            chk1 = f"{htf_raw} Structure" if htf_raw in ("BULLISH", "BEARISH") else "Awaiting Market Bias"
+            chk2 = "Awaiting Setup Trigger"
+            chk3 = "Scanning Key Levels"
 
         kwargs_order = {
             "sym": clean_sym,

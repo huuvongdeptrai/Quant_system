@@ -93,11 +93,11 @@ def update_order_proposal_html(
                 "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
             )
         if hasattr(window, "lblChk1Val") and window.lblChk1Val:
-            window.lblChk1Val.setText(chk1 or "Monitoring")
+            window.lblChk1Val.setText(chk1 or "Awaiting Clear Trend")
         if hasattr(window, "lblChk2Val") and window.lblChk2Val:
             window.lblChk2Val.setText(chk2 or "Awaiting Asian Sweep")
         if hasattr(window, "lblChk3Val") and window.lblChk3Val:
-            window.lblChk3Val.setText(chk3 or "Awaiting Confluence")
+            window.lblChk3Val.setText(chk3 or "Awaiting Mitigation")
 
         # Card 2: Lệnh và Quản trị rủi ro (Chưa có lệnh)
         if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -549,7 +549,7 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         ic_w = getattr(window, ic_name, None)
         if val_w is not None:
             txt = val_w.text().lower()
-            is_unmet = any(w in txt for w in ["awaiting", "monitoring", "standby", "pending", "no ", "--", "scanning", "sideways"])
+            is_unmet = any(w in txt for w in ["awaiting", "monitoring", "standby", "pending", "no ", "--", "scanning", "sideways", "ranging", "đi ngang"])
             if is_unmet:
                 val_w.setStyleSheet(f"color: {text_sec}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 500; border: none; background: transparent;")
                 if ic_w:
@@ -756,9 +756,9 @@ def setup_trading_plan_cards(window, is_dark=False):
         row.addWidget(lbl_v)
         return row
 
-    card_model_layout.addLayout(_make_checklist_row("Trend Structure", "Monitoring", "lblChk1Val", "lblChk1Icon"))
+    card_model_layout.addLayout(_make_checklist_row("Trend Structure", "Awaiting Clear Trend", "lblChk1Val", "lblChk1Icon"))
     card_model_layout.addLayout(_make_checklist_row("Liquidity Sweep", "Awaiting Asian Sweep", "lblChk2Val", "lblChk2Icon"))
-    card_model_layout.addLayout(_make_checklist_row("Order Blocks & FVG", "Awaiting Confluence", "lblChk3Val", "lblChk3Icon"))
+    card_model_layout.addLayout(_make_checklist_row("Order Blocks & FVG", "Awaiting Mitigation", "lblChk3Val", "lblChk3Icon"))
 
     # CARD 2: ORDER & RISK (Concise & Institutional)
     card_order = QFrame()
