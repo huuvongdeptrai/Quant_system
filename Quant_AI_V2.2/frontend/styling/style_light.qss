@@ -876,10 +876,33 @@ QTextEdit#txtBtConsole {
     padding: 8px;
 }
 
+QPushButton#btnImportStrat {
+    min-height: 32px;
+    max-height: 32px;
+    min-width: 70px;
+    padding: 0px 6px;
+    border-radius: 2px;
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+QPushButton#btnImportStrat:hover {
+    background-color: #f1f5f9;
+    border-color: #0f172a;
+    color: #0f172a;
+}
+QPushButton#btnImportStrat:pressed {
+    background-color: #e2e8f0;
+}
+
 QPushButton#btnExportReport {
     min-height: 32px;
     max-height: 32px;
-    padding: 0px 14px;
+    min-width: 70px;
+    padding: 0px 8px;
     border-radius: 2px;
     background-color: #ffffff;
     color: #0f172a;
@@ -894,30 +917,14 @@ QPushButton#btnExportReport:hover {
     color: #0f172a;
 }
 
-QPushButton#btnImportStrat,
-QPushButton#btnOpenStratFolder {
+QPushButton#btnRunBacktest {
     min-height: 32px;
     max-height: 32px;
-    min-width: 76px;
-    max-width: 80px;
-    padding: 0px 6px;
-    border-radius: 2px;
-    background-color: #ffffff;
-    color: #0f172a;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    min-width: 74px;
+    padding: 0px 8px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
-}
-QPushButton#btnImportStrat:hover,
-QPushButton#btnOpenStratFolder:hover {
-    background-color: #f1f5f9;
-    border-color: #0f172a;
-    color: #0f172a;
-}
-QPushButton#btnImportStrat:pressed,
-QPushButton#btnOpenStratFolder:pressed {
-    background-color: #e2e8f0;
 }
 
 /* --------------------------------------------------------------------------

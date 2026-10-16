@@ -1064,7 +1064,7 @@
        </widget>
       </item>
 
-      <item><widget class="QLabel"><property name="text"><string>Timeframe:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item><widget class="QLabel" name="lblBtTf"><property name="text"><string>TF:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
        <widget class="QComboBox" name="comboBtTf">
         <item><property name="text"><string>M15</string></property></item>
@@ -1074,7 +1074,28 @@
        </widget>
       </item>
 
-      <item><widget class="QLabel"><property name="text"><string>Slippage:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item><widget class="QLabel" name="lblBtStrategy"><property name="text"><string>Strategy:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QComboBox" name="comboBtEngine">
+        <item><property name="text"><string>ICT Zones Pro v4.2 (Asian + FVG)</string></property></item>
+        <item><property name="text"><string>Wyckoff Momentum Pro (Vectorized)</string></property></item>
+        <item><property name="text"><string>EMA Dual Cross (Resilience Benchmark)</string></property></item>
+       </widget>
+      </item>
+
+      <item><widget class="QLabel" name="lblBtCapital"><property name="text"><string>Capital:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QDoubleSpinBox" name="spinBtCapital">
+        <property name="prefix"><string>$</string></property>
+        <property name="decimals"><number>0</number></property>
+        <property name="minimum"><double>1000.0</double></property>
+        <property name="maximum"><double>10000000.0</double></property>
+        <property name="singleStep"><double>10000.0</double></property>
+        <property name="value"><double>100000.0</double></property>
+       </widget>
+      </item>
+
+      <item><widget class="QLabel" name="lblBtSlippage"><property name="text"><string>Slippage:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
        <widget class="QSpinBox" name="spinBtSlippage">
         <property name="suffix"><string> pts</string></property>
@@ -1083,28 +1104,54 @@
        </widget>
       </item>
 
-      <item><widget class="QLabel"><property name="text"><string>Engine:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item><widget class="QLabel" name="lblBtComm"><property name="text"><string>Comm:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
-       <widget class="QComboBox" name="comboBtEngine">
-        <item><property name="text"><string>Vectorized NumPy (1.054ms)</string></property></item>
-        <item><property name="text"><string>ICT Zones Pro Event-Driven</string></property></item>
-        <item><property name="text"><string>EMA Stress Test</string></property></item>
+       <widget class="QDoubleSpinBox" name="spinBtComm">
+        <property name="prefix"><string>$</string></property>
+        <property name="suffix"><string> /lot</string></property>
+        <property name="decimals"><number>2</number></property>
+        <property name="minimum"><double>0.0</double></property>
+        <property name="maximum"><double>100.0</double></property>
+        <property name="singleStep"><double>0.5</double></property>
+        <property name="value"><double>7.0</double></property>
        </widget>
       </item>
 
-      <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+      <item>
+       <spacer name="spacerBtParams">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Expanding</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
 
       <item>
-       <widget class="QPushButton" name="btnRunBacktest">
-        <property name="text"><string>RUN SIMULATION</string></property>
-        <property name="class"><string>btn_primary</string></property>
+       <widget class="QPushButton" name="btnImportStrat">
+        <property name="text"><string>IMPORT</string></property>
+        <property name="class"><string>btn_secondary</string></property>
         <property name="minimumHeight"><number>32</number></property>
        </widget>
       </item>
       <item>
        <widget class="QPushButton" name="btnExportReport">
-        <property name="text"><string>EXPORT TEARSHEET</string></property>
+        <property name="text"><string>EXPORT</string></property>
         <property name="class"><string>btn_secondary</string></property>
+        <property name="minimumHeight"><number>32</number></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnRunBacktest">
+        <property name="text"><string>▶ RUN</string></property>
+        <property name="class"><string>btn_primary</string></property>
         <property name="minimumHeight"><number>32</number></property>
        </widget>
       </item>

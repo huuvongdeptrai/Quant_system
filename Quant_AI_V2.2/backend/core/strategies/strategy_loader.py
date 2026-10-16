@@ -154,7 +154,7 @@ def discover_strategies() -> List[Dict[str, Any]]:
     strategies: List[Dict[str, Any]] = [
         {
             "id": "builtin_ict_pro",
-            "name": "ICT Zones Pro v4.2 (Asian Sweep + FVG)",
+            "name": "ICT Zones Pro v4.2 (Asian + FVG)",
             "file_name": "ict_strategy.py",
             "file_path": str(Path(__file__).parent / "ict_strategy.py"),
             "class_name": "ICTZonesProStrategy",

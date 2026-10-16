@@ -22,7 +22,7 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea
 )
-from PySide6.QtCore import Qt, QUrl, QSize
+from PySide6.QtCore import Qt, QUrl, QSize, QDate
 from PySide6.QtGui import QColor, QFont, QIcon, QDesktopServices
 
 from backend.infrastructure.brokers.mt5_safe import mt5
@@ -72,79 +72,62 @@ class BacktestWorkbenchController:
         self._run_simulation_internal(is_initial=True)
 
     def _setup_controls(self):
-        """Synchronize heights, dimensions, and configure Date-Range pickers & Strategy Selector."""
-        from PySide6.QtCore import QDate
-        from PySide6.QtWidgets import QDateEdit
+        # Date pickers
+        self.dateBtFrom = getattr(self.window, "dateBtFrom", None)
+        if self.dateBtFrom:
+            self.dateBtFrom.setFixedHeight(32)
+            self.dateBtFrom.setFixedWidth(102)
+            today = QDate.currentDate()
+            self.dateBtFrom.setDate(today.addDays(-30))
 
-        # Ensure dateBtFrom and dateBtTo exist and are properly configured
-        layout_params = self.window.frameBtParams.layout() if hasattr(self.window, "frameBtParams") else None
+        self.dateBtTo = getattr(self.window, "dateBtTo", None)
+        if self.dateBtTo:
+            self.dateBtTo.setFixedHeight(32)
+            self.dateBtTo.setFixedWidth(102)
+            self.dateBtTo.setDate(QDate.currentDate())
 
-        if hasattr(self.window, "dateBtFrom") and self.window.dateBtFrom:
-            self.dateBtFrom = self.window.dateBtFrom
-        else:
-            self.dateBtFrom = QDateEdit()
-            self.dateBtFrom.setObjectName("dateBtFrom")
-            self.dateBtFrom.setCalendarPopup(True)
-            self.dateBtFrom.setDisplayFormat("yyyy-MM-dd")
-            self.window.dateBtFrom = self.dateBtFrom
-            if layout_params:
-                self.lbl_from = QLabel("From:")
-                self.lbl_from.setStyleSheet("color: #475569; font-size: 11px; font-weight: 600;")
-                layout_params.insertWidget(0, self.lbl_from)
-                layout_params.insertWidget(1, self.dateBtFrom)
+        # Timeframe & Strategy
+        if hasattr(self.window, "comboBtTf"):
+            self.window.comboBtTf.setFixedHeight(32)
+            self.window.comboBtTf.setFixedWidth(58)
 
-        if hasattr(self.window, "dateBtTo") and self.window.dateBtTo:
-            self.dateBtTo = self.window.dateBtTo
-        else:
-            self.dateBtTo = QDateEdit()
-            self.dateBtTo.setObjectName("dateBtTo")
-            self.dateBtTo.setCalendarPopup(True)
-            self.dateBtTo.setDisplayFormat("yyyy-MM-dd")
-            self.window.dateBtTo = self.dateBtTo
-            if layout_params:
-                self.lbl_to = QLabel("To:")
-                self.lbl_to.setStyleSheet("color: #475569; font-size: 11px; font-weight: 600;")
-                layout_params.insertWidget(2, self.lbl_to)
-                layout_params.insertWidget(3, self.dateBtTo)
+        if hasattr(self.window, "comboBtEngine"):
+            self.window.comboBtEngine.setFixedHeight(32)
+            self.window.comboBtEngine.setFixedWidth(240)
+            self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # Default Date Range: last 30 days up to today
-        today = QDate.currentDate()
-        self.dateBtFrom.setDate(today.addDays(-30))
-        self.dateBtTo.setDate(today)
-        self.dateBtFrom.setFixedHeight(32)
-        self.dateBtFrom.setFixedWidth(108)
-        self.dateBtTo.setFixedHeight(32)
-        self.dateBtTo.setFixedWidth(108)
+        # Capital, Slippage & Commission
+        if hasattr(self.window, "spinBtCapital"):
+            self.spinBtCapital = self.window.spinBtCapital
+            self.spinBtCapital.setFixedHeight(32)
+            self.spinBtCapital.setFixedWidth(100)
 
-        # Hide legacy comboBtSample and its label if present
+        if hasattr(self.window, "spinBtSlippage"):
+            self.spinBtSlippage = self.window.spinBtSlippage
+            self.spinBtSlippage.setFixedHeight(32)
+            self.spinBtSlippage.setFixedWidth(80)
+
+        if hasattr(self.window, "spinBtComm"):
+            self.spinBtComm = self.window.spinBtComm
+            self.spinBtComm.setFixedHeight(32)
+            self.spinBtComm.setFixedWidth(88)
+
+        # Ensure spacer in frameBtParams expands to anchor actions to the right
+        if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
+            layout = self.window.frameBtParams.layout()
+            for i in range(layout.count()):
+                sp = layout.itemAt(i).spacerItem()
+                if sp:
+                    sp.changeSize(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+            layout.invalidate()
+
+        # Hide legacy comboBtSample if present
         if hasattr(self.window, "comboBtSample") and self.window.comboBtSample:
             self.window.comboBtSample.setVisible(False)
         if hasattr(self.window, "frameBtParams"):
             for lbl in self.window.frameBtParams.findChildren(QLabel):
                 if lbl.text().strip().lower() == "sample:":
                     lbl.setVisible(False)
-
-        for widget in [
-            self.dateBtFrom,
-            self.dateBtTo,
-            getattr(self.window, "comboBtTf", None),
-            getattr(self.window, "spinBtSlippage", None),
-            getattr(self.window, "comboBtEngine", None),
-            getattr(self.window, "btnRunBacktest", None),
-            getattr(self.window, "btnExportReport", None),
-        ]:
-            if widget:
-                widget.setFixedHeight(32)
-
-        if hasattr(self.window, "comboBtTf"):
-            self.window.comboBtTf.setFixedWidth(56)
-
-        if hasattr(self.window, "spinBtSlippage"):
-            self.window.spinBtSlippage.setFixedWidth(74)
-
-        if hasattr(self.window, "comboBtEngine"):
-            self.window.comboBtEngine.setFixedWidth(255)
-            self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         # Cài đặt khoảng cách và tỷ lệ co giãn cho verticalLayout_tab5
         if hasattr(self.window, "verticalLayout_tab5"):
@@ -316,7 +299,8 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "frameBtParams"):
             lbl_map = {
                 "sample:": "Sample:",
-                "timeframe:": "Timeframe:",
+                "timeframe:": "TF:",
+                "tf:": "TF:",
                 "slippage:": "Slippage:",
                 "engine:": "Strategy:",
                 "strategy:": "Strategy:",
@@ -328,11 +312,11 @@ class BacktestWorkbenchController:
 
         # Chuẩn hóa nhãn các nút điều khiển
         if hasattr(self.window, "btnRunBacktest"):
-            self.window.btnRunBacktest.setText("RUN BACKTEST")
-            self.window.btnRunBacktest.setFixedWidth(120)
+            self.window.btnRunBacktest.setText("▶ RUN")
+            self.window.btnRunBacktest.setFixedWidth(78)
         if hasattr(self.window, "btnExportReport"):
-            self.window.btnExportReport.setText("EXPORT REPORT")
-            self.window.btnExportReport.setFixedWidth(130)
+            self.window.btnExportReport.setText("EXPORT")
+            self.window.btnExportReport.setFixedWidth(74)
 
         # Chuẩn hóa nhãn thẻ chỉ số hiệu năng
         bench_map = {
@@ -406,74 +390,39 @@ class BacktestWorkbenchController:
         # Nạp các chiến lược định lượng đã đăng ký vào comboBtEngine
         self._load_strategies_into_combo()
 
-        # Nạp các nút thao tác: NHẬP CHIẾN LƯỢC và THƯ MỤC
-        if hasattr(self.window, "horizontalLayout_btParams") and hasattr(self.window, "comboBtEngine"):
-            layout = self.window.horizontalLayout_btParams
-            assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-            if not os.path.exists(assets_dir):
-                assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        # Cấu hình các nút thao tác: IMPORT, EXPORT và RUN
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+        if not os.path.exists(assets_dir):
+            assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
-            if not hasattr(self, "btn_import_strat"):
-                self.btn_import_strat = QPushButton("IMPORT")
-                self.btn_import_strat.setObjectName("btnImportStrat")
-                import_svg = os.path.join(assets_dir, "icon_import.svg")
-                if os.path.exists(import_svg):
-                    self.btn_import_strat.setIcon(QIcon(import_svg))
-                    self.btn_import_strat.setIconSize(QSize(13, 13))
-                self.btn_import_strat.setFixedSize(58, 32)
-                self.btn_import_strat.setToolTip("Import Python Strategy file (.py)")
-                self.btn_import_strat.setCursor(Qt.PointingHandCursor)
+        if hasattr(self.window, "btnImportStrat"):
+            self.btn_import_strat = self.window.btnImportStrat
+            self.btn_import_strat.setText("IMPORT")
+            import_svg = os.path.join(assets_dir, "icon_import.svg")
+            if os.path.exists(import_svg):
+                self.btn_import_strat.setIcon(QIcon(import_svg))
+                self.btn_import_strat.setIconSize(QSize(13, 13))
+            self.btn_import_strat.setFixedSize(72, 32)
+            self.btn_import_strat.setToolTip("Import Python Strategy file")
+            self.btn_import_strat.setCursor(Qt.PointingHandCursor)
+            if not getattr(self.btn_import_strat, "_has_click_connected", False):
                 self.btn_import_strat.clicked.connect(self._on_import_strategy_clicked)
+                self.btn_import_strat._has_click_connected = True
 
-                self.btn_open_folder = QPushButton("OPEN DIR")
-                self.btn_open_folder.setObjectName("btnOpenStratFolder")
-                folder_svg = os.path.join(assets_dir, "icon_folder.svg")
-                if os.path.exists(folder_svg):
-                    self.btn_open_folder.setIcon(QIcon(folder_svg))
-                    self.btn_open_folder.setIconSize(QSize(13, 13))
-                self.btn_open_folder.setFixedSize(64, 32)
-                self.btn_open_folder.setToolTip("Open user strategies directory")
-                self.btn_open_folder.setCursor(Qt.PointingHandCursor)
-                self.btn_open_folder.clicked.connect(self._on_open_folder_clicked)
+        if hasattr(self.window, "btnExportReport"):
+            self.btnExportReport = self.window.btnExportReport
+            self.btnExportReport.setText("EXPORT")
+            self.btnExportReport.setFixedSize(74, 32)
+            self.btnExportReport.setCursor(Qt.PointingHandCursor)
 
-                self.window.btnImportStrat = self.btn_import_strat
-                self.window.btnOpenStratFolder = self.btn_open_folder
+        if hasattr(self.window, "btnRunBacktest"):
+            self.btnRunBacktest = self.window.btnRunBacktest
+            self.btnRunBacktest.setText("▶ RUN")
+            self.btnRunBacktest.setFixedSize(78, 32)
+            self.btnRunBacktest.setCursor(Qt.PointingHandCursor)
 
-                idx = layout.indexOf(self.window.comboBtEngine)
-                if idx >= 0:
-                    layout.insertWidget(idx + 1, self.btn_import_strat)
-                    layout.insertWidget(idx + 2, self.btn_open_folder)
-
-                    from PySide6.QtCore import QLocale
-                    self.lbl_cap = QLabel("Capital:")
-                    self.lbl_cap.setStyleSheet("color: #475569; font-size: 11px; font-weight: 600;")
-                    self.spinBtCapital = QDoubleSpinBox()
-                    self.spinBtCapital.setLocale(QLocale(QLocale.English, QLocale.UnitedStates))
-                    self.spinBtCapital.setGroupSeparatorShown(True)
-                    self.spinBtCapital.setRange(1000.0, 10000000.0)
-                    self.spinBtCapital.setValue(100000.0)
-                    self.spinBtCapital.setSingleStep(10000.0)
-                    self.spinBtCapital.setDecimals(0)
-                    self.spinBtCapital.setPrefix("$")
-                    self.spinBtCapital.setFixedWidth(100)
-                    self.spinBtCapital.setFixedHeight(32)
-
-                    self.lbl_comm = QLabel("Comm:")
-                    self.lbl_comm.setStyleSheet("color: #475569; font-size: 11px; font-weight: 600;")
-                    self.spinBtComm = QDoubleSpinBox()
-                    self.spinBtComm.setRange(0.0, 100.0)
-                    self.spinBtComm.setValue(7.0)
-                    self.spinBtComm.setSingleStep(0.5)
-                    self.spinBtComm.setDecimals(2)
-                    self.spinBtComm.setPrefix("$")
-                    self.spinBtComm.setSuffix(" /lot")
-                    self.spinBtComm.setFixedWidth(96)
-                    self.spinBtComm.setFixedHeight(32)
-
-                    layout.insertWidget(idx + 3, self.lbl_cap)
-                    layout.insertWidget(idx + 4, self.spinBtCapital)
-                    layout.insertWidget(idx + 5, self.lbl_comm)
-                    layout.insertWidget(idx + 6, self.spinBtComm)
+        if hasattr(self.window, "btnOpenStratFolder"):
+            self.window.btnOpenStratFolder.setVisible(False)
 
     def _load_strategies_into_combo(self):
         """Discovers strategies and populates comboBtEngine without breaking signal state."""
@@ -708,7 +657,7 @@ class BacktestWorkbenchController:
         self._run_simulation_internal(is_initial=False)
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(True)
-            self.window.btnRunBacktest.setText("RUN BACKTEST")
+            self.window.btnRunBacktest.setText("▶ RUN")
 
     def _run_simulation_internal(self, is_initial: bool = False):
         from frontend.controllers.backtest.simulation_runner import run_simulation_internal
@@ -768,7 +717,7 @@ class BacktestWorkbenchController:
         finally:
             if hasattr(self.window, "btnExportReport"):
                 self.window.btnExportReport.setEnabled(True)
-                self.window.btnExportReport.setText("EXPORT REPORT")
+                self.window.btnExportReport.setText("EXPORT")
 
 
 def setup_backtest_tab(window):
