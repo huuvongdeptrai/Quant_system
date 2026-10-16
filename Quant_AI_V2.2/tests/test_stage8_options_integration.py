@@ -142,3 +142,24 @@ class TestStage8OptionsIntegration:
             allowed, reason = worker._check_session_allowed()
             assert allowed is False
             assert reason == "FRIDAY_EOD"
+
+    def test_watchlist_single_xauusd_preserved(self):
+        from frontend.controllers.watchlist_controller import WatchlistManager
+        mock_win = MagicMock()
+        mock_tree = MagicMock()
+        mock_win.treeWatchlist = mock_tree
+
+        with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "refresh_all_status_icons"):
+            mgr = WatchlistManager(mock_win)
+            import io, json
+            mock_file = io.StringIO(json.dumps(["XAUUSD"]))
+            with patch("builtins.open", return_value=mock_file), \
+                 patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+                 patch.object(mgr, "save_watchlist"), \
+                 patch("os.path.exists", return_value=True):
+                mock_file.seek(0)
+                mgr.load_watchlist()
+                # Phải nạp đúng 1 mã XAUUSD, tuyệt đối KHÔNG được nạp đè 9 cặp mặc định
+                assert mock_add.call_count == 1
+                assert mock_add.call_args[0][0] == "XAUUSD"

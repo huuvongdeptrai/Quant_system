@@ -399,9 +399,22 @@ class WatchlistManager(QObject):
 
     def save_watchlist(self):
         symbols = self.get_all_symbols()
-        os.makedirs(os.path.dirname(self.data_file), exist_ok=True)
-        with open(self.data_file, "w", encoding="utf-8") as f:
-            json.dump(symbols, f)
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        target_paths = [
+            self.data_file,
+            os.path.join(root_dir, "data", "watchlist.json"),
+            os.path.join(root_dir, "config", "watchlist.json"),
+        ]
+        for target in target_paths:
+            try:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with open(target, "w", encoding="utf-8") as f:
+                    if "config" in target:
+                        json.dump({"symbols": symbols}, f, indent=4)
+                    else:
+                        json.dump(symbols, f, indent=4)
+            except Exception:
+                pass
         self._sync_bot_symbols()
 
     def load_watchlist(self):
@@ -428,40 +441,59 @@ class WatchlistManager(QObject):
             "Crypto": "CRYPTO",
             "Metals": "METALS",
         }
-        if not os.path.exists(self.data_file):
+
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        candidate_paths = [
+            os.path.join(root_dir, "config", "watchlist.json"),
+            self.data_file,
+            os.path.join(root_dir, "data", "watchlist.json"),
+        ]
+
+        symbols = None
+        for candidate in candidate_paths:
+            if os.path.exists(candidate):
+                try:
+                    with open(candidate, "r", encoding="utf-8") as f:
+                        raw = json.load(f)
+                    if isinstance(raw, dict) and "symbols" in raw:
+                        symbols = raw["symbols"]
+                    elif isinstance(raw, list):
+                        symbols = raw
+                    if symbols is not None and len(symbols) > 0:
+                        break
+                except Exception:
+                    pass
+
+        # Chỉ khi chưa có cấu hình hoặc file hoàn toàn rỗng mới dùng danh sách mặc định
+        if not symbols:
             for sym, cat in default_pairs:
-                self.add_symbol_to_tree(sym, cat)
+                self.add_symbol_to_tree(sym, cat, auto_save=False)
+            self.save_watchlist()
             return
-        try:
-            with open(self.data_file, "r", encoding="utf-8") as f:
-                symbols = json.load(f)
-            if not symbols or symbols == ["XAUUSD"]:
-                symbols = [p[0] for p in default_pairs]
-            for sym in symbols:
-                cat = "FOREX"
-                if "XAU" in sym or "XAG" in sym or "OIL" in sym:
-                    cat = "COMMODITIES"
-                elif "BTC" in sym or "ETH" in sym or "SOL" in sym:
-                    cat = "CRYPTO"
-                elif "US30" in sym or "NAS" in sym or "SPX" in sym:
-                    cat = "INDICES"
-                info = mt5.symbol_info(sym)
-                if info and info.path:
-                    path = info.path.split("\\")
-                    if len(path) > 0 and path[0]:
-                        raw = path[0]
-                        cat = cat_map.get(raw, raw)
-                self.add_symbol_to_tree(sym, cat)
-        except Exception:
-            for sym, cat in default_pairs:
-                self.add_symbol_to_tree(sym, cat)
+
+        for sym in symbols:
+            cat = "FOREX"
+            if "XAU" in sym or "XAG" in sym or "OIL" in sym:
+                cat = "COMMODITIES"
+            elif "BTC" in sym or "ETH" in sym or "SOL" in sym:
+                cat = "CRYPTO"
+            elif "US30" in sym or "NAS" in sym or "SPX" in sym:
+                cat = "INDICES"
+            info = mt5.symbol_info(sym)
+            if info and info.path:
+                path = info.path.split("\\")
+                if len(path) > 0 and path[0]:
+                    raw = path[0]
+                    cat = cat_map.get(raw, raw)
+            self.add_symbol_to_tree(sym, cat, auto_save=False)
+        self.save_watchlist()
 
     def open_search_modal(self):
         dialog = SymbolSearchDialog(self.window)
         if dialog.exec() == QDialog.Accepted and dialog.selected_symbol:
             self.add_symbol_to_tree(dialog.selected_symbol, dialog.selected_category)
 
-    def add_symbol_to_tree(self, sym, cat_name):
+    def add_symbol_to_tree(self, sym, cat_name, auto_save: bool = True):
         clean_sym = sym.split("\n")[0].strip()
         if clean_sym in self.get_all_symbols():
             return
@@ -539,7 +571,8 @@ class WatchlistManager(QObject):
             child.setForeground(3, red)
 
         cat_item.addChild(child)
-        self.save_watchlist()
+        if auto_save:
+            self.save_watchlist()
 
     def update_item_status(self, item, sym: str):
         """
