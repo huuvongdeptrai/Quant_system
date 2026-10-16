@@ -143,9 +143,9 @@ class FadeOverlayWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Center Container Card
+        # Center Container Card (Pure Minimalist Swiss Geometry)
         self.center_card = QFrame()
-        self.center_card.setFixedSize(460, 210)
+        self.center_card.setFixedSize(420, 140)
         self.center_card.setStyleSheet("""
             QFrame {
                 background-color: #FFFFFF;
@@ -155,13 +155,13 @@ class FadeOverlayWidget(QWidget):
         """)
 
         card_vbox = QVBoxLayout(self.center_card)
-        card_vbox.setContentsMargins(40, 36, 40, 28)
+        card_vbox.setContentsMargins(36, 32, 36, 24)
         card_vbox.setSpacing(0)
 
         # Brand Title
         self.lbl_title = QLabel("VECTRA")
         self.lbl_title.setStyleSheet(
-            "color: #0F172A; font-family: 'Segoe UI'; font-size: 32px; font-weight: 900; letter-spacing: 6px; border: none;"
+            "color: #0F172A; font-family: 'Segoe UI'; font-size: 30px; font-weight: 900; letter-spacing: 6px; border: none;"
         )
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_vbox.addWidget(self.lbl_title)
@@ -169,33 +169,14 @@ class FadeOverlayWidget(QWidget):
         # Subtitle
         self.lbl_sub = QLabel("QUANTITATIVE AI TRADING SYSTEM • V2.2")
         self.lbl_sub.setStyleSheet(
-            "color: #64748B; font-family: 'Segoe UI'; font-size: 9px; font-weight: 700; letter-spacing: 2.5px; border: none; margin-top: 4px;"
+            "color: #64748B; font-family: 'Segoe UI'; font-size: 9px; font-weight: 700; letter-spacing: 2px; border: none; margin-top: 4px;"
         )
         self.lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_vbox.addWidget(self.lbl_sub)
 
         card_vbox.addStretch(1)
 
-        # Status and Progress
-        status_row = QHBoxLayout()
-        status_row.setContentsMargins(0, 0, 0, 6)
-
-        self.lbl_status = QLabel("SYNCHRONIZING FEED...")
-        self.lbl_status.setStyleSheet(
-            "color: #0284C7; font-family: 'Consolas'; font-size: 10px; font-weight: 700; letter-spacing: 1px; border: none;"
-        )
-        status_row.addWidget(self.lbl_status)
-
-        status_row.addStretch(1)
-
-        self.lbl_pct = QLabel("0%")
-        self.lbl_pct.setStyleSheet(
-            "color: #0F172A; font-family: 'Consolas'; font-size: 11px; font-weight: 800; border: none;"
-        )
-        status_row.addWidget(self.lbl_pct)
-
-        card_vbox.addLayout(status_row)
-
+        # Minimalist 2px Progress Bar (No clutter, no AI-style logs)
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(2)
         self.progress_bar.setTextVisible(False)
@@ -229,10 +210,12 @@ class FadeOverlayWidget(QWidget):
             self.raise_()
         return super().eventFilter(watched, event)
 
-    def update_progress(self, val: int, msg: str):
+    def update_progress(self, val: int, msg: str = ""):
         self.progress_bar.setValue(val)
-        self.lbl_pct.setText(f"{val}%")
-        self.lbl_status.setText(msg.upper())
+        if hasattr(self, "lbl_pct") and self.lbl_pct:
+            self.lbl_pct.setText(f"{val}%")
+        if hasattr(self, "lbl_status") and self.lbl_status:
+            self.lbl_status.setText(msg.upper())
 
     def close(self):
         """Fade out gracefully when close is invoked."""
@@ -339,23 +322,9 @@ class SwissSplashCard(QWidget):
         card_layout.addWidget(self.lbl_tag)
         card_layout.addStretch(1)
 
-        # 3. BOTTOM ROW: Status Log (Bottom-Left) vs Percentage (Bottom-Right)
-        bottom_row = QHBoxLayout()
-        bottom_row.setContentsMargins(0, 0, 0, 8)
+        card_layout.addStretch(1)
 
-        self.lbl_status = QLabel("● [MT5] Initializing engine & connecting feed...")
-        self.lbl_status.setStyleSheet("color: #0284C7; font-family: 'Consolas'; font-size: 11px; font-weight: 600; border: none;")
-        bottom_row.addWidget(self.lbl_status)
-
-        bottom_row.addStretch(1)
-
-        self.lbl_pct = QLabel("0%")
-        self.lbl_pct.setStyleSheet("color: #0F172A; font-family: 'Consolas'; font-size: 13px; font-weight: 800; border: none;")
-        bottom_row.addWidget(self.lbl_pct)
-
-        card_layout.addLayout(bottom_row)
-
-        # 4. BOTTOM EDGE: 2px Ultra-thin Progress Bar
+        # 3. BOTTOM EDGE: 2px Ultra-thin Progress Bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(2)
         self.progress_bar.setTextVisible(False)
@@ -379,10 +348,12 @@ class SwissSplashCard(QWidget):
         outer_layout.addWidget(self.card)
         outer_layout.addWidget(self.progress_bar)
 
-    def update_progress(self, val: int, msg: str):
+    def update_progress(self, val: int, msg: str = ""):
         self.progress_bar.setValue(val)
-        self.lbl_pct.setText(f"{val}%")
-        self.lbl_status.setText(msg)
+        if hasattr(self, "lbl_pct") and self.lbl_pct:
+            self.lbl_pct.setText(f"{val}%")
+        if hasattr(self, "lbl_status") and self.lbl_status:
+            self.lbl_status.setText(msg)
 
 
 # Canonical Facade Alias for 100% Backwards Compatibility
