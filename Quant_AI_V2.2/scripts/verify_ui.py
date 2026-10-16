@@ -123,6 +123,13 @@ def run_audit():
             pixmap.save(out_file, "PNG")
             print(f"  Saved screenshot: v3_{tab_name}_{theme_name}.png")
 
+    try:
+        quant_app.closeEvent(None)
+        win.close()
+        app.processEvents()
+    except Exception:
+        pass
+
     print("\n" + "=" * 60)
     if not errors:
         print("  AUDIT PASSED: ALL 5 LAYERS COMPLIANT WITH IMPECCABLE STANDARD!")
@@ -134,4 +141,5 @@ def run_audit():
         return 1
 
 if __name__ == "__main__":
-    sys.exit(run_audit())
+    code = run_audit()
+    os._exit(code)

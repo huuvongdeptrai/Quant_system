@@ -202,10 +202,17 @@ class DataPreprocessor:
         else:
             current_time_utc = "Không xác định"
 
-        if "tick_volume" in df.columns:
-            df.rename(columns={"tick_volume": "volume"}, inplace=True)
-        elif "volume" not in df.columns:
-            df["volume"] = 1000.0
+        if "volume" not in df.columns:
+            if "tick_volume" in df.columns:
+                df.rename(columns={"tick_volume": "volume"}, inplace=True)
+            else:
+                df["volume"] = 1000.0
+        elif "tick_volume" in df.columns:
+            df.drop(columns=["tick_volume"], inplace=True)
+
+        # Ensure no duplicate columns and clean index
+        df = df.loc[:, ~df.columns.duplicated()].copy()
+        df.reset_index(drop=True, inplace=True)
 
         # 2. Làm sạch dữ liệu (Xử lý NaN)
         df.ffill(inplace=True)

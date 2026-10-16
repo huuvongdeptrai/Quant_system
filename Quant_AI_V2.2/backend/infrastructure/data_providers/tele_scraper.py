@@ -19,15 +19,23 @@ if not TARGET_CHAT:
 chat_list = [c.strip() for c in TARGET_CHAT.split(",")]
 
 
-if not API_ID or not API_HASH:
-    logger.error("Vui lòng cấu hình TELE_API_ID và TELE_API_HASH trong file .env")
-    exit(1)
-
 # Connect to Redis
-redis_host = "127.0.0.1" if not os.path.exists("/.dockerenv") else "quant_redis"
-r = redis.Redis(host=redis_host, port=6379, db=0)
+try:
+    redis_host = "127.0.0.1" if not os.path.exists("/.dockerenv") else "quant_redis"
+    r = redis.Redis(host=redis_host, port=6379, db=0)
+except Exception as e:
+    logger.warning(f"Could not initialize Redis client: {e}")
+    r = None
 
-client = TelegramClient("quant_news_session", int(API_ID), API_HASH)
+if not API_ID or not API_HASH:
+    logger.warning("TELE_API_ID hoặc TELE_API_HASH chưa được cấu hình trong .env. Tele Scraper client ở chế độ chờ.")
+    client = None
+else:
+    try:
+        client = TelegramClient("quant_news_session", int(API_ID), API_HASH)
+    except Exception as e:
+        logger.warning(f"Failed initializing TelegramClient: {e}")
+        client = None
 
 
 def extract_news_json(text: str) -> dict:
@@ -89,7 +97,6 @@ def extract_news_json(text: str) -> dict:
     return None
 
 
-@client.on(events.NewMessage(chats=chat_list))
 async def handler(event):
     logger.info(f"Nhận được tin nhắn từ Telegram: {event.raw_text}")
 
@@ -137,8 +144,12 @@ async def handler(event):
             json.dump(events_list, f, ensure_ascii=False, indent=4)
 
         # Bắn tín hiệu qua Redis Pub/Sub
-        r.publish("MACRO_NEWS", json.dumps(news_data))
-        logger.info("Đã phát tín hiệu lên kênh MACRO_NEWS của Redis.")
+        if r is not None:
+            r.publish("MACRO_NEWS", json.dumps(news_data))
+            logger.info("Đã phát tín hiệu lên kênh MACRO_NEWS của Redis.")
+
+if client is not None:
+    client.on(events.NewMessage(chats=chat_list))(handler)
 
 
 import xml.etree.ElementTree as ET
@@ -244,16 +255,20 @@ async def fetch_history_on_startup():
             ) as f:
                 json.dump({"actual": combined_actuals}, f, ensure_ascii=False)
             logger.success("Đã đồng bộ xong dữ liệu quá khứ. Đánh thức AI...")
-            r.publish(
-                "MACRO_NEWS",
-                json.dumps({"source": "SMART_SYNC", "raw_text": "Cập nhật hàng loạt"}),
-            )
+            if r is not None:
+                r.publish(
+                    "MACRO_NEWS",
+                    json.dumps({"source": "SMART_SYNC", "raw_text": "Cập nhật hàng loạt"}),
+                )
 
     except Exception as e:
         logger.error(f"Lỗi khi Smart Sync: {e}")
 
 
 async def main():
+    if not client:
+        logger.error("Vui lòng cấu hình TELE_API_ID và TELE_API_HASH trong file .env trước khi chạy Tele Scraper")
+        return
     await client.start()
     await fetch_history_on_startup()
     logger.info(f"Tele Scraper đang lắng nghe các kênh: {chat_list}...")

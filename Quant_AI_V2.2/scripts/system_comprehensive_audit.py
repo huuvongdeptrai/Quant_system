@@ -455,6 +455,14 @@ def audit_frontend_ui():
         t_theme = (time.perf_counter() - t0) * 1000
         record_audit("UI Theming", "Dark & Light Theme Hot-Swap", True, t_theme, "Both themes compiled and applied without crash")
 
+        # Clean teardown of terminal
+        try:
+            terminal.closeEvent(None)
+            win.close()
+            app.processEvents()
+        except Exception:
+            pass
+
     except Exception as e:
         record_audit("UI Framework", "General", False, 0.0, f"Exception: {e}")
 
@@ -505,4 +513,5 @@ def run_all_audits():
     return failed_tests
 
 if __name__ == "__main__":
-    sys.exit(run_all_audits())
+    errs = run_all_audits()
+    os._exit(errs)

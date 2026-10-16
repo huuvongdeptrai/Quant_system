@@ -321,6 +321,22 @@ class BotOrchestrator(QtCore.QObject):
                         return True, f"{e.get('title', '')} ({e.get('country', '')})"
         return False, ""
 
+    def _strategy_logic(self, refined: dict) -> tuple[str, float, float, float]:
+        """Legacy helper: evaluates basic channel signal and boundaries from refined indicators."""
+        current = refined["current_price"]
+        trend = refined["trend"]
+        sup = refined["support"]
+        res = refined["resistance"]
+        range_h = res - sup
+        sig = "WAIT"
+
+        if range_h > 0:
+            if "TĂNG" in trend and (current - sup) < range_h * 0.2:
+                sig = "BUY"
+            elif "GIẢM" in trend and (res - current) < range_h * 0.2:
+                sig = "SELL"
+        return sig, sup, res, current
+
     def _calculate_sl_tp(
         self, signal: str, current: float, support: float, resistance: float
     ) -> tuple[float, float]:
