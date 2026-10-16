@@ -7,8 +7,8 @@ Hệ thống: Quant AI V2.2 - Kiểm định Độ trễ (Latency Logging) & Kh�
 import time
 import pytest
 from unittest.mock import MagicMock, patch
-from infrastructure.brokers.execution_manager import ExecutionManager
-from infrastructure.brokers.mt5_safe import mt5
+from backend.infrastructure.brokers.execution_manager import ExecutionManager
+from backend.infrastructure.brokers.mt5_safe import mt5
 
 
 class TestStage3ExecutionResilience:
@@ -20,7 +20,14 @@ class TestStage3ExecutionResilience:
         Kiểm tra thời gian ping và phản hồi của Broker qua hàm order_check().
         Tiêu chuẩn: Độ trễ phản hồi sàn bắt buộc phải < 500 ms.
         """
-        assert mt5.initialize(), "Không thể kết nối MT5 Broker"
+        try:
+            import psutil
+            is_running = any("terminal" in p.name().lower() or "metatrader" in p.name().lower() for p in psutil.process_iter(["name"]))
+        except Exception:
+            is_running = False
+
+        if not is_running or not mt5.initialize():
+            pytest.skip("MT5 Broker offline hoặc Terminal không hoạt động trên máy")
 
         symbol = "XAUUSD"
         mt5.symbol_select(symbol, True)
@@ -71,8 +78,15 @@ class TestStage3ExecutionResilience:
         )
 
         mock_responses = [res_requote, res_requote, res_success]
+        mock_tick = MagicMock(ask=2010.0, bid=2009.5)
+        mock_info = MagicMock(digits=2, trade_stops_level=0, point=0.01, filling_mode=2)
+        mock_term = MagicMock(trade_allowed=True)
 
-        with patch.object(mt5, "order_send", side_effect=mock_responses):
+        with patch.object(mt5, "symbol_select", return_value=True), \
+             patch.object(mt5, "symbol_info_tick", return_value=mock_tick), \
+             patch.object(mt5, "symbol_info", return_value=mock_info), \
+             patch.object(mt5, "terminal_info", return_value=mock_term), \
+             patch.object(mt5, "order_send", side_effect=mock_responses):
             result = exec_mgr.execute_market_order(
                 "XAUUSD",
                 is_buy=True,
@@ -99,8 +113,15 @@ class TestStage3ExecutionResilience:
         res_market_closed = MagicMock(
             retcode=mt5.TRADE_RETCODE_MARKET_CLOSED, comment="Market closed"
         )
+        mock_tick = MagicMock(ask=2010.0, bid=2009.5)
+        mock_info = MagicMock(digits=2, trade_stops_level=0, point=0.01, filling_mode=2)
+        mock_term = MagicMock(trade_allowed=True)
 
-        with patch.object(mt5, "order_send", return_value=res_market_closed):
+        with patch.object(mt5, "symbol_select", return_value=True), \
+             patch.object(mt5, "symbol_info_tick", return_value=mock_tick), \
+             patch.object(mt5, "symbol_info", return_value=mock_info), \
+             patch.object(mt5, "terminal_info", return_value=mock_term), \
+             patch.object(mt5, "order_send", return_value=res_market_closed):
             result = exec_mgr.execute_market_order(
                 "XAUUSD",
                 is_buy=True,

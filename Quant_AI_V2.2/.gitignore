@@ -28,6 +28,7 @@ env/
 # ========================================================
 config/ai_config.json
 config/config.json
+config/settings.json
 config/*.local.json
 *.pem
 *.key
@@ -36,3 +37,7 @@ config/*.local.json
 # SQLite database files
 *.db
 *.sqlite3
+
+# Datasets & Backups
+*.jsonl
+*_BACKUP/

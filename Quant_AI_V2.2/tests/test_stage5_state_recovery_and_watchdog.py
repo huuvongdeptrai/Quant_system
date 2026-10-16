@@ -8,10 +8,10 @@ import os
 import tempfile
 import pytest
 from unittest.mock import MagicMock, patch
-from database.db_manager import DatabaseManager
-from core.state_recovery import StateRecoveryManager
-from core.watchdog import MT5Watchdog
-from infrastructure.brokers.mt5_safe import mt5
+from backend.database.db_manager import DatabaseManager
+from backend.core.state_recovery import StateRecoveryManager
+from backend.core.watchdog import MT5Watchdog
+from backend.infrastructure.brokers.mt5_safe import mt5
 
 
 class TestStage5StateRecoveryAndWatchdog:

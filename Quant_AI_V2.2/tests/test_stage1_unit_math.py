@@ -7,10 +7,10 @@ Hệ thống: Quant AI V2.2 - Lõi 3 (Decision Gate, SR Calculator) & Lõi 4 (Ri
 import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
-from infrastructure.ai_engines.ai.sr_calculator import calculate_sr_levels
-from infrastructure.ai_engines.ai.decision_gate import DecisionGate
-from core.risk_manager import RiskManager
-from infrastructure.brokers.mt5_safe import mt5
+from backend.infrastructure.ai_engines.ai.sr_calculator import calculate_sr_levels
+from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
+from backend.core.risk_manager import RiskManager
+from backend.infrastructure.brokers.mt5_safe import mt5
 
 
 def generate_mock_candles(

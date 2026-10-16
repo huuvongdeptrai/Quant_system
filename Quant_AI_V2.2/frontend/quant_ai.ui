@@ -1,0 +1,1322 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>1300</width><height>850</height></rect></property>
+  <property name="windowTitle"><string>Quant AI - Professional Terminal</string></property>
+
+
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="spacing"><number>0</number></property>
+    <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+    <item>
+     <widget class="QSplitter" name="mainSplitter">
+      <property name="orientation"><enum>Qt::Horizontal</enum></property>
+      
+      <widget class="QFrame" name="sidebar">
+       <property name="minimumSize"><size><width>0</width><height>0</height></size></property>
+       <property name="maximumSize"><size><width>320</width><height>16777215</height></size></property>
+       <layout class="QVBoxLayout">
+        <property name="spacing"><number>10</number></property>
+        <property name="leftMargin"><number>15</number></property>
+        <property name="rightMargin"><number>15</number></property>
+        <property name="topMargin"><number>20</number></property>
+        <item><layout class="QHBoxLayout">
+             <item>
+              <widget class="QLabel" name="watchlistTitle">
+               <property name="text"><string>WATCHLIST</string></property>
+              </widget>
+             </item>
+             <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+             <item>
+              <widget class="QPushButton" name="btnOpenSearch">
+               <property name="text"><string>+</string></property>
+               <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+               <property name="toolTip"><string>Add Symbol to Watchlist</string></property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnCollapseWatchlist">
+               <property name="text"><string></string></property>
+               <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+               <property name="toolTip"><string>Toggle Watchlist Panel</string></property>
+              </widget>
+             </item>
+            </layout></item>
+        <item>
+         
+           </item>
+           <item>
+            <widget class="QTreeWidget" name="treeWatchlist">
+             <column><property name="text"><string>Symbol</string></property></column>
+             <column><property name="text"><string>Bid</string></property></column>
+             <column><property name="text"><string>Chg</string></property></column>
+             <column><property name="text"><string>%Chg</string></property></column>
+            </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameSidebarAccount">
+          <property name="styleSheet"><string>QFrame#frameSidebarAccount { background-color: #161B22; border-top: 1px solid #30363D; border-bottom: none; border-left: none; border-right: none; }</string></property>
+          <property name="minimumSize"><size><width>0</width><height>165</height></size></property>
+          <property name="maximumSize"><size><width>16777215</width><height>165</height></size></property>
+          <layout class="QVBoxLayout">
+           <property name="spacing"><number>5</number></property>
+           <property name="leftMargin"><number>15</number></property>
+           <property name="topMargin"><number>15</number></property>
+           <property name="rightMargin"><number>15</number></property>
+           <property name="bottomMargin"><number>15</number></property>
+           <item>
+            <layout class="QHBoxLayout">
+             <item>
+              <widget class="QLabel" name="labelStatus">
+               <property name="text"><string>DISCONNECTED</string></property>
+              </widget>
+             </item>
+             <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+             <item>
+              <widget class="QPushButton" name="btnOpenLogin">
+               <property name="text"><string>+ Add</string></property>
+               <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+               
+              </widget>
+             </item>
+            </layout>
+           </item>
+           
+           
+           
+            <item>
+             <widget class="QFrame" name="frameBalanceCard">
+              <layout class="QVBoxLayout">
+               <property name="leftMargin"><number>10</number></property>
+               <property name="topMargin"><number>8</number></property>
+               <property name="rightMargin"><number>10</number></property>
+               <property name="bottomMargin"><number>8</number></property>
+               <property name="spacing"><number>6</number></property>
+               <item>
+                <layout class="QHBoxLayout">
+                 <item><widget class="QLabel"><property name="text"><string>Balance</string></property></widget></item>
+                 <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                 <item><widget class="QLabel" name="valBalance"><property name="text"><string>$ 0.00</string></property></widget></item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout">
+                 <item><widget class="QLabel"><property name="text"><string>Equity</string></property></widget></item>
+                 <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                 <item><widget class="QLabel" name="valEquity"><property name="text"><string>$ 0.00</string></property></widget></item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+
+            <item>
+             <widget class="QFrame" name="frameMarginCard">
+              <layout class="QHBoxLayout">
+               <property name="leftMargin"><number>10</number></property>
+               <property name="topMargin"><number>8</number></property>
+               <property name="rightMargin"><number>10</number></property>
+               <property name="bottomMargin"><number>8</number></property>
+               <item><widget class="QLabel"><property name="text"><string>Margin</string></property></widget></item>
+               <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+               <item><widget class="QLabel" name="valMarginLevel"><property name="text"><string>0.00%</string></property></widget></item>
+              </layout>
+             </widget>
+            </item>
+
+
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      
+      
+      <widget class="QWidget" name="mainContentWidget">
+       <layout class="QVBoxLayout">
+        <property name="spacing"><number>0</number></property>
+        <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+        <item>
+         <widget class="QTabWidget" name="tabWidget">
+          <property name="currentIndex"><number>0</number></property>
+          
+          
+          <widget class="QWidget" name="tab1">
+ <attribute name="title"><string>SETTINGS &amp;&amp; RISK</string></attribute>
+ <layout class="QVBoxLayout" name="verticalLayout_tab1">
+  <item><layout class="QHBoxLayout" name="layoutSettingsToolbar"><property name="spacing"><number>10</number></property><item><widget class="QPushButton" name="btnSaveSettings"><property name="text"><string>SAVE CONFIGURATION</string></property><property name="class"><string>btn_primary</string></property><property name="minimumHeight"><number>32</number></property><property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property></widget></item><item><widget class="QPushButton" name="btnResetSettings"><property name="text"><string>RESTORE DEFAULTS</string></property><property name="minimumHeight"><number>32</number></property><property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property></widget></item><item><widget class="QPushButton" name="btnTestMt5"><property name="text"><string>TEST MT5</string></property><property name="minimumHeight"><number>32</number></property><property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property></widget></item><item><widget class="QPushButton" name="btnTestAI"><property name="text"><string>TEST OLLAMA AI</string></property><property name="minimumHeight"><number>32</number></property><property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property></widget></item><item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item><item><widget class="QLabel" name="lblSettingsStatus"><property name="text"><string>CONFIGURATION READY</string></property><property name="class"><string>status_pill_text</string></property></widget></item></layout></item><property name="spacing"><number>14</number></property>
+  <property name="leftMargin"><number>16</number></property>
+  <property name="topMargin"><number>16</number></property>
+  <property name="rightMargin"><number>16</number></property>
+  <property name="bottomMargin"><number>16</number></property>
+  <item>
+   <widget class="QScrollArea" name="scrollAreaSettings">
+    <property name="widgetResizable"><bool>true</bool></property>
+    <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+    <widget class="QWidget" name="scrollSettingsContent">
+     <layout class="QHBoxLayout" name="horizontalLayout_settings">
+      <property name="spacing"><number>14</number></property>
+      <property name="leftMargin"><number>0</number></property>
+      <property name="topMargin"><number>0</number></property>
+      <property name="rightMargin"><number>0</number></property>
+      <property name="bottomMargin"><number>0</number></property>
+
+      
+      <item>
+       <widget class="QGroupBox" name="groupRiskLimits">
+        <property name="title"><string>HARD RISK LIMITS</string></property>
+        <layout class="QVBoxLayout" name="layoutRiskLimits">
+         <property name="spacing"><number>9</number></property>
+         <property name="leftMargin"><number>16</number></property>
+         <property name="topMargin"><number>20</number></property>
+         <property name="rightMargin"><number>16</number></property>
+         <property name="bottomMargin"><number>16</number></property>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>RISK PER TRADE (%)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="spinRiskPerTrade">
+           <property name="suffix"><string> %</string></property>
+           <property name="singleStep"><double>0.1</double></property>
+           <property name="value"><double>1.0</double></property>
+           <property name="minimum"><double>0.1</double></property>
+           <property name="maximum"><double>100.0</double></property>
+          <property name="decimals"><number>1</number></property></widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>MAX DRAWDOWN LIMIT (%)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QDoubleSpinBox" name="spinMaxDrawdown">
+           <property name="suffix"><string> %</string></property>
+           <property name="singleStep"><double>0.5</double></property>
+           <property name="value"><double>5.0</double></property>
+           <property name="minimum"><double>0.5</double></property>
+           <property name="maximum"><double>100.0</double></property>
+          <property name="decimals"><number>1</number></property></widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>MAX CONSECUTIVE LOSSES</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinMaxLosingStreak">
+           <property name="suffix"><string> trades</string></property>
+           <property name="value"><number>3</number></property>
+           <property name="minimum"><number>1</number></property>
+           <property name="maximum"><number>20</number></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>TRAILING STOP (PIPS)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinTrailingPips">
+           <property name="suffix"><string> pips</string></property>
+           <property name="value"><number>15</number></property>
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>500</number></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>BREAKEVEN TRIGGER (PIPS)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinBreakevenPips">
+           <property name="suffix"><string> pips</string></property>
+           <property name="value"><number>10</number></property>
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>500</number></property>
+          </widget>
+         </item>
+
+         <item><widget class="QLabel"><property name="text"><string>MAX DAILY LOSS ($)</string></property><property name="class"><string>settingLabel</string></property></widget></item><item><widget class="QDoubleSpinBox" name="spinMaxDailyLoss"><property name="prefix"><string>$</string></property><property name="value"><number>500</number></property><property name="maximum"><number>50000</number></property><property name="minimum"><number>50</number></property><property name="decimals"><number>0</number></property></widget></item><item><widget class="QLabel"><property name="text"><string>MAX CONCURRENT TRADES</string></property><property name="class"><string>settingLabel</string></property></widget></item><item><widget class="QSpinBox" name="spinMaxOpenTrades"><property name="suffix"><string> trades</string></property><property name="value"><number>3</number></property><property name="minimum"><number>1</number></property><property name="maximum"><number>20</number></property></widget></item><item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+        </layout>
+       </widget>
+      </item>
+
+      
+      <item>
+       <widget class="QGroupBox" name="groupSessions">
+        <property name="title"><string>SESSIONS &amp;&amp; EXECUTION</string></property>
+        <layout class="QVBoxLayout" name="layoutSessions">
+         <property name="spacing"><number>7</number></property>
+         <property name="leftMargin"><number>16</number></property>
+         <property name="topMargin"><number>20</number></property>
+         <property name="rightMargin"><number>16</number></property>
+         <property name="bottomMargin"><number>16</number></property>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>ACTIVE TRADING SESSIONS</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="chkSessionAsian">
+           <property name="text"><string>Asian Session (Tokyo 06:00 - 15:00)</string></property>
+           <property name="checked"><bool>true</bool></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="chkSessionLondon">
+           <property name="text"><string>London Session (London 14:00 - 23:00)</string></property>
+           <property name="checked"><bool>true</bool></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="chkSessionNY">
+           <property name="text"><string>New York Session (New York 19:00 - 04:00)</string></property>
+           <property name="checked"><bool>true</bool></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QFrame">
+           <property name="frameShape"><enum>QFrame::HLine</enum></property>
+           <property name="frameShadow"><enum>QFrame::Sunken</enum></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>SLIPPAGE TOLERANCE (PTS)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinSlippage">
+           <property name="suffix"><string> pts</string></property>
+           <property name="value"><number>20</number></property>
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>200</number></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>TRADING STRATEGY</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboStrategy" />
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>EXECUTION TIMEFRAME</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboTimeframe" />
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>AI DECISION GATE MODE</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboGateMode" />
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>ALGORITHM EXECUTION MODE</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboExecutionMode" />
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>MARKET BIAS REGIME</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBias" />
+         </item>
+
+         <item><widget class="QLabel"><property name="text"><string>MAX SPREAD TOLERANCE (PTS)</string></property><property name="class"><string>settingLabel</string></property></widget></item><item><widget class="QSpinBox" name="spinMaxSpread"><property name="suffix"><string> pts</string></property><property name="value"><number>25</number></property><property name="minimum"><number>1</number></property><property name="maximum"><number>200</number></property></widget></item><item><widget class="QCheckBox" name="chkCloseFriday"><property name="text"><string>Close positions before weekend (22:00 Friday)</string></property><property name="checked"><bool>true</bool></property></widget></item><item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+        </layout>
+       </widget>
+      </item>
+
+      
+      <item>
+       <widget class="QGroupBox" name="groupInfrastructure">
+        <property name="title"><string>AI &amp;&amp; INFRASTRUCTURE</string></property>
+        <layout class="QVBoxLayout" name="layoutInfrastructure">
+         <property name="spacing"><number>9</number></property>
+         <property name="leftMargin"><number>16</number></property>
+         <property name="topMargin"><number>20</number></property>
+         <property name="rightMargin"><number>16</number></property>
+         <property name="bottomMargin"><number>16</number></property>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>MT5 BROKER SERVER</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="editMt5Server">
+           <property name="text"><string>MetaQuotes-Demo / IC Markets</string></property>
+           <property name="readOnly"><bool>true</bool></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>OLLAMA LOCAL ENDPOINT</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="editOllamaEndpoint">
+           <property name="text"><string>http://localhost:11434</string></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>CORE AI LLM MODEL</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboAIModel" />
+         </item>
+
+         <item>
+          <widget class="QFrame">
+           <property name="frameShape"><enum>QFrame::HLine</enum></property>
+           <property name="frameShadow"><enum>QFrame::Sunken</enum></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>MACRO NEWS GUARD</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="chkNewsFilter">
+           <property name="text"><string>Enable High-Impact Macro News Filter</string></property>
+           <property name="checked"><bool>true</bool></property>
+          </widget>
+         </item>
+
+         <item>
+          <widget class="QLabel"><property name="text"><string>NEWS COOLDOWN PERIOD (MIN)</string></property><property name="class"><string>settingLabel</string></property></widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spinNewsPause">
+           <property name="suffix"><string> min</string></property>
+           <property name="value"><number>30</number></property>
+           <property name="minimum"><number>5</number></property>
+           <property name="maximum"><number>180</number></property>
+          </widget>
+         </item>
+
+         <item><widget class="QLabel"><property name="text"><string>WATCHDOG HEARTBEAT (MS)</string></property><property name="class"><string>settingLabel</string></property></widget></item><item><widget class="QSpinBox" name="spinHeartbeat"><property name="suffix"><string> ms</string></property><property name="value"><number>500</number></property><property name="minimum"><number>50</number></property><property name="maximum"><number>5000</number></property></widget></item><item><widget class="QCheckBox" name="chkAutoWal"><property name="text"><string>Auto SQLite WAL Checkpoint</string></property><property name="checked"><bool>true</bool></property></widget></item><item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+        </layout>
+       </widget>
+      </item>
+
+     </layout>
+    </widget>
+   </widget>
+  </item>
+ </layout>
+</widget><widget class="QWidget" name="tab2">
+            <attribute name="title"><string>LIVE TERMINAL</string></attribute>
+            <layout class="QVBoxLayout" name="layoutTab2">
+             <property name="spacing"><number>2</number></property>
+             <property name="leftMargin"><number>0</number></property>
+             <property name="topMargin"><number>0</number></property>
+             <property name="rightMargin"><number>0</number></property>
+             <property name="bottomMargin"><number>0</number></property>
+
+             
+             <item>
+              <layout class="QHBoxLayout" name="layoutPipelinePills">
+               <property name="spacing"><number>10</number></property>
+               
+               
+               <item>
+                <widget class="QFrame" name="pillMT5">
+                 <property name="class"><string>status_pill</string></property>
+                 <layout class="QHBoxLayout">
+                  <property name="contentsMargins"><number>12</number><number>0</number><number>12</number><number>0</number></property>
+                  <property name="spacing"><number>6</number></property>
+                  <item><widget class="QFrame"><property name="class"><string>led_green</string></property></widget></item>
+                  <item><widget class="QLabel"><property name="text"><string>MT5 ENGINE:</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+                  <item><widget class="QLabel" name="valPillMT5"><property name="text"><string>CONNECTED (0.1ms)</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+                 </layout>
+                </widget>
+               </item>
+
+               
+               <item>
+                <widget class="QFrame" name="pillMemory">
+                 <property name="class"><string>status_pill</string></property>
+                 <layout class="QHBoxLayout">
+                  <property name="contentsMargins"><number>12</number><number>0</number><number>12</number><number>0</number></property>
+                  <property name="spacing"><number>6</number></property>
+                  <item><widget class="QLabel"><property name="text"><string>MEMORY:</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+                  <item><widget class="QLabel" name="valPillMemory"><property name="text"><string>12.55 KB (O(1))</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+                 </layout>
+                </widget>
+               </item>
+
+               
+               <item>
+                <widget class="QFrame" name="pillMacro">
+                 <property name="class"><string>status_pill</string></property>
+                 <layout class="QHBoxLayout">
+                  <property name="contentsMargins"><number>12</number><number>0</number><number>12</number><number>0</number></property>
+                  <property name="spacing"><number>6</number></property>
+                  <item><widget class="QLabel"><property name="text"><string>MACRO BIAS:</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+                  <item><widget class="QLabel" name="valPillMacro"><property name="text"><string>BULLISH</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+                 </layout>
+                </widget>
+               </item>
+
+               
+               <item>
+                <widget class="QFrame" name="pillNews">
+                 <property name="class"><string>status_pill</string></property>
+                 <layout class="QHBoxLayout">
+                  <property name="contentsMargins"><number>12</number><number>0</number><number>12</number><number>0</number></property>
+                  <property name="spacing"><number>6</number></property>
+                  <item><widget class="QLabel"><property name="text"><string>NEWS FILTER:</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+                  <item><widget class="QLabel" name="valPillNews"><property name="text"><string>ARMED</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+                 </layout>
+                </widget>
+               </item>
+
+               <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+              </layout>
+             </item>
+
+             
+             <item>
+              <layout class="QHBoxLayout" name="layoutKPICards">
+                <property name="spacing"><number>10</number></property>
+
+                
+                <item>
+                 <widget class="QFrame" name="cardSharpe">
+                  <property name="class"><string>card</string></property>
+                  <layout class="QVBoxLayout">
+                   <property name="contentsMargins"><number>12</number><number>6</number><number>12</number><number>6</number></property>
+                   <property name="spacing"><number>2</number></property>
+                   <item><widget class="QLabel"><property name="text"><string>SHARPE</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+                   <item><widget class="QLabel" name="valKPISharpe"><property name="text"><string>2.14</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+                  </layout>
+                 <property name="minimumHeight"><number>46</number></property>
+                    <property name="maximumHeight"><number>50</number></property></widget>
+                </item>
+
+                
+                <item>
+                 <widget class="QFrame" name="cardProfitFactor">
+                  <property name="class"><string>card</string></property>
+                  <layout class="QVBoxLayout">
+                   <property name="contentsMargins"><number>12</number><number>6</number><number>12</number><number>6</number></property>
+                   <property name="spacing"><number>2</number></property>
+                   <item><widget class="QLabel"><property name="text"><string>PROFIT FACTOR</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+                   <item><widget class="QLabel" name="valKPIProfitFactor"><property name="text"><string>3.94</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+                  </layout>
+                 <property name="minimumHeight"><number>46</number></property>
+                    <property name="maximumHeight"><number>50</number></property></widget>
+                </item>
+
+                
+                <item>
+                 <widget class="QFrame" name="cardMaxDD">
+                  <property name="class"><string>card</string></property>
+                  <layout class="QVBoxLayout">
+                   <property name="contentsMargins"><number>12</number><number>6</number><number>12</number><number>6</number></property>
+                   <property name="spacing"><number>2</number></property>
+                   <item><widget class="QLabel"><property name="text"><string>MAX DD</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+                   <item><widget class="QLabel" name="valKPIMaxDD"><property name="text"><string>6.43%</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+                  </layout>
+                 <property name="minimumHeight"><number>46</number></property>
+                    <property name="maximumHeight"><number>50</number></property></widget>
+                </item>
+
+                
+                <item>
+                 <widget class="QFrame" name="cardWinRate">
+                  <property name="class"><string>card</string></property>
+                  <layout class="QVBoxLayout">
+                   <property name="contentsMargins"><number>12</number><number>6</number><number>12</number><number>6</number></property>
+                   <property name="spacing"><number>2</number></property>
+                   <item><widget class="QLabel"><property name="text"><string>WIN RATE</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+                   <item><widget class="QLabel" name="valKPIWinRate"><property name="text"><string>66.7%</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+                  </layout>
+                 <property name="minimumHeight"><number>46</number></property>
+                    <property name="maximumHeight"><number>50</number></property></widget>
+                </item>
+
+                
+                <item>
+                 <widget class="QFrame" name="cardNetPnL">
+                  <property name="class"><string>card</string></property>
+                  <layout class="QVBoxLayout">
+                   <property name="contentsMargins"><number>12</number><number>6</number><number>12</number><number>6</number></property>
+                   <property name="spacing"><number>2</number></property>
+                   <item><widget class="QLabel"><property name="text"><string>NET PNL</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+                   <item><widget class="QLabel" name="valKPINetPnL"><property name="text"><string>+$14,682.00</string></property><property name="styleSheet"><string>color: #15803d; font-size: 20px; font-weight: 800; font-family: 'Consolas', monospace;</string></property></widget></item>
+                  </layout>
+                 <property name="minimumHeight"><number>46</number></property>
+                    <property name="maximumHeight"><number>50</number></property></widget>
+                </item>
+
+               </layout>
+              </item>
+             
+
+             
+             <item>
+              <widget class="QSplitter" name="chartSplitter">
+               <property name="orientation"><enum>Qt::Horizontal</enum></property>
+
+               
+               <widget class="QWidget" name="containerChartAndExec">
+                <layout class="QVBoxLayout" name="layoutChartAndExec">
+                 <property name="spacing"><number>10</number></property>
+                 <property name="contentsMargins"><number>0</number><number>0</number><number>0</number><number>0</number></property>
+                 
+                 
+                 <item>
+                  <widget class="QFrame" name="frameChartArea">
+                   <property name="class"><string>card</string></property>
+                   <layout class="QVBoxLayout">
+                    <property name="contentsMargins"><number>4</number><number>4</number><number>4</number><number>4</number></property>
+                   </layout>
+                  <property name="minimumHeight"><number>320</number></property></widget>
+                 </item>
+
+                 
+                 <item>
+                  <widget class="QFrame" name="frameExecutions">
+                   <property name="class"><string>card</string></property>
+                   <layout class="QVBoxLayout">
+                    <property name="contentsMargins"><number>12</number><number>10</number><number>12</number><number>10</number></property>
+                    <property name="spacing"><number>6</number></property>
+                    
+                    
+                    <item>
+                     <layout class="QHBoxLayout">
+                      <item>
+                       <widget class="QLabel" name="lblExecutionsTitle"><property name="text"><string>Executions</string></property></widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="badgeExecutionsCount"><property name="text"><string> 7 </string></property><property name="class"><string>badge_pill</string></property></widget>
+                      </item>
+                      <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                      <item>
+                       <widget class="QLabel" name="lblExecutionsFilters"><property name="text"><string>Filters</string></property></widget>
+                      </item>
+                     </layout>
+                    </item>
+
+                    <item>
+                     <widget class="QTableWidget" name="tableExecutions">
+                      <property name="alternatingRowColors"><bool>false</bool></property>
+                      <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
+                      <property name="columnCount"><number>6</number></property>
+                      <column><property name="text"><string>TIME</string></property></column>
+                      <column><property name="text"><string>TICKET</string></property></column>
+                      <column><property name="text"><string>SYMBOL</string></property></column>
+                      <column><property name="text"><string>STRATEGY</string></property></column>
+                      <column><property name="text"><string>LOT SIZE</string></property></column>
+                      <column><property name="text"><string>RETCODE</string></property></column>
+                     </widget>
+                    </item>
+
+                   </layout>
+                  <property name="minimumHeight"><number>180</number></property></widget>
+                 </item>
+
+                </layout>
+               </widget>
+
+               
+               <widget class="QFrame" name="frameAIArea">
+                <property name="class"><string>card</string></property>
+                <property name="minimumSize"><size><width>320</width><height>0</height></size></property>
+                <property name="maximumSize"><size><width>340</width><height>16777215</height></size></property>
+                <layout class="QVBoxLayout" name="layoutAIArea">
+                 <property name="contentsMargins"><number>14</number><number>12</number><number>14</number><number>12</number></property>
+                 <property name="spacing"><number>10</number></property>
+
+                 <item>
+                  <layout class="QHBoxLayout">
+                   <item>
+                    <widget class="QLabel" name="lblAIGateTitle"><property name="text"><string>TRADING PLAN</string></property><property name="styleSheet"><string>font-size: 11px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget>
+                   </item>
+                   <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+                   <item>
+                    <widget class="QPushButton" name="btnAIClose">
+                     <property name="text"><string></string></property>
+                     <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+
+                 <item>
+                  <widget class="QLabel" name="lblAISubtitle"><property name="text"><string>Qwen 2.5 Macro Reasoning Engine</string></property><property name="styleSheet"><string>font-size: 11px; font-weight: 600;</string></property></widget>
+                 </item>
+
+                 <item>
+                  <widget class="QTextEdit" name="txtAIReasoning">
+                   <property name="readOnly"><bool>true</bool></property>
+                   
+                   <property name="html"><string>&lt;p&gt;Qwen 2.5 Macro Engine analyzed DXY and US10Y data. Capital flows transitioning toward defensive safe-haven assets.&lt;/p&gt;&lt;p&gt;• &lt;b&gt;Fair Value Gap:&lt;/b&gt; M15 Fair Value Gap expansion zone confirmed.&lt;/p&gt;&lt;p&gt;• &lt;b&gt;Wyckoff Volume:&lt;/b&gt; Wyckoff absorption effort achieving high E2R ratio.&lt;/p&gt;&lt;p&gt;• &lt;b&gt;Consensus:&lt;/b&gt; Consensus: Quantitative models and AI consensus aligned on BUY (BULLISH).&lt;/p&gt;</string></property>
+                  </widget>
+                 </item>
+
+                 
+                 <item>
+                  <layout class="QHBoxLayout" name="layoutGauges">
+                   <property name="spacing"><number>8</number></property>
+                   
+                   <item>
+                    <widget class="QFrame" name="cardDXY">
+                     <property name="class"><string>cardGauge</string></property>
+                     <layout class="QVBoxLayout">
+                      <property name="contentsMargins"><number>6</number><number>6</number><number>6</number><number>6</number></property>
+                      <item><widget class="QLabel"><property name="text"><string>DXY</string></property><property name="alignment"><set>Qt::AlignCenter</set></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700;</string></property></widget></item>
+                      <item><widget class="QLabel"><property name="text"><string>4.9%</string></property><property name="alignment"><set>Qt::AlignCenter</set></property><property name="styleSheet"><string>color: #15803d; font-size: 14px; font-weight: 800; font-family: 'Consolas';</string></property></widget></item>
+                     </layout>
+                    </widget>
+                   </item>
+
+                   <item>
+                    <widget class="QFrame" name="cardUS10Y">
+                     <property name="class"><string>cardGauge</string></property>
+                     <layout class="QVBoxLayout">
+                      <property name="contentsMargins"><number>6</number><number>6</number><number>6</number><number>6</number></property>
+                      <item><widget class="QLabel"><property name="text"><string>US10Y</string></property><property name="alignment"><set>Qt::AlignCenter</set></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700;</string></property></widget></item>
+                      <item><widget class="QLabel"><property name="text"><string>+0.23%</string></property><property name="alignment"><set>Qt::AlignCenter</set></property><property name="styleSheet"><string>color: #ef4444; font-size: 14px; font-weight: 800; font-family: 'Consolas';</string></property></widget></item>
+                     </layout>
+                    </widget>
+                   </item>
+
+                  </layout>
+                 </item>
+
+                 <item>
+                  <widget class="QPushButton" name="btnEmergencyKill">
+                   <property name="text"><string>Emergency kill-switch</string></property>
+                   <property name="class"><string>btn_danger</string></property>
+                   <property name="cursor"><cursorShape>PointingHandCursor</cursorShape></property>
+                   <property name="minimumSize"><size><width>0</width><height>38</height></size></property>
+                  </widget>
+                 </item>
+
+                </layout>
+               </widget>
+
+              </widget>
+             </item>
+
+            </layout>
+           </widget>
+          
+          
+          <widget class="QWidget" name="tab3">
+ <attribute name="title"><string>STATS</string></attribute>
+ <layout class="QHBoxLayout" name="horizontalLayout_tab3">
+  <property name="spacing"><number>2</number></property>
+  <property name="leftMargin"><number>0</number></property>
+  <property name="topMargin"><number>0</number></property>
+  <property name="rightMargin"><number>0</number></property>
+  <property name="bottomMargin"><number>0</number></property>
+
+  
+  <item>
+   <widget class="QScrollArea" name="scrollAreaStatsMain">
+    <property name="widgetResizable"><bool>true</bool></property>
+    <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+    <widget class="QWidget" name="scrollStatsContent">
+     <layout class="QVBoxLayout" name="verticalLayout_statsMain">
+      <property name="spacing"><number>14</number></property>
+      <property name="leftMargin"><number>0</number></property>
+      <property name="topMargin"><number>0</number></property>
+      <property name="rightMargin"><number>0</number></property>
+      <property name="bottomMargin"><number>0</number></property>
+
+      
+      <item>
+       <widget class="QGroupBox" name="framePnlCalendar">
+        <property name="title"><string>PNL CALENDAR</string></property>
+        <layout class="QVBoxLayout" name="verticalLayout_calendar">
+         <property name="spacing"><number>10</number></property>
+         <property name="leftMargin"><number>14</number></property>
+         <property name="topMargin"><number>16</number></property>
+         <property name="rightMargin"><number>14</number></property>
+         <property name="bottomMargin"><number>14</number></property>
+
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_calControls">
+           <item><widget class="QPushButton" name="btnCalToday"><property name="text"><string>TODAY</string></property></widget></item>
+           <item><widget class="QPushButton" name="btnCalPrev"><property name="text"><string>&lt;</string></property><property name="maximumWidth"><number>32</number></property></widget></item>
+           <item><widget class="QLabel" name="lblCalMonth"><property name="text"><string>SEPTEMBER 2026</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+           <item><widget class="QPushButton" name="btnCalNext"><property name="text"><string>&gt;</string></property><property name="maximumWidth"><number>32</number></property></widget></item>
+           <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+           <item><widget class="QLabel" name="lblCalMonthlyStats"><property name="text"><string>Net: $0 | W: 0 | L: 0</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+          </layout>
+         </item>
+
+         <item>
+          <widget class="QTableWidget" name="tableCalendar">
+           <property name="minimumHeight"><number>270</number></property>
+           <property name="rowCount"><number>6</number></property>
+           <property name="columnCount"><number>7</number></property>
+           <column><property name="text"><string>T2</string></property></column>
+           <column><property name="text"><string>T3</string></property></column>
+           <column><property name="text"><string>T4</string></property></column>
+           <column><property name="text"><string>T5</string></property></column>
+           <column><property name="text"><string>T6</string></property></column>
+           <column><property name="text"><string>T7</string></property></column>
+           <column><property name="text"><string>CN</string></property></column>
+          </widget>
+         </item>
+        </layout>
+       <property name="minimumHeight"><number>370</number></property></widget>
+      </item>
+
+      
+      <item>
+       <widget class="QGroupBox" name="frameEquityChart">
+        <property name="title"><string>EQUITY CURVE &amp;&amp; DRAWDOWN</string></property>
+        <layout class="QVBoxLayout" name="verticalLayout_equityChart">
+         <property name="spacing"><number>8</number></property>
+         <property name="leftMargin"><number>14</number></property>
+         <property name="topMargin"><number>16</number></property>
+         <property name="rightMargin"><number>14</number></property>
+         <property name="bottomMargin"><number>14</number></property>
+
+         <item>
+          <widget class="QFrame" name="chartEquity">
+           <property name="minimumHeight"><number>240</number></property>
+           <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+          </widget>
+         </item>
+        </layout>
+       <property name="minimumHeight"><number>240</number></property></widget>
+      </item>
+
+      
+      <item>
+       <widget class="QGroupBox" name="frameClosedTrades">
+        <property name="title"><string>TRADE HISTORY</string></property>
+        <layout class="QVBoxLayout" name="verticalLayout_history">
+         <property name="spacing"><number>10</number></property>
+         <property name="leftMargin"><number>14</number></property>
+         <property name="topMargin"><number>16</number></property>
+         <property name="rightMargin"><number>14</number></property>
+         <property name="bottomMargin"><number>14</number></property>
+
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_histControls">
+           <item><widget class="QLineEdit" name="searchStats"><property name="placeholderText"><string>Search ticket, symbol, type...</string></property></widget></item>
+           <item>
+            <widget class="QComboBox" name="comboLogFilter">
+             <item><property name="text"><string>Time (Newest)</string></property></item>
+             <item><property name="text"><string>Profit (Highest)</string></property></item>
+            </widget>
+           </item>
+           <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+           <item><widget class="QPushButton" name="btnExportTrades"><property name="text"><string>EXPORT CSV</string></property></widget></item>
+          </layout>
+         </item>
+
+         <item>
+          <widget class="QTableWidget" name="tableHistory">
+           <property name="minimumHeight"><number>210</number></property>
+           <property name="alternatingRowColors"><bool>true</bool></property>
+           <property name="columnCount"><number>8</number></property>
+           <column><property name="text"><string>Ticket</string></property></column>
+           <column><property name="text"><string>Close Time</string></property></column>
+           <column><property name="text"><string>Order</string></property></column>
+           <column><property name="text"><string>Volume</string></property></column>
+           <column><property name="text"><string>Symbol</string></property></column>
+           <column><property name="text"><string>PnL ($)</string></property></column>
+           <column><property name="text"><string>Pips</string></property></column>
+           <column><property name="text"><string>Duration</string></property></column>
+          </widget>
+         </item>
+        </layout>
+       <property name="minimumHeight"><number>250</number></property></widget>
+      </item>
+
+     </layout>
+    </widget>
+   </widget>
+  </item>
+
+  
+  <item>
+   <widget class="QGroupBox" name="frameQuantMetrics">
+    <property name="title"><string>QUANT METRICS</string></property>
+    <property name="minimumWidth"><number>260</number></property>
+    <layout class="QVBoxLayout" name="verticalLayout_quantMetrics">
+     <property name="spacing"><number>10</number></property>
+     <property name="leftMargin"><number>14</number></property>
+     <property name="topMargin"><number>18</number></property>
+     <property name="rightMargin"><number>14</number></property>
+     <property name="bottomMargin"><number>14</number></property>
+
+     
+     <item>
+      <widget class="QFrame" name="frameSharpe">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>SHARPE RATIO</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valSharpe"><property name="text"><string>2.14</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameSortino">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>SORTINO RATIO</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valSortino"><property name="text"><string>3.21</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameMaxDD">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>MAX DRAWDOWN</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valMaxDD"><property name="text"><string>6.43%</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameRR">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>PROFIT FACTOR</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valRR"><property name="text"><string>3.94</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameWinRate">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>WIN RATE</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valWinRate"><property name="text"><string>66.7%</string></property><property name="class"><string>valMetricProfit</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameNetProfit">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>NET PNL</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valNetProfit"><property name="text"><string>+$14,682.00</string></property><property name="class"><string>valMetricProfit</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     
+     <item>
+      <widget class="QFrame" name="frameTotalTrades">
+       <property name="class"><string>card</string></property>
+       <layout class="QVBoxLayout">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>8</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>8</number></property>
+        <item><widget class="QLabel"><property name="text"><string>TOTAL TRADES</string></property><property name="class"><string>settingLabel</string></property></widget></item>
+        <item><widget class="QLabel" name="valTotalTrades"><property name="text"><string>142</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+       </layout>
+      </widget>
+     </item>
+
+     <item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+    </layout>
+   </widget>
+  </item>
+ </layout>
+</widget><widget class="QWidget" name="tab4">
+ <attribute name="title"><string>SYSTEM LOGS</string></attribute>
+ <layout class="QVBoxLayout" name="verticalLayout_tab4">
+  <property name="spacing"><number>2</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+
+  
+  <item>
+   <layout class="QHBoxLayout" name="horizontalLayout_logsFilter">
+    <property name="spacing"><number>10</number></property>
+
+    
+    <item><widget class="QPushButton" name="btnFilterAll"><property name="text"><string>ALL</string></property><property name="class"><string>pill_filter_active</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterInfo"><property name="text"><string>INFO</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterExec"><property name="text"><string>EXECUTION</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterRecovery"><property name="text"><string>RECOVERY</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterWarn"><property name="text"><string>WARNING</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+
+    <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+
+    <item><widget class="QLineEdit" name="searchLog"><property name="placeholderText"><string>Search events, regex, trace...</string></property><property name="minimumWidth"><number>240</number></property></widget></item>
+    <item><widget class="QCheckBox" name="checkAutoScroll"><property name="text"><string>Auto-scroll</string></property><property name="checked"><bool>true</bool></property></widget></item>
+    <item><widget class="QPushButton" name="btnClearLogs"><property name="text"><string>CLEAR LOGS</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnExportLogs"><property name="text"><string>EXPORT CSV</string></property><property name="class"><string>btn_primary</string></property></widget></item>
+   </layout>
+  </item>
+
+  
+  <item>
+   <widget class="QTableWidget" name="tableLogs">
+    <property name="alternatingRowColors"><bool>true</bool></property>
+    <property name="columnCount"><number>3</number></property>
+    <column><property name="text"><string>TIMESTAMP</string></property></column>
+    <column><property name="text"><string>LEVEL</string></property></column>
+    <column><property name="text"><string>MESSAGE</string></property></column>
+   </widget>
+  </item>
+
+  
+  <item>
+   <layout class="QHBoxLayout" name="horizontalLayout_logsFooter">
+    <property name="spacing"><number>14</number></property>
+
+    <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+
+    <item>
+     <widget class="QFrame" name="pillEventBus">
+      <property name="class"><string>status_pill</string></property>
+      <layout class="QHBoxLayout">
+       <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>2</number></property>
+       <item><widget class="QFrame"><property name="class"><string>led_green</string></property></widget></item>
+       <item><widget class="QLabel" name="lblEventBusStatus"><property name="text"><string>Event Bus: Connected</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+
+    <item>
+     <widget class="QFrame" name="pillSqlite">
+      <property name="class"><string>status_pill</string></property>
+      <layout class="QHBoxLayout">
+       <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>2</number></property>
+       <item><widget class="QFrame"><property name="class"><string>led_green</string></property></widget></item>
+       <item><widget class="QLabel" name="lblSqliteStatus"><property name="text"><string>SQLite WAL: Synced</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+
+    <item>
+     <widget class="QFrame" name="pillHeartbeat">
+      <property name="class"><string>status_pill</string></property>
+      <layout class="QHBoxLayout">
+       <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>2</number></property>
+       <item><widget class="QFrame"><property name="class"><string>led_green</string></property></widget></item>
+       <item><widget class="QLabel" name="lblHeartbeatStatus"><property name="text"><string>Heartbeat: 0.1ms</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+      </layout>
+     </widget>
+    </item>
+
+   </layout>
+  </item>
+
+ </layout>
+</widget><widget class="QWidget" name="tab_5">
+ <attribute name="title"><string>BACKTEST &amp;&amp; SIMULATION</string></attribute>
+ <layout class="QVBoxLayout" name="verticalLayout_tab5">
+  <property name="spacing"><number>2</number></property>
+  <property name="leftMargin"><number>2</number></property>
+  <property name="topMargin"><number>2</number></property>
+  <property name="rightMargin"><number>2</number></property>
+  <property name="bottomMargin"><number>2</number></property>
+
+  
+  <item>
+    <widget class="QGroupBox" name="frameBtParams">
+     <property name="title"><string>SIMULATION PARAMETERS</string></property>
+     <layout class="QHBoxLayout" name="horizontalLayout_btParams">
+      <property name="spacing"><number>6</number></property>
+      <property name="leftMargin"><number>6</number></property>
+      <property name="topMargin"><number>2</number></property>
+      <property name="rightMargin"><number>6</number></property>
+      <property name="bottomMargin"><number>2</number></property>
+
+      <item><widget class="QLabel" name="lblBtFrom"><property name="text"><string>From:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QDateEdit" name="dateBtFrom">
+        <property name="calendarPopup"><bool>true</bool></property>
+        <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+       </widget>
+      </item>
+      <item><widget class="QLabel" name="lblBtTo"><property name="text"><string>To:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QDateEdit" name="dateBtTo">
+        <property name="calendarPopup"><bool>true</bool></property>
+        <property name="displayFormat"><string>yyyy-MM-dd</string></property>
+       </widget>
+      </item>
+
+      <item><widget class="QLabel"><property name="text"><string>Timeframe:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QComboBox" name="comboBtTf">
+        <item><property name="text"><string>M15</string></property></item>
+        <item><property name="text"><string>H1</string></property></item>
+        <item><property name="text"><string>M5</string></property></item>
+        <item><property name="text"><string>H4</string></property></item>
+       </widget>
+      </item>
+
+      <item><widget class="QLabel"><property name="text"><string>Slippage:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QSpinBox" name="spinBtSlippage">
+        <property name="suffix"><string> pts</string></property>
+        <property name="value"><number>20</number></property>
+        <property name="maximum"><number>200</number></property>
+       </widget>
+      </item>
+
+      <item><widget class="QLabel"><property name="text"><string>Engine:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item>
+       <widget class="QComboBox" name="comboBtEngine">
+        <item><property name="text"><string>Vectorized NumPy (1.054ms)</string></property></item>
+        <item><property name="text"><string>ICT Zones Pro Event-Driven</string></property></item>
+        <item><property name="text"><string>EMA Stress Test</string></property></item>
+       </widget>
+      </item>
+
+      <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+
+      <item>
+       <widget class="QPushButton" name="btnRunBacktest">
+        <property name="text"><string>RUN SIMULATION</string></property>
+        <property name="class"><string>btn_primary</string></property>
+        <property name="minimumHeight"><number>32</number></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnExportReport">
+        <property name="text"><string>EXPORT TEARSHEET</string></property>
+        <property name="class"><string>btn_secondary</string></property>
+        <property name="minimumHeight"><number>32</number></property>
+       </widget>
+      </item>
+     </layout>
+    <property name="minimumHeight"><number>40</number></property><property name="maximumHeight"><number>46</number></property></widget>
+   </item>
+
+   
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_btCharts">
+     <property name="spacing"><number>2</number></property>
+
+     
+     <item>
+      <widget class="QGroupBox" name="frameBtEquity">
+       <property name="title"><string>EQUITY CURVE</string></property>
+       <layout class="QVBoxLayout" name="verticalLayout_btEquity">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>16</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>10</number></property>
+        <item>
+         <widget class="QFrame" name="chartBtEquity">
+          <property name="minimumHeight"><number>220</number></property>
+          <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+         </widget>
+        </item>
+       </layout>
+      <property name="minimumHeight"><number>250</number></property></widget>
+     </item>
+
+     
+     <item>
+      <widget class="QGroupBox" name="frameBtReturns">
+       <property name="title"><string>RETURNS DISTRIBUTION</string></property>
+       <layout class="QVBoxLayout" name="verticalLayout_btReturns">
+        <property name="leftMargin"><number>10</number></property><property name="topMargin"><number>16</number></property><property name="rightMargin"><number>10</number></property><property name="bottomMargin"><number>10</number></property>
+        <item>
+         <widget class="QFrame" name="chartBtReturns">
+          <property name="minimumHeight"><number>220</number></property>
+          <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+         </widget>
+        </item>
+       </layout>
+      <property name="minimumHeight"><number>250</number></property></widget>
+     </item>
+
+     
+     <item>
+      <widget class="QGroupBox" name="frameBtBenchmark">
+       <property name="title"><string>BENCHMARK</string></property>
+       <property name="minimumWidth"><number>220</number></property>
+       <property name="maximumWidth"><number>240</number></property>
+       <layout class="QVBoxLayout" name="verticalLayout_btBenchmark">
+        <property name="spacing"><number>2</number></property>
+        <property name="leftMargin"><number>4</number></property>
+        <property name="topMargin"><number>12</number></property>
+        <property name="rightMargin"><number>4</number></property>
+        <property name="bottomMargin"><number>4</number></property>
+
+        <item>
+         <widget class="QFrame" name="frameBtNetReturn">
+          <property name="class"><string>card</string></property>
+          <layout class="QVBoxLayout">
+           <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>4</number></property>
+           <property name="spacing"><number>1</number></property>
+           <item><widget class="QLabel"><property name="text"><string>TOTAL NET RETURN</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+           <item><widget class="QLabel" name="valBtNetReturn"><property name="text"><string>+14.68%</string></property><property name="class"><string>valMetricProfit</string></property></widget></item>
+          </layout>
+         </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameBtSharpe">
+          <property name="class"><string>card</string></property>
+          <layout class="QVBoxLayout">
+           <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>4</number></property>
+           <property name="spacing"><number>1</number></property>
+           <item><widget class="QLabel"><property name="text"><string>SHARPE RATIO</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+           <item><widget class="QLabel" name="valBtSharpe"><property name="text"><string>2.14</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+          </layout>
+         </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameBtMaxDD">
+          <property name="class"><string>card</string></property>
+          <layout class="QVBoxLayout">
+           <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>4</number></property>
+           <property name="spacing"><number>1</number></property>
+           <item><widget class="QLabel"><property name="text"><string>MAX DRAWDOWN</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+           <item><widget class="QLabel" name="valBtMaxDD"><property name="text"><string>6.43%</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+          </layout>
+         </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameBtSpeed">
+          <property name="class"><string>card</string></property>
+          <layout class="QVBoxLayout">
+           <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>4</number></property>
+           <property name="spacing"><number>1</number></property>
+           <item><widget class="QLabel" name="lblBtSpeed"><property name="text"><string>EXECUTION SPEED</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+           <item><widget class="QLabel" name="valBtSpeed"><property name="text"><string>1.250 ms</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+          </layout>
+         </widget>
+        </item>
+
+        <item>
+         <widget class="QFrame" name="frameBtMemory">
+          <property name="class"><string>card</string></property>
+          <layout class="QVBoxLayout">
+           <property name="leftMargin"><number>8</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>8</number></property><property name="bottomMargin"><number>4</number></property>
+           <property name="spacing"><number>1</number></property>
+           <item><widget class="QLabel"><property name="text"><string>PEAK MEMORY</string></property><property name="styleSheet"><string>color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;</string></property></widget></item>
+           <item><widget class="QLabel" name="valBtMemory"><property name="text"><string>12.55 KB</string></property><property name="class"><string>valMetricNumber</string></property></widget></item>
+          </layout>
+         </widget>
+        </item>
+
+        <item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+       </layout>
+      <property name="minimumHeight"><number>260</number></property><property name="maximumHeight"><number>360</number></property></widget>
+     </item>
+
+    </layout>
+   </item>
+
+  
+  <item>
+   <layout class="QHBoxLayout" name="horizontalLayout_btBottom">
+    <property name="spacing"><number>2</number></property>
+
+    
+    <item>
+     <widget class="QGroupBox" name="frameBtStress">
+      <property name="title"><string>STRESS TESTS</string></property>
+      <layout class="QVBoxLayout" name="verticalLayout_btStress">
+       <property name="spacing"><number>2</number></property>
+       <property name="leftMargin"><number>4</number></property>
+       <property name="topMargin"><number>12</number></property>
+       <property name="rightMargin"><number>4</number></property>
+       <property name="bottomMargin"><number>4</number></property>
+
+       
+       <item>
+        <widget class="QFrame" name="rowStress1">
+         <property name="class"><string>card</string></property>
+         <layout class="QHBoxLayout">
+          <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>4</number></property>
+          <item><widget class="QLabel"><property name="text"><string>Network Disconnect Recovery</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+          <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+          <item><widget class="QLabel"><property name="text"><string>PASS 0.02s</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+         </layout>
+        </widget>
+       </item>
+
+       
+       <item>
+        <widget class="QFrame" name="rowStress2">
+         <property name="class"><string>card</string></property>
+         <layout class="QHBoxLayout">
+          <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>4</number></property>
+          <item><widget class="QLabel"><property name="text"><string>Signal Schema Validation</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+          <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+          <item><widget class="QLabel"><property name="text"><string>PASS 100%</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+         </layout>
+        </widget>
+       </item>
+
+       
+       <item>
+        <widget class="QFrame" name="rowStress3">
+         <property name="class"><string>card</string></property>
+         <layout class="QHBoxLayout">
+          <property name="leftMargin"><number>12</number></property><property name="topMargin"><number>4</number></property><property name="rightMargin"><number>12</number></property><property name="bottomMargin"><number>4</number></property>
+          <item><widget class="QLabel"><property name="text"><string>High-Impact News Guard</string></property><property name="class"><string>status_pill_text</string></property></widget></item>
+          <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+          <item><widget class="QLabel"><property name="text"><string>ARMED</string></property><property name="class"><string>status_pill_val</string></property></widget></item>
+         </layout>
+        </widget>
+       </item>
+
+       <item><spacer><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+      </layout>
+     <property name="minimumHeight"><number>170</number></property><property name="maximumHeight"><number>220</number></property></widget>
+    </item>
+
+    
+    <item>
+     <widget class="QGroupBox" name="frameBtConsole">
+      <property name="title"><string>SIMULATION LOG</string></property>
+      <layout class="QVBoxLayout" name="verticalLayout_btConsole">
+       <property name="leftMargin"><number>4</number></property><property name="topMargin"><number>12</number></property><property name="rightMargin"><number>4</number></property><property name="bottomMargin"><number>4</number></property>
+       <item>
+        <widget class="QTextEdit" name="txtBtConsole">
+         <property name="readOnly"><bool>true</bool></property>
+         <property name="placeholderText"><string>Click 'RUN SIMULATION' to benchmark the quantitative engine...</string></property>
+        </widget>
+       </item>
+      </layout>
+     <property name="minimumHeight"><number>140</number></property><property name="maximumHeight"><number>220</number></property></widget>
+    </item>
+
+   </layout>
+  </item>
+
+ </layout>
+</widget></widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+</ui>

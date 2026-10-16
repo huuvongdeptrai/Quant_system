@@ -29,5 +29,12 @@ Quant_AI_V2.2/*.docx
 *.zip
 .vscode/
 Quant_AI_V2.2/config/ai_config.json
+Quant_AI_V2.2/config/settings.json
+config/settings.json
+
+# Thư mục sao lưu & tệp dataset LoRA
+*_BACKUP/
+Quant_AI_V2.2_BACKUP/
+*.jsonl
 
 GEMINI.md

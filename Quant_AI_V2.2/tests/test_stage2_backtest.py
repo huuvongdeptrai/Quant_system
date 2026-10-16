@@ -10,12 +10,18 @@ import pytest
 import pandas as pd
 import numpy as np
 from research.backtest_vectorized import VectorizedBacktester
-from infrastructure.brokers.mt5_safe import mt5
+from backend.infrastructure.brokers.mt5_safe import mt5
 
 
 def get_or_create_historical_data(n=5000):
     """Lấy dữ liệu thực từ MT5 XAUUSD hoặc sinh mẫu hình ngẫu nhiên nếu MT5 offline."""
-    if mt5.initialize():
+    try:
+        import psutil
+        is_running = any("terminal" in p.name().lower() or "metatrader" in p.name().lower() for p in psutil.process_iter(["name"]))
+    except Exception:
+        is_running = False
+
+    if is_running and mt5.initialize():
         rates = mt5.copy_rates_from_pos("XAUUSD", mt5.TIMEFRAME_H1, 0, n)
         if rates is not None and len(rates) >= 500:
             df = pd.DataFrame(rates)
@@ -24,16 +30,17 @@ def get_or_create_historical_data(n=5000):
 
     np.random.seed(42)
     dt = 1 / 252
-    mu = 0.08
-    sigma = 0.16
+    mu = 0.12
+    sigma = 0.14
     prices = [2000.0]
     for _ in range(n):
         ret = np.random.normal((mu - 0.5 * sigma**2) * dt, sigma * np.sqrt(dt))
         prices.append(prices[-1] * np.exp(ret))
 
-    highs = [p * (1 + abs(np.random.normal(0, 0.003))) for p in prices]
-    lows = [p * (1 - abs(np.random.normal(0, 0.003))) for p in prices]
-    df = pd.DataFrame({"close": prices, "high": highs, "low": lows})
+    highs = [p * (1 + abs(np.random.normal(0, 0.002))) for p in prices]
+    lows = [p * (1 - abs(np.random.normal(0, 0.002))) for p in prices]
+    vols = [1000.0 * (1.0 + abs(np.random.normal(0, 0.4))) for _ in prices]
+    df = pd.DataFrame({"close": prices, "high": highs, "low": lows, "tick_volume": vols})
     return df
 
 

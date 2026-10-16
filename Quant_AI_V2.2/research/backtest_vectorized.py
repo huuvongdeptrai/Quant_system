@@ -38,6 +38,9 @@ class BacktestReport:
     mathematical_expectancy: float
     execution_time_ms: float
     total_commission_paid: float = 0.0
+    equity_curve: list = None
+    trades: list = None
+    trade_records: list = None
 
 
 class VectorizedBacktester:
@@ -97,6 +100,7 @@ class VectorizedBacktester:
 
         # 3. Mô phỏng khớp lệnh Vectorized
         trades_pnl = []
+        trade_records = []
         in_pos = False
         pos_type = 0  # 1: Buy, -1: Sell
         sl_price = 0.0
@@ -120,12 +124,14 @@ class VectorizedBacktester:
                     if l <= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
+                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": sl_price, "outcome": "SL", "pnl": loss_pnl})
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
                     elif h >= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
+                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": tp_price, "outcome": "TP", "pnl": win_pnl})
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
@@ -133,12 +139,14 @@ class VectorizedBacktester:
                     if h >= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
+                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": sl_price, "outcome": "SL", "pnl": loss_pnl})
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
                     elif l <= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
+                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": tp_price, "outcome": "TP", "pnl": win_pnl})
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
@@ -156,6 +164,7 @@ class VectorizedBacktester:
                 ):
                     in_pos = True
                     pos_type = 1
+                    entry_price = c
                     sl_price = c - sl_dist
                     tp_price = c + sl_dist * target_rr
                 elif (
@@ -166,6 +175,7 @@ class VectorizedBacktester:
                 ):
                     in_pos = True
                     pos_type = -1
+                    entry_price = c
                     sl_price = c + sl_dist
                     tp_price = c - sl_dist * target_rr
 
@@ -204,10 +214,10 @@ class VectorizedBacktester:
         std_ret = np.std(returns) if len(returns) > 0 else 1
         sharpe = float((mean_ret / std_ret) * np.sqrt(252)) if std_ret > 0 else 0.0
 
-        downside_returns = returns[returns < 0]
-        downside_std = np.std(downside_returns) if len(downside_returns) > 0 else 1
+        downside_diff = np.minimum(0.0, returns)
+        downside_dev = float(np.sqrt(np.mean(downside_diff ** 2)))
         sortino = (
-            float((mean_ret / downside_std) * np.sqrt(252)) if downside_std > 0 else 0.0
+            float((mean_ret / downside_dev) * np.sqrt(252)) if downside_dev > 0 else 0.0
         )
 
         # Profit Factor
@@ -245,6 +255,9 @@ class VectorizedBacktester:
             mathematical_expectancy=round(expectancy, 2),
             execution_time_ms=round(exec_ms, 2),
             total_commission_paid=round(total_comm, 2),
+            equity_curve=equity_curve,
+            trades=trades_pnl,
+            trade_records=trade_records,
         )
 
 
