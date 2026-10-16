@@ -152,8 +152,9 @@ class BotWorker(QtCore.QObject):
             f"[State Recovery] DB Audit: {rec_summary.get('active_positions_count', 0)} MT5 positions, recovered {rec_summary.get('recovered_orphans', 0)} orphaned orders.",
             "#58A6FF",
         )
+        syms_display = ", ".join(self.symbols) if self.symbols else "Standby (0 symbols in watchlist)"
         telegram_notifier.send_message(
-            f"🟢 <b>[Quant AI V2.2]</b> Automated execution started for {', '.join(self.symbols)}.\nMode: <b>{self.trade_mode}</b>\nStrategy: <b>{self.strategy_name}</b>"
+            f"🟢 <b>[Quant AI V2.2]</b> Automated execution started for {syms_display}.\nMode: <b>{self.trade_mode}</b>\nStrategy: <b>{self.strategy_name}</b>"
         )
         if not mt5.terminal_info():
             return

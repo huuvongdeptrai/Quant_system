@@ -143,7 +143,8 @@ class TestStage8OptionsIntegration:
             assert allowed is False
             assert reason == "FRIDAY_EOD"
 
-    def test_watchlist_single_xauusd_preserved(self):
+    def test_watchlist_custom_symbols_preserved(self):
+        """Kiểm tra: Bất kỳ danh sách nào người dùng chọn (1 cặp, 2 cặp,...) phải được nạp chính xác."""
         from frontend.controllers.watchlist_controller import WatchlistManager
         mock_win = MagicMock()
         mock_tree = MagicMock()
@@ -153,13 +154,52 @@ class TestStage8OptionsIntegration:
              patch.object(WatchlistManager, "refresh_all_status_icons"):
             mgr = WatchlistManager(mock_win)
             import io, json
-            mock_file = io.StringIO(json.dumps(["XAUUSD"]))
+            custom_list = ["EURUSD", "USDJPY"]
+            mock_file = io.StringIO(json.dumps(custom_list))
             with patch("builtins.open", return_value=mock_file), \
                  patch.object(mgr, "add_symbol_to_tree") as mock_add, \
                  patch.object(mgr, "save_watchlist"), \
                  patch("os.path.exists", return_value=True):
                 mock_file.seek(0)
                 mgr.load_watchlist()
-                # Phải nạp đúng 1 mã XAUUSD, tuyệt đối KHÔNG được nạp đè 9 cặp mặc định
-                assert mock_add.call_count == 1
-                assert mock_add.call_args[0][0] == "XAUUSD"
+                # Phải nạp chính xác 2 mã người dùng đã chọn
+                assert mock_add.call_count == 2
+                loaded_syms = [call[0][0] for call in mock_add.call_args_list]
+                assert loaded_syms == ["EURUSD", "USDJPY"]
+
+    def test_watchlist_empty_list_preserved(self):
+        """Kiểm tra: Khi người dùng xóa hết các cặp ([]), Watchlist phải để trống, không tự nhét 9 cặp mặc định."""
+        from frontend.controllers.watchlist_controller import WatchlistManager
+        mock_win = MagicMock()
+        mock_tree = MagicMock()
+        mock_win.treeWatchlist = mock_tree
+
+        with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "refresh_all_status_icons"):
+            mgr = WatchlistManager(mock_win)
+            import io, json
+            mock_file = io.StringIO(json.dumps([]))
+            with patch("builtins.open", return_value=mock_file), \
+                 patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+                 patch.object(mgr, "save_watchlist"), \
+                 patch("os.path.exists", return_value=True):
+                mock_file.seek(0)
+                mgr.load_watchlist()
+                # Danh sách rỗng -> 0 lần add, không được tự động phục hồi 9 cặp
+                assert mock_add.call_count == 0
+
+    def test_watchlist_fresh_install_loads_defaults(self):
+        """Kiểm tra: Chỉ khi lần đầu cài đặt (chưa có file cấu hình nào) mới nạp 9 cặp mẫu."""
+        from frontend.controllers.watchlist_controller import WatchlistManager
+        mock_win = MagicMock()
+        mock_tree = MagicMock()
+        mock_win.treeWatchlist = mock_tree
+
+        with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "refresh_all_status_icons"):
+            mgr = WatchlistManager(mock_win)
+            with patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+                 patch.object(mgr, "save_watchlist"), \
+                 patch("os.path.exists", return_value=False):
+                mgr.load_watchlist()
+                assert mock_add.call_count == 9

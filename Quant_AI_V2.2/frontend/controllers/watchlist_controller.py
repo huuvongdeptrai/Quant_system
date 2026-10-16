@@ -450,27 +450,32 @@ class WatchlistManager(QObject):
         ]
 
         symbols = None
+        has_config_file = False
         for candidate in candidate_paths:
             if os.path.exists(candidate):
+                has_config_file = True
                 try:
                     with open(candidate, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                     if isinstance(raw, dict) and "symbols" in raw:
-                        symbols = raw["symbols"]
+                        symbols = list(raw["symbols"])
+                        break
                     elif isinstance(raw, list):
-                        symbols = raw
-                    if symbols is not None and len(symbols) > 0:
+                        symbols = list(raw)
                         break
                 except Exception:
                     pass
 
-        # Chỉ khi chưa có cấu hình hoặc file hoàn toàn rỗng mới dùng danh sách mặc định
-        if not symbols:
+        # CHỈ KHI LẦN ĐẦU CÀI ĐẶT (chưa từng tồn tại bất kỳ tệp watchlist nào trên máy)
+        # thì mới nạp danh sách 9 cặp mặc định ban đầu.
+        if not has_config_file or symbols is None:
             for sym, cat in default_pairs:
                 self.add_symbol_to_tree(sym, cat, auto_save=False)
             self.save_watchlist()
             return
 
+        # Khi người dùng đã lưu (dù là 0 cặp rỗng [], 1 cặp, 3 cặp hay bất kỳ cặp nào):
+        # Tôn trọng 100% lựa chọn người dùng, nạp đúng danh sách đó vào cây theo dõi.
         for sym in symbols:
             cat = "FOREX"
             if "XAU" in sym or "XAG" in sym or "OIL" in sym:

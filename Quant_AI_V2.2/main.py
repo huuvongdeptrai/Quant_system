@@ -891,13 +891,15 @@ class QuantTerminal(QObject):
             ):
                 allowed_sessions.append("NY")
 
+            active_symbols = self.watchlist.get_all_symbols() if self.watchlist else []
+
             self.bot_worker = BotWorker(
                 strategy=active_strat,
                 risk_manager=risk_mgr,
                 execution_manager=exec_mgr,
                 data_preprocessor=prep,
                 decision_gate=gate,
-                symbols=self.watchlist.get_all_symbols() or ["XAUUSD"],
+                symbols=active_symbols,
                 timeframe=tf,
                 strategy_name=strategy,
                 ai_model_name=ai_model,
@@ -989,16 +991,17 @@ class QuantTerminal(QObject):
                 else "Day du"
             )
 
+            syms_display = ", ".join(active_symbols) if active_symbols else "None (0 symbols in watchlist)"
             msg = (
                 f"<b>[SYSTEM INITIALIZED]</b>\n"
                 f"Trading engine activated successfully!\n\n"
                 f"<b>Active Configuration:</b>\n"
-                f"- Symbol: XAUUSD\n"
+                f"- Watchlist: {syms_display}\n"
                 f"- Timeframe: {tf_name}\n"
                 f"- Strategy: {strat_name}\n"
                 f"- Decision Gate: {gate_mode_display}\n"
                 f"- AI Engine: {ai_name}\n"
-                f"- Risk Per Trade: 1.0%\n\n"
+                f"- Risk Per Trade: {r_risk:.1f}%\n\n"
                 f"<i>Awaiting real market signals...</i>"
             )
 
