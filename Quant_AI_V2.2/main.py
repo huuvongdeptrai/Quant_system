@@ -72,7 +72,7 @@ _TXT_STOP = "BOT: ACTIVE"
 
 class QuantTerminal(QObject):
 
-    def __init__(self):
+    def __init__(self, with_overlay: bool = False):
 
         super().__init__()
 
@@ -188,6 +188,15 @@ class QuantTerminal(QObject):
             self._switch_nav_tab(self.window.tab2, self.btnNavTerminal, "LIVE TERMINAL")
         elif hasattr(self.window, "tab2"):
             self.window.tabWidget.setCurrentWidget(self.window.tab2)
+
+        # Clean Fade-Out Overlay (Cách 2) initialized seamlessly before showMaximized
+        if with_overlay:
+            from frontend.widgets.splash_screen import FadeOverlayWidget
+            self.overlay = FadeOverlayWidget(self.window)
+            self.overlay.show()
+            self.overlay.raise_()
+        else:
+            self.overlay = None
 
         self.window.showMaximized()
 
@@ -1094,31 +1103,17 @@ class QuantTerminal(QObject):
 
 
 if __name__ == "__main__":
-
     app = QApplication(sys.argv)
-
     app.setFont(QFont("Segoe UI", 10))
 
-    from frontend.widgets.splash_screen import SplashScreen, InitWorker
+    from frontend.widgets.splash_screen import InitWorker
 
-    splash = SplashScreen()
-
-    splash.show()
+    terminal = QuantTerminal(with_overlay=True)
 
     worker = InitWorker()
-
-    worker.progress.connect(splash.update_progress)
-
-    def on_init_finished():
-
-        global terminal
-
-        terminal = QuantTerminal()
-
-        splash.close()
-
-    worker.init_done.connect(on_init_finished)
-
+    if terminal.overlay:
+        worker.progress.connect(terminal.overlay.update_progress)
+        worker.init_done.connect(lambda: terminal.overlay.fade_out_and_destroy(350))
     worker.start()
 
     sys.exit(app.exec())
