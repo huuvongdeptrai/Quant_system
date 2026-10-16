@@ -1,4 +1,12 @@
-import os, json, threading
+# -*- coding: utf-8 -*-
+import os
+import sys
+import json
+import time
+import hashlib
+import threading
+from typing import Dict
+from datetime import datetime
 import requests
 from loguru import logger
 
@@ -10,6 +18,9 @@ class TelegramNotifier:
         self.alert_fills = True
         self.alert_sl_tp = True
         self.alert_risk_halt = True
+        self._alert_history: Dict[str, float] = {}
+        self._recent_hashes: Dict[str, float] = {}
+        self._is_listening = False
         self._load_config()
 
     def _load_config(self):
@@ -49,7 +60,7 @@ class TelegramNotifier:
         if not self.is_configured():
             return
 
-        # Lọc danh mục cảnh báo dựa theo cài đặt người dùng trong Options
+        # 1. Lọc danh mục cảnh báo dựa theo cài đặt người dùng trong Options
         cat = str(category).lower()
         if cat in ["fill", "order", "entry"] and not getattr(self, "alert_fills", True):
             return
@@ -58,10 +69,46 @@ class TelegramNotifier:
         if cat in ["risk_halt", "circuit_breaker", "halt"] and not getattr(self, "alert_risk_halt", True):
             return
 
-        # Chạy ngầm bằng thread để không block BotWorker
+        now_ts = time.time()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # 2. Khống chế nghiêm ngặt tần suất thông báo rủi ro (Circuit Breaker / Daily Loss)
+        # Chỉ gửi DUY NHẤT 1 LẦN trong ngày cho mỗi phân loại rủi ro để bảo vệ người dùng không bị spam
+        if cat in ["risk_halt", "circuit_breaker", "halt"]:
+            risk_subtype = "general_halt"
+            text_lower = text.lower()
+            if "daily loss" in text_lower:
+                risk_subtype = "daily_loss"
+            elif "drawdown" in text_lower:
+                risk_subtype = "drawdown"
+            elif "streak" in text_lower:
+                risk_subtype = "losing_streak"
+
+            dedup_key = f"{cat}_{risk_subtype}_{today_str}"
+            if dedup_key in self._alert_history:
+                logger.info(
+                    f"[TelegramNotifier] Chặn gửi lặp thông báo rủi ro '{risk_subtype}' cho ngày {today_str}. Chỉ gửi 1 lần duy nhất!"
+                )
+                return
+            self._alert_history[dedup_key] = now_ts
+
+        # 3. Chống spam gửi liên tục các tin nhắn nội dung trùng khớp trong vòng 60 giây
+        msg_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+        if msg_hash in self._recent_hashes:
+            if now_ts - self._recent_hashes[msg_hash] < 60.0:
+                logger.debug("[TelegramNotifier] Chặn tin nhắn trùng lặp trong vòng 60s.")
+                return
+        self._recent_hashes[msg_hash] = now_ts
+
+        # 4. Chạy ngầm bằng thread để không block BotWorker
         threading.Thread(target=self._send_task, args=(text,), daemon=True).start()
 
     def _send_task(self, text: str):
+        # Khi đang chạy kiểm thử pytest hoặc môi trường test, không dispatch HTTP request thật ra ngoài
+        if "pytest" in sys.modules or os.environ.get("QUANT_TESTING") == "1":
+            logger.debug(f"[Telegram Mock] Suppressed network dispatch in test environment: {text[:60]}")
+            return
+
         try:
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
             payload = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}
@@ -75,15 +122,12 @@ class TelegramNotifier:
         if not self.is_configured():
             return
         self._is_listening = True
-        import time
 
         threading.Thread(
             target=self._poll_updates, args=(event_bus,), daemon=True
         ).start()
 
     def _poll_updates(self, event_bus):
-        import time
-
         offset = None
         while self._is_listening:
             try:

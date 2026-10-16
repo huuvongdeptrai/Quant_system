@@ -48,6 +48,22 @@ class TestStage8OptionsIntegration:
             notifier.send_message("Halt!", category="risk_halt")
             assert mock_thread.called
 
+    def test_telegram_single_daily_loss_alert_suppression(self):
+        """Kiểm tra: TelegramNotifier chặn gửi tin nhắn cảnh báo rủi ro thứ 2 trong cùng 1 ngày."""
+        notifier = TelegramNotifier()
+        notifier.bot_token = "dummy_token"
+        notifier.chat_id = "123456"
+        notifier.alert_risk_halt = True
+
+        with patch("threading.Thread") as mock_thread:
+            # Lần 1: gửi cảnh báo vượt daily loss -> cho phép
+            notifier.send_message("CIRCUIT BREAKER TRIGGERED: Daily loss $400 exceeded limit $300", category="risk_halt")
+            assert mock_thread.call_count == 1
+
+            # Lần 2: tiếp tục gọi cảnh báo vượt daily loss trong ngày -> bị chặn (call_count không tăng)
+            notifier.send_message("CIRCUIT BREAKER TRIGGERED: Daily loss $450 exceeded limit $300", category="risk_halt")
+            assert mock_thread.call_count == 1
+
     def test_event_risk_user_max_spread(self):
         engine = EventRiskEngine(user_max_spread=25)
         sym_info = MagicMock(spread=30)
@@ -83,15 +99,21 @@ class TestStage8OptionsIntegration:
         )
 
         acc = MagicMock(equity=10000.0, balance=10000.0, margin=0, margin_free=10000.0)
-        with patch.object(mt5, "account_info", return_value=acc):
+        with patch.object(mt5, "account_info", return_value=acc), \
+             patch("backend.core.bot_worker.telegram_notifier.send_message") as mock_tg:
             worker._manage_circuit_breaker()
             assert worker.circuit_breaker_active is False
             assert worker.start_of_day_equity == 10000.0
 
-            # Daily loss drops by $400 (exceeds $300 limit)
+            # Daily loss drops by $400 (exceeds $300 limit) -> send alert ONCE
             acc.equity = 9600.0
             worker._manage_circuit_breaker()
             assert worker.circuit_breaker_active is True
+            assert mock_tg.call_count == 1
+
+            # Subsequent checks on same day MUST NOT re-send alert (gửi đúng 1 lần duy nhất)
+            worker._manage_circuit_breaker()
+            assert mock_tg.call_count == 1
 
     def test_max_open_trades_limit(self):
         mock_strat = MagicMock()

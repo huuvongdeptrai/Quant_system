@@ -98,6 +98,7 @@ class BotWorker(QtCore.QObject):
         self.start_of_day_equity = 0.0
         self.current_losing_streak = 0
         self.circuit_breaker_active = False
+        self._circuit_breaker_alert_sent = False
 
         # ==================================================
         # THIẾT LẬP HƯỚNG GIAO DỊCH (Có thể nối ra UI để tuỳ chỉnh)
@@ -152,6 +153,16 @@ class BotWorker(QtCore.QObject):
             f"[State Recovery] DB Audit: {rec_summary.get('active_positions_count', 0)} MT5 positions, recovered {rec_summary.get('recovered_orphans', 0)} orphaned orders.",
             "#58A6FF",
         )
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        cb_date = self.db.get_system_state("circuit_breaker_date", default="")
+        if cb_date == today_str and rec_summary.get("circuit_breaker_active", False):
+            self.circuit_breaker_active = True
+            self._circuit_breaker_alert_sent = True
+            self.log(
+                "WARNING",
+                f"[Circuit Breaker] Trạng thái cầu dao bảo vệ vốn hôm nay ({today_str}) đang KÍCH HOẠT. Tạm ngưng giao dịch.",
+                "#F23645",
+            )
         syms_display = ", ".join(self.symbols) if self.symbols else "Standby (0 symbols in watchlist)"
         telegram_notifier.send_message(
             f"🟢 <b>[Quant AI V2.2]</b> Automated execution started for {syms_display}.\nMode: <b>{self.trade_mode}</b>\nStrategy: <b>{self.strategy_name}</b>"
@@ -499,10 +510,19 @@ class BotWorker(QtCore.QObject):
             return
 
         today = datetime.now().date()
+        today_str = today.strftime("%Y-%m-%d")
         if not hasattr(self, "current_date") or self.current_date != today:
             self.current_date = today
             self.start_of_day_equity = account.equity
-            self.circuit_breaker_active = False
+            cb_date = self.db.get_system_state("circuit_breaker_date", default="")
+            cb_active = self.db.get_system_state("circuit_breaker_active", default="False")
+            if cb_date == today_str and cb_active == "True":
+                self.circuit_breaker_active = True
+                self._circuit_breaker_alert_sent = True
+            else:
+                self.circuit_breaker_active = False
+                self._circuit_breaker_alert_sent = False
+                self.db.set_system_state("circuit_breaker_active", "False")
             self.log(
                 "INFO",
                 f"New trading session. Starting Equity: ${self.start_of_day_equity:,.2f}",
@@ -527,24 +547,32 @@ class BotWorker(QtCore.QObject):
         )
         if self.max_drawdown > 0 and drawdown_pct >= self.max_drawdown:
             self.circuit_breaker_active = True
+            self.db.set_system_state("circuit_breaker_active", "True")
+            self.db.set_system_state("circuit_breaker_date", today_str)
             msg = f"CIRCUIT BREAKER TRIGGERED: Account drawdown {drawdown_pct:.2f}% exceeded limit {self.max_drawdown}%. Trading halted for today!"
             self.log("ERROR", msg, "#F23645")
-            telegram_notifier.send_message(
-                f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DRAWDOWN]</b>\n{msg}",
-                category="risk_halt",
-            )
+            if not getattr(self, "_circuit_breaker_alert_sent", False):
+                self._circuit_breaker_alert_sent = True
+                telegram_notifier.send_message(
+                    f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DRAWDOWN]</b>\n{msg}",
+                    category="risk_halt",
+                )
             return
 
         # 2. Kiểm tra sụt giảm vốn số tiền trong ngày (Max Daily Loss $)
         daily_loss_dlr = self.start_of_day_equity - account.equity
         if self.max_daily_loss > 0 and daily_loss_dlr >= self.max_daily_loss:
             self.circuit_breaker_active = True
+            self.db.set_system_state("circuit_breaker_active", "True")
+            self.db.set_system_state("circuit_breaker_date", today_str)
             msg = f"CIRCUIT BREAKER TRIGGERED: Daily loss ${daily_loss_dlr:,.2f} exceeded limit ${self.max_daily_loss:,.2f}. Trading halted for today!"
             self.log("ERROR", msg, "#F23645")
-            telegram_notifier.send_message(
-                f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DAILY LOSS]</b>\n{msg}",
-                category="risk_halt",
-            )
+            if not getattr(self, "_circuit_breaker_alert_sent", False):
+                self._circuit_breaker_alert_sent = True
+                telegram_notifier.send_message(
+                    f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DAILY LOSS]</b>\n{msg}",
+                    category="risk_halt",
+                )
             return
 
         # 3. Kiểm tra Cầu dao Chuỗi Thua Liên Tiếp (Losing Streak)
@@ -552,12 +580,16 @@ class BotWorker(QtCore.QObject):
             is_streak_hit, streak_count = self._check_losing_streak()
             if is_streak_hit:
                 self.circuit_breaker_active = True
+                self.db.set_system_state("circuit_breaker_active", "True")
+                self.db.set_system_state("circuit_breaker_date", today_str)
                 msg = f"CIRCUIT BREAKER TRIGGERED: Max consecutive loss streak of {streak_count} hit (Limit: {self.max_losing_streak}). Trading halted for today!"
                 self.log("ERROR", msg, "#F23645")
-                telegram_notifier.send_message(
-                    f"🚨 <b>[QUANT AI CIRCUIT BREAKER - LOSING STREAK]</b>\n{msg}",
-                    category="risk_halt",
-                )
+                if not getattr(self, "_circuit_breaker_alert_sent", False):
+                    self._circuit_breaker_alert_sent = True
+                    telegram_notifier.send_message(
+                        f"🚨 <b>[QUANT AI CIRCUIT BREAKER - LOSING STREAK]</b>\n{msg}",
+                        category="risk_halt",
+                    )
 
     def _manage_positions(self):
         # Tùy chỉnh: Trailing stop phiên thường chỉ chạy khi người dùng chủ động BẬT trong Settings
