@@ -33,8 +33,12 @@ DEFAULTS = {
     "execution_mode": "SEMI-AUTO",
     "max_spread": 25,
     "slippage": 20,
-    "breakeven_pips": 10,
-    "trailing_pips": 15,
+    "enable_trailing_stop": False,
+    "breakeven_pips": 0,
+    "trailing_pips": 0,
+    "news_defense_enabled": True,
+    "news_defense_mins": 15,
+    "news_defense_be_r": 1.5,
     "session_asian": True,
     "session_london": True,
     "session_ny": True,
@@ -205,27 +209,70 @@ class OptionsDialog(QDialog):
         be_ts_lay.setContentsMargins(0, 0, 0, 0)
         be_ts_lay.setSpacing(6)
 
+        self.chkEnableTrailing = QCheckBox("Enable")
+        self.chkEnableTrailing.setChecked(False)
+        self.chkEnableTrailing.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
+
         lbl_be = QLabel("BE:")
-        lbl_be.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b;")
+        lbl_be.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 2px;")
         self.spinBreakevenPips = QSpinBox()
-        self.spinBreakevenPips.setRange(1, 100)
-        self.spinBreakevenPips.setFixedWidth(85)
+        self.spinBreakevenPips.setRange(0, 100)
+        self.spinBreakevenPips.setSpecialValueText("OFF")
+        self.spinBreakevenPips.setFixedWidth(75)
         self.spinBreakevenPips.setSuffix(" pts")
         self.spinBreakevenPips.setFixedHeight(26)
 
         lbl_ts = QLabel("TS:")
-        lbl_ts.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 6px;")
+        lbl_ts.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
         self.spinTrailingPips = QSpinBox()
-        self.spinTrailingPips.setRange(1, 100)
-        self.spinTrailingPips.setFixedWidth(85)
+        self.spinTrailingPips.setRange(0, 100)
+        self.spinTrailingPips.setSpecialValueText("OFF")
+        self.spinTrailingPips.setFixedWidth(75)
         self.spinTrailingPips.setSuffix(" pts")
         self.spinTrailingPips.setFixedHeight(26)
 
+        be_ts_lay.addWidget(self.chkEnableTrailing)
         be_ts_lay.addWidget(lbl_be)
         be_ts_lay.addWidget(self.spinBreakevenPips)
         be_ts_lay.addWidget(lbl_ts)
         be_ts_lay.addWidget(self.spinTrailingPips)
         be_ts_lay.addStretch()
+
+        # Pre-News Position Defense (T-15m)
+        news_def_widget = QWidget()
+        nd_lay = QHBoxLayout(news_def_widget)
+        nd_lay.setContentsMargins(0, 0, 0, 0)
+        nd_lay.setSpacing(6)
+
+        self.chkNewsDefense = QCheckBox("Active Pre-News Defense")
+        self.chkNewsDefense.setChecked(True)
+        self.chkNewsDefense.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
+
+        lbl_nd_window = QLabel("Window:")
+        lbl_nd_window.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
+        self.spinNewsDefenseMins = QSpinBox()
+        self.spinNewsDefenseMins.setRange(5, 60)
+        self.spinNewsDefenseMins.setValue(15)
+        self.spinNewsDefenseMins.setSuffix(" min")
+        self.spinNewsDefenseMins.setFixedWidth(75)
+        self.spinNewsDefenseMins.setFixedHeight(26)
+
+        lbl_nd_r = QLabel("BE at:")
+        lbl_nd_r.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
+        self.spinNewsDefenseR = QDoubleSpinBox()
+        self.spinNewsDefenseR.setRange(0.5, 5.0)
+        self.spinNewsDefenseR.setSingleStep(0.25)
+        self.spinNewsDefenseR.setValue(1.5)
+        self.spinNewsDefenseR.setSuffix(" R")
+        self.spinNewsDefenseR.setFixedWidth(65)
+        self.spinNewsDefenseR.setFixedHeight(26)
+
+        nd_lay.addWidget(self.chkNewsDefense)
+        nd_lay.addWidget(lbl_nd_window)
+        nd_lay.addWidget(self.spinNewsDefenseMins)
+        nd_lay.addWidget(lbl_nd_r)
+        nd_lay.addWidget(self.spinNewsDefenseR)
+        nd_lay.addStretch()
 
         # Sessions
         sessions_widget = QWidget()
@@ -248,7 +295,8 @@ class OptionsDialog(QDialog):
             ("Signal Expiry:", self.spinSignalExpiry, 110),
             ("Max Spread Limit:", self.spinMaxSpread, 110),
             ("Slippage Tolerance:", self.spinSlippage, 110),
-            ("Break-Even / Trailing:", be_ts_widget, None),
+            ("Normal Trailing Stop:", be_ts_widget, None),
+            ("Pre-News Defense (BE):", news_def_widget, None),
             ("Active Sessions:", sessions_widget, None),
         ]:
             row = QWidget()
@@ -652,9 +700,13 @@ class OptionsDialog(QDialog):
 
         self.spinMaxSpread.setValue(int(data.get("max_spread", DEFAULTS["max_spread"])))
         self.spinSlippage.setValue(int(data.get("slippage", DEFAULTS["slippage"])))
-        self.spinSignalExpiry.setValue(int(data.get("signal_expiry_sec", DEFAULTS["signal_expiry_sec"])))
+        self.chkEnableTrailing.setChecked(bool(data.get("enable_trailing_stop", DEFAULTS.get("enable_trailing_stop", False))))
         self.spinBreakevenPips.setValue(int(data.get("breakeven_pips", DEFAULTS["breakeven_pips"])))
         self.spinTrailingPips.setValue(int(data.get("trailing_pips", DEFAULTS["trailing_pips"])))
+
+        self.chkNewsDefense.setChecked(bool(data.get("news_defense_enabled", DEFAULTS.get("news_defense_enabled", True))))
+        self.spinNewsDefenseMins.setValue(int(data.get("news_defense_mins", DEFAULTS.get("news_defense_mins", 15))))
+        self.spinNewsDefenseR.setValue(float(data.get("news_defense_be_r", DEFAULTS.get("news_defense_be_r", 1.5))))
 
         self.chkSessionAsian.setChecked(bool(data.get("session_asian", DEFAULTS["session_asian"])))
         self.chkSessionLondon.setChecked(bool(data.get("session_london", DEFAULTS["session_london"])))
@@ -744,8 +796,12 @@ class OptionsDialog(QDialog):
             "max_spread": self.spinMaxSpread.value(),
             "slippage": self.spinSlippage.value(),
             "signal_expiry_sec": self.spinSignalExpiry.value(),
+            "enable_trailing_stop": self.chkEnableTrailing.isChecked(),
             "breakeven_pips": self.spinBreakevenPips.value(),
             "trailing_pips": self.spinTrailingPips.value(),
+            "news_defense_enabled": self.chkNewsDefense.isChecked(),
+            "news_defense_mins": self.spinNewsDefenseMins.value(),
+            "news_defense_be_r": self.spinNewsDefenseR.value(),
 
             "session_asian": self.chkSessionAsian.isChecked(),
             "session_london": self.chkSessionLondon.isChecked(),
@@ -762,8 +818,16 @@ class OptionsDialog(QDialog):
 
         try:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+            merged_data = {}
+            if os.path.exists(CONFIG_PATH):
+                try:
+                    with open(CONFIG_PATH, "r", encoding="utf-8") as f_prev:
+                        merged_data = json.load(f_prev)
+                except Exception:
+                    pass
+            merged_data.update(data)
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
+                json.dump(merged_data, f, indent=4)
 
             tok = self.editTgToken.text().strip()
             cid = self.editTgChatId.text().strip()

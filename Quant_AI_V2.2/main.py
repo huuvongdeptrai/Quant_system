@@ -675,6 +675,7 @@ class QuantTerminal(QObject):
                 mt5.TIMEFRAME_D1: "D1",
             }
             tf_setting = 15
+            cfg_d = {}
             try:
                 with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
                     cfg_d = json.load(f_cfg)
@@ -808,16 +809,40 @@ class QuantTerminal(QObject):
                 else 3
             )
 
+            enable_ts = (
+                self.window.chkEnableTrailing.isChecked()
+                if hasattr(self.window, "chkEnableTrailing")
+                else bool(cfg_d.get("enable_trailing_stop", False))
+            )
+
             r_trail = (
                 self.window.spinTrailingPips.value()
                 if hasattr(self.window, "spinTrailingPips")
-                else 15
+                else int(cfg_d.get("trailing_pips", 0))
             )
 
             r_be = (
                 self.window.spinBreakevenPips.value()
                 if hasattr(self.window, "spinBreakevenPips")
-                else 10
+                else int(cfg_d.get("breakeven_pips", 0))
+            )
+
+            news_defense_enabled = (
+                self.window.chkNewsDefense.isChecked()
+                if hasattr(self.window, "chkNewsDefense")
+                else bool(cfg_d.get("news_defense_enabled", True))
+            )
+
+            news_defense_mins = (
+                self.window.spinNewsDefenseMins.value()
+                if hasattr(self.window, "spinNewsDefenseMins")
+                else int(cfg_d.get("news_defense_mins", 15))
+            )
+
+            news_defense_be_r = (
+                self.window.spinNewsDefenseR.value()
+                if hasattr(self.window, "spinNewsDefenseR")
+                else float(cfg_d.get("news_defense_be_r", 1.5))
             )
 
             # Sessions
@@ -859,8 +884,12 @@ class QuantTerminal(QObject):
                 risk_per_trade=r_risk,
                 max_drawdown=r_maxdd,
                 max_losing_streak=r_maxloss,
+                enable_trailing_stop=enable_ts,
                 trailing_pips=r_trail,
                 breakeven_pips=r_be,
+                news_defense_enabled=news_defense_enabled,
+                defense_window_mins=news_defense_mins,
+                news_defense_be_r=news_defense_be_r,
                 allowed_sessions=allowed_sessions,
             )
 

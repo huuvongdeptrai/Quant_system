@@ -49,12 +49,16 @@ class EventRiskEngine:
         defense_window_mins: int = 15,
         pause_window_mins: int = 30,
         max_spread_multiplier: float = 1.5,
+        news_defense_enabled: bool = True,
+        be_r_threshold: float = 1.5,
     ):
         self.exec_mgr = execution_manager
         self.cal_engine = calendar_engine
         self.defense_window_mins = defense_window_mins
         self.pause_window_mins = pause_window_mins
         self.max_spread_multiplier = max_spread_multiplier
+        self.news_defense_enabled = news_defense_enabled
+        self.be_r_threshold = be_r_threshold
 
         self._news_events_cache = []
         self._news_events_ts = 0.0
@@ -129,6 +133,9 @@ class EventRiskEngine:
           * Lãi 0.5R - 1.5R: Chốt 50% khối lượng (Partial Close) và dời SL về Breakeven.
           * Lệnh âm: Giữ nguyên để người dùng tự quản lý theo chiến lược.
         """
+        if not getattr(self, "news_defense_enabled", True):
+            return []
+
         self.refresh_events_if_needed()
         if not self._news_events_cache or not self.exec_mgr:
             return []
@@ -205,14 +212,15 @@ class EventRiskEngine:
             be_buffer = 2.0 * point * (10 if digits in (3, 5) else 1)
             be_sl = round(open_price + (be_buffer if is_buy else -be_buffer), digits)
 
-            # QUY TẮC 1: Lệnh đang lãi >= 1.5R -> Tự động dời SL về Hòa vốn (Breakeven)
-            if r_multiple >= 1.5:
+            # QUY TẮC 1: Lệnh đang lãi >= be_r_threshold (mặc định 1.5R) -> Tự động dời SL về Hòa vốn (Breakeven)
+            threshold_be = getattr(self, "be_r_threshold", 1.5)
+            if r_multiple >= threshold_be:
                 # Chỉ dời nếu SL mới tốt hơn SL hiện tại
                 should_move = (be_sl > sl_price) if is_buy else (be_sl < sl_price or sl_price == 0)
                 if should_move:
                     res = self.exec_mgr.modify_position(ticket, sl=be_sl, tp=pos.tp)
                     logger.info(
-                        f"[EventRisk] AUTO-BREAKEVEN: Ticket #{ticket} ({sym}) profit +{r_multiple:.2f}R >= 1.5R. "
+                        f"[EventRisk] AUTO-BREAKEVEN: Ticket #{ticket} ({sym}) profit +{r_multiple:.2f}R >= {threshold_be}R. "
                         f"SL moved to {be_sl} before '{news_title}'."
                     )
                     self._defended_positions[event_id] = {"action": "breakeven", "r": r_multiple}
@@ -225,8 +233,8 @@ class EventRiskEngine:
                         "status": res.get("status", "unknown")
                     })
 
-            # QUY TẮC 2: Lệnh đang lãi nhẹ 0.5R - 1.5R -> Chốt 50% Volume & dời phần còn lại về Breakeven
-            elif 0.5 <= r_multiple < 1.5:
+            # QUY TẮC 2: Lệnh đang lãi nhẹ 0.5R - be_r_threshold -> Chốt 50% Volume & dời phần còn lại về Breakeven
+            elif 0.5 <= r_multiple < threshold_be:
                 half_vol = round(pos.volume * 0.5, 2)
                 min_vol = info.volume_min if info else 0.01
                 step_vol = info.volume_step if info else 0.01

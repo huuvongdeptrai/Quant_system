@@ -47,8 +47,12 @@ DEFAULTS = {
     "execution_mode": "SEMI-AUTO",
     "max_spread": 25,
     "slippage": 20,
-    "breakeven_pips": 10,
-    "trailing_pips": 15,
+    "enable_trailing_stop": False,
+    "breakeven_pips": 0,
+    "trailing_pips": 0,
+    "news_defense_enabled": True,
+    "news_defense_mins": 15,
+    "news_defense_be_r": 1.5,
     "session_asian": True,
     "session_london": True,
     "session_ny": True,
@@ -633,8 +637,16 @@ class SettingsManager:
 
         try:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+            merged = {}
+            if os.path.exists(CONFIG_PATH):
+                try:
+                    with open(CONFIG_PATH, "r", encoding="utf-8") as f_prev:
+                        merged = json.load(f_prev)
+                except Exception:
+                    pass
+            merged.update(data)
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
+                json.dump(merged, f, indent=4)
 
             if tg_token:
                 telegram_notifier.bot_token = tg_token

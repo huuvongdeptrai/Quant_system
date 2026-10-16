@@ -50,8 +50,12 @@ class BotWorker(QtCore.QObject):
         risk_per_trade: float = 1.0,
         max_drawdown: float = 5.0,
         max_losing_streak: int = 3,
-        trailing_pips: int = 15,
-        breakeven_pips: int = 10,
+        trailing_pips: int = 0,
+        breakeven_pips: int = 0,
+        enable_trailing_stop: bool = False,
+        news_defense_enabled: bool = True,
+        defense_window_mins: int = 15,
+        news_defense_be_r: float = 1.5,
         allowed_sessions: list[str] = None,
     ):
         super().__init__()
@@ -72,6 +76,10 @@ class BotWorker(QtCore.QObject):
         self.max_losing_streak = max_losing_streak
         self.trailing_pips = trailing_pips
         self.breakeven_pips = breakeven_pips
+        self.enable_trailing_stop = enable_trailing_stop
+        self.news_defense_enabled = news_defense_enabled
+        self.defense_window_mins = defense_window_mins
+        self.news_defense_be_r = news_defense_be_r
 
         self.allowed_sessions = (
             allowed_sessions
@@ -99,8 +107,10 @@ class BotWorker(QtCore.QObject):
         self.state_recovery = StateRecoveryManager(self.db)
         self.event_risk = EventRiskEngine(
             execution_manager=self.exec_mgr,
-            defense_window_mins=15,
+            defense_window_mins=self.defense_window_mins,
             pause_window_mins=self.news_pause_mins,
+            news_defense_enabled=self.news_defense_enabled,
+            be_r_threshold=self.news_defense_be_r,
         )
 
         # Khởi tạo sớm AI Engine nếu dùng chiến lược AI để tránh giật lag lúc khớp lệnh
@@ -150,7 +160,7 @@ class BotWorker(QtCore.QObject):
             self._manage_positions()
 
             # 3. Kích hoạt chế độ phòng thủ vị thế trước giờ tin (T-15 phút)
-            if self.news_filter_enabled and hasattr(self, "event_risk"):
+            if self.news_filter_enabled and getattr(self, "news_defense_enabled", True) and hasattr(self, "event_risk"):
                 defense_actions = self.event_risk.evaluate_pre_news_defense()
                 for act in defense_actions:
                     self.log(
@@ -481,7 +491,10 @@ class BotWorker(QtCore.QObject):
                 )
 
     def _manage_positions(self):
-        # Tùy chỉnh: Nếu Trailing hoặc Breakeven = 0 -> Vô hiệu hóa tính năng đó
+        # Tùy chỉnh: Trailing stop phiên thường chỉ chạy khi người dùng chủ động BẬT trong Settings
+        # Mặc định là TẮT (enable_trailing_stop == False) theo đúng nguyên tắc không bóp nghẹt lệnh ICT.
+        if not getattr(self, "enable_trailing_stop", False):
+            return
         if self.trailing_pips <= 0 and self.breakeven_pips <= 0:
             return
 
@@ -551,7 +564,7 @@ class BotWorker(QtCore.QObject):
                     if res and res.retcode == mt5.TRADE_RETCODE_DONE:
                         self.log(
                             "INFO",
-                            f"[Auto SL] Trailed SL for {sym} to {new_sl:.2f} (Break Even)",
+                            f"[Trailing SL] Trailed SL for {sym} to {new_sl:.2f}",
                             "#FF9800",
                         )
 
