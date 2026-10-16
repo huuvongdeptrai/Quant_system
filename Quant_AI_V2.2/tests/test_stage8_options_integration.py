@@ -103,7 +103,7 @@ class TestStage8OptionsIntegration:
 
         acc = MagicMock(equity=10000.0, balance=10000.0, margin=0, margin_free=10000.0)
         with patch.object(mt5, "account_info", return_value=acc), \
-             patch("backend.core.bot_worker.telegram_notifier.send_message") as mock_tg:
+             patch("backend.core.circuit_breaker_guard.telegram_notifier.send_message") as mock_tg:
             worker._manage_circuit_breaker()
             assert worker.circuit_breaker_active is False
             assert worker.start_of_day_equity == 10000.0
@@ -160,7 +160,7 @@ class TestStage8OptionsIntegration:
 
         # 2026-10-16 is a Friday (weekday == 4), at 21:30 UTC
         mock_now = datetime(2026, 10, 16, 21, 30, tzinfo=timezone.utc)
-        with patch("backend.core.bot_worker.datetime") as mock_dt:
+        with patch("backend.core.session_filter.datetime") as mock_dt:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
