@@ -450,14 +450,14 @@ def _update_panel_with_result(window, result):
         tp_val = float(raw_tp or (entry_val + abs(entry_val - sl_val) * 2.0))
         conf_raw = strat_res.get("confidence", 0.85)
         conf_pct = f"{int(conf_raw * 100 if conf_raw <= 1.0 else conf_raw)}%"
-        ai_model = f"{strat_name} ({'BUY SIGNAL' if strat_sig == 'BUY' else 'SELL SIGNAL'})"
+        ai_model = f"{strat_name} ({strat_sig})"
 
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
         elif is_ict:
             chk1 = f"STRUCTURE: {htf_text.upper()}"
             chk2 = "LIQUIDITY: ASIAN SWEEP"
-            chk3 = f"CONFLUENCE: {obs_cnt} OB & {fvgs_cnt} FVG"
+            chk3 = f"{obs_cnt} OB & {fvgs_cnt} FVG"
         elif is_ema:
             chk1 = f"TREND: {htf_text.upper()}"
             chk2 = "SIGNAL: MOVING AVERAGE CROSSOVER"

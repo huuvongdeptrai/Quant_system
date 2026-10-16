@@ -352,11 +352,56 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             f"color: {name_color}; font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 700; border: none; background: transparent;"
         )
 
-    badge_style = f"background-color: {badge_bg}; color: {badge_text}; border: 1px solid {badge_border}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
-    if hasattr(window, "lblModelGrade") and window.lblModelGrade:
-        window.lblModelGrade.setStyleSheet(badge_style)
+    # Dynamic styling for Model Grade (Confidence) and Order Type badges
     if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
-        window.lblOrderTypeBadge.setStyleSheet(badge_style)
+        order_txt = window.lblOrderTypeBadge.text().upper()
+        if "BUY" in order_txt:
+            b_bg = "#0d2818" if is_dark else "#f0fdf4"
+            b_border = "#1b4d2e" if is_dark else "#bbf7d0"
+            b_text = "#22c55e" if is_dark else "#15803d"
+        elif "SELL" in order_txt:
+            b_bg = "#271214" if is_dark else "#fef2f2"
+            b_border = "#4a1d24" if is_dark else "#fecaca"
+            b_text = "#ef4444" if is_dark else "#dc2626"
+        else:
+            b_bg = "#1e293b" if is_dark else "#f1f5f9"
+            b_border = "#334155" if is_dark else "#cbd5e1"
+            b_text = "#94a3b8" if is_dark else "#64748b"
+        window.lblOrderTypeBadge.setStyleSheet(
+            f"background-color: {b_bg}; color: {b_text}; border: 1px solid {b_border}; "
+            f"font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+        )
+
+    if hasattr(window, "lblModelGrade") and window.lblModelGrade:
+        grade_txt = window.lblModelGrade.text().upper()
+        conf_val = 80
+        if "%" in grade_txt:
+            try:
+                digits_str = "".join([c for c in grade_txt if c.isdigit()])
+                if digits_str:
+                    conf_val = int(digits_str)
+            except Exception:
+                conf_val = 80
+        if "AWAITING" in grade_txt or "STANDBY" in grade_txt:
+            g_bg = "#1e293b" if is_dark else "#f1f5f9"
+            g_border = "#334155" if is_dark else "#cbd5e1"
+            g_text = "#94a3b8" if is_dark else "#64748b"
+        elif conf_val >= 70:
+            g_bg = "#0d2818" if is_dark else "#f0fdf4"
+            g_border = "#1b4d2e" if is_dark else "#bbf7d0"
+            g_text = "#22c55e" if is_dark else "#15803d"
+        elif conf_val >= 50:
+            g_bg = "#2a1d0d" if is_dark else "#fffbeb"
+            g_border = "#5e3e0f" if is_dark else "#fde68a"
+            g_text = "#f59e0b" if is_dark else "#b45309"
+        else:
+            g_bg = "#271214" if is_dark else "#fef2f2"
+            g_border = "#4a1d24" if is_dark else "#fecaca"
+            g_text = "#ef4444" if is_dark else "#dc2626"
+        window.lblModelGrade.setStyleSheet(
+            f"background-color: {g_bg}; color: {g_text}; border: 1px solid {g_border}; "
+            f"font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+        )
 
     key_style = f"color: {sub_color}; font-family: Consolas, monospace; font-size: 9.5px; border: none; background: transparent;"
     for k_attr in dir(window):

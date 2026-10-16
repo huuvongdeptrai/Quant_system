@@ -85,21 +85,21 @@ def setup_chart_ui(window):
     if hasattr(window, "frameAIArea") and window.frameAIArea:
         window.frameAIArea.setParent(window.frameChartArea)
         window.frameAIArea.setObjectName("floatingTradingPlan")
-        window.frameAIArea.setMinimumSize(275, 0)
-        window.frameAIArea.setMaximumSize(310, 500)
+        window.frameAIArea.setMinimumSize(310, 0)
+        window.frameAIArea.setMaximumSize(360, 520)
 
     def _reposition_trading_plan():
         if not hasattr(window, "frameAIArea") or not window.frameAIArea:
             return
         if not hasattr(window, "frameChartArea") or not window.frameChartArea:
             return
-        w = 285
+        w = 325
         c_w = window.frameChartArea.width()
         c_h = window.frameChartArea.height()
         x = max(10, c_w - w - 10)
         ribbon_h = window.frameChartRibbon.height() if hasattr(window, "frameChartRibbon") and window.frameChartRibbon else 24
         y = ribbon_h + 8
-        h = min(365, max(200, c_h - y - 10))
+        h = min(380, max(200, c_h - y - 10))
         window.frameAIArea.setGeometry(x, y, w, h)
         window.frameAIArea.raise_()
 
@@ -849,7 +849,7 @@ def setup_chart_ui(window):
         if hasattr(window, "line_order_tp"):
             window.line_order_tp.setMovable(True)
         if hasattr(window, "lblSignalExpiry"):
-            window.lblSignalExpiry.setText("DRAG SL / TP LINES ON CHART TO ADJUST")
+            window.lblSignalExpiry.setText("DRAG SL/TP LINES TO ADJUST")
             window.lblSignalExpiry.setStyleSheet("color: #0284c7; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
         if hasattr(window, "btnApproveOrder"):
             window.btnApproveOrder.setText("APPROVE ORDER (MODIFIED)")
