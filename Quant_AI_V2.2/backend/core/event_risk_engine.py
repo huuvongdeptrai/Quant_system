@@ -51,6 +51,7 @@ class EventRiskEngine:
         max_spread_multiplier: float = 1.5,
         news_defense_enabled: bool = True,
         be_r_threshold: float = 1.5,
+        user_max_spread: int = 0,
     ):
         self.exec_mgr = execution_manager
         self.cal_engine = calendar_engine
@@ -59,6 +60,7 @@ class EventRiskEngine:
         self.max_spread_multiplier = max_spread_multiplier
         self.news_defense_enabled = news_defense_enabled
         self.be_r_threshold = be_r_threshold
+        self.user_max_spread = user_max_spread
 
         self._news_events_cache = []
         self._news_events_ts = 0.0
@@ -285,7 +287,10 @@ class EventRiskEngine:
         else:
             base_safe_spread = 25
 
-        max_allowed = int(base_safe_spread * self.max_spread_multiplier)
+        if getattr(self, "user_max_spread", 0) > 0:
+            max_allowed = self.user_max_spread
+        else:
+            max_allowed = int(base_safe_spread * self.max_spread_multiplier)
         if curr_spread > max_allowed:
             return False, curr_spread, max_allowed
 

@@ -893,6 +893,9 @@ class OptionsDialog(QDialog):
                 telegram_notifier.bot_token = tok
             if cid:
                 telegram_notifier.chat_id = cid
+            telegram_notifier.alert_fills = self.chkAlertFills.isChecked()
+            telegram_notifier.alert_sl_tp = self.chkAlertSL.isChecked()
+            telegram_notifier.alert_risk_halt = self.chkAlertRisk.isChecked()
 
             if os.path.exists(AI_CONFIG_PATH):
                 try:

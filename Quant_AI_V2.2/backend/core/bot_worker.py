@@ -48,8 +48,12 @@ class BotWorker(QtCore.QObject):
         news_pause_mins: int = 30,
         slippage: int = 20,
         risk_per_trade: float = 1.0,
+        max_daily_loss: float = 500.0,
         max_drawdown: float = 5.0,
         max_losing_streak: int = 3,
+        max_open_trades: int = 3,
+        max_spread: int = 25,
+        close_friday: bool = True,
         trailing_pips: int = 0,
         breakeven_pips: int = 0,
         enable_trailing_stop: bool = False,
@@ -72,8 +76,12 @@ class BotWorker(QtCore.QObject):
         self.slippage = slippage
 
         self.risk_per_trade = risk_per_trade
+        self.max_daily_loss = max_daily_loss
         self.max_drawdown = max_drawdown
         self.max_losing_streak = max_losing_streak
+        self.max_open_trades = max_open_trades
+        self.max_spread = max_spread
+        self.close_friday = close_friday
         self.trailing_pips = trailing_pips
         self.breakeven_pips = breakeven_pips
         self.enable_trailing_stop = enable_trailing_stop
@@ -111,6 +119,7 @@ class BotWorker(QtCore.QObject):
             pause_window_mins=self.news_pause_mins,
             news_defense_enabled=self.news_defense_enabled,
             be_r_threshold=self.news_defense_be_r,
+            user_max_spread=self.max_spread,
         )
 
         # Khởi tạo sớm AI Engine nếu dùng chiến lược AI để tránh giật lag lúc khớp lệnh
@@ -168,6 +177,14 @@ class BotWorker(QtCore.QObject):
                         f"[DEFENSE] #{act['ticket']} {act['symbol']} | {act['action']} (+{act['r_multiple']}R) before '{act['news']}'",
                         "#38BDF8",
                     )
+                    telegram_notifier.send_message(
+                        f"🛡️ <b>[PRE-NEWS DEFENSE]</b>\n#{act['ticket']} {act['symbol']}: {act['action']} (+{act['r_multiple']}R) before '{act['news']}'",
+                        category="sl_tp",
+                    )
+
+            # 4. Phòng vệ rủi ro cuối tuần (Friday EOD close)
+            if getattr(self, "close_friday", True):
+                self._manage_friday_eod()
 
             for sym in self.symbols:
                 if not self.is_running:
@@ -180,14 +197,41 @@ class BotWorker(QtCore.QObject):
                     break
                 time.sleep(0.1)
 
+    def _manage_friday_eod(self):
+        """
+        Đóng toàn bộ vị thế đang mở vào cuối phiên thứ Sáu (từ 21:00 UTC) để tránh rủi ro gap giá qua tuần.
+        """
+        now = datetime.now(timezone.utc)
+        if now.weekday() == 4 and now.hour >= 21:
+            for sym in self.symbols:
+                positions = mt5.positions_get(symbol=sym)
+                if positions:
+                    for pos in positions:
+                        res = self.exec_mgr.close_position(pos.ticket)
+                        if res.get("status") == "success":
+                            self.log(
+                                "WARNING",
+                                f"[FRIDAY EOD] Closed #{pos.ticket} {sym} to protect against weekend gap risk.",
+                                "#EAB308",
+                            )
+                            telegram_notifier.send_message(
+                                f"⚠️ <b>[WEEKEND RISK DEFENSE]</b>\nClosed #{pos.ticket} {sym} at Friday EOD (UTC {now.strftime('%H:%M')}).",
+                                category="risk_halt",
+                            )
+
     def _check_session_allowed(self) -> tuple[bool, str]:
         """
-        Kiểm tra phiên giao dịch hiện tại (ASIAN, LONDON, NY) có thuộc danh sách cho phép không.
+        Kiểm tra phiên giao dịch hiện tại (ASIAN, LONDON, NY) có thuộc danh sách cho phép không,
+        đồng thời chặn vào lệnh mới trước kỳ nghỉ cuối tuần (Friday EOD).
         """
+        now = datetime.now(timezone.utc)
+        if getattr(self, "close_friday", True) and now.weekday() == 4 and now.hour >= 21:
+            return False, "FRIDAY_EOD"
+
         if not self.allowed_sessions:
             return True, "ALL"
 
-        now_utc = datetime.utcnow().hour
+        now_utc = now.hour
         if 7 <= now_utc < 13:
             current_session = "LONDON"
         elif 13 <= now_utc < 22:
@@ -295,6 +339,12 @@ class BotWorker(QtCore.QObject):
         if not refined:
             return
 
+        # Kiểm tra giới hạn số lệnh mở tối đa toàn tài khoản (Max Open Trades)
+        if getattr(self, "max_open_trades", 0) > 0:
+            all_positions = mt5.positions_get()
+            if all_positions and len(all_positions) >= self.max_open_trades:
+                return
+
         positions = mt5.positions_get(symbol=sym)
         if positions:
             return  # Đang có lệnh -> Không làm gì cả
@@ -386,7 +436,7 @@ class BotWorker(QtCore.QObject):
         if sl_points <= 0:
             sl_points = entry_price * 0.005  # Fallback
 
-        lot = self.risk_mgr.calculate_lot_size(sym, sl_points, risk_pct=1.0)
+        lot = self.risk_mgr.calculate_lot_size(sym, sl_points, risk_pct=self.risk_per_trade)
 
         self.log(
             "TRADE",
@@ -432,14 +482,15 @@ class BotWorker(QtCore.QObject):
                         except Exception:
                             pass
             telegram_notifier.send_message(
-                f"🚀 <b>ORDER FILLED: {signal} {sym}</b>\nVolume: {lot} Lots\nSL: {sl_price:.2f} | TP: {tp_price:.2f}\nReason: {confidence_str}"
+                f"🚀 <b>ORDER FILLED: {signal} {sym}</b>\nVolume: {lot} Lots\nSL: {sl_price:.2f} | TP: {tp_price:.2f}\nReason: {confidence_str}",
+                category="fill",
             )
         else:
             self.log("ERROR", res["msg"], "#DA3633")
 
     def _manage_circuit_breaker(self):
-        # Tùy chỉnh: Nếu Max Drawdown = 0 -> Vô hiệu hóa
-        if self.max_drawdown <= 0:
+        # Kiểm tra xem có cấu hình bất kỳ cơ chế bảo vệ tài khoản nào không
+        if self.max_drawdown <= 0 and self.max_daily_loss <= 0 and self.max_losing_streak <= 0:
             return
 
         account = mt5.account_info()
@@ -460,9 +511,12 @@ class BotWorker(QtCore.QObject):
         if self.circuit_breaker_active:
             return
 
-        drawdown_pct = (
-            (self.start_of_day_equity - account.equity) / self.start_of_day_equity
-        ) * 100
+        # 1. Kiểm tra sụt giảm vốn phần trăm (Drawdown %)
+        drawdown_pct = 0.0
+        if self.start_of_day_equity > 0:
+            drawdown_pct = (
+                (self.start_of_day_equity - account.equity) / self.start_of_day_equity
+            ) * 100
         self.db.record_equity_snapshot(
             account.balance,
             account.equity,
@@ -470,16 +524,29 @@ class BotWorker(QtCore.QObject):
             account.margin_free,
             drawdown_pct,
         )
-        if drawdown_pct >= self.max_drawdown:
+        if self.max_drawdown > 0 and drawdown_pct >= self.max_drawdown:
             self.circuit_breaker_active = True
             msg = f"CIRCUIT BREAKER TRIGGERED: Account drawdown {drawdown_pct:.2f}% exceeded limit {self.max_drawdown}%. Trading halted for today!"
             self.log("ERROR", msg, "#F23645")
             telegram_notifier.send_message(
-                f"🚨 <b>[QUANT AI CIRCUIT BREAKER]</b>\n{msg}"
+                f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DRAWDOWN]</b>\n{msg}",
+                category="risk_halt",
             )
             return
 
-        # Kiểm tra Cầu dao Chuỗi Thua Liên Tiếp (Losing Streak)
+        # 2. Kiểm tra sụt giảm vốn số tiền trong ngày (Max Daily Loss $)
+        daily_loss_dlr = self.start_of_day_equity - account.equity
+        if self.max_daily_loss > 0 and daily_loss_dlr >= self.max_daily_loss:
+            self.circuit_breaker_active = True
+            msg = f"CIRCUIT BREAKER TRIGGERED: Daily loss ${daily_loss_dlr:,.2f} exceeded limit ${self.max_daily_loss:,.2f}. Trading halted for today!"
+            self.log("ERROR", msg, "#F23645")
+            telegram_notifier.send_message(
+                f"🚨 <b>[QUANT AI CIRCUIT BREAKER - DAILY LOSS]</b>\n{msg}",
+                category="risk_halt",
+            )
+            return
+
+        # 3. Kiểm tra Cầu dao Chuỗi Thua Liên Tiếp (Losing Streak)
         if self.max_losing_streak > 0:
             is_streak_hit, streak_count = self._check_losing_streak()
             if is_streak_hit:
@@ -487,7 +554,8 @@ class BotWorker(QtCore.QObject):
                 msg = f"CIRCUIT BREAKER TRIGGERED: Max consecutive loss streak of {streak_count} hit (Limit: {self.max_losing_streak}). Trading halted for today!"
                 self.log("ERROR", msg, "#F23645")
                 telegram_notifier.send_message(
-                    f"🚨 <b>[QUANT AI CIRCUIT BREAKER - LOSING STREAK]</b>\n{msg}"
+                    f"🚨 <b>[QUANT AI CIRCUIT BREAKER - LOSING STREAK]</b>\n{msg}",
+                    category="risk_halt",
                 )
 
     def _manage_positions(self):
@@ -566,6 +634,10 @@ class BotWorker(QtCore.QObject):
                             "INFO",
                             f"[Trailing SL] Trailed SL for {sym} to {new_sl:.2f}",
                             "#FF9800",
+                        )
+                        telegram_notifier.send_message(
+                            f"🔄 <b>[TRAILING SL]</b> #{pos.ticket} {sym}: Trailed SL to {new_sl:.2f}",
+                            category="sl_tp",
                         )
 
         # Cập nhật kết quả giao dịch đã đóng vào CSDL và LoRA DatasetRecorder

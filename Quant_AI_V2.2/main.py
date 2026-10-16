@@ -794,19 +794,43 @@ class QuantTerminal(QObject):
             r_risk = (
                 self.window.spinRiskPerTrade.value()
                 if hasattr(self.window, "spinRiskPerTrade")
-                else 1.0
+                else float(cfg_d.get("risk_per_trade", 1.0))
+            )
+
+            r_max_daily_loss = (
+                self.window.spinMaxDailyLoss.value()
+                if hasattr(self.window, "spinMaxDailyLoss")
+                else float(cfg_d.get("max_daily_loss", 500.0))
             )
 
             r_maxdd = (
                 self.window.spinMaxDrawdown.value()
                 if hasattr(self.window, "spinMaxDrawdown")
-                else 5.0
+                else float(cfg_d.get("max_drawdown", 5.0))
             )
 
             r_maxloss = (
                 self.window.spinMaxLosingStreak.value()
                 if hasattr(self.window, "spinMaxLosingStreak")
-                else 3
+                else int(cfg_d.get("max_losing_streak", 3))
+            )
+
+            r_max_open_trades = (
+                self.window.spinMaxOpenTrades.value()
+                if hasattr(self.window, "spinMaxOpenTrades")
+                else int(cfg_d.get("max_open_trades", 3))
+            )
+
+            close_friday = (
+                self.window.chkCloseFriday.isChecked()
+                if hasattr(self.window, "chkCloseFriday")
+                else bool(cfg_d.get("close_friday", True))
+            )
+
+            max_spread = (
+                self.window.spinMaxSpread.value()
+                if hasattr(self.window, "spinMaxSpread")
+                else int(cfg_d.get("max_spread", 25))
             )
 
             enable_ts = (
@@ -882,8 +906,12 @@ class QuantTerminal(QObject):
                 news_pause_mins=news_pause_mins,
                 slippage=slippage,
                 risk_per_trade=r_risk,
+                max_daily_loss=r_max_daily_loss,
                 max_drawdown=r_maxdd,
                 max_losing_streak=r_maxloss,
+                max_open_trades=r_max_open_trades,
+                max_spread=max_spread,
+                close_friday=close_friday,
                 enable_trailing_stop=enable_ts,
                 trailing_pips=r_trail,
                 breakeven_pips=r_be,

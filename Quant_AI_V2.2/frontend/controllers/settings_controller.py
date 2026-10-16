@@ -652,6 +652,12 @@ class SettingsManager:
                 telegram_notifier.bot_token = tg_token
             if tg_chat_id:
                 telegram_notifier.chat_id = tg_chat_id
+            if "alert_fills" in data:
+                telegram_notifier.alert_fills = bool(data["alert_fills"])
+            if "alert_sl_tp" in data:
+                telegram_notifier.alert_sl_tp = bool(data["alert_sl_tp"])
+            if "alert_risk_halt" in data:
+                telegram_notifier.alert_risk_halt = bool(data["alert_risk_halt"])
 
             if os.path.exists(AI_CONFIG_PATH):
                 try:
@@ -663,6 +669,8 @@ class SettingsManager:
                         json.dump(ai_data, f_ai, indent=4)
                 except Exception:
                     pass
+
+            self._hot_reload_live_bot(data)
 
             self._set_status("Configuration saved successfully to settings.json", "#15803d")
         except Exception as e:
@@ -733,7 +741,64 @@ class SettingsManager:
         if hasattr(self, "chkAlertRisk"): self.chkAlertRisk.setChecked(bool(data.get("alert_risk_halt", DEFAULTS["alert_risk_halt"])))
         if hasattr(self, "chkSoundFx"): self.chkSoundFx.setChecked(bool(data.get("audio_sound_fx", DEFAULTS["audio_sound_fx"])))
 
+        if "alert_fills" in data: telegram_notifier.alert_fills = bool(data["alert_fills"])
+        if "alert_sl_tp" in data: telegram_notifier.alert_sl_tp = bool(data["alert_sl_tp"])
+        if "alert_risk_halt" in data: telegram_notifier.alert_risk_halt = bool(data["alert_risk_halt"])
+
+        self._hot_reload_live_bot(data)
+
         self._set_status("CONFIGURATION READY", "#475569")
+
+    def _hot_reload_live_bot(self, data: dict):
+        """Đồng bộ các tham số cấu hình trực tiếp vào BotWorker đang chạy trong bộ nhớ."""
+        qt = getattr(self.window, "quant_terminal", None)
+        bot = getattr(qt, "bot_worker", None) if qt else None
+        if not bot:
+            return
+
+        try:
+            if "risk_per_trade" in data:
+                bot.risk_per_trade = float(data["risk_per_trade"])
+            if "max_daily_loss" in data:
+                bot.max_daily_loss = float(data["max_daily_loss"])
+            if "max_drawdown" in data:
+                bot.max_drawdown = float(data["max_drawdown"])
+            if "max_losing_streak" in data:
+                bot.max_losing_streak = int(data["max_losing_streak"])
+            if "max_open_trades" in data:
+                bot.max_open_trades = int(data["max_open_trades"])
+            if "slippage" in data:
+                bot.slippage = int(data["slippage"])
+            if "max_spread" in data:
+                bot.max_spread = int(data["max_spread"])
+                if hasattr(bot, "event_risk"):
+                    bot.event_risk.user_max_spread = bot.max_spread
+            if "breakeven_pips" in data:
+                bot.breakeven_pips = int(data["breakeven_pips"])
+            if "trailing_pips" in data:
+                bot.trailing_pips = int(data["trailing_pips"])
+            if "enable_trailing_stop" in data:
+                bot.enable_trailing_stop = bool(data["enable_trailing_stop"])
+            if "news_defense_enabled" in data:
+                bot.news_defense_enabled = bool(data["news_defense_enabled"])
+            if "news_defense_mins" in data:
+                bot.defense_window_mins = int(data["news_defense_mins"])
+            if "news_defense_be_r" in data:
+                bot.news_defense_be_r = float(data["news_defense_be_r"])
+            if hasattr(bot, "event_risk"):
+                bot.event_risk.defense_window_mins = bot.defense_window_mins
+                bot.event_risk.be_r_threshold = bot.news_defense_be_r
+                bot.event_risk.news_defense_enabled = bot.news_defense_enabled
+            if "close_friday" in data:
+                bot.close_friday = bool(data["close_friday"])
+
+            sessions = []
+            if data.get("session_asian", True): sessions.append("ASIAN")
+            if data.get("session_london", True): sessions.append("LONDON")
+            if data.get("session_ny", True): sessions.append("NY")
+            bot.allowed_sessions = sessions
+        except Exception:
+            pass
 
     def reset_defaults(self):
         """Restore default parameters."""

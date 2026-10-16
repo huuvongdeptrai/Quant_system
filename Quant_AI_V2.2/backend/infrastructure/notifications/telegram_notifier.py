@@ -7,6 +7,9 @@ class TelegramNotifier:
     def __init__(self):
         self.bot_token = ""
         self.chat_id = ""
+        self.alert_fills = True
+        self.alert_sl_tp = True
+        self.alert_risk_halt = True
         self._load_config()
 
     def _load_config(self):
@@ -30,14 +33,29 @@ class TelegramNotifier:
                             self.bot_token = str(token).strip()
                         if chat_id and not self.chat_id:
                             self.chat_id = str(chat_id).strip()
+                        if "alert_fills" in cfg:
+                            self.alert_fills = bool(cfg["alert_fills"])
+                        if "alert_sl_tp" in cfg:
+                            self.alert_sl_tp = bool(cfg["alert_sl_tp"])
+                        if "alert_risk_halt" in cfg:
+                            self.alert_risk_halt = bool(cfg["alert_risk_halt"])
                 except Exception as e:
                     logger.error(f"Lỗi đọc config Telegram từ {env_path}: {e}")
 
     def is_configured(self) -> bool:
         return bool(self.bot_token and self.chat_id)
 
-    def send_message(self, text: str):
+    def send_message(self, text: str, category: str = "general"):
         if not self.is_configured():
+            return
+
+        # Lọc danh mục cảnh báo dựa theo cài đặt người dùng trong Options
+        cat = str(category).lower()
+        if cat in ["fill", "order", "entry"] and not getattr(self, "alert_fills", True):
+            return
+        if cat in ["sl_tp", "trailing", "breakeven", "exit"] and not getattr(self, "alert_sl_tp", True):
+            return
+        if cat in ["risk_halt", "circuit_breaker", "halt"] and not getattr(self, "alert_risk_halt", True):
             return
 
         # Chạy ngầm bằng thread để không block BotWorker
