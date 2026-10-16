@@ -261,8 +261,8 @@ class DatasetRecorder:
 
                         if tag == "GOLDEN_SAMPLE":
                             golden += 1
-                    except Exception:
-                        pass
+                    except (json.JSONDecodeError, KeyError) as err:
+                        logger.debug(f"[DatasetRecorder] Skipping malformed line in summary: {err}")
 
             finished = wins + losses
             win_rate = (wins / finished * 100.0) if finished > 0 else 0.0
@@ -308,8 +308,8 @@ class DatasetRecorder:
                                 "input": obj.get("input", ""),
                                 "output": obj.get("output", ""),
                             })
-                    except Exception:
-                        pass
+                    except (json.JSONDecodeError, KeyError) as err:
+                        logger.debug(f"[DatasetRecorder] Skipping malformed line in export: {err}")
 
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(golden_list, f, indent=2, ensure_ascii=False)

@@ -1,8 +1,8 @@
 import yfinance as yf
 import datetime
 import requests
-
 import time
+from loguru import logger
 
 _MACRO_CACHE = {"report": None, "timestamp": 0}
 
@@ -34,8 +34,8 @@ class MacroRegimeEngine:
             )
             if res.status_code == 200:
                 events = res.json().get("result", [])
-        except:
-            pass
+        except Exception as err:
+            logger.debug(f"[MacroRegime] TradingView fetch error: {err}")
 
         # MERGE VỚI DỮ LIỆU TELEGRAM LOCAL DB
         import json
@@ -50,8 +50,8 @@ class MacroRegimeEngine:
                     tele_events = json.load(f)
                 events.extend(tele_events)
                 events.sort(key=lambda x: x.get("date", ""), reverse=True)
-            except:
-                pass
+            except Exception as err:
+                logger.debug(f"[MacroRegime] Local calendar read error: {err}")
 
         return events
 
@@ -168,8 +168,8 @@ class MacroRegimeEngine:
                 else:
                     # Dọn dẹp dữ liệu rác/cũ (Auto-cleanup)
                     os.remove(tele_file)
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[MacroRegime] Telegram news file read error: {err}")
 
         return {
             "Market": self.get_market_state(),

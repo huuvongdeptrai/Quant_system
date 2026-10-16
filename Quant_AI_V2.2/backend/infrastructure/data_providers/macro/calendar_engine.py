@@ -130,8 +130,8 @@ class CalendarEngine:
                             tele_events = json.load(f)
                         events.extend(tele_events)
                         events.sort(key=lambda x: x.get("date", ""), reverse=True)
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        logger.debug(f"[CalendarEngine] Local calendar load error: {err}")
 
                 processed_events = []
                 for e in events:

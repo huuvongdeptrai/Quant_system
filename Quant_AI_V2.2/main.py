@@ -518,8 +518,8 @@ class QuantTerminal(QObject):
                 self.window.cardUS10Y.setVisible(False)
             if hasattr(self.window, "lbl_macro_telemetry"):
                 self.window.lbl_macro_telemetry.setVisible(False)
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[QuantTerminal] Gauge widget hiding error: {err}")
 
     def _setup_emergency_label(self):
         """Configure panel collapse controls."""

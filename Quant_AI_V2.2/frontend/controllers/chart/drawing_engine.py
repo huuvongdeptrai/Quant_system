@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QObject, QEvent, QPointF
 from PySide6.QtGui import QFont, QCursor
 from PySide6.QtWidgets import QGraphicsRectItem
 import pyqtgraph as pg
+from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
 
 
@@ -177,13 +178,17 @@ class ChartDrawingEngine(QObject):
         poc_vis = getattr(self.window, "_poc_visible", True)
         if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
             if self.window.line_tpoc not in curr_items:
-                try: self.plot_widget.addItem(self.window.line_tpoc, ignoreBounds=True)
-                except Exception: pass
+                try:
+                    self.plot_widget.addItem(self.window.line_tpoc, ignoreBounds=True)
+                except Exception as err:
+                    logger.debug(f"[DrawingEngine] Non-critical addItem(line_tpoc) error: {err}")
             self.window.line_tpoc.setVisible(poc_vis)
         if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
             if self.window.line_vpoc not in curr_items:
-                try: self.plot_widget.addItem(self.window.line_vpoc, ignoreBounds=True)
-                except Exception: pass
+                try:
+                    self.plot_widget.addItem(self.window.line_vpoc, ignoreBounds=True)
+                except Exception as err:
+                    logger.debug(f"[DrawingEngine] Non-critical addItem(line_vpoc) error: {err}")
             self.window.line_vpoc.setVisible(poc_vis)
 
     def eventFilter(self, obj, event):
@@ -209,8 +214,10 @@ class ChartDrawingEngine(QObject):
                 if self.user_drawings:
                     last_d = self.user_drawings.pop()
                     for it in last_d.get("items", []):
-                        try: self.plot_widget.removeItem(it)
-                        except Exception: pass
+                        try:
+                            self.plot_widget.removeItem(it)
+                        except Exception as err:
+                            logger.debug(f"[DrawingEngine] Non-critical removeItem error: {err}")
                 self.clear_ruler()
                 return True
 

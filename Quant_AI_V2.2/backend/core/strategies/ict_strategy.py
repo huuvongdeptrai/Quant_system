@@ -110,8 +110,8 @@ class ICTZonesProStrategy:
                     current_asia = asia_bars[asia_bars['time'].dt.date == last_asia_date]
                     asian_high = current_asia['high'].max()
                     asian_low = current_asia['low'].min()
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[ICTStrategy] Asian range calculation skipped: {err}")
             
         # --- MTFA: LẤY ORDER BLOCK TỪ KHUNG LỚN (H1 POI) ---
         active_h1_obs = []
@@ -143,8 +143,8 @@ class ICTZonesProStrategy:
                         if h_ob['type'] == 'BEAR' and curr_c['close'] > h_ob['top']:
                             h_ob['broken'] = True; break
                 active_h1_obs = [ob for ob in h1_obs_temp if not ob['broken']]
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[ICTStrategy] H1 MTFA calculation skipped: {err}")
             
         active_fvgs: List[FVG] = []
         ifvg_boxes: List[FVG] = []

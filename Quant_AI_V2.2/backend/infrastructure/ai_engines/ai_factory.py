@@ -1,6 +1,7 @@
 import json
 import os
 import requests
+from loguru import logger
 
 
 class AICoreBase:
@@ -48,14 +49,12 @@ class GenericOpenAIClient(AICoreBase):
                                 if data_str == "[DONE]":
                                     break
                                 try:
-                                    import json
-
                                     chunk = json.loads(data_str)
                                     delta = chunk["choices"][0]["delta"]
                                     if "content" in delta:
                                         yield delta["content"]
-                                except Exception:
-                                    pass
+                                except (json.JSONDecodeError, KeyError, IndexError) as err:
+                                    logger.debug(f"[AIFactory] Skipping malformed SSE chunk: {err}")
                 return  # Thành công, thoát vòng lặp
             except Exception as e:
                 if attempt < max_retries - 1:

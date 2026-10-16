@@ -1,6 +1,7 @@
 from backend.infrastructure.brokers.mt5_safe import mt5
 import pandas as pd
 from datetime import datetime
+from loguru import logger
 
 
 class StatsEngine:
@@ -63,8 +64,8 @@ class StatsEngine:
                             "swap": 0.0,
                             "total_pnl": dt.get("pnl", 0.0),
                         })
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[StatsEngine] Non-critical error loading db_trades: {err}")
 
         if not trades:
             return self._empty_stats()
@@ -193,8 +194,8 @@ class StatsEngine:
                             "duration": "--:--",
                             "timestamp": ts,
                         })
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[StatsEngine] Non-critical error processing trades: {err}")
 
         # Sắp xếp mới nhất lên đầu
         trades.sort(key=lambda x: x["timestamp"], reverse=True)

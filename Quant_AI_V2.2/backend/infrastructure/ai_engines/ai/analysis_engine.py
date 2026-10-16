@@ -35,8 +35,8 @@ for _candidate in [
                             _line.strip().split("=", 1)[1].strip().strip('"').strip("'")
                         )
                         break
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[AnalysisEngine] Non-critical .env scan error: {err}")
         if "GEMINI_API_KEY" in os.environ:
             break
 
@@ -233,8 +233,8 @@ class AnalysisEngine:
                     "cvd_pressure_ratio": prep_res.get("cvd_pressure_ratio", 0.0),
                     "microstructure_summary": prep_res.get("microstructure_summary", ""),
                 }
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[AnalysisEngine] Microstructure prep skipped: {err}")
 
         res_dict = {
             "current_price": current_price,

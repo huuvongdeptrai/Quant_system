@@ -775,8 +775,8 @@ def setup_chart_ui(window):
         if hasattr(window, "lblSizeVal") and window.lblSizeVal:
             try:
                 lot_size = float(window.lblSizeVal.text().split()[0])
-            except Exception:
-                pass
+            except (ValueError, IndexError, AttributeError) as err:
+                logger.debug(f"[ChartCanvas] Lot size parsing fallback: {err}")
 
         # Execute on MT5 via ExecutionManager
         exec_mgr = None
@@ -814,12 +814,12 @@ def setup_chart_ui(window):
                     if l_obj is not None:
                         try:
                             l_obj.setVisible(False)
-                        except Exception:
-                            pass
+                        except Exception as err:
+                            logger.debug(f"[ChartCanvas] Line hide error: {err}")
                         try:
                             window.plot_widget.removeItem(l_obj)
-                        except Exception:
-                            pass
+                        except Exception as err:
+                            logger.debug(f"[ChartCanvas] Line remove error: {err}")
             # Refresh live blotter in terminal
             if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "blotter_buttons"):
                 qt = window.quant_terminal
@@ -863,12 +863,12 @@ def setup_chart_ui(window):
                     if l_obj is not None:
                         try:
                             l_obj.setVisible(False)
-                        except Exception:
-                            pass
+                        except Exception as err:
+                            logger.debug(f"[ChartCanvas] Line hide error: {err}")
                         try:
                             window.plot_widget.removeItem(l_obj)
-                        except Exception:
-                            pass
+                        except Exception as err:
+                            logger.debug(f"[ChartCanvas] Line remove error: {err}")
 
     def _on_modify():
         if hasattr(window, "line_order_entry"):
@@ -922,12 +922,12 @@ def setup_chart_ui(window):
                 if l_obj is not None:
                     try:
                         l_obj.setVisible(False)
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        logger.debug(f"[ChartCanvas] Line hide error: {err}")
                     try:
                         window.plot_widget.removeItem(l_obj)
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        logger.debug(f"[ChartCanvas] Line remove error: {err}")
         if hasattr(window, "btnApproveOrder"):
             window.btnApproveOrder.setEnabled(False)
             window.btnApproveOrder.setText("DISCARDED")
@@ -1229,8 +1229,8 @@ def setup_chart_ui(window):
         if hasattr(window, "update_tf_styles"):
             try:
                 window.update_tf_styles()
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[ChartCanvas] update_tf_styles error: {err}")
         if hasattr(window, "quant_terminal"):
             qt = window.quant_terminal
             if hasattr(qt, "combo_top_tf"):
@@ -1303,8 +1303,8 @@ def setup_chart_ui(window):
                     if l_obj is not None:
                         try:
                             window.plot_widget.removeItem(l_obj)
-                        except Exception:
-                            pass
+                        except Exception as err:
+                            logger.debug(f"[ChartCanvas] Empty state removeItem error: {err}")
             window.order_proposal_active = False
 
             txt_lbl = "#94a3b8"
@@ -1537,8 +1537,8 @@ def setup_chart_ui(window):
                 if l_obj is not None:
                     try:
                         window.plot_widget.removeItem(l_obj)
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        logger.debug(f"[ChartCanvas] Re-render removeItem error: {err}")
         window.order_proposal_active = False
 
         strat_display_name = "Quant Strategy"

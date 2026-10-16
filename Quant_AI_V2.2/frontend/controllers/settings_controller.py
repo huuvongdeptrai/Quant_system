@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QPixmap
+from loguru import logger
 from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
 
 # Resolve project root robustly
@@ -303,8 +304,8 @@ class SettingsManager:
                 win.comboStrategy.clear()
                 for s in strats:
                     win.comboStrategy.addItem(s["name"], s["id"])
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[SettingsController] Strategy discovery error: {err}")
             rw_s = QWidget()
             rl_s = QHBoxLayout(rw_s)
             rl_s.setContentsMargins(0, 0, 0, 0)
@@ -528,8 +529,8 @@ class SettingsManager:
                 import shiboken6
                 if shiboken6.isValid(win.comboAIModel) and win.comboAIModel.count() == 0:
                     win.comboAIModel.addItems(["qwen2.5", "llama3.1", "gemini-2.0-flash"])
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[SettingsController] AI model populate error: {err}")
 
     def _on_execution_mode_changed(self, idx):
         if hasattr(self.window, "comboExecutionMode"):
@@ -583,8 +584,8 @@ class SettingsManager:
                 if hasattr(self, "lblGatewayBridge"):
                     self.lblGatewayBridge.setText("○ OFFLINE")
                     self.lblGatewayBridge.setStyleSheet("font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; color: #b91c1c;")
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[SettingsController] MT5 telemetry refresh error: {err}")
 
     def test_mt5_connection(self):
         """Ping MT5 Terminal and report status."""
@@ -642,8 +643,8 @@ class SettingsManager:
                 try:
                     with open(CONFIG_PATH, "r", encoding="utf-8") as f_prev:
                         merged = json.load(f_prev)
-                except Exception:
-                    pass
+                except Exception as err:
+                    logger.debug(f"[SettingsController] Previous config read error: {err}")
             merged.update(data)
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(merged, f, indent=4)
@@ -667,8 +668,8 @@ class SettingsManager:
                     ai_data["TELEGRAM_CHAT_ID"] = tg_chat_id
                     with open(AI_CONFIG_PATH, "w", encoding="utf-8") as f_ai:
                         json.dump(ai_data, f_ai, indent=4)
-                except Exception:
-                    pass
+                except Exception as err:
+                    logger.debug(f"[SettingsController] AI config read/write error: {err}")
 
             self._hot_reload_live_bot(data)
 
@@ -684,8 +685,8 @@ class SettingsManager:
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[SettingsController] Settings load error: {err}")
 
         if hasattr(win, "spinRiskPerTrade"): win.spinRiskPerTrade.setValue(float(data.get("risk_per_trade", DEFAULTS["risk_per_trade"])))
         if hasattr(win, "spinMaxDailyLoss"): win.spinMaxDailyLoss.setValue(float(data.get("max_daily_loss", DEFAULTS["max_daily_loss"])))

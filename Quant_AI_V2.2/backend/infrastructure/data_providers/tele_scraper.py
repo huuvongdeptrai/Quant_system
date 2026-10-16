@@ -107,8 +107,8 @@ async def handler(event):
             try:
                 with open(tele_db_path, "r", encoding="utf-8") as f:
                     events_list = json.load(f)
-            except:
-                pass
+            except Exception as err:
+                logger.debug(f"[TeleScraper] Local calendar read error: {err}")
 
         # Cắt tỉa (Pruning): Xoá các tin cũ hơn 45 ngày
         import datetime
@@ -187,8 +187,8 @@ async def fetch_history_on_startup():
                 if timedelta(hours=0) < now_utc - utc_time < timedelta(days=30):
                     title = event.find("title").text
                     missing_events.append((utc_time, title))
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[TeleScraper] Error parsing calendar event: {err}")
 
         if not missing_events:
             logger.info("Không có sự kiện High Impact nào bị bỏ lỡ trong 30 ngày qua.")

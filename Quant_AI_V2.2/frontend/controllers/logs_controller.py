@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QColor, QFont, QIcon
+from loguru import logger
 
 from frontend.widgets.delegates import LogLevelPillDelegate
 from frontend.styling.theme_engine import ThemeEngine
@@ -584,8 +585,8 @@ class LogManager:
                     lvl = self.tb.item(r, 1).text() if self.tb.item(r, 1) else ""
                     msg = self.tb.item(r, 2).text() if self.tb.item(r, 2) else ""
                     writer.writerow([t, lvl, msg])
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[LogsManager] Error exporting CSV: {err}")
 
     def clear_logs(self):
         if self.tb:

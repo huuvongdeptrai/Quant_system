@@ -424,8 +424,8 @@ class PreciousMetalsAdapter(BaseContextAdapter):
                         curve_regime = "STEEPENING_CURVE (Monetary Easing / Reflation)"
                     else:
                         curve_regime = "FLAT_CURVE"
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[PreciousMetals] IRX yield curve slope calculation skipped: {err}")
 
             if delta > 0.1:
                 state = f"Hawkish (Yields Rising / Tightening) - {curve_regime}"
@@ -462,8 +462,8 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             res = requests.get(self.tv_url, params=params, headers=self.headers, timeout=5)
             if res.status_code == 200:
                 events = res.json().get("result", [])
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[PreciousMetals] TradingView economic events fetch skipped: {err}")
 
         tele_db_path = Path(__file__).resolve().parents[4] / "data" / "local_calendar.json"
         if tele_db_path.exists():
@@ -472,8 +472,8 @@ class PreciousMetalsAdapter(BaseContextAdapter):
                     tele_events = json.load(f)
                 events.extend(tele_events)
                 events.sort(key=lambda x: x.get("date", ""), reverse=True)
-            except Exception:
-                pass
+            except Exception as err:
+                logger.debug(f"[PreciousMetals] Local calendar load skipped: {err}")
         return events
 
     def get_economic_state(self) -> Dict[str, Any]:
@@ -531,8 +531,8 @@ class PreciousMetalsAdapter(BaseContextAdapter):
                         tele_news = data.get("actual", tele_news)
                 else:
                     os.remove(tele_file)
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[PreciousMetals] Telegram news cache read skipped: {err}")
 
         basket_state = self.get_gold_etf_basket_state()
         report = {

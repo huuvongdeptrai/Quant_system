@@ -59,8 +59,8 @@ class CryptoContextAdapter(BaseContextAdapter):
                         "status": status,
                         "bias": bias,
                     }
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[CryptoAdapter] Binance funding rate fetch error: {err}")
 
         # Fallback an toàn khi offline hoặc không có mạng
         return {
@@ -83,8 +83,8 @@ class CryptoContextAdapter(BaseContextAdapter):
                     val = int(data[0].get("value", 50))
                     classification = data[0].get("value_classification", "Neutral")
                     return {"value": val, "sentiment": classification}
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[CryptoAdapter] Fear & Greed Index fetch error: {err}")
         return {"value": 55, "sentiment": "Neutral / Greed (Fallback)"}
 
     def generate_context_report(self, symbol: str = "BTCUSD") -> Dict[str, Any]:
@@ -102,8 +102,8 @@ class CryptoContextAdapter(BaseContextAdapter):
                 with open(tele_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     tele_news = data.get("actual", tele_news)
-        except Exception:
-            pass
+        except Exception as err:
+            logger.debug(f"[CryptoAdapter] News read error: {err}")
 
         report = {
             "asset_class": "CRYPTO",
