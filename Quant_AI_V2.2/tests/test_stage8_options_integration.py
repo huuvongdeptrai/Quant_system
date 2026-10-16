@@ -98,6 +98,9 @@ class TestStage8OptionsIntegration:
             max_losing_streak=0,
         )
 
+        worker.db.set_system_state("circuit_breaker_active", "False")
+        worker.db.set_system_state("circuit_breaker_date", "")
+
         acc = MagicMock(equity=10000.0, balance=10000.0, margin=0, margin_free=10000.0)
         with patch.object(mt5, "account_info", return_value=acc), \
              patch("backend.core.bot_worker.telegram_notifier.send_message") as mock_tg:

@@ -600,7 +600,7 @@ class BacktestWorkbenchController:
             QMessageBox.information(
                 self.window,
                 "Import Successful",
-                f"Strategy loaded successfully:\n{info['class_name']}\n\nSaved to:\nstrategies/{info['file_name']}"
+                f"Strategy loaded successfully:\n{info['class_name']}\n\nSaved to:\nbackend/core/strategies/{info['file_name']}"
             )
         else:
             self._log(f"[{now_str}] [ERROR] Strategy load failed: {msg}")
