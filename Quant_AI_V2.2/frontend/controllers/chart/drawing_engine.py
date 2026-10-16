@@ -188,7 +188,12 @@ class ChartDrawingEngine(QObject):
 
     def eventFilter(self, obj, event):
         """Intercept mouse events on plot_widget viewport for interactive drawing tools."""
-        if obj != self.plot_widget.viewport():
+        try:
+            if not hasattr(self, "plot_widget") or self.plot_widget is None:
+                return False
+            if obj != self.plot_widget.viewport():
+                return False
+        except (RuntimeError, AttributeError):
             return False
 
         ev_type = event.type()

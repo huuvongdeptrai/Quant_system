@@ -187,7 +187,8 @@ def update_order_proposal_html(
             window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
             if hasattr(window, "plot_widget"):
                 try:
-                    window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
+                    if window.line_order_entry not in window.plot_widget.items():
+                        window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
                 except Exception:
                     pass
 
@@ -197,7 +198,8 @@ def update_order_proposal_html(
             window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
             if hasattr(window, "plot_widget"):
                 try:
-                    window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
+                    if window.line_order_sl not in window.plot_widget.items():
+                        window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
                 except Exception:
                     pass
 
@@ -207,7 +209,8 @@ def update_order_proposal_html(
             window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
             if hasattr(window, "plot_widget"):
                 try:
-                    window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+                    if window.line_order_tp not in window.plot_widget.items():
+                        window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
                 except Exception:
                     pass
     except Exception as e:

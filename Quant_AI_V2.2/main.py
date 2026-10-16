@@ -1000,14 +1000,22 @@ class QuantTerminal(QObject):
                 self.bot_thread.quit()
                 self.bot_thread.wait(1000)
         # Cho phep cac luong AI hoan tat truoc khi giai phong de tranh warning
-        if (
+        if hasattr(self.window, "_active_ai_threads") and self.window._active_ai_threads:
+            for t in list(self.window._active_ai_threads):
+                if t and t.isRunning():
+                    if hasattr(t, "stop"):
+                        t.stop()
+                    t.quit()
+                    t.wait(500)
+        elif (
             hasattr(self.window, "ai_thread")
             and self.window.ai_thread
             and self.window.ai_thread.isRunning()
         ):
-            self.window.ai_thread.stop()
+            if hasattr(self.window.ai_thread, "stop"):
+                self.window.ai_thread.stop()
             self.window.ai_thread.quit()
-            self.window.ai_thread.wait(1000)
+            self.window.ai_thread.wait(500)
         event.accept()
 
 

@@ -5,7 +5,7 @@ Manages active positions, pending orders, trade history, and execution actions (
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, QTimer, QSize
