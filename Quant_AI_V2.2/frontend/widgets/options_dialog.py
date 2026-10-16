@@ -9,7 +9,8 @@ import urllib.request
 import urllib.error
 from PySide6.QtWidgets import (
     QDialog, QTabWidget, QLabel, QComboBox, QSpinBox, QDoubleSpinBox,
-    QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QFrame, QLineEdit, QCheckBox
+    QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QFrame, QLineEdit, QCheckBox,
+    QGroupBox
 )
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon
@@ -71,7 +72,7 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.manager = manager
         self.setWindowTitle("System Options & Configurations")
-        self.setFixedSize(580, 418)
+        self.setFixedSize(720, 520)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         icon_path = os.path.join(ASSETS_DIR, "nav_settings.svg")
@@ -81,87 +82,149 @@ class OptionsDialog(QDialog):
         self._setup_ui()
         self._apply_styling()
 
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 122) -> QWidget:
+        """Helper to create a strictly aligned form row: label on left, input on right locked to edge."""
+        row = QWidget()
+        r_lay = QHBoxLayout(row)
+        r_lay.setContentsMargins(0, 0, 0, 0)
+        r_lay.setSpacing(10)
+
+        lbl = QLabel(label_text)
+        lbl.setFixedWidth(label_width)
+        lbl.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
+        r_lay.addWidget(lbl)
+
+        if hasattr(widget, "setFixedHeight"):
+            widget.setFixedHeight(26)
+        r_lay.addWidget(widget, 1)
+        return row
+
     def _setup_ui(self):
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setContentsMargins(12, 10, 12, 10)
         root_layout.setSpacing(8)
 
         # Tab Widget (Authentic Horizontal MT5 Tabs)
         self.tabWidget = QTabWidget()
         self.tabWidget.setObjectName("optionsTabWidget")
 
+        # =========================================================================
         # --- PAGE 1: RISK LIMITS ---
+        # =========================================================================
         page_risk = QWidget()
-        layout_risk = QVBoxLayout(page_risk)
-        layout_risk.setContentsMargins(16, 12, 16, 12)
-        layout_risk.setSpacing(9)
+        layout_risk_main = QVBoxLayout(page_risk)
+        layout_risk_main.setContentsMargins(14, 10, 14, 10)
+        layout_risk_main.setSpacing(8)
 
-        lbl_desc_risk = QLabel("Risk limits and drawdown protection rules.")
-        lbl_desc_risk.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px; margin-bottom: 4px;")
-        layout_risk.addWidget(lbl_desc_risk)
+        lbl_desc_risk = QLabel("Account risk limits, daily loss threshold, and maximum drawdown safeguards.")
+        lbl_desc_risk.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
+        layout_risk_main.addWidget(lbl_desc_risk)
+
+        cols_risk = QWidget()
+        cols_risk_lay = QHBoxLayout(cols_risk)
+        cols_risk_lay.setContentsMargins(0, 0, 0, 0)
+        cols_risk_lay.setSpacing(14)
+
+        # Left Column: Position & Drawdown
+        grp_risk_pos = QGroupBox("POSITION && DRAWDOWN LIMITS")
+        lay_risk_pos = QVBoxLayout(grp_risk_pos)
+        lay_risk_pos.setContentsMargins(10, 14, 10, 10)
+        lay_risk_pos.setSpacing(8)
 
         self.spinRiskPerTrade = QDoubleSpinBox()
         self.spinRiskPerTrade.setRange(0.1, 10.0)
         self.spinRiskPerTrade.setSingleStep(0.25)
         self.spinRiskPerTrade.setSuffix(" %")
 
-        self.spinMaxDailyLoss = QDoubleSpinBox()
-        self.spinMaxDailyLoss.setRange(50.0, 50000.0)
-        self.spinMaxDailyLoss.setSingleStep(50.0)
-        self.spinMaxDailyLoss.setPrefix("$")
-
         self.spinMaxDrawdown = QDoubleSpinBox()
         self.spinMaxDrawdown.setRange(1.0, 30.0)
         self.spinMaxDrawdown.setSingleStep(0.5)
         self.spinMaxDrawdown.setSuffix(" %")
 
-        self.spinMaxLosingStreak = QSpinBox()
-        self.spinMaxLosingStreak.setRange(1, 20)
-        self.spinMaxLosingStreak.setSuffix(" trades")
-
         self.spinMaxOpenTrades = QSpinBox()
         self.spinMaxOpenTrades.setRange(1, 20)
         self.spinMaxOpenTrades.setSuffix(" positions")
 
+        ro_sizing = QLineEdit("Dynamic % Equity Model")
+        ro_sizing.setReadOnly(True)
+        ro_sizing.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        ro_margin = QLineEdit("30% Auto Hard Liquidation")
+        ro_margin.setReadOnly(True)
+        ro_margin.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        lay_risk_pos.addWidget(self._create_row("Risk Per Trade:", self.spinRiskPerTrade))
+        lay_risk_pos.addWidget(self._create_row("Max Equity DD:", self.spinMaxDrawdown))
+        lay_risk_pos.addWidget(self._create_row("Max Positions:", self.spinMaxOpenTrades))
+        lay_risk_pos.addWidget(self._create_row("Position Sizing:", ro_sizing))
+        lay_risk_pos.addWidget(self._create_row("Margin Stopout:", ro_margin))
+        lay_risk_pos.addStretch()
+
+        # Right Column: Daily Loss & Circuit Breaker
+        grp_risk_daily = QGroupBox("DAILY PROTECTION && CIRCUIT BREAKER")
+        lay_risk_daily = QVBoxLayout(grp_risk_daily)
+        lay_risk_daily.setContentsMargins(10, 14, 10, 10)
+        lay_risk_daily.setSpacing(8)
+
+        self.spinMaxDailyLoss = QDoubleSpinBox()
+        self.spinMaxDailyLoss.setRange(50.0, 50000.0)
+        self.spinMaxDailyLoss.setSingleStep(50.0)
+        self.spinMaxDailyLoss.setPrefix("$ ")
+
+        self.spinMaxLosingStreak = QSpinBox()
+        self.spinMaxLosingStreak.setRange(1, 20)
         self.spinMaxLosingStreak.setSuffix(" trades")
-        for lbl_text, widget, w_width in [
-            ("Risk Per Trade:", self.spinRiskPerTrade, 110),
-            ("Max Daily Loss:", self.spinMaxDailyLoss, 110),
-            ("Max Equity Drawdown:", self.spinMaxDrawdown, 110),
-            ("Max Consecutive Losses:", self.spinMaxLosingStreak, 110),
-            ("Max Concurrent Positions:", self.spinMaxOpenTrades, 110),
-        ]:
-            row = QWidget()
-            r_lay = QHBoxLayout(row)
-            r_lay.setContentsMargins(0, 0, 0, 0)
-            r_lay.setSpacing(10)
 
-            lbl = QLabel(lbl_text)
-            lbl.setFixedWidth(150)
-            r_lay.addWidget(lbl)
-
-            widget.setFixedWidth(w_width)
-            widget.setFixedHeight(26)
-            r_lay.addWidget(widget)
-            r_lay.addStretch()
-            layout_risk.addWidget(row)
-
-        self.chkEnforceDailyHalt = QCheckBox("Halt trading on maximum daily loss")
+        self.chkEnforceDailyHalt = QCheckBox("Halt auto-trading on breach")
         self.chkEnforceDailyHalt.setChecked(True)
-        layout_risk.addWidget(self.chkEnforceDailyHalt)
 
-        layout_risk.addStretch()
+        ro_recovery = QLineEdit("Manual Operator Reset")
+        ro_recovery.setReadOnly(True)
+        ro_recovery.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        ro_eod = QLineEdit("Automatic 00:00 UTC Reset")
+        ro_eod.setReadOnly(True)
+        ro_eod.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        lay_risk_daily.addWidget(self._create_row("Max Daily Loss:", self.spinMaxDailyLoss))
+        lay_risk_daily.addWidget(self._create_row("Max Loss Streak:", self.spinMaxLosingStreak))
+        lay_risk_daily.addWidget(self._create_row("Daily Loss Action:", self.chkEnforceDailyHalt))
+        lay_risk_daily.addWidget(self._create_row("Halt Recovery:", ro_recovery))
+        lay_risk_daily.addWidget(self._create_row("Streak Cycle:", ro_eod))
+        lay_risk_daily.addStretch()
+
+        cols_risk_lay.addWidget(grp_risk_pos)
+        cols_risk_lay.addWidget(grp_risk_daily)
+        layout_risk_main.addWidget(cols_risk)
         self.tabWidget.addTab(page_risk, "Risk Management")
 
-        # --- PAGE 2: EXECUTION ---
+        # =========================================================================
+        # --- PAGE 2: EXECUTION STRATEGY ---
+        # =========================================================================
         page_exec = QWidget()
-        layout_exec = QVBoxLayout(page_exec)
-        layout_exec.setContentsMargins(16, 12, 16, 12)
-        layout_exec.setSpacing(9)
+        layout_exec_main = QVBoxLayout(page_exec)
+        layout_exec_main.setContentsMargins(14, 10, 14, 10)
+        layout_exec_main.setSpacing(8)
 
-        lbl_desc_exec = QLabel("Execution modes, spread limits, and trading sessions.")
-        lbl_desc_exec.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px; margin-bottom: 4px;")
-        layout_exec.addWidget(lbl_desc_exec)
+        lbl_desc_exec = QLabel("Automated execution strategy, session filtering, and risk defense protocols.")
+        lbl_desc_exec.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
+        layout_exec_main.addWidget(lbl_desc_exec)
+
+        cols_exec = QWidget()
+        cols_exec_lay = QHBoxLayout(cols_exec)
+        cols_exec_lay.setContentsMargins(0, 0, 0, 0)
+        cols_exec_lay.setSpacing(14)
+
+        # Left Column: Order Config & Sessions
+        col_exec_left = QWidget()
+        lay_exec_left = QVBoxLayout(col_exec_left)
+        lay_exec_left.setContentsMargins(0, 0, 0, 0)
+        lay_exec_left.setSpacing(10)
+
+        grp_order = QGroupBox("ORDER && STRATEGY CONFIG")
+        lay_order = QVBoxLayout(grp_order)
+        lay_order.setContentsMargins(10, 14, 10, 10)
+        lay_order.setSpacing(7)
 
         self.comboStrategy = QComboBox()
         try:
@@ -189,6 +252,56 @@ class OptionsDialog(QDialog):
         self.comboExecutionMode.addItem("Manual (Alerts Only)", "MANUAL")
         self.comboExecutionMode.addItem("Fully Automated (STP Execution)", "FULL-AUTO")
 
+        lay_order.addWidget(self._create_row("Active Strategy:", self.comboStrategy))
+        lay_order.addWidget(self._create_row("Trading Timeframe:", self.comboTradingTimeframe))
+        lay_order.addWidget(self._create_row("Execution Mode:", self.comboExecutionMode))
+
+        grp_sessions = QGroupBox("TRADING SESSIONS && SCHEDULE")
+        lay_sessions = QVBoxLayout(grp_sessions)
+        lay_sessions.setContentsMargins(10, 14, 10, 10)
+        lay_sessions.setSpacing(7)
+
+        self.chkSessionAsian = QCheckBox("Asian (Tokyo Session)")
+        self.chkSessionLondon = QCheckBox("London Session")
+        self.chkSessionNY = QCheckBox("New York Session")
+        self.chkCloseFriday = QCheckBox("Close on Friday EOD")
+
+        ro_overlap = QLineEdit("Seamless Cross-Session Handover")
+        ro_overlap.setReadOnly(True)
+        ro_overlap.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        ro_calendar = QLineEdit("Institutional Bank Holidays Filtered")
+        ro_calendar.setReadOnly(True)
+        ro_calendar.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        lay_sessions.addWidget(self._create_row("Asian Session:", self.chkSessionAsian))
+        lay_sessions.addWidget(self._create_row("London Session:", self.chkSessionLondon))
+        lay_sessions.addWidget(self._create_row("New York Session:", self.chkSessionNY))
+        lay_sessions.addWidget(self._create_row("Weekend Risk:", self.chkCloseFriday))
+        lay_sessions.addWidget(self._create_row("Session Overlap:", ro_overlap))
+        lay_sessions.addWidget(self._create_row("Holiday Calendar:", ro_calendar))
+
+        lay_exec_left.addWidget(grp_order)
+        lay_exec_left.addWidget(grp_sessions)
+        lay_exec_left.addStretch()
+
+        # Right Column: Safety Tolerance & Risk Defense
+        col_exec_right = QWidget()
+        lay_exec_right = QVBoxLayout(col_exec_right)
+        lay_exec_right.setContentsMargins(0, 0, 0, 0)
+        lay_exec_right.setSpacing(10)
+
+        grp_safety = QGroupBox("SAFETY TOLERANCE")
+        lay_safety = QVBoxLayout(grp_safety)
+        lay_safety.setContentsMargins(10, 14, 10, 10)
+        lay_safety.setSpacing(7)
+
+        self.spinSignalExpiry = QSpinBox()
+        self.spinSignalExpiry.setRange(10, 600)
+        self.spinSignalExpiry.setSingleStep(5)
+        self.spinSignalExpiry.setSuffix(" sec")
+        self.spinSignalExpiry.setValue(60)
+
         self.spinMaxSpread = QSpinBox()
         self.spinMaxSpread.setRange(1, 200)
         self.spinMaxSpread.setSuffix(" points")
@@ -197,264 +310,220 @@ class OptionsDialog(QDialog):
         self.spinSlippage.setRange(1, 100)
         self.spinSlippage.setSuffix(" points")
 
-        self.spinSignalExpiry = QSpinBox()
-        self.spinSignalExpiry.setRange(10, 600)
-        self.spinSignalExpiry.setSingleStep(5)
-        self.spinSignalExpiry.setSuffix(" sec")
-        self.spinSignalExpiry.setValue(60)
+        lay_safety.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
+        lay_safety.addWidget(self._create_row("Max Spread Limit:", self.spinMaxSpread))
+        lay_safety.addWidget(self._create_row("Slippage Tolerance:", self.spinSlippage))
 
-        # Breakeven / Trailing
-        be_ts_widget = QWidget()
-        be_ts_lay = QHBoxLayout(be_ts_widget)
-        be_ts_lay.setContentsMargins(0, 0, 0, 0)
-        be_ts_lay.setSpacing(6)
+        grp_defense = QGroupBox("DYNAMIC SL && RISK DEFENSE")
+        lay_defense = QVBoxLayout(grp_defense)
+        lay_defense.setContentsMargins(10, 14, 10, 10)
+        lay_defense.setSpacing(7)
 
-        self.chkEnableTrailing = QCheckBox("Enable")
+        self.chkEnableTrailing = QCheckBox("Enable Trailing Stop")
         self.chkEnableTrailing.setChecked(False)
-        self.chkEnableTrailing.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
 
-        lbl_be = QLabel("BE:")
-        lbl_be.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 2px;")
         self.spinBreakevenPips = QSpinBox()
         self.spinBreakevenPips.setRange(0, 100)
         self.spinBreakevenPips.setSpecialValueText("OFF")
-        self.spinBreakevenPips.setFixedWidth(75)
         self.spinBreakevenPips.setSuffix(" pts")
-        self.spinBreakevenPips.setFixedHeight(26)
 
-        lbl_ts = QLabel("TS:")
-        lbl_ts.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
         self.spinTrailingPips = QSpinBox()
         self.spinTrailingPips.setRange(0, 100)
         self.spinTrailingPips.setSpecialValueText("OFF")
-        self.spinTrailingPips.setFixedWidth(75)
         self.spinTrailingPips.setSuffix(" pts")
-        self.spinTrailingPips.setFixedHeight(26)
 
-        be_ts_lay.addWidget(self.chkEnableTrailing)
-        be_ts_lay.addWidget(lbl_be)
-        be_ts_lay.addWidget(self.spinBreakevenPips)
-        be_ts_lay.addWidget(lbl_ts)
-        be_ts_lay.addWidget(self.spinTrailingPips)
-        be_ts_lay.addStretch()
-
-        # Pre-News Position Defense (T-15m)
-        news_def_widget = QWidget()
-        nd_lay = QHBoxLayout(news_def_widget)
-        nd_lay.setContentsMargins(0, 0, 0, 0)
-        nd_lay.setSpacing(6)
-
-        self.chkNewsDefense = QCheckBox("Active Pre-News Defense")
+        self.chkNewsDefense = QCheckBox("Active Defense (T-15m)")
         self.chkNewsDefense.setChecked(True)
-        self.chkNewsDefense.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
 
-        lbl_nd_window = QLabel("Window:")
-        lbl_nd_window.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
         self.spinNewsDefenseMins = QSpinBox()
         self.spinNewsDefenseMins.setRange(5, 60)
         self.spinNewsDefenseMins.setValue(15)
         self.spinNewsDefenseMins.setSuffix(" min")
-        self.spinNewsDefenseMins.setFixedWidth(75)
-        self.spinNewsDefenseMins.setFixedHeight(26)
 
-        lbl_nd_r = QLabel("BE at:")
-        lbl_nd_r.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #64748b; margin-left: 4px;")
         self.spinNewsDefenseR = QDoubleSpinBox()
         self.spinNewsDefenseR.setRange(0.5, 5.0)
         self.spinNewsDefenseR.setSingleStep(0.25)
         self.spinNewsDefenseR.setValue(1.5)
         self.spinNewsDefenseR.setSuffix(" R")
-        self.spinNewsDefenseR.setFixedWidth(65)
-        self.spinNewsDefenseR.setFixedHeight(26)
 
-        nd_lay.addWidget(self.chkNewsDefense)
-        nd_lay.addWidget(lbl_nd_window)
-        nd_lay.addWidget(self.spinNewsDefenseMins)
-        nd_lay.addWidget(lbl_nd_r)
-        nd_lay.addWidget(self.spinNewsDefenseR)
-        nd_lay.addStretch()
+        lay_defense.addWidget(self._create_row("Trailing Stop:", self.chkEnableTrailing))
+        lay_defense.addWidget(self._create_row("BE Offset:", self.spinBreakevenPips))
+        lay_defense.addWidget(self._create_row("TS Distance:", self.spinTrailingPips))
+        lay_defense.addWidget(self._create_row("Pre-News Defense:", self.chkNewsDefense))
+        lay_defense.addWidget(self._create_row("Defense Window:", self.spinNewsDefenseMins))
+        lay_defense.addWidget(self._create_row("BE Threshold (R):", self.spinNewsDefenseR))
 
-        # Sessions
-        sessions_widget = QWidget()
-        sw_lay = QHBoxLayout(sessions_widget)
-        sw_lay.setContentsMargins(0, 0, 0, 0)
-        sw_lay.setSpacing(10)
+        lay_exec_right.addWidget(grp_safety)
+        lay_exec_right.addWidget(grp_defense)
+        lay_exec_right.addStretch()
 
-        self.chkSessionAsian = QCheckBox("Asian (Tokyo)")
-        self.chkSessionLondon = QCheckBox("London")
-        self.chkSessionNY = QCheckBox("New York")
-        sw_lay.addWidget(self.chkSessionAsian)
-        sw_lay.addWidget(self.chkSessionLondon)
-        sw_lay.addWidget(self.chkSessionNY)
-        sw_lay.addStretch()
-
-        for lbl_text, widget, w_width in [
-            ("Active Strategy:", self.comboStrategy, 240),
-            ("Trading Timeframe:", self.comboTradingTimeframe, 220),
-            ("Execution Mode:", self.comboExecutionMode, 220),
-            ("Signal Expiry:", self.spinSignalExpiry, 110),
-            ("Max Spread Limit:", self.spinMaxSpread, 110),
-            ("Slippage Tolerance:", self.spinSlippage, 110),
-            ("Normal Trailing Stop:", be_ts_widget, None),
-            ("Pre-News Defense (BE):", news_def_widget, None),
-            ("Active Sessions:", sessions_widget, None),
-        ]:
-            row = QWidget()
-            r_lay = QHBoxLayout(row)
-            r_lay.setContentsMargins(0, 0, 0, 0)
-            r_lay.setSpacing(10)
-
-            lbl = QLabel(lbl_text)
-            lbl.setFixedWidth(150)
-            r_lay.addWidget(lbl)
-
-            if w_width:
-                widget.setFixedWidth(w_width)
-            if hasattr(widget, "setFixedHeight") and w_width:
-                widget.setFixedHeight(26)
-            r_lay.addWidget(widget)
-            r_lay.addStretch()
-            layout_exec.addWidget(row)
-
-        self.chkCloseFriday = QCheckBox("Close all open positions on Friday EOD")
-        self.chkCloseFriday.setStyleSheet("color: #334155; font-weight: 500;")
-        layout_exec.addWidget(self.chkCloseFriday)
-
-        layout_exec.addStretch()
+        cols_exec_lay.addWidget(col_exec_left)
+        cols_exec_lay.addWidget(col_exec_right)
+        layout_exec_main.addWidget(cols_exec)
         self.tabWidget.addTab(page_exec, "Execution Strategy")
 
-        # --- PAGE 3: SERVER ---
+        # =========================================================================
+        # --- PAGE 3: BROKER BRIDGE ---
+        # =========================================================================
         page_broker = QWidget()
-        layout_broker = QVBoxLayout(page_broker)
-        layout_broker.setContentsMargins(16, 12, 16, 12)
-        layout_broker.setSpacing(9)
+        layout_broker_main = QVBoxLayout(page_broker)
+        layout_broker_main.setContentsMargins(14, 10, 14, 10)
+        layout_broker_main.setSpacing(8)
 
-        lbl_desc_server = QLabel("MetaTrader 5 connection and bridge settings.")
-        lbl_desc_server.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px; margin-bottom: 4px;")
-        layout_broker.addWidget(lbl_desc_server)
+        lbl_desc_server = QLabel("MetaTrader 5 terminal gateway, bridge telemetry, and execution permissions.")
+        lbl_desc_server.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
+        layout_broker_main.addWidget(lbl_desc_server)
+
+        cols_broker = QWidget()
+        cols_broker_lay = QHBoxLayout(cols_broker)
+        cols_broker_lay.setContentsMargins(0, 0, 0, 0)
+        cols_broker_lay.setSpacing(14)
+
+        # Left Column: Connection & Telemetry
+        grp_conn = QGroupBox("GATEWAY CONNECTION && TELEMETRY")
+        lay_conn = QVBoxLayout(grp_conn)
+        lay_conn.setContentsMargins(10, 14, 10, 10)
+        lay_conn.setSpacing(8)
 
         self.lblGatewayAccount = QLineEdit("Offline")
         self.lblGatewayAccount.setReadOnly(True)
-        self.lblGatewayAccount.setFixedWidth(242)
-        self.lblGatewayAccount.setFixedHeight(24)
 
         self.lblGatewayServer = QLineEdit("MetaQuotes-Demo")
         self.lblGatewayServer.setReadOnly(True)
-        self.lblGatewayServer.setFixedWidth(242)
-        self.lblGatewayServer.setFixedHeight(24)
 
         self.lblGatewayBridge = QLineEdit("Connected (1.1 ms)")
         self.lblGatewayBridge.setReadOnly(True)
-        self.lblGatewayBridge.setFixedWidth(242)
-        self.lblGatewayBridge.setFixedHeight(24)
+
+        ro_proto = QLineEdit("Zero-Latency IPC Shared Memory")
+        ro_proto.setReadOnly(True)
 
         self.lblGatewayLatency = QLabel("1.1 ms")
         self.lblGatewayLatency.setVisible(False)
         self.lblGatewayAlgo = QLabel("ENABLED")
         self.lblGatewayAlgo.setVisible(False)
 
-        for w_ro in [self.lblGatewayAccount, self.lblGatewayServer, self.lblGatewayBridge]:
+        for w_ro in [self.lblGatewayAccount, self.lblGatewayServer, self.lblGatewayBridge, ro_proto]:
             w_ro.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; font-family: Consolas, monospace; }")
-        for lbl_text, widget in [
-            ("MT5 Account:", self.lblGatewayAccount),
-            ("Broker Server:", self.lblGatewayServer),
-            ("Bridge Gateway:", self.lblGatewayBridge),
-        ]:
-            row = QWidget()
-            r_lay = QHBoxLayout(row)
-            r_lay.setContentsMargins(0, 0, 0, 0)
-            r_lay.setSpacing(10)
 
-            lbl = QLabel(lbl_text)
-            lbl.setFixedWidth(150)
-            r_lay.addWidget(lbl)
-            r_lay.addWidget(widget)
-            r_lay.addStretch()
-            layout_broker.addWidget(row)
+        btn_ping = QPushButton("Ping MT5 Connection")
+        btn_ping.setCursor(Qt.PointingHandCursor)
+        btn_ping.clicked.connect(self._on_ping_clicked)
 
-        self.chkAlgoTrading = QCheckBox("Enable automated trading")
+        lay_conn.addWidget(self._create_row("MT5 Account:", self.lblGatewayAccount))
+        lay_conn.addWidget(self._create_row("Broker Server:", self.lblGatewayServer))
+        lay_conn.addWidget(self._create_row("Bridge Gateway:", self.lblGatewayBridge))
+        lay_conn.addWidget(self._create_row("Bridge Protocol:", ro_proto))
+        lay_conn.addWidget(self._create_row("Connection Ping:", btn_ping))
+        lay_conn.addStretch()
+
+        # Right Column: Terminal Permissions & Routing
+        grp_perm = QGroupBox("TERMINAL EXECUTION PERMISSIONS")
+        lay_perm = QVBoxLayout(grp_perm)
+        lay_perm.setContentsMargins(10, 14, 10, 10)
+        lay_perm.setSpacing(8)
+
+        self.chkAlgoTrading = QCheckBox("Allow Algo Trading (EA)")
         self.chkAlgoTrading.setChecked(True)
-        layout_broker.addWidget(self.chkAlgoTrading)
 
-        self.chkWebRequest = QCheckBox("Enable WebRequest for market data")
+        self.chkWebRequest = QCheckBox("Allow WebRequest API")
         self.chkWebRequest.setChecked(True)
-        layout_broker.addWidget(self.chkWebRequest)
 
-        layout_broker.addStretch()
+        edit_routing = QLineEdit("STP Direct Market Access")
+        edit_routing.setReadOnly(True)
+        edit_routing.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; }")
+
+        edit_sync = QLineEdit("Realtime Multi-Tick Streaming")
+        edit_sync.setReadOnly(True)
+        edit_sync.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; }")
+
+        edit_latency = QLineEdit("1.1 ms Local IPC Latency")
+        edit_latency.setReadOnly(True)
+        edit_latency.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; }")
+
+        lay_perm.addWidget(self._create_row("Automated Trading:", self.chkAlgoTrading))
+        lay_perm.addWidget(self._create_row("Market WebRequest:", self.chkWebRequest))
+        lay_perm.addWidget(self._create_row("Order Routing:", edit_routing))
+        lay_perm.addWidget(self._create_row("Tick Telemetry:", edit_sync))
+        lay_perm.addWidget(self._create_row("Bridge Latency:", edit_latency))
+        lay_perm.addStretch()
+
+        cols_broker_lay.addWidget(grp_conn)
+        cols_broker_lay.addWidget(grp_perm)
+        layout_broker_main.addWidget(cols_broker)
         self.tabWidget.addTab(page_broker, "Broker Bridge")
 
+        # =========================================================================
         # --- PAGE 4: NOTIFICATIONS ---
+        # =========================================================================
         page_notif = QWidget()
-        layout_notif = QVBoxLayout(page_notif)
-        layout_notif.setContentsMargins(16, 12, 16, 12)
-        layout_notif.setSpacing(9)
+        layout_notif_main = QVBoxLayout(page_notif)
+        layout_notif_main.setContentsMargins(14, 10, 14, 10)
+        layout_notif_main.setSpacing(8)
 
-        lbl_desc_notif = QLabel("Execution alerts and Telegram notifications.")
-        lbl_desc_notif.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px; margin-bottom: 4px;")
-        layout_notif.addWidget(lbl_desc_notif)
+        lbl_desc_notif = QLabel("Telegram bot alerts, execution event broadcasting, and audio notifications.")
+        lbl_desc_notif.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
+        layout_notif_main.addWidget(lbl_desc_notif)
+
+        cols_notif = QWidget()
+        cols_notif_lay = QHBoxLayout(cols_notif)
+        cols_notif_lay.setContentsMargins(0, 0, 0, 0)
+        cols_notif_lay.setSpacing(14)
+
+        # Left Column: Telegram Credentials & Test
+        grp_tg = QGroupBox("TELEGRAM BOT INTEGRATION")
+        lay_tg = QVBoxLayout(grp_tg)
+        lay_tg.setContentsMargins(10, 14, 10, 10)
+        lay_tg.setSpacing(8)
 
         self.editTgToken = QLineEdit()
         self.editTgToken.setEchoMode(QLineEdit.Password)
-        self.editTgToken.setPlaceholderText("Bot Token from @BotFather")
-        self.editTgToken.setFixedWidth(242)
-        self.editTgToken.setFixedHeight(24)
-
-        # Chat ID row with inline Test button (MT5 style)
-        chat_widget = QWidget()
-        chat_lay = QHBoxLayout(chat_widget)
-        chat_lay.setContentsMargins(0, 0, 0, 0)
-        chat_lay.setSpacing(6)
+        self.editTgToken.setPlaceholderText("Token from @BotFather")
 
         self.editTgChatId = QLineEdit()
         self.editTgChatId.setPlaceholderText("-100...")
-        self.editTgChatId.setFixedWidth(180)
-        self.editTgChatId.setFixedHeight(24)
 
-        btn_tg_test = QPushButton("Test")
-        btn_tg_test.setFixedWidth(56)
-        btn_tg_test.setFixedHeight(24)
+        ro_fmt = QLineEdit("HTML Formatted Dispatch")
+        ro_fmt.setReadOnly(True)
+        ro_fmt.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        ro_freq = QLineEdit("Immediate Realtime Broadcast")
+        ro_freq.setReadOnly(True)
+        ro_freq.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
+
+        btn_tg_test = QPushButton("Test Telegram Bot")
         btn_tg_test.setCursor(Qt.PointingHandCursor)
         btn_tg_test.clicked.connect(self._on_telegram_test_clicked)
 
-        chat_lay.addWidget(self.editTgChatId)
-        chat_lay.addWidget(btn_tg_test)
-        chat_lay.addStretch()
+        lay_tg.addWidget(self._create_row("Telegram Token:", self.editTgToken))
+        lay_tg.addWidget(self._create_row("Channel / Chat ID:", self.editTgChatId))
+        lay_tg.addWidget(self._create_row("Message Format:", ro_fmt))
+        lay_tg.addWidget(self._create_row("Alert Schedule:", ro_freq))
+        lay_tg.addWidget(self._create_row("Connection Test:", btn_tg_test))
+        lay_tg.addStretch()
 
-        events_widget = QWidget()
-        ev_lay = QHBoxLayout(events_widget)
-        ev_lay.setContentsMargins(0, 0, 0, 0)
-        ev_lay.setSpacing(10)
+        # Right Column: Event Subscriptions & Audio
+        grp_alerts = QGroupBox("EVENT ALERTS && AUDIO FX")
+        lay_alerts = QVBoxLayout(grp_alerts)
+        lay_alerts.setContentsMargins(10, 14, 10, 10)
+        lay_alerts.setSpacing(8)
 
-        self.chkAlertFills = QCheckBox("Order Fills")
-        self.chkAlertSL = QCheckBox("TP / SL Hit")
-        self.chkAlertRisk = QCheckBox("Risk Halt")
-        self.chkAlertRisk.setStyleSheet("color: #334155;")
-        ev_lay.addWidget(self.chkAlertFills)
-        ev_lay.addWidget(self.chkAlertSL)
-        ev_lay.addWidget(self.chkAlertRisk)
-        ev_lay.addStretch()
+        self.chkAlertFills = QCheckBox("Notify on trade fills")
+        self.chkAlertSL = QCheckBox("Notify on SL / TP hit")
+        self.chkAlertRisk = QCheckBox("Notify on circuit breach")
+        chk_news_alert = QCheckBox("Notify on pre-news defense")
+        chk_news_alert.setChecked(True)
+        self.chkSoundFx = QCheckBox("Play execution sound FX")
 
-        for lbl_text, widget in [
-            ("Telegram Bot Token:", self.editTgToken),
-            ("Channel / Chat ID:", chat_widget),
-            ("Notification Events:", events_widget),
-        ]:
-            row = QWidget()
-            r_lay = QHBoxLayout(row)
-            r_lay.setContentsMargins(0, 0, 0, 0)
-            r_lay.setSpacing(10)
+        lay_alerts.addWidget(self._create_row("Order Fills:", self.chkAlertFills))
+        lay_alerts.addWidget(self._create_row("TP / SL Hit:", self.chkAlertSL))
+        lay_alerts.addWidget(self._create_row("Risk Circuit Halt:", self.chkAlertRisk))
+        lay_alerts.addWidget(self._create_row("Pre-News Defense:", chk_news_alert))
+        lay_alerts.addWidget(self._create_row("Audio Sound FX:", self.chkSoundFx))
+        lay_alerts.addStretch()
 
-            lbl = QLabel(lbl_text)
-            lbl.setFixedWidth(150)
-            r_lay.addWidget(lbl)
-            r_lay.addWidget(widget)
-            r_lay.addStretch()
-            layout_notif.addWidget(row)
-
-        self.chkSoundFx = QCheckBox("Play sound on order execution")
-        layout_notif.addWidget(self.chkSoundFx)
-
-        layout_notif.addStretch()
+        cols_notif_lay.addWidget(grp_tg)
+        cols_notif_lay.addWidget(grp_alerts)
+        layout_notif_main.addWidget(cols_notif)
         self.tabWidget.addTab(page_notif, "Notifications")
 
         root_layout.addWidget(self.tabWidget)
@@ -469,7 +538,7 @@ class OptionsDialog(QDialog):
         # Dialog Footer (Classic Desktop OK / Cancel / Apply)
         footer = QWidget()
         f_lay = QHBoxLayout(footer)
-        f_lay.setContentsMargins(4, 4, 4, 6)
+        f_lay.setContentsMargins(4, 2, 4, 4)
         f_lay.setSpacing(6)
 
         self.lblDialogStatus = QLabel("Ready")
@@ -479,22 +548,22 @@ class OptionsDialog(QDialog):
 
         self.btnOk = QPushButton("OK")
         self.btnOk.setObjectName("btnDialogOk")
-        self.btnOk.setFixedWidth(74)
-        self.btnOk.setFixedHeight(24)
+        self.btnOk.setFixedWidth(76)
+        self.btnOk.setFixedHeight(26)
         self.btnOk.setCursor(Qt.PointingHandCursor)
         self.btnOk.clicked.connect(self._on_ok_clicked)
 
         self.btnCancel = QPushButton("Cancel")
         self.btnCancel.setObjectName("btnDialogCancel")
-        self.btnCancel.setFixedWidth(74)
-        self.btnCancel.setFixedHeight(24)
+        self.btnCancel.setFixedWidth(76)
+        self.btnCancel.setFixedHeight(26)
         self.btnCancel.setCursor(Qt.PointingHandCursor)
         self.btnCancel.clicked.connect(self.reject)
 
         self.btnApply = QPushButton("Apply")
         self.btnApply.setObjectName("btnDialogApply")
-        self.btnApply.setFixedWidth(74)
-        self.btnApply.setFixedHeight(24)
+        self.btnApply.setFixedWidth(76)
+        self.btnApply.setFixedHeight(26)
         self.btnApply.setCursor(Qt.PointingHandCursor)
         self.btnApply.clicked.connect(self._on_apply_clicked)
 
@@ -527,7 +596,7 @@ class OptionsDialog(QDialog):
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 11px;
                 font-weight: 500;
-                padding: 6px 14px 7px 14px;
+                padding: 6px 16px 7px 16px;
                 margin-right: 2px;
                 border-bottom: 2px solid transparent;
             }}
@@ -540,6 +609,30 @@ class OptionsDialog(QDialog):
             QTabBar::tab:hover:!selected {{
                 color: #0f172a;
             }}
+            QGroupBox {{
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 10px;
+                font-weight: 700;
+                color: #475569;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 14px;
+                padding-left: 8px;
+                padding-right: 8px;
+                padding-bottom: 8px;
+                background-color: #fafbfc;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 4px;
+                margin-left: 8px;
+                color: #64748b;
+                font-size: 9.5px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+            }}
             QLabel {{
                 color: #1e293b;
                 font-family: 'Segoe UI', sans-serif;
@@ -550,11 +643,12 @@ class OptionsDialog(QDialog):
                 background-color: #ffffff;
                 border: 1px solid #cbd5e1;
                 border-radius: 2px;
-                padding: 2px 6px;
+                padding: 1px 6px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 11px;
                 color: #0f172a;
                 min-height: 24px;
+                max-height: 24px;
             }}
             QSpinBox, QDoubleSpinBox {{
                 padding-right: 18px;
