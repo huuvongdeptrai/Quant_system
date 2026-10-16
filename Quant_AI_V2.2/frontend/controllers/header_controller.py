@@ -678,8 +678,20 @@ class WorkspaceHeaderController:
             "QPushButton:hover { color: #ffffff; background-color: #141721; }"
         )
         def _open_options(checked=False):
-            if hasattr(self, "settings") and hasattr(self.settings, "open_options_dialog"):
-                self.settings.open_options_dialog()
+            settings_mgr = (
+                getattr(self, "settings", None)
+                or getattr(self.terminal, "settings", None)
+                or getattr(self.window, "settings_mgr", None)
+            )
+            if settings_mgr and hasattr(settings_mgr, "open_options_dialog"):
+                settings_mgr.open_options_dialog()
+            else:
+                from frontend.widgets.options_dialog import OptionsDialog
+                dlg = OptionsDialog(self.window)
+                dlg.load_data()
+                dlg.show()
+                dlg.raise_()
+                dlg.activateWindow()
         btn_settings.clicked.connect(_open_options)
         b_layout.addWidget(btn_settings)
         setattr(self, "btnNavSettings", btn_settings)

@@ -98,7 +98,7 @@ class NotificationSettingsTab(QWidget):
 
         cols_lay.addWidget(grp_tg)
         cols_lay.addWidget(grp_alerts)
-        layout_main.addWidget(cols_lay)
+        layout_main.addWidget(cols)
         layout_main.addStretch()
 
     def load_values(self, data: Dict[str, Any], defaults: Dict[str, Any], fallback_token: str = "", fallback_chat: str = "") -> None:

@@ -552,8 +552,20 @@ def setup_chart_ui(window):
     btn_offline_retry.clicked.connect(lambda: window.draw_and_analyze(getattr(window, "current_sym", "XAUUSD")))
 
     def _open_options_dialog_action():
-        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "settings"):
-            window.quant_terminal.settings.open_options_dialog()
+        qt = getattr(window, "quant_terminal", None)
+        settings_mgr = (
+            getattr(qt, "settings", None)
+            or getattr(window, "settings_mgr", None)
+        )
+        if settings_mgr and hasattr(settings_mgr, "open_options_dialog"):
+            settings_mgr.open_options_dialog()
+        else:
+            from frontend.widgets.options_dialog import OptionsDialog
+            dlg = OptionsDialog(window)
+            dlg.load_data()
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
     btn_empty_settings.clicked.connect(_open_options_dialog_action)
 
     # Quản lý định vị căn giữa thẻ rỗng tự động khi biểu đồ co giãn
