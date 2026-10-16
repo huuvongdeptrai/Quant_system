@@ -38,54 +38,60 @@ class InitWorker(QThread):
 
             # Bước 2: Thử Auto-Login vào MT5 nếu có config
 
-            self.progress.emit(30, "[MT5] Initializing Engine & Auto-Login...")
+            self.progress.emit(30, "[MT5] Initializing Engine & Connecting...")
 
             root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             env_path = os.path.join(root_dir, "config", "ai_config.json")
 
-            if os.path.exists(env_path):
+            # 1. Kết nối với tiến trình MT5 đang mở
+            connected = mt5.initialize()
+            if not connected:
+                # Tìm kiếm các đường dẫn cài đặt MT5 khả dụng (ví dụ: LiteFinance, MetaTrader 5)
+                for custom_path in [
+                    r"C:\Program Files\LiteFinance MT5 Terminal\terminal64.exe",
+                    r"C:\Program Files\MetaTrader 5\terminal64.exe",
+                    r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
+                ]:
+                    if os.path.exists(custom_path):
+                        if mt5.initialize(path=custom_path):
+                            connected = True
+                            break
 
-                try:
+            term = mt5.terminal_info() if connected else None
+            acc_info = mt5.account_info() if connected else None
 
-                    with open(env_path, "r", encoding="utf-8") as f:
-
-                        cfg = json.load(f)
-
-                    server = cfg.get("MT5_SERVER")
-
-                    acc = cfg.get("MT5_ACCOUNT")
-
-                    pwd_raw = cfg.get("MT5_PASSWORD")
-
-                    pwd = decrypt_secret(pwd_raw) if pwd_raw else None
-
-                    if server and acc and pwd:
-
-                        try:
-                            acc = int(acc)
-
-                        except:
-                            pass
-
-                        if not mt5.initialize(login=acc, password=pwd, server=server):
-
-                            mt5.initialize()
-
-                        mt5.login(acc, password=pwd, server=server)
-
-                    else:
-
-                        mt5.initialize()
-
-                except Exception as e:
-
-                    logger.warning(f"Splash Auto-login failed: {e}")
-
-                    mt5.initialize()
-
+            # 2. Nếu MT5 đã mở và đang kết nối phiên hợp lệ -> BẢO TOÀN PHIÊN (KHÔNG gọi mt5.login gây đứt kết nối)
+            if term and getattr(term, "connected", False) and acc_info:
+                logger.info(
+                    f"[Splash] Nhận diện phiên MT5 đang hoạt động: Tài khoản #{acc_info.login} ({acc_info.server}). Bảo toàn kết nối sàn."
+                )
             else:
+                # Chỉ khi MT5 chưa kết nối hoặc chưa đăng nhập mới dùng thông tin từ ai_config.json
+                if os.path.exists(env_path):
+                    try:
+                        with open(env_path, "r", encoding="utf-8") as f:
+                            cfg = json.load(f)
 
-                mt5.initialize()  # Fallback init without credentials
+                        server = cfg.get("MT5_SERVER")
+                        acc = cfg.get("MT5_ACCOUNT")
+                        pwd_raw = cfg.get("MT5_PASSWORD")
+                        pwd = decrypt_secret(pwd_raw) if pwd_raw else None
+
+                        if server and acc and pwd:
+                            try:
+                                acc = int(acc)
+                            except Exception:
+                                pass
+
+                            login_ok = mt5.login(acc, password=pwd, server=server)
+                            if login_ok:
+                                logger.info(f"[Splash] Đăng nhập MT5 thành công với tài khoản #{acc}")
+                            else:
+                                logger.warning(
+                                    f"[Splash] Đăng nhập MT5 từ cấu hình thất bại: {mt5.last_error()}. Giữ nguyên trạng thái MT5."
+                                )
+                    except Exception as e:
+                        logger.warning(f"[Splash] Auto-login attempt error: {e}")
 
             time.sleep(0.5)
 

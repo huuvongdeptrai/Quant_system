@@ -1,3 +1,4 @@
+import os
 import threading
 import MetaTrader5 as _mt5
 from loguru import logger
@@ -29,7 +30,18 @@ class MT5SafeController:
 
     def initialize(self, *args, **kwargs):
         with self._mt5_lock:
-            return _mt5.initialize(*args, **kwargs)
+            res = _mt5.initialize(*args, **kwargs)
+            if not res and not args and not kwargs:
+                for custom_path in [
+                    r"C:\Program Files\LiteFinance MT5 Terminal\terminal64.exe",
+                    r"C:\Program Files\MetaTrader 5\terminal64.exe",
+                    r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
+                ]:
+                    if os.path.exists(custom_path):
+                        res = _mt5.initialize(path=custom_path)
+                        if res:
+                            break
+            return res
 
     def login(self, *args, **kwargs):
         with self._mt5_lock:

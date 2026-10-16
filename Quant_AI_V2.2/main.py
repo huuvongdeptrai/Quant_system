@@ -79,6 +79,20 @@ class QuantTerminal(QObject):
         # 0. Ensure MT5 connection is active on main GUI thread
         if not mt5.initialize():
             logger.info("[QuantTerminal] Calling mt5.initialize() on main Qt GUI thread...")
+            for custom_path in [
+                r"C:\Program Files\LiteFinance MT5 Terminal\terminal64.exe",
+                r"C:\Program Files\MetaTrader 5\terminal64.exe",
+                r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
+            ]:
+                if os.path.exists(custom_path):
+                    if mt5.initialize(path=custom_path):
+                        break
+
+        term = mt5.terminal_info()
+        acc_info = mt5.account_info()
+        if term and getattr(term, "connected", False) and acc_info:
+            logger.info(f"[QuantTerminal] Active MT5 session verified: #{acc_info.login} ({acc_info.server})")
+        else:
             try:
                 root_d = os.path.dirname(os.path.abspath(__file__))
                 cfg_p = os.path.join(root_d, "config", "ai_config.json")
@@ -90,13 +104,9 @@ class QuantTerminal(QObject):
                     pwd_enc = cfg_data.get("MT5_PASSWORD")
                     pwd_dec = decrypt_secret(pwd_enc) if pwd_enc else None
                     if srv and acc_num and pwd_dec:
-                        mt5.initialize(login=int(acc_num), password=pwd_dec, server=srv)
-                    else:
-                        mt5.initialize()
-                else:
-                    mt5.initialize()
+                        mt5.login(int(acc_num), password=pwd_dec, server=srv)
             except Exception as e:
-                logger.warning(f"[QuantTerminal] Auto-login attempt: {e}")
+                logger.warning(f"[QuantTerminal] Auto-login fallback: {e}")
 
         self._load_ui()
         self.window.quant_terminal = self
@@ -531,7 +541,11 @@ class QuantTerminal(QObject):
     def _on_tick(self):
         is_running = self.btn_bot_power.is_running() if hasattr(self, "btn_bot_power") else False
 
-        if mt5.terminal_info() is None:
+        term = mt5.terminal_info()
+        acc = mt5.account_info() if term is not None else None
+        is_connected = term is not None and getattr(term, "connected", False) and acc is not None
+
+        if not is_connected:
             self.lbl_status.setText(_TXT_DISCONNECTED)
             self.lbl_status.setStyleSheet(
                 "color: #ef4444; font-weight: 600; font-size: 11px; margin-right: 15px;"
@@ -548,7 +562,6 @@ class QuantTerminal(QObject):
                 delattr(self.window, "labelStatus")
             return
 
-        acc = mt5.account_info()
         if acc:
             self.lbl_status.setText(_TXT_CONNECTED.format(acc.login))
             self.lbl_status.setStyleSheet(
@@ -1076,7 +1089,8 @@ class QuantTerminal(QObject):
                 self.window.ai_thread.stop()
             self.window.ai_thread.quit()
             self.window.ai_thread.wait(500)
-        event.accept()
+        if event:
+            event.accept()
 
 
 if __name__ == "__main__":
