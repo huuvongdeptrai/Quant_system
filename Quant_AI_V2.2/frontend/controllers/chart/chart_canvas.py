@@ -693,6 +693,7 @@ def setup_chart_ui(window):
         window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp_p:.{dig}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
 
         is_waiting = hasattr(window, "btnApproveOrder") and window.btnApproveOrder.isEnabled()
+        is_live = getattr(window, "is_live_position", False)
         update_order_proposal_html(
             window,
             sym=sym,
@@ -701,9 +702,14 @@ def setup_chart_ui(window):
             entry=entry_p, sl=sl_p, tp=tp_p,
             risk_dlr=risk_dlr, risk_pct=risk_pct,
             reward_dlr=reward_dlr, rr_ratio=rr_ratio,
-            status="WAITING OPERATOR APPROVAL" if is_waiting else "EXECUTED & FILLED",
+            status="UPDATE SL/TP IN MT5" if is_live else ("WAITING OPERATOR APPROVAL" if is_waiting else "EXECUTED & FILLED"),
             digits=dig,
+            is_live_position=is_live,
+            live_ticket=getattr(window, "live_ticket", None),
         )
+        if is_live and hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+            window.btnApproveOrder.setText("UPDATE SL/TP IN MT5")
+            window.btnApproveOrder.setEnabled(True)
 
     window.line_order_sl.sigPositionChanged.connect(lambda: _sync_order_metrics())
     window.line_order_tp.sigPositionChanged.connect(lambda: _sync_order_metrics())
@@ -711,6 +717,29 @@ def setup_chart_ui(window):
     def _on_approve():
         if not getattr(window, "order_proposal_active", False):
             return
+
+        # Neu la vi the dang chay tren MT5 -> Cap nhat SL/TP vao MT5
+        if getattr(window, "is_live_position", False) and getattr(window, "live_ticket", None):
+            ticket = window.live_ticket
+            new_sl = window.line_order_sl.value()
+            new_tp = window.line_order_tp.value()
+            exec_mgr = None
+            if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                exec_mgr = window.quant_terminal.exec_mgr
+            if not exec_mgr:
+                from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                exec_mgr = ExecutionManager(slippage=20)
+            res = exec_mgr.modify_position(ticket, new_sl, new_tp)
+            from backend.core.event_bus import event_bus
+            if res and res.get("status") == "success":
+                window.btnApproveOrder.setText("SL/TP UPDATED")
+                window.btnApproveOrder.setEnabled(False)
+                event_bus.log_event.emit("", "SUCCESS", f"Live position #{ticket} SL/TP updated: SL={new_sl:.2f}, TP={new_tp:.2f}", "#10b981")
+            else:
+                window.btnApproveOrder.setText("UPDATE FAILED")
+                event_bus.log_event.emit("", "ERROR", f"Failed to modify #{ticket}: {res.get('msg', 'Error')}", "#ef4444")
+            return
+
         entry_p = window.line_order_entry.value()
         sl_p = window.line_order_sl.value()
         tp_p = window.line_order_tp.value()
@@ -856,6 +885,36 @@ def setup_chart_ui(window):
             window.btnApproveOrder.setEnabled(True)
 
     def _on_discard():
+        if getattr(window, "is_live_position", False) and getattr(window, "live_ticket", None):
+            ticket = window.live_ticket
+            from PySide6.QtWidgets import QMessageBox
+            reply = QMessageBox.question(
+                window,
+                "Close Position",
+                f"Close active MT5 position #{ticket} immediately?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                exec_mgr = None
+                if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                    exec_mgr = window.quant_terminal.exec_mgr
+                if not exec_mgr:
+                    from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                    exec_mgr = ExecutionManager(slippage=20)
+                res = exec_mgr.close_position(ticket)
+                from backend.core.event_bus import event_bus
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Closed MT5 position #{ticket}", "#10b981")
+                    window.is_live_position = False
+                    window.live_ticket = None
+                    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+                    from frontend.controllers.chart.ai_panel_controller import _run_analysis
+                    _run_analysis(window, clean_sym, force=True)
+                else:
+                    event_bus.log_event.emit("", "ERROR", f"Failed to close #{ticket}: {res.get('msg', 'Error')}", "#ef4444")
+            return
+
         window.order_proposal_active = False
         for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
             if hasattr(window, l_name):

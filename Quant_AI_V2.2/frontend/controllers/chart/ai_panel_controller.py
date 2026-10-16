@@ -415,6 +415,31 @@ def _update_panel_with_result(window, result):
     confidence_val = f"{int(result.get('confidence', 85))}%" if 'confidence' in result else "84.5%"
     window._last_confidence = confidence_val
 
+    # Detect execution mode and background bot status
+    exec_mode = "MANUAL"
+    bot_tf = 15
+    try:
+        cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "config", "settings.json")
+        if os.path.exists(cfg_p):
+            with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                cfg_data = json.load(f_cfg)
+                exec_mode = cfg_data.get("execution_mode", "MANUAL")
+                bot_tf = int(cfg_data.get("timeframe", 15))
+    except Exception:
+        pass
+
+    is_bot_active = False
+    if hasattr(window, "quant_terminal") and window.quant_terminal:
+        qt = window.quant_terminal
+        if hasattr(qt, "bot_worker") and qt.bot_worker and getattr(qt.bot_worker, "is_running", False):
+            is_bot_active = True
+        elif hasattr(qt, "bot_thread") and qt.bot_thread and qt.bot_thread.isRunning():
+            is_bot_active = True
+        elif hasattr(qt, "header") and hasattr(qt.header, "btn_algo_toggle"):
+            btn = qt.header.btn_algo_toggle
+            if hasattr(btn, "_is_running") and btn._is_running:
+                is_bot_active = True
+
     strat_res = result.get("_strategy_res", {})
     strat_name = result.get("_strategy_name", "Quantitative Strategy")
     strat_sig = strat_res.get("signal", "HOLD")
@@ -428,7 +453,97 @@ def _update_panel_with_result(window, result):
         except Exception:
             bias_val = 0
 
-    # Hỗ trợ linh hoạt các định dạng khóa đầu ra từ chiến lược tùy chỉnh
+    # 1. LIVE MT5 POSITION AWARENESS
+    live_pos = None
+    try:
+        if mt5.terminal_info() is not None:
+            open_positions = mt5.positions_get(symbol=clean_sym)
+            if open_positions and len(open_positions) > 0:
+                live_pos = open_positions[0]
+    except Exception as e_pos:
+        logger.debug(f"[AIAnalysis] Check live positions: {e_pos}")
+
+    if live_pos is not None:
+        pos_side = "BUY" if live_pos.type == 0 else "SELL"
+        live_entry = float(live_pos.price_open)
+        live_profit = float(live_pos.profit)
+        live_vol = float(live_pos.volume)
+        pnl_str = f"+${live_profit:.2f}" if live_profit >= 0 else f"-${abs(live_profit):.2f}"
+        pts_default = 10.0 if "XAU" in clean_sym else 100.0
+        live_sl = float(live_pos.sl) if live_pos.sl > 0 else (live_entry - pts_default if pos_side == "BUY" else live_entry + pts_default)
+        live_tp = float(live_pos.tp) if live_pos.tp > 0 else (live_entry + pts_default * 2.0 if pos_side == "BUY" else live_entry - pts_default * 2.0)
+        status_txt = "BOT AUTO MANAGING (TRAILING SL)" if (is_bot_active or exec_mode == "FULL-AUTO") else "LIVE POSITION IN MARKET"
+
+        kwargs_order = {
+            "sym": clean_sym,
+            "has_signal": True,
+            "signal_type": pos_side,
+            "model_name": f"{strat_name} (ACTIVE #{live_pos.ticket})",
+            "grade": f"PNL: {pnl_str}",
+            "chk1": f"POSITION: #{live_pos.ticket} {pos_side} {live_vol:.2f}L",
+            "chk2": f"OPEN: {live_entry:.{digits}f} | CURR: {live_pos.price_current:.{digits}f}",
+            "chk3": f"FLOATING PROFIT: {pnl_str}",
+            "entry": live_entry,
+            "sl": live_sl,
+            "tp": live_tp,
+            "confidence": "100%",
+            "status": status_txt,
+            "digits": digits,
+            "is_live_position": True,
+            "live_ticket": live_pos.ticket,
+            "live_profit": live_profit,
+            "live_volume": live_vol,
+            "exec_mode": exec_mode,
+            "is_bot_active": is_bot_active,
+        }
+        update_order_proposal_html(window, **kwargs_order)
+        return
+
+    # 2. PENDING ORDER AWARENESS
+    pending_order = None
+    try:
+        if mt5.terminal_info() is not None:
+            orders = mt5.orders_get(symbol=clean_sym)
+            if orders and len(orders) > 0:
+                pending_order = orders[0]
+    except Exception as e_ord:
+        logger.debug(f"[AIAnalysis] Check pending orders: {e_ord}")
+
+    if pending_order is not None:
+        o = pending_order
+        o_side = "BUY" if o.type in (2, 4) else "SELL"
+        o_type_name = "BUY LIMIT" if o.type == 2 else ("SELL LIMIT" if o.type == 3 else ("BUY STOP" if o.type == 4 else "SELL STOP"))
+        o_entry = float(o.price_open)
+        pts_default = 10.0 if "XAU" in clean_sym else 100.0
+        o_sl = float(o.sl) if o.sl > 0 else (o_entry - pts_default if o_side == "BUY" else o_entry + pts_default)
+        o_tp = float(o.tp) if o.tp > 0 else (o_entry + pts_default * 2.0 if o_side == "BUY" else o_entry - pts_default * 2.0)
+        o_vol = float(getattr(o, "volume_current", getattr(o, "volume_initial", 0.10)))
+
+        kwargs_order = {
+            "sym": clean_sym,
+            "has_signal": True,
+            "signal_type": o_side,
+            "model_name": f"{strat_name} (PENDING #{o.ticket})",
+            "grade": f"PENDING #{o.ticket}",
+            "chk1": f"ORDER: #{o.ticket} {o_type_name}",
+            "chk2": f"ENTRY: {o_entry:.{digits}f} | VOL: {o_vol:.2f}L",
+            "chk3": f"STATUS: PLACED IN MT5 (WAITING FILL)",
+            "entry": o_entry,
+            "sl": o_sl,
+            "tp": o_tp,
+            "confidence": "100%",
+            "status": f"PENDING IN MT5 (#{o.ticket})",
+            "digits": digits,
+            "is_pending_order": True,
+            "pending_ticket": o.ticket,
+            "live_volume": o_vol,
+            "exec_mode": exec_mode,
+            "is_bot_active": is_bot_active,
+        }
+        update_order_proposal_html(window, **kwargs_order)
+        return
+
+    # 3. FRESH SIGNAL EVALUATION (No live/pending trades)
     raw_entry = strat_res.get("entry_price") or strat_res.get("entry") or strat_res.get("price") or (price if price > 0 else None)
     raw_sl = strat_res.get("sl") or strat_res.get("sl_price") or strat_res.get("stop_loss")
     raw_tp = strat_res.get("tp1") or strat_res.get("tp") or strat_res.get("tp_price") or strat_res.get("take_profit")
@@ -439,7 +554,6 @@ def _update_panel_with_result(window, result):
         and raw_sl is not None
     )
 
-    # Trích xuất danh mục kiểm tra thích ứng theo từng loại chiến lược
     user_chk = strat_res.get("checklist") or strat_meta.get("checklist") or []
     is_ict = "ict" in strat_name.lower()
     is_ema = "ema" in strat_name.lower()
@@ -451,6 +565,15 @@ def _update_panel_with_result(window, result):
         conf_raw = strat_res.get("confidence", 0.85)
         conf_pct = f"{int(conf_raw * 100 if conf_raw <= 1.0 else conf_raw)}%"
         ai_model = f"{strat_name} ({strat_sig})"
+
+        chart_tf = getattr(window, "current_tf_str", "M15")
+        if exec_mode == "FULL-AUTO":
+            if chart_tf == "M15":
+                status_val = "FULL-AUTO: BOT MANAGING"
+            else:
+                status_val = f"MANUAL SETUP ({chart_tf}) | BOT ACTIVE ON M15"
+        else:
+            status_val = "WAITING OPERATOR APPROVAL"
 
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
@@ -480,8 +603,12 @@ def _update_panel_with_result(window, result):
             "sl": sl_val,
             "tp": tp_val,
             "confidence": conf_pct,
-            "status": "WAITING OPERATOR APPROVAL",
+            "status": status_val,
             "digits": digits,
+            "is_live_position": False,
+            "is_pending_order": False,
+            "exec_mode": exec_mode,
+            "is_bot_active": is_bot_active,
         }
     else:
         bias_desc = "BULLISH" if bias_val > 0 else ("BEARISH" if bias_val < 0 else "SIDEWAYS")
@@ -513,6 +640,10 @@ def _update_panel_with_result(window, result):
             "chk3": chk3,
             "status": "SCANNING_STANDBY",
             "digits": digits,
+            "is_live_position": False,
+            "is_pending_order": False,
+            "exec_mode": exec_mode,
+            "is_bot_active": is_bot_active,
         }
 
     update_order_proposal_html(window, **kwargs_order)

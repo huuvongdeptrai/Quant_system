@@ -38,6 +38,14 @@ def update_order_proposal_html(
     chk3=None,
     has_signal=False,
     signal_type="BUY",
+    is_live_position=False,
+    live_ticket=None,
+    live_profit=0.0,
+    live_volume=None,
+    is_pending_order=False,
+    pending_ticket=None,
+    exec_mode="MANUAL",
+    is_bot_active=False,
 ):
     """Render institutional Radar Matrix and Order Proposal Ticket with WCAG AAA contrast matching theme."""
     raw_sym = sym or getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
@@ -53,6 +61,10 @@ def update_order_proposal_html(
     # 1. TRƯỜNG HỢP: KHÔNG CÓ TÍN HIỆU THỰC TẾ (HOLD / CHỜ SETUP)
     if not has_signal or entry is None or sl is None:
         window.order_proposal_active = False
+        window.is_live_position = False
+        window.live_ticket = None
+        window.is_pending_order = False
+        window.pending_ticket = None
 
         # Gỡ bỏ toàn bộ đường lệnh ảo khỏi biểu đồ
         for line_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
@@ -119,6 +131,7 @@ def update_order_proposal_html(
         if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
             window.btnModifyOrder.setEnabled(False)
         if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+            window.btnDiscardOrder.setText("DISCARD")
             window.btnDiscardOrder.setEnabled(False)
 
         if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer is not None:
@@ -131,8 +144,12 @@ def update_order_proposal_html(
             apply_playbook_cards_theme(window, is_dark)
         return
 
-    # 2. TRƯỜNG HỢP: CÓ TÍN HIỆU THỰC TẾ (BUY / SELL)
+    # 2. TRƯỜNG HỢP: CÓ TÍN HIỆU THỰC TẾ HOẶC CÓ VỊ THẾ LIVE
     window.order_proposal_active = True
+    window.is_live_position = is_live_position
+    window.live_ticket = live_ticket
+    window.is_pending_order = is_pending_order
+    window.pending_ticket = pending_ticket
     window.active_signal_data = {
         "sym": clean_sym,
         "has_signal": True,
@@ -140,6 +157,8 @@ def update_order_proposal_html(
         "entry": entry,
         "sl": sl,
         "tp": tp,
+        "is_live_position": is_live_position,
+        "live_ticket": live_ticket,
     }
 
     sl_pts = abs(entry - sl)
@@ -156,35 +175,59 @@ def update_order_proposal_html(
     target_risk_dlr = real_balance * (risk_pct_val / 100.0)
 
     # Tính toán khối lượng lot chuẩn rủi ro
-    if "BTC" in clean_sym:
-        calc_lot = max(0.01, round(target_risk_dlr / max(1.0, sl_pts), 2))
-        calc_lot = min(calc_lot, 1.0)
-        risk_dlr = round(sl_pts * calc_lot, 2)
-        reward_dlr = round(tp_pts * calc_lot, 2)
-    elif "XAU" in clean_sym:
-        calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100.0), 2))
-        calc_lot = min(calc_lot, 2.0)
-        risk_dlr = round(sl_pts * calc_lot * 100.0, 2)
-        reward_dlr = round(tp_pts * calc_lot * 100.0, 2)
-    elif "JPY" in clean_sym:
-        calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 1000.0 * 0.07), 2))
-        calc_lot = min(calc_lot, 5.0)
-        risk_dlr = round(sl_pts * 1000 * calc_lot * 0.07, 2)
-        reward_dlr = round(tp_pts * 1000 * calc_lot * 0.07, 2)
+    if is_live_position or is_pending_order:
+        calc_lot = float(live_volume) if live_volume is not None else 0.10
+        if "BTC" in clean_sym:
+            risk_dlr = round(sl_pts * calc_lot, 2)
+            reward_dlr = round(tp_pts * calc_lot, 2)
+        elif "XAU" in clean_sym:
+            risk_dlr = round(sl_pts * calc_lot * 100.0, 2)
+            reward_dlr = round(tp_pts * calc_lot * 100.0, 2)
+        else:
+            risk_dlr = round(sl_pts * calc_lot * 100000.0, 2)
+            reward_dlr = round(tp_pts * calc_lot * 100000.0, 2)
     else:
-        calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100000.0), 2))
-        calc_lot = min(calc_lot, 5.0)
-        risk_dlr = round(sl_pts * calc_lot * 100000.0, 2)
-        reward_dlr = round(tp_pts * calc_lot * 100000.0, 2)
+        if "BTC" in clean_sym:
+            calc_lot = max(0.01, round(target_risk_dlr / max(1.0, sl_pts), 2))
+            calc_lot = min(calc_lot, 1.0)
+            risk_dlr = round(sl_pts * calc_lot, 2)
+            reward_dlr = round(tp_pts * calc_lot, 2)
+        elif "XAU" in clean_sym:
+            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100.0), 2))
+            calc_lot = min(calc_lot, 2.0)
+            risk_dlr = round(sl_pts * calc_lot * 100.0, 2)
+            reward_dlr = round(tp_pts * calc_lot * 100.0, 2)
+        elif "JPY" in clean_sym:
+            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 1000.0 * 0.07), 2))
+            calc_lot = min(calc_lot, 5.0)
+            risk_dlr = round(sl_pts * 1000 * calc_lot * 0.07, 2)
+            reward_dlr = round(tp_pts * 1000 * calc_lot * 0.07, 2)
+        else:
+            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100000.0), 2))
+            calc_lot = min(calc_lot, 5.0)
+            risk_dlr = round(sl_pts * calc_lot * 100000.0, 2)
+            reward_dlr = round(tp_pts * calc_lot * 100000.0, 2)
     risk_pct = round((risk_dlr / real_balance) * 100.0, 1)
 
+    # Tên hành động hiển thị
+    if is_live_position:
+        order_action_name = f"{signal_type} #{live_ticket}"
+    elif is_pending_order:
+        order_action_name = f"PENDING #{pending_ticket}"
+    else:
+        order_action_name = "BUY LIMIT" if signal_type == "BUY" else "SELL LIMIT"
+
     # Cập nhật đường ngang trên biểu đồ nến
-    order_action_name = "BUY LIMIT" if signal_type == "BUY" else "SELL LIMIT"
     try:
         if hasattr(window, "line_order_entry") and window.line_order_entry:
             window.line_order_entry.setValue(entry)
             window.line_order_entry.setVisible(True)
-            window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
+            if is_live_position:
+                window.line_order_entry.label.setFormat(f"OPEN #{live_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
+            elif is_pending_order:
+                window.line_order_entry.label.setFormat(f"PENDING #{pending_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
+            else:
+                window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
             if hasattr(window, "plot_widget"):
                 try:
                     if window.line_order_entry not in window.plot_widget.items():
@@ -195,7 +238,10 @@ def update_order_proposal_html(
         if hasattr(window, "line_order_sl") and window.line_order_sl:
             window.line_order_sl.setValue(sl)
             window.line_order_sl.setVisible(True)
-            window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+            if is_live_position:
+                window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
+            else:
+                window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
             if hasattr(window, "plot_widget"):
                 try:
                     if window.line_order_sl not in window.plot_widget.items():
@@ -206,7 +252,10 @@ def update_order_proposal_html(
         if hasattr(window, "line_order_tp") and window.line_order_tp:
             window.line_order_tp.setValue(tp)
             window.line_order_tp.setVisible(True)
-            window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
+            if is_live_position:
+                window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
+            else:
+                window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
             if hasattr(window, "plot_widget"):
                 try:
                     if window.line_order_tp not in window.plot_widget.items():
@@ -218,7 +267,7 @@ def update_order_proposal_html(
 
     # Card 1: Mô hình thiết lập (Active)
     if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
-        window.lblModelSubtitle.setText("SETUP MODEL")
+        window.lblModelSubtitle.setText("POSITION IN MARKET" if is_live_position else ("PENDING ORDER" if is_pending_order else "SETUP MODEL"))
     if hasattr(window, "lblModelName") and window.lblModelName:
         window.lblModelName.setText(model_name or "ICT Zones Pro v4.2")
     if hasattr(window, "lblModelGrade") and window.lblModelGrade:
@@ -236,7 +285,7 @@ def update_order_proposal_html(
 
     # Card 2: Lệnh và Quản trị rủi ro (Active)
     if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
-        window.lblOrderBudgetTitle.setText("ORDER & RISK BUDGET")
+        window.lblOrderBudgetTitle.setText("LIVE POSITION & RISK" if is_live_position else ("PENDING ORDER & RISK" if is_pending_order else "ORDER & RISK BUDGET"))
     if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
         window.lblOrderTypeBadge.setText(order_action_name)
         if signal_type == "BUY":
@@ -251,28 +300,100 @@ def update_order_proposal_html(
     if hasattr(window, "lblEntryVal") and window.lblEntryVal:
         window.lblEntryVal.setText(f"{entry:.{digits}f}")
     if hasattr(window, "lblSLVal") and window.lblSLVal:
-        window.lblSLVal.setText(f"{sl:.{digits}f}  (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+        if is_live_position:
+            window.lblSLVal.setText(f"{sl:.{digits}f}  (LIVE)" if sl and sl > 0 else "NO SL")
+        else:
+            window.lblSLVal.setText(f"{sl:.{digits}f}  (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
     if hasattr(window, "lblTPVal") and window.lblTPVal:
-        window.lblTPVal.setText(f"{tp:.{digits}f}  (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
+        if is_live_position:
+            window.lblTPVal.setText(f"{tp:.{digits}f}  (LIVE)" if tp and tp > 0 else "NO TP")
+        else:
+            window.lblTPVal.setText(f"{tp:.{digits}f}  (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
     if hasattr(window, "lblSizeVal") and window.lblSizeVal:
-        window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (${risk_dlr:.2f})")
+        if is_live_position:
+            pnl_sign = '+' if live_profit >= 0 else ''
+            window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (PNL: {pnl_sign}${live_profit:.2f})")
+        else:
+            window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (${risk_dlr:.2f})")
 
     # Card 3: Cổng phê duyệt lệnh (Active)
-    if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
-        window.lblGateExpiryTitle.setText("EXPIRATION")
-    if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
-        window.btnApproveOrder.setText("APPROVE ORDER")
-        window.btnApproveOrder.setEnabled(True)
-        window.btnApproveOrder.setCursor(Qt.PointingHandCursor)
-    if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
-        window.btnModifyOrder.setEnabled(True)
-    if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
-        window.btnDiscardOrder.setEnabled(True)
+    if is_live_position:
+        if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+            window.lblGateExpiryTitle.setText("EXECUTION STATE")
+        if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+            window.lblGateExpiryTime.setText("LIVE")
+        if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
+            window.barSignalExpiry.setRange(0, 100)
+            window.barSignalExpiry.setValue(100)
+        if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+            if is_bot_active or exec_mode == "FULL-AUTO":
+                window.btnApproveOrder.setText("BOT AUTO MANAGING (TRAILING SL)")
+            else:
+                window.btnApproveOrder.setText("POSITION IN MARKET")
+            window.btnApproveOrder.setEnabled(False)
+            window.btnApproveOrder.setCursor(Qt.ArrowCursor)
+        if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+            window.btnModifyOrder.setEnabled(True)
+        if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+            window.btnDiscardOrder.setText("CLOSE POSITION")
+            window.btnDiscardOrder.setEnabled(True)
+            window.btnDiscardOrder.setCursor(Qt.PointingHandCursor)
+        if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer:
+            try:
+                window._signal_expiry_timer.stop()
+            except Exception:
+                pass
+    elif is_pending_order:
+        if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+            window.lblGateExpiryTitle.setText("EXECUTION STATE")
+        if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+            window.lblGateExpiryTime.setText("PENDING")
+        if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
+            window.barSignalExpiry.setRange(0, 100)
+            window.barSignalExpiry.setValue(100)
+        if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+            window.btnApproveOrder.setText(f"ORDER PLACED #{pending_ticket}")
+            window.btnApproveOrder.setEnabled(False)
+            window.btnApproveOrder.setCursor(Qt.ArrowCursor)
+        if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+            window.btnModifyOrder.setEnabled(False)
+        if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+            window.btnDiscardOrder.setText("CANCEL ORDER")
+            window.btnDiscardOrder.setEnabled(True)
+            window.btnDiscardOrder.setCursor(Qt.PointingHandCursor)
+        if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer:
+            try:
+                window._signal_expiry_timer.stop()
+            except Exception:
+                pass
+    else:
+        if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+            window.lblGateExpiryTitle.setText("EXPIRATION")
+        if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+            chart_tf = getattr(window, "current_tf_str", "M15")
+            if exec_mode == "FULL-AUTO" and chart_tf == "M15":
+                window.btnApproveOrder.setText("FULL-AUTO: BOT MANAGING")
+                window.btnApproveOrder.setEnabled(False)
+                window.btnApproveOrder.setCursor(Qt.ArrowCursor)
+            elif exec_mode == "FULL-AUTO":
+                window.btnApproveOrder.setText(f"APPROVE {chart_tf} (MANUAL)")
+                window.btnApproveOrder.setEnabled(True)
+                window.btnApproveOrder.setCursor(Qt.PointingHandCursor)
+            else:
+                window.btnApproveOrder.setText("APPROVE ORDER")
+                window.btnApproveOrder.setEnabled(True)
+                window.btnApproveOrder.setCursor(Qt.PointingHandCursor)
+        if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+            window.btnModifyOrder.setEnabled(True)
+        if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+            window.btnDiscardOrder.setText("DISCARD")
+            window.btnDiscardOrder.setEnabled(True)
+            window.btnDiscardOrder.setCursor(Qt.PointingHandCursor)
+
+        start_signal_expiry_countdown(window)
 
     if hasattr(window, "cardSetupModel"):
         apply_playbook_cards_theme(window, is_dark)
-
-    start_signal_expiry_countdown(window)
 
 
 def update_ai_reasoning(window, is_dark=None):
