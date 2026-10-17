@@ -5,6 +5,7 @@ session compliance, and automated state recovery in an asynchronous QThread loop
 """
 
 import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -158,10 +159,16 @@ class BotOrchestrator(QtCore.QObject):
         )
 
         self.ai_engine = None
+        self._wake_event = threading.Event()
         if self.strategy_name == "AI":
             from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
 
             self.ai_engine = AnalysisEngine(model_name=self.ai_model_name)
+
+    def wake_up(self) -> None:
+        """Immediately wakes up the background polling cycle without waiting for sleep interval."""
+        if hasattr(self, "_wake_event"):
+            self._wake_event.set()
 
     @property
     def circuit_breaker_active(self) -> bool:
@@ -273,9 +280,13 @@ class BotOrchestrator(QtCore.QObject):
                     break
                 self.pipeline_execute(sym)
 
-            # Responsive polling sleep
-            for _ in range(100):
+            # Responsive event-driven polling sleep (reduced from 10s to 1.5s, wakeable immediately)
+            poll_cycles = getattr(self, "poll_cycles", 15)  # 15 * 0.1s = 1.5s max
+            for _ in range(poll_cycles):
                 if not self.is_running:
+                    break
+                if hasattr(self, "_wake_event") and self._wake_event.is_set():
+                    self._wake_event.clear()
                     break
                 time.sleep(0.1)
 

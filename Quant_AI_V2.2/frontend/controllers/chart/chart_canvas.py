@@ -1171,7 +1171,6 @@ def setup_chart_ui(window):
             changed = False
 
             if r["time"] == last_time:
-
                 window.chart_data_list[-1] = (
                     last_idx,
                     r["open"],
@@ -1179,28 +1178,23 @@ def setup_chart_ui(window):
                     r["low"],
                     r["high"],
                 )
-
-                changed = True
+                if hasattr(window, "candlesticks"):
+                    if hasattr(window.candlesticks, "update_live_bar"):
+                        window.candlesticks.update_live_bar(r["open"], r["close"], r["low"], r["high"])
+                    else:
+                        window.candlesticks.data = window.chart_data_list
+                        window.candlesticks.generatePicture()
+                        window.candlesticks.update()
 
             elif r["time"] > last_time:
-
                 new_idx = last_idx + 1
-
-                window.chart_data_list.append(
-                    (new_idx, r["open"], r["close"], r["low"], r["high"])
-                )
-
+                new_bar = (new_idx, r["open"], r["close"], r["low"], r["high"])
+                window.chart_data_list.append(new_bar)
                 window.time_axis.timestamps.append(r["time"])
-
-                changed = True
-
-            if changed and hasattr(window, "candlesticks"):
-
-                window.candlesticks.data = window.chart_data_list
-
-                window.candlesticks.generatePicture()
-
-                window.candlesticks.update()
+                if hasattr(window, "candlesticks"):
+                    window.candlesticks.data = window.chart_data_list
+                    window.candlesticks.generatePicture()
+                    window.candlesticks.update()
 
     from backend.core.event_bus import event_bus
 

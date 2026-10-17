@@ -632,13 +632,18 @@ class QuantTerminal(QObject):
                 if hasattr(self, "_render_blotter"):
                     self._render_blotter("active")
 
-        for sym in self.watchlist.get_all_symbols():
-
+        active_sym = getattr(self.window, "current_sym", "").split("\n")[0].strip() if hasattr(self, "window") else ""
+        all_syms = self.watchlist.get_all_symbols()
+        sorted_syms = sorted(all_syms, key=lambda s: 0 if s == active_sym else 1)
+        for sym in sorted_syms:
             tick = mt5.symbol_info_tick(sym)
-
             if tick:
-
                 event_bus.market_tick.emit(sym, tick.bid, tick.ask)
+
+        if hasattr(self, "bot_worker") and self.bot_worker:
+            orch = getattr(self.bot_worker, "orchestrator", None)
+            if orch and hasattr(orch, "wake_up"):
+                orch.wake_up()
 
     def _handle_remote_command(self, cmd):
 
