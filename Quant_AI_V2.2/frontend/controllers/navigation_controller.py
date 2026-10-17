@@ -99,15 +99,28 @@ class NavigationController:
             self.window.candlesticks.setVisible(checked)
 
     def _toggle_value_area(self, checked):
+        if hasattr(self.window, "drawing_engine") and hasattr(self.window.drawing_engine, "toggle_value_area"):
+            self.window.drawing_engine.toggle_value_area(checked)
+        else:
+            self.window._va_visible = checked
+            for it_name in ("line_vah", "line_val", "va_region"):
+                if hasattr(self.window, it_name):
+                    it = getattr(self.window, it_name)
+                    if it:
+                        it.setVisible(checked)
         if hasattr(self.window, "va_rects"):
             for r in self.window.va_rects:
                 r.setVisible(checked)
 
     def _toggle_poc(self, checked):
-        if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
-            self.window.line_tpoc.setVisible(checked)
-        if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
-            self.window.line_vpoc.setVisible(checked)
+        if hasattr(self.window, "drawing_engine") and hasattr(self.window.drawing_engine, "toggle_poc"):
+            self.window.drawing_engine.toggle_poc(checked)
+        else:
+            self.window._poc_visible = checked
+            if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
+                self.window.line_tpoc.setVisible(checked)
+            if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
+                self.window.line_vpoc.setVisible(checked)
 
     def _toggle_cpr(self, checked):
         if hasattr(self.window, "cpr_lines"):

@@ -43,6 +43,77 @@ from frontend.controllers.chart.trading_plan_panel import (
 )
 from frontend.controllers.chart.drawing_engine import ChartDrawingEngine
 
+
+def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, va_pct: float = 0.70):
+    """
+    Computes Volume Profile Point of Control (vPOC) and 70% Value Area (VAH & VAL)
+    according to J. Peter Steidlmayer's Market Profile Theory (CBOT, 1985).
+    """
+    if rates is None or len(rates) == 0:
+        return 0.0, 0.0, 0.0
+
+    subset = rates[-lookback:] if len(rates) >= lookback else rates
+    lows = [float(r["low"]) for r in subset]
+    highs = [float(r["high"]) for r in subset]
+    closes = [float(r["close"]) for r in subset]
+    vols = [float(r["tick_volume"]) if "tick_volume" in r.dtype.names else 1.0 for r in subset]
+
+    p_min = min(lows)
+    p_max = max(highs)
+    if p_max <= p_min:
+        mean_p = float(np.mean(closes))
+        return mean_p, mean_p, mean_p
+
+    bins = np.linspace(p_min, p_max, num_bins + 1)
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    vol_profile = np.zeros(num_bins)
+
+    for l, h, c, v in zip(lows, highs, closes, vols):
+        if v <= 0:
+            v = 1.0
+        mask = (bin_centers >= l) & (bin_centers <= h)
+        cnt = np.count_nonzero(mask)
+        if cnt > 0:
+            vol_profile[mask] += v / cnt
+        else:
+            idx = int(np.argmin(np.abs(bin_centers - c)))
+            vol_profile[idx] += v
+
+    tot_vol = np.sum(vol_profile)
+    if tot_vol <= 0:
+        mean_p = float(np.mean(closes))
+        return mean_p, mean_p, mean_p
+
+    poc_idx = int(np.argmax(vol_profile))
+    vpoc = float(bin_centers[poc_idx])
+
+    # 70% Value Area Expansion (CBOT Market Profile Standard)
+    target_vol = tot_vol * va_pct
+    accum_vol = vol_profile[poc_idx]
+    up_idx = poc_idx
+    dn_idx = poc_idx
+
+    while accum_vol < target_vol and (up_idx < num_bins - 1 or dn_idx > 0):
+        v_up = vol_profile[up_idx + 1] if up_idx < num_bins - 1 else 0.0
+        v_dn = vol_profile[dn_idx - 1] if dn_idx > 0 else 0.0
+
+        if v_up >= v_dn and up_idx < num_bins - 1:
+            up_idx += 1
+            accum_vol += v_up
+        elif dn_idx > 0:
+            dn_idx -= 1
+            accum_vol += v_dn
+        elif up_idx < num_bins - 1:
+            up_idx += 1
+            accum_vol += v_up
+        else:
+            break
+
+    vah = float(bin_centers[up_idx])
+    val = float(bin_centers[dn_idx])
+    return vpoc, vah, val
+
+
 def setup_chart_ui(window):
     chart_layout = window.frameChartArea.layout()
 
@@ -66,6 +137,10 @@ def setup_chart_ui(window):
     window.active_indicators = {"ema": False, "donchian": False}
     window.lbl_chart_title = QLabel("")  # Maintained as internal object for telemetry compatibility
     window._rates_cache = {}  # Session memory cache for offline resilience
+    window._poc_visible = True
+    window._va_visible = True
+    window._last_vah = None
+    window._last_val = None
 
     def _open_indicators():
         def _refresh():
@@ -636,6 +711,32 @@ def setup_chart_ui(window):
     )
     window.plot_widget.addItem(window.line_tpoc, ignoreBounds=True)
     window.plot_widget.addItem(window.line_vpoc, ignoreBounds=True)
+
+    # Market Profile 70% Value Area Overlay (J. Peter Steidlmayer, CBOT 1985)
+    va_brush_init = pg.mkBrush(color=(56, 189, 248, 18))
+    window.va_region = pg.LinearRegionItem(
+        values=[0, 0], orientation=pg.LinearRegionItem.Horizontal,
+        brush=va_brush_init, movable=False
+    )
+    window.va_region.setZValue(-10)
+    for l_reg in window.va_region.lines:
+        l_reg.setPen(pg.mkPen(color=(0, 0, 0, 0)))
+
+    window.line_vah = pg.InfiniteLine(
+        angle=0, movable=False,
+        pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
+        label="VAH (70%)",
+        labelOpts={"color": "#0284c7", "position": 0.98, "fill": "#e0f2fe", "border": "#0284c7"}
+    )
+    window.line_val = pg.InfiniteLine(
+        angle=0, movable=False,
+        pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
+        label="VAL (70%)",
+        labelOpts={"color": "#0284c7", "position": 0.98, "fill": "#e0f2fe", "border": "#0284c7"}
+    )
+    window.plot_widget.addItem(window.va_region, ignoreBounds=True)
+    window.plot_widget.addItem(window.line_vah, ignoreBounds=True)
+    window.plot_widget.addItem(window.line_val, ignoreBounds=True)
 
     # Negative-Space Session Metadata Text Item
     window.session_meta_label = pg.TextItem(
@@ -1341,6 +1442,8 @@ def setup_chart_ui(window):
                     f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
                     f'SESSION: <b>--</b> &nbsp;|&nbsp; '
                     f'vPOC: <b>--</b> &nbsp;|&nbsp; '
+                    f'VAH: <b>--</b> &nbsp;|&nbsp; '
+                    f'VAL: <b>--</b> &nbsp;|&nbsp; '
                     f'tPOC: <b>--</b> &nbsp;|&nbsp; '
                     f'DELTA: <b>--</b>'
                     f'</span>'
@@ -1378,6 +1481,8 @@ def setup_chart_ui(window):
                     f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
                     f'SESSION: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
                     f'vPOC: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
+                    f'VAH: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
+                    f'VAL: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
                     f'tPOC: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
                     f'DELTA: <b style="color:{c_val};">--</b>'
                     f'</span>'
@@ -1491,20 +1596,32 @@ def setup_chart_ui(window):
             window.current_price_line.setPos(cur_p)
             window.plot_widget.addItem(window.current_price_line, ignoreBounds=True)
 
-        # Calculate and update tPOC and vPOC
+        # -------------------------------------------------------------
+        # Market Profile / Volume Profile (J. Peter Steidlmayer, CBOT 1985)
+        # Point of Control (vPOC, tPOC) & 70% Value Area (VAH, VAL)
+        # -------------------------------------------------------------
+        vpoc_val, vah_val, val_val = _compute_market_profile_va(rates, lookback=100, num_bins=60, va_pct=0.70)
         close_prices = [float(r["close"]) for r in rates[-100:]]
-        vols = [float(r["tick_volume"]) for r in rates[-100:]]
-        if close_prices:
-            tot_vol = max(1.0, sum(vols))
-            vpoc_val = sum(p * v for p, v in zip(close_prices, vols)) / tot_vol
-            tpoc_val = float(np.median(close_prices))
-            poc_vis = getattr(window, "_poc_visible", True)
-            if hasattr(window, "line_vpoc"):
-                window.line_vpoc.setValue(vpoc_val)
-                window.line_vpoc.setVisible(poc_vis)
-            if hasattr(window, "line_tpoc"):
-                window.line_tpoc.setValue(tpoc_val)
-                window.line_tpoc.setVisible(poc_vis)
+        tpoc_val = float(np.median(close_prices)) if close_prices else vpoc_val
+
+        poc_vis = getattr(window, "_poc_visible", True)
+        if hasattr(window, "line_vpoc"):
+            window.line_vpoc.setValue(vpoc_val)
+            window.line_vpoc.setVisible(poc_vis)
+        if hasattr(window, "line_tpoc"):
+            window.line_tpoc.setValue(tpoc_val)
+            window.line_tpoc.setVisible(poc_vis)
+
+        va_vis = getattr(window, "_va_visible", True)
+        if hasattr(window, "line_vah"):
+            window.line_vah.setValue(vah_val)
+            window.line_vah.setVisible(va_vis)
+        if hasattr(window, "line_val"):
+            window.line_val.setValue(val_val)
+            window.line_val.setVisible(va_vis)
+        if hasattr(window, "va_region"):
+            window.va_region.setRegion([val_val, vah_val])
+            window.va_region.setVisible(va_vis)
 
         # Restore user drawings and annotations from DrawingEngine
         if hasattr(window, "drawing_engine") and window.drawing_engine:
@@ -1535,6 +1652,8 @@ def setup_chart_ui(window):
             delta_color = "#10b981" if delta_val >= 0 else "#ef4444"
 
             window._last_vpoc = vpoc_val
+            window._last_vah = vah_val
+            window._last_val = val_val
             window._last_tpoc = tpoc_val
             window._last_session = session_name
             window._last_delta_str = delta_str
@@ -1544,12 +1663,17 @@ def setup_chart_ui(window):
             if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
                 c_lbl = "#71717a" if is_d else "#475569"
                 c_val = "#ffffff" if is_d else "#0f172a"
+                c_va = "#38bdf8" if is_d else "#0284c7"
+                c_vpoc = "#22c55e" if is_d else "#15803d"
+                c_tpoc = "#f43f5e" if is_d else "#b91c1c"
                 sess_prefix = f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; ' if not is_cached_fallback else f'<b style="color:#d97706;">OFFLINE CACHE ({cached_info_str})</b> &nbsp;|&nbsp; '
                 window.lbl_ribbon_left.setText(
                     f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
                     f'{sess_prefix}'
-                    f'vPOC: <b style="color:{c_val};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'tPOC: <b style="color:{c_val};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                    f'vPOC: <b style="color:{c_vpoc};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                    f'VAH: <b style="color:{c_va};">{vah_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                    f'VAL: <b style="color:{c_va};">{val_val:,.{digits}f}</b> &nbsp;<span style="color:{c_lbl};">(VA 70%)</span> &nbsp;|&nbsp; '
+                    f'tPOC: <b style="color:{c_tpoc};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
                     f'DELTA: <b style="color:{delta_color};">{delta_str}</b>'
                     f'</span>'
                 )
@@ -1719,6 +1843,8 @@ def update_chart_theme(window, is_dark: bool = False):
 
     if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
         vpoc_val = getattr(window, "_last_vpoc", None)
+        vah_val = getattr(window, "_last_vah", None)
+        val_val = getattr(window, "_last_val", None)
         tpoc_val = getattr(window, "_last_tpoc", None)
         session_name = getattr(window, "_last_session", "--")
         delta_str = getattr(window, "_last_delta_str", "--")
@@ -1727,17 +1853,35 @@ def update_chart_theme(window, is_dark: bool = False):
 
         c_lbl = "#71717a" if is_dark else "#475569"
         c_val = "#ffffff" if is_dark else "#0f172a"
+        c_va = "#38bdf8" if is_dark else "#0284c7"
+        c_vpoc = "#22c55e" if is_dark else "#15803d"
+        c_tpoc = "#f43f5e" if is_dark else "#b91c1c"
         vpoc_str = f"{vpoc_val:,.{digits}f}" if vpoc_val is not None else "--"
+        vah_str = f"{vah_val:,.{digits}f}" if vah_val is not None else "--"
+        val_str = f"{val_val:,.{digits}f}" if val_val is not None else "--"
         tpoc_str = f"{tpoc_val:,.{digits}f}" if tpoc_val is not None else "--"
         session_text = (
             f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
             f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
-            f'vPOC: <b style="color:{c_val};">{vpoc_str}</b> &nbsp;|&nbsp; '
-            f'tPOC: <b style="color:{c_val};">{tpoc_str}</b> &nbsp;|&nbsp; '
+            f'vPOC: <b style="color:{c_vpoc};">{vpoc_str}</b> &nbsp;|&nbsp; '
+            f'VAH: <b style="color:{c_va};">{vah_str}</b> &nbsp;|&nbsp; '
+            f'VAL: <b style="color:{c_va};">{val_str}</b> &nbsp;<span style="color:{c_lbl};">(VA 70%)</span> &nbsp;|&nbsp; '
+            f'tPOC: <b style="color:{c_tpoc};">{tpoc_str}</b> &nbsp;|&nbsp; '
             f'DELTA: <b style="color:{delta_color};">{delta_str}</b>'
             f'</span>'
         )
         window.lbl_ribbon_left.setText(session_text)
+
+    # Market Profile VAH / VAL / Value Area Region theme sync
+    if hasattr(window, "line_vah") and window.line_vah:
+        c_va = "#38bdf8" if is_dark else "#0284c7"
+        window.line_vah.setPen(pg.mkPen(color=c_va, width=1.0, style=QtCore.Qt.DashLine))
+    if hasattr(window, "line_val") and window.line_val:
+        c_va = "#38bdf8" if is_dark else "#0284c7"
+        window.line_val.setPen(pg.mkPen(color=c_va, width=1.0, style=QtCore.Qt.DashLine))
+    if hasattr(window, "va_region") and window.va_region:
+        va_brush_color = (56, 189, 248, 16) if is_dark else (2, 132, 199, 14)
+        window.va_region.setBrush(pg.mkBrush(color=va_brush_color))
 
     if hasattr(window, "lbl_chart_zoom") and window.lbl_chart_zoom:
         zoom_color = "#71717a" if is_dark else "#64748b"

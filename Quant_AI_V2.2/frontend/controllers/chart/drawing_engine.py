@@ -143,6 +143,15 @@ class ChartDrawingEngine(QObject):
         if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
             self.window.line_vpoc.setVisible(checked)
 
+    def toggle_value_area(self, checked: bool):
+        self.window._va_visible = checked
+        if hasattr(self.window, "line_vah") and self.window.line_vah:
+            self.window.line_vah.setVisible(checked)
+        if hasattr(self.window, "line_val") and self.window.line_val:
+            self.window.line_val.setVisible(checked)
+        if hasattr(self.window, "va_region") and self.window.va_region:
+            self.window.va_region.setVisible(checked)
+
     def re_add_to_plot(self):
         """Called after plot_widget.clear() to restore user drawings, ruler, and FVG items."""
         curr_items = set(self.plot_widget.items())
@@ -190,6 +199,19 @@ class ChartDrawingEngine(QObject):
                 except Exception as err:
                     logger.debug(f"[DrawingEngine] Non-critical addItem(line_vpoc) error: {err}")
             self.window.line_vpoc.setVisible(poc_vis)
+
+        # Re-apply Value Area 70% visibility (J. Peter Steidlmayer, CBOT 1985)
+        va_vis = getattr(self.window, "_va_visible", True)
+        for va_name in ("va_region", "line_vah", "line_val"):
+            if hasattr(self.window, va_name):
+                va_item = getattr(self.window, va_name)
+                if va_item and va_item not in curr_items:
+                    try:
+                        self.plot_widget.addItem(va_item, ignoreBounds=True)
+                    except Exception as err:
+                        logger.debug(f"[DrawingEngine] Non-critical addItem({va_name}) error: {err}")
+                if va_item:
+                    va_item.setVisible(va_vis)
 
     def eventFilter(self, obj, event):
         """Intercept mouse events on plot_widget viewport for interactive drawing tools."""
