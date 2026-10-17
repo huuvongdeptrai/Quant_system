@@ -176,21 +176,22 @@ class TestStage8OptionsIntegration:
         mock_win.treeWatchlist = mock_tree
 
         with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "load_watchlist"), \
              patch.object(WatchlistManager, "refresh_all_status_icons"):
             mgr = WatchlistManager(mock_win)
-            import io, json
-            custom_list = ["EURUSD", "USDJPY"]
-            mock_file = io.StringIO(json.dumps(custom_list))
-            with patch("builtins.open", return_value=mock_file), \
-                 patch.object(mgr, "add_symbol_to_tree") as mock_add, \
-                 patch.object(mgr, "save_watchlist"), \
-                 patch("os.path.exists", return_value=True):
-                mock_file.seek(0)
-                mgr.load_watchlist()
-                # Phải nạp chính xác 2 mã người dùng đã chọn
-                assert mock_add.call_count == 2
-                loaded_syms = [call[0][0] for call in mock_add.call_args_list]
-                assert loaded_syms == ["EURUSD", "USDJPY"]
+        import io, json
+        custom_list = ["EURUSD", "USDJPY"]
+        mock_file = io.StringIO(json.dumps(custom_list))
+        with patch("builtins.open", return_value=mock_file), \
+             patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+             patch.object(mgr, "save_watchlist"), \
+             patch("os.path.exists", return_value=True):
+            mock_file.seek(0)
+            WatchlistManager.load_watchlist(mgr)
+            # Phải nạp chính xác 2 mã người dùng đã chọn
+            assert mock_add.call_count == 2
+            loaded_syms = [call[0][0] for call in mock_add.call_args_list]
+            assert loaded_syms == ["EURUSD", "USDJPY"]
 
     def test_watchlist_empty_list_preserved(self):
         """Kiểm tra: Khi người dùng xóa hết các cặp ([]), Watchlist phải để trống, không tự nhét 9 cặp mặc định."""
@@ -200,18 +201,19 @@ class TestStage8OptionsIntegration:
         mock_win.treeWatchlist = mock_tree
 
         with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "load_watchlist"), \
              patch.object(WatchlistManager, "refresh_all_status_icons"):
             mgr = WatchlistManager(mock_win)
-            import io, json
-            mock_file = io.StringIO(json.dumps([]))
-            with patch("builtins.open", return_value=mock_file), \
-                 patch.object(mgr, "add_symbol_to_tree") as mock_add, \
-                 patch.object(mgr, "save_watchlist"), \
-                 patch("os.path.exists", return_value=True):
-                mock_file.seek(0)
-                mgr.load_watchlist()
-                # Danh sách rỗng -> 0 lần add, không được tự động phục hồi 9 cặp
-                assert mock_add.call_count == 0
+        import io, json
+        mock_file = io.StringIO(json.dumps([]))
+        with patch("builtins.open", return_value=mock_file), \
+             patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+             patch.object(mgr, "save_watchlist"), \
+             patch("os.path.exists", return_value=True):
+            mock_file.seek(0)
+            WatchlistManager.load_watchlist(mgr)
+            # Danh sách rỗng -> 0 lần add, không được tự động phục hồi 9 cặp
+            assert mock_add.call_count == 0
 
     def test_watchlist_fresh_install_loads_defaults(self):
         """Kiểm tra: Chỉ khi lần đầu cài đặt (chưa có file cấu hình nào) mới nạp 9 cặp mẫu."""
@@ -221,10 +223,11 @@ class TestStage8OptionsIntegration:
         mock_win.treeWatchlist = mock_tree
 
         with patch.object(WatchlistManager, "setup_ui"), \
+             patch.object(WatchlistManager, "load_watchlist"), \
              patch.object(WatchlistManager, "refresh_all_status_icons"):
             mgr = WatchlistManager(mock_win)
-            with patch.object(mgr, "add_symbol_to_tree") as mock_add, \
-                 patch.object(mgr, "save_watchlist"), \
-                 patch("os.path.exists", return_value=False):
-                mgr.load_watchlist()
-                assert mock_add.call_count == 9
+        with patch.object(mgr, "add_symbol_to_tree") as mock_add, \
+             patch.object(mgr, "save_watchlist"), \
+             patch("os.path.exists", return_value=False):
+            WatchlistManager.load_watchlist(mgr)
+            assert mock_add.call_count == 9
