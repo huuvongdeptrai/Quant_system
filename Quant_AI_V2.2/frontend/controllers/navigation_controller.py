@@ -119,30 +119,41 @@ class NavigationController:
             for it in self.window.delta_items:
                 it.setVisible(checked)
 
+    def _get_nav_btn_styles(self, is_dark):
+        """Unified institutional styling for bottom workspace tab buttons:
+        Transparent background, 2px #0284c7 hairline top border on active tab, no gray blocks.
+        """
+        if is_dark:
+            act_style = (
+                "QPushButton { background-color: transparent; color: #ffffff; font-family: 'Segoe UI', -apple-system, sans-serif; "
+                "font-size: 10px; font-weight: 700; letter-spacing: 0.3px; border: none; border-top: 2px solid #0284c7; padding: 0 10px; "
+                "min-height: 26px; max-height: 26px; border-radius: 0px; }"
+            )
+            inact_style = (
+                "QPushButton { background-color: transparent; color: #94a3b8; font-family: 'Segoe UI', -apple-system, sans-serif; "
+                "font-size: 10px; font-weight: 500; letter-spacing: 0.3px; border: none; border-top: 2px solid transparent; padding: 0 10px; "
+                "min-height: 26px; max-height: 26px; border-radius: 0px; } "
+                "QPushButton:hover { color: #ffffff; border-top: 2px solid #334155; }"
+            )
+        else:
+            act_style = (
+                "QPushButton { background-color: transparent; color: #0f172a; font-family: 'Segoe UI', -apple-system, sans-serif; "
+                "font-size: 10px; font-weight: 700; letter-spacing: 0.3px; border: none; border-top: 2px solid #0284c7; padding: 0 10px; "
+                "min-height: 26px; max-height: 26px; border-radius: 0px; }"
+            )
+            inact_style = (
+                "QPushButton { background-color: transparent; color: #64748b; font-family: 'Segoe UI', -apple-system, sans-serif; "
+                "font-size: 10px; font-weight: 500; letter-spacing: 0.3px; border: none; border-top: 2px solid transparent; padding: 0 10px; "
+                "min-height: 26px; max-height: 26px; border-radius: 0px; } "
+                "QPushButton:hover { color: #0f172a; border-top: 2px solid #cbd5e1; }"
+            )
+        return act_style, inact_style
+
     def _switch_nav_tab(self, target_tab, active_btn=None, tab_name=""):
         self.window.tabWidget.setCurrentWidget(target_tab)
 
         is_dark = getattr(self, "is_dark_theme", False)
-        act_style = (
-            "QPushButton { background-color: #141414; color: #ffffff; font-family: 'Segoe UI', -apple-system, sans-serif; "
-            "font-size: 10px; font-weight: 700; border: none; border-bottom: 2px solid #ffffff; padding: 0 14px; "
-            "min-height: 27px; max-height: 27px; }"
-            if is_dark else
-            "QPushButton { background-color: #e2e8f0; color: #0f172a; font-family: 'Segoe UI', -apple-system, sans-serif; "
-            "font-size: 10px; font-weight: 700; border: none; border-bottom: 2px solid #0f172a; padding: 0 14px; "
-            "min-height: 27px; max-height: 27px; }"
-        )
-        inact_style = (
-            "QPushButton { background-color: transparent; color: #777777; font-family: 'Segoe UI', -apple-system, sans-serif; "
-            "font-size: 10px; font-weight: 600; border: none; border-bottom: 2px solid transparent; padding: 0 14px; "
-            "min-height: 27px; max-height: 27px; } "
-            "QPushButton:hover { color: #cccccc; background-color: #111111; }"
-            if is_dark else
-            "QPushButton { background-color: transparent; color: #64748b; font-family: 'Segoe UI', -apple-system, sans-serif; "
-            "font-size: 10px; font-weight: 600; border: none; border-bottom: 2px solid transparent; padding: 0 14px; "
-            "min-height: 27px; max-height: 27px; } "
-            "QPushButton:hover { color: #1e293b; background-color: #f1f5f9; }"
-        )
+        act_style, inact_style = self._get_nav_btn_styles(is_dark)
 
         buttons = getattr(self, "nav_buttons", [])
         if not buttons and hasattr(self, "terminal") and hasattr(self.terminal, "header"):
@@ -188,28 +199,8 @@ class NavigationController:
 
     def _update_nav_buttons_style(self, is_dark):
         """MT5 Toolbox bottom tab bar styling: elevated top hairline border on active tab."""
-        act_style = (
-            "QPushButton { background-color: #141414; color: #ffffff; font-family: 'Consolas', 'Segoe UI', monospace; "
-            "font-size: 10px; font-weight: 700; letter-spacing: 0.5px; border: 1px solid #262626; border-top: 2px solid #ffffff; "
-            "border-bottom: none; border-top-left-radius: 2px; border-top-right-radius: 2px; padding: 0 14px; "
-            "min-height: 24px; max-height: 24px; }"
-            if is_dark else
-            "QPushButton { background-color: #ffffff; color: #0f172a; font-family: 'Consolas', 'Segoe UI', monospace; "
-            "font-size: 10px; font-weight: 700; letter-spacing: 0.5px; border: 1px solid #cbd5e1; border-top: 2px solid #0f172a; "
-            "border-bottom: none; border-top-left-radius: 2px; border-top-right-radius: 2px; padding: 0 14px; "
-            "min-height: 24px; max-height: 24px; }"
-        )
-        inact_style = (
-            "QPushButton { background-color: transparent; color: #71717a; font-family: 'Consolas', 'Segoe UI', monospace; "
-            "font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border: 1px solid transparent; border-bottom: none; padding: 0 14px; "
-            "min-height: 24px; max-height: 24px; } "
-            "QPushButton:hover { color: #ffffff; background-color: #111111; border-color: #1c1c1c; }"
-            if is_dark else
-            "QPushButton { background-color: transparent; color: #64748b; font-family: 'Consolas', 'Segoe UI', monospace; "
-            "font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border: 1px solid transparent; border-bottom: none; padding: 0 14px; "
-            "min-height: 24px; max-height: 24px; } "
-            "QPushButton:hover { color: #0f172a; background-color: #f1f5f9; border-color: #e2e8f0; }"
-        )
+        act_style, inact_style = self._get_nav_btn_styles(is_dark)
+
         buttons = getattr(self, "nav_buttons", [])
         if not buttons and hasattr(self, "terminal") and hasattr(self.terminal, "header"):
             buttons = getattr(self.terminal.header, "nav_buttons", [])
@@ -218,16 +209,6 @@ class NavigationController:
             btn.setStyleSheet(act_style if is_active else inact_style)
 
         if hasattr(self, "btnNavSettings") and self.btnNavSettings:
-            btn_opt_style = (
-                "QPushButton { background-color: transparent; color: #94a3b8; font-family: 'Consolas', 'Segoe UI', monospace; "
-                "font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border: 1px solid transparent; border-bottom: none; padding: 0 10px; "
-                "min-height: 24px; max-height: 24px; } "
-                "QPushButton:hover { color: #ffffff; background-color: #111111; border-color: #1c1c1c; }"
-                if is_dark else
-                "QPushButton { background-color: transparent; color: #64748b; font-family: 'Consolas', 'Segoe UI', monospace; "
-                "font-size: 10px; font-weight: 600; letter-spacing: 0.5px; border: 1px solid transparent; border-bottom: none; padding: 0 10px; "
-                "min-height: 24px; max-height: 24px; } "
-                "QPushButton:hover { color: #0f172a; background-color: #f1f5f9; border-color: #e2e8f0; }"
-            )
-            self.btnNavSettings.setStyleSheet(btn_opt_style)
+            self.btnNavSettings.setVisible(False)
+
 

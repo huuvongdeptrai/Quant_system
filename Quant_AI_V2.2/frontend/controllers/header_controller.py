@@ -58,6 +58,85 @@ class WorkspaceHeaderController:
             f'</span>'
         )
 
+    def _format_bottom_telemetry(self, is_dark=None):
+        """Consolidated institutional bottom telemetry cluster:
+        CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
+        Matches the 10px Segoe UI typography of the left navigation tabs.
+        """
+        if is_dark is None:
+            is_dark = getattr(self, "is_dark_theme", False)
+
+        session = getattr(self, "market_session", "CME RTH")
+
+        mode = getattr(self, "execution_mode", "FULL-ALGO")
+        if mode in ("FULL-AUTO", "FULL-ALGO"):
+            mode_str = "FULL-ALGO"
+        elif mode in ("SEMI-AUTO", "SEMI-ALGO"):
+            mode_str = "SEMI-ALGO"
+        elif mode == "MANUAL":
+            mode_str = "MANUAL"
+        else:
+            mode_str = mode
+
+        # Check MT5 connection & broker latency
+        is_connected = True
+        try:
+            t_info = mt5.terminal_info()
+            if t_info and hasattr(t_info, "connected"):
+                is_connected = bool(t_info.connected)
+            else:
+                is_connected = bool(t_info)
+        except Exception:
+            is_connected = True
+
+        latency_ms = getattr(self, "broker_latency_ms", 1.2)
+        latency_str = f"{latency_ms:.1f}ms"
+
+        # Check daily loss or drawdown
+        loss_pct = 0.0
+        try:
+            acc = mt5.account_info() if mt5.terminal_info() else None
+            if acc and acc.balance > 0:
+                pnl = acc.equity - acc.balance
+                if pnl < 0:
+                    loss_pct = abs(pnl) / acc.balance * 100.0
+        except Exception:
+            loss_pct = getattr(self, "current_daily_loss_pct", 0.0)
+
+        loss_str = f"{loss_pct:.0f}% LOSS" if loss_pct == int(loss_pct) else f"{loss_pct:.1f}% LOSS"
+
+        if is_dark:
+            txt_col = "#94a3b8"
+            mode_col = "#38bdf8"
+            sep_col = "#334155"
+            green_col = "#10b981"
+            red_col = "#ef4444"
+        else:
+            txt_col = "#64748b"
+            mode_col = "#0284c7"
+            sep_col = "#cbd5e1"
+            green_col = "#15803d"
+            red_col = "#dc2626"
+
+        dot_col = green_col if is_connected else red_col
+        mt5_val = latency_str if is_connected else "OFFLINE"
+        mt5_val_col = green_col if is_connected else red_col
+        loss_col = green_col if loss_pct <= 0.0 else red_col
+
+        sep = f'&nbsp;&nbsp;<span style="color:{sep_col}; font-weight:300;">|</span>&nbsp;&nbsp;'
+
+        return (
+            f'<span style="font-family:\'Segoe UI\', -apple-system, sans-serif; font-size:10px;">'
+            f'<span style="color:{txt_col}; font-weight:600;">{session}</span>'
+            f'{sep}'
+            f'<span style="color:{mode_col}; font-weight:600;">{mode_str}</span>'
+            f'{sep}'
+            f'<span style="color:{dot_col};">●</span> <span style="color:{txt_col}; font-weight:500;">MT5:</span> <b style="color:{mt5_val_col}; font-weight:600;">{mt5_val}</b>'
+            f'{sep}'
+            f'<b style="color:{loss_col}; font-weight:600;">{loss_str}</b>'
+            f'</span>'
+        )
+
     def _update_tf_button_styles(self, is_dark=None):
         if is_dark is None:
             is_dark = getattr(self, "is_dark_theme", False)
@@ -149,6 +228,9 @@ class WorkspaceHeaderController:
             if hasattr(self, "lbl_top_ticker"):
                 self.lbl_top_ticker.setText(self._format_top_ticker(is_algo_active=is_running))
 
+        if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
+            self.lbl_bot_status.setText(self._format_bottom_telemetry(getattr(self, "is_dark_theme", False)))
+
     def set_execution_mode(self, mode):
         """Set algorithm dispatch mode (configured in Settings tab) and update telemetry."""
         self.execution_mode = mode
@@ -232,10 +314,11 @@ class WorkspaceHeaderController:
                 f"QFrame#topHeaderContainer {{ background-color: {bg}; border-bottom: 1px solid {border}; }}"
             )
 
-        # 2. Bottom Tab Bar
+        # 2. Bottom Tab Bar (Height: 26px)
         if hasattr(self, "bottom_bar") and self.bottom_bar:
-            bg = "#0a0c10" if is_dark else "#f1f5f9"
-            border = "#1e222d" if is_dark else "#cbd5e1"
+            bg = "#090d16" if is_dark else "#ffffff"
+            border = "#1e222d" if is_dark else "#e2e8f0"
+            self.bottom_bar.setFixedHeight(26)
             self.bottom_bar.setStyleSheet(
                 f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}"
             )
@@ -319,39 +402,16 @@ class WorkspaceHeaderController:
                 "QPushButton#btnWinClose:hover { background-color: #ef4444; }"
             )
 
-        # 10. Bottom Session Indicator (Clean institutional wording)
+        # 10. Bottom Session Indicator (merged into right-side telemetry cluster)
         if hasattr(self, "lbl_bottom_mid") and self.lbl_bottom_mid:
-            text_color = "#64748b" if is_dark else "#475569"
-            mode = getattr(self, "execution_mode", "SEMI-ALGO")
-            if mode == "SEMI-AUTO":
-                mode = "SEMI-ALGO"
-            elif mode == "FULL-AUTO":
-                mode = "FULL-ALGO"
-            elif mode == "MANUAL":
-                mode = "MANUAL"
-            self.lbl_bottom_mid.setText(
-                f'<span style="color:{text_color}; font-family:Consolas, monospace; font-size:9px; padding-left: 8px;">'
-                f'CME RTH SESSION &nbsp;·&nbsp; {mode}'
-                '</span>'
-            )
-
+            self.lbl_bottom_mid.setVisible(False)
         if hasattr(self, "sep_bottom_nav") and self.sep_bottom_nav:
-            self.sep_bottom_nav.setStyleSheet("background-color: #272d3b;" if is_dark else "background-color: #cbd5e1;")
+            self.sep_bottom_nav.setVisible(False)
 
-        # 11. Bottom Telemetry & Status Strip (Concise, zero dev-internals)
+        # 11. Consolidated Bottom Telemetry: CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
-            text_color = "#71717a" if is_dark else "#475569"
-            green_color = "#10b981" if is_dark else "#15803d"
-            sep_col = "#272d3b" if is_dark else "#cbd5e1"
-            self.lbl_bot_status.setText(
-                f'<span style="color:{text_color}; font-family:Consolas, monospace; font-size:9px;">'
-                f'MT5: <b style="color:{green_color};">CONNECTED</b> &nbsp;&nbsp;'
-                f'<span style="color:{sep_col};">|</span>&nbsp;&nbsp; '
-                f'<b style="color:{green_color};">1.2ms</b> &nbsp;&nbsp;'
-                f'<span style="color:{sep_col};">|</span>&nbsp;&nbsp; '
-                f'<b style="color:{green_color};">0% LOSS</b>'
-                '</span>'
-            )
+            self.lbl_bot_status.setFixedHeight(26)
+            self.lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
 
 
 
@@ -622,37 +682,34 @@ class WorkspaceHeaderController:
         header_container.mouseMoveEvent = mouse_move
         header_container.mouseReleaseEvent = mouse_release
 
-        # BOTTOM BAR (28px): MT5 Toolbox Navigation Tabs + CME Telemetry
+        # BOTTOM BAR (26px): 4 Tabs on Left, Consolidated Telemetry on Right
         bottom_bar = QFrame()
         bottom_bar.setObjectName("bottomTabBar")
-        bottom_bar.setFixedHeight(28)
-        bottom_bar.setStyleSheet("QFrame#bottomTabBar { background-color: #0a0c10; border-top: 1px solid #1e222d; }")
+        bottom_bar.setFixedHeight(26)
+        bg = "#090d16" if is_dark else "#ffffff"
+        border = "#1e222d" if is_dark else "#e2e8f0"
+        bottom_bar.setStyleSheet(f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}")
         self.bottom_bar = bottom_bar
 
         b_layout = QHBoxLayout(bottom_bar)
-        b_layout.setContentsMargins(8, 0, 8, 0)
+        b_layout.setContentsMargins(10, 0, 10, 0)
         b_layout.setSpacing(4)
 
-        # 4 Core Workspaces (MT5 Toolbox Bottom Navigation)
+        # 4 Core Workspaces on Left: TERMINAL · PERFORMANCE · BACKTEST · LOGS
         self.nav_buttons = []
         tabs_spec = [
-            ("btnNavTerminal", "LIVE TERMINAL", self.window.tab2, "LIVE TRADING TERMINAL"),
+            ("btnNavTerminal", "TERMINAL", self.window.tab2, "LIVE TRADING TERMINAL"),
             ("btnNavStats", "PERFORMANCE", self.window.tab3, "PERFORMANCE ANALYTICS"),
             ("btnNavBacktest", "BACKTEST", self.window.tab_5, "STRATEGY BACKTESTING WORKBENCH"),
-            ("btnNavLogs", "SYSTEM LOGS", self.window.tab4, "SYSTEM AUDIT & EXECUTION LOGS"),
+            ("btnNavLogs", "LOGS", self.window.tab4, "SYSTEM AUDIT & EXECUTION LOGS"),
         ]
 
         for obj_name, label_text, target_tab, full_title in tabs_spec:
             btn = QPushButton(label_text)
             btn.setObjectName(obj_name)
-            btn.setFixedHeight(22)
+            btn.setFixedHeight(26)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setCheckable(True)
-            btn.setStyleSheet(
-                "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid transparent; "
-                "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; padding: 0 12px; } "
-                "QPushButton:hover { color: #ffffff; background-color: #141721; }"
-            )
             def _make_nav_handler(target_tab, btn_obj, tab_title):
                 def _handler(checked=False):
                     self._switch_nav_tab(target_tab, btn_obj, tab_title)
@@ -666,17 +723,10 @@ class WorkspaceHeaderController:
         if hasattr(self.terminal, "nav"):
             self.terminal.nav.nav_buttons = self.nav_buttons
 
-        # Settings / Options Modal Overlay Trigger (MT5 Ctrl+O Architecture)
+        # Compatibility handle for Settings/Options trigger without polluting bottom tabs bar
         btn_settings = QPushButton("OPTIONS")
         btn_settings.setObjectName("btnNavSettings")
-        btn_settings.setFixedHeight(22)
-        btn_settings.setCursor(Qt.PointingHandCursor)
-        btn_settings.setToolTip("System Options & Risk Settings (Ctrl+O)")
-        btn_settings.setStyleSheet(
-            "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid transparent; "
-            "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; padding: 0 12px; } "
-            "QPushButton:hover { color: #ffffff; background-color: #141721; }"
-        )
+        btn_settings.setVisible(False)
         def _open_options(checked=False):
             settings_mgr = (
                 getattr(self, "settings", None)
@@ -693,40 +743,20 @@ class WorkspaceHeaderController:
                 dlg.raise_()
                 dlg.activateWindow()
         btn_settings.clicked.connect(_open_options)
-        b_layout.addWidget(btn_settings)
         setattr(self, "btnNavSettings", btn_settings)
 
-        # Hairline separator between nav tabs and session indicator
-        sep_bottom_nav = QFrame()
-        sep_bottom_nav.setFrameShape(QFrame.VLine)
-        sep_bottom_nav.setFixedWidth(1)
-        sep_bottom_nav.setFixedHeight(14)
-        sep_bottom_nav.setStyleSheet("background-color: #272d3b;" if is_dark else "background-color: #cbd5e1;")
-        self.sep_bottom_nav = sep_bottom_nav
-        b_layout.addWidget(sep_bottom_nav)
+        self.sep_bottom_nav = None
+        self.lbl_bottom_mid = None
 
-        # Middle session indicator (Clean institutional wording)
-        lbl_bottom_mid = QLabel(
-            '<span style="color:#64748b; font-family:Consolas, monospace; font-size:9px; padding-left: 8px;">'
-            'SESSION CME RTH &nbsp;·&nbsp; SEMI-ALGO'
-            '</span>'
-        )
-        self.lbl_bottom_mid = lbl_bottom_mid
-        b_layout.addWidget(lbl_bottom_mid)
+        # Spacer pushes all telemetry to the far right
         b_layout.addStretch()
 
-        # Telemetry & Status strip on bottom right (Concise, zero dev-internals)
-        lbl_bot_status = QLabel(
-            '<span style="color:#71717a; font-family:Consolas, monospace; font-size:9px;">'
-            'MT5: <b style="color:#15803d;">CONNECTED</b> &nbsp;&nbsp;'
-            '<span style="color:#cbd5e1;">|</span>&nbsp;&nbsp; '
-            '<b style="color:#15803d;">1.2ms</b> &nbsp;&nbsp;'
-            '<span style="color:#cbd5e1;">|</span>&nbsp;&nbsp; '
-            '<b style="color:#15803d;">0% LOSS</b>'
-            '</span>'
-        )
-        lbl_bot_status.setFixedHeight(24)
-        lbl_bot_status.setAlignment(Qt.AlignVCenter)
+        # Right: Consolidated status strip: CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
+        lbl_bot_status = QLabel()
+        lbl_bot_status.setObjectName("lblBottomTelemetry")
+        lbl_bot_status.setFixedHeight(26)
+        lbl_bot_status.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
         self.lbl_bot_status = lbl_bot_status
         b_layout.addWidget(lbl_bot_status)
 

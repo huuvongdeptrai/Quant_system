@@ -198,12 +198,15 @@ QPushButton#btnNavSettings,
 QPushButton#btnNavLogs {
     background-color: transparent;
     border: none;
-    border-radius: 2px;
-    min-height: 22px;
-    max-height: 24px;
+    border-top: 2px solid transparent;
+    border-radius: 0px;
+    min-height: 26px;
+    max-height: 26px;
     color: #64748b;
+    font-family: 'Segoe UI', -apple-system, sans-serif;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: 0.3px;
     text-align: center;
     padding: 0 10px;
 }
@@ -213,8 +216,9 @@ QPushButton#btnNavStats:hover,
 QPushButton#btnNavBacktest:hover,
 QPushButton#btnNavSettings:hover,
 QPushButton#btnNavLogs:hover {
-    background-color: #f1f5f9;
+    background-color: transparent;
     color: #0f172a;
+    border-top: 2px solid #cbd5e1;
 }
 
 QPushButton#btnNavTerminal:checked,
@@ -222,10 +226,15 @@ QPushButton#btnNavStats:checked,
 QPushButton#btnNavBacktest:checked,
 QPushButton#btnNavSettings:checked,
 QPushButton#btnNavLogs:checked {
-    background-color: #e2e8f0;
+    background-color: transparent;
     color: #0f172a;
-    border-left: 3px solid #0f172a;
-    border-radius: 2px;
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: none;
+    border-top: 2px solid #0284c7;
+    border-radius: 0px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1287,10 +1296,10 @@ QFrame#topHeaderContainer {
 }
 
 QFrame#bottomTabBar, QFrame#bottomTabBarContainer {
-    background-color: #f1f5f9;
-    border-top: 1px solid #cbd5e1;
-    min-height: 28px;
-    max-height: 28px;
+    background-color: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    min-height: 26px;
+    max-height: 26px;
 }
 
 /* Master-Detail Settings Architecture */

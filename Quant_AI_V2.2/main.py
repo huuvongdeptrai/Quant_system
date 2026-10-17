@@ -183,9 +183,9 @@ class QuantTerminal(QObject):
         # Initialize directly in institutional Light Theme per user preference
         self._on_theme_changed(False)
 
-        # Ensure default active workspace at launch is always LIVE TERMINAL (tab2)
+        # Ensure default active workspace at launch is always TERMINAL (tab2)
         if hasattr(self, "btnNavTerminal"):
-            self._switch_nav_tab(self.window.tab2, self.btnNavTerminal, "LIVE TERMINAL")
+            self._switch_nav_tab(self.window.tab2, self.btnNavTerminal, "TERMINAL")
         elif hasattr(self.window, "tab2"):
             self.window.tabWidget.setCurrentWidget(self.window.tab2)
 
