@@ -657,6 +657,19 @@ class QuantTerminal(QObject):
         self._toggle_bot()
 
     def _toggle_bot(self):
+        try:
+            self._do_toggle_bot()
+        except Exception as e:
+            logger.error(f"[QuantTerminal] Exception in _toggle_bot: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            event_bus.log_event.emit(
+                "", "ERROR", f"Bot Toggle Error: {e}", "#F23645"
+            )
+            if hasattr(self, "header") and hasattr(self.header, "btn_algo_toggle") and self.header.btn_algo_toggle:
+                self.header.btn_algo_toggle.set_running(False)
+
+    def _do_toggle_bot(self):
         if mt5.terminal_info() is None:
             if hasattr(self, "btn_bot_power"):
                 new_state = self.btn_bot_power.is_running()

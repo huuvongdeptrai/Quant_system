@@ -240,7 +240,10 @@ class BotOrchestrator(QtCore.QObject):
             # 1. Circuit Breaker Protection
             self._manage_circuit_breaker()
             if self.circuit_guard.circuit_breaker_active:
-                time.sleep(5)
+                for _ in range(50):
+                    if not self.is_running:
+                        break
+                    time.sleep(0.1)
                 continue
 
             # 2. Position Guard (Trailing Stop & BE)
