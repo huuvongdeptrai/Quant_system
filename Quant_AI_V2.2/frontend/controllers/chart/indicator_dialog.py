@@ -32,116 +32,126 @@ from PySide6.QtWidgets import (
 from backend.infrastructure.brokers.mt5_safe import mt5
 
 INDICATOR_CATALOG = {
-    "Trend & Momentum": [
+    "Trend (3)": [
         {"id": "ema", "available": True},
         {"id": "ma200", "available": True},
-        {"id": "rsi", "available": True},
-        {"id": "macd", "available": True},
-    ],
-    "Price Structure & Levels": [
         {"id": "donchian", "available": True},
+    ],
+    "Price Structure (2)": [
         {"id": "pivot", "available": True},
         {"id": "fvg", "available": True},
     ],
-    "Volatility & Dispersion": [
+    "Oscillators (3)": [
+        {"id": "rsi", "available": True},
+        {"id": "macd", "available": True},
         {"id": "bollinger", "available": True},
-        {"id": "vwap", "available": True},
     ],
-    "Order Flow & Microstructure": [
+    "Order Flow & Volume (2)": [
+        {"id": "vwap", "available": True},
         {"id": "cvd", "available": True},
     ],
 }
 
 INDICATOR_METADATA = {
     "ema": {
-        "title": "Dual Exponential Moving Average (EMA 10 / 50)",
+        "title": "EMA Cross (10 / 50)",
         "short_name": "EMA (10/50)",
-        "category": "Trend & Momentum",
+        "category": "Trend",
+        "short_desc": "Fast & medium trend filter",
         "description": "Fast (10-bar) and medium (50-bar) exponential moving averages to identify directional momentum.",
         "citation": "Brock, Lakonishok, & LeBaron (1992), Journal of Finance, 47(5), 1731-1764",
         "formula": "EMA_t = alpha * P_t + (1 - alpha) * EMA_{t-1}, alpha = 2 / (N + 1)",
-        "badge": "TREND FILTER",
+        "badge": "Trend",
     },
     "ma200": {
-        "title": "200-Bar Regime Baseline (SMA 200)",
+        "title": "Moving Average (SMA 200)",
         "short_name": "SMA 200",
-        "category": "Trend & Momentum",
+        "category": "Trend",
+        "short_desc": "Long-term baseline",
         "description": "Macro-institutional trend boundary distinguishing structural bull from bear regimes.",
         "citation": "Siegel (2002); Neely, Rapach, Tu, & Zhou (2014), Management Science, 60(7)",
         "formula": "SMA_200 = (1 / 200) * sum_{i=0}^{199} P_{t-i}",
-        "badge": "MACRO REGIME",
+        "badge": "Trend",
+    },
+    "donchian": {
+        "title": "Donchian Channels (100)",
+        "short_name": "Donchian 100",
+        "category": "Trend",
+        "short_desc": "100-bar breakout envelopes",
+        "description": "Rolling extremum envelope tracking 100-period highest high resistance and lowest low support.",
+        "citation": "Donchian (1960); Park & Irwin (2007), Journal of Economic Surveys, 21(4)",
+        "formula": "Upper = max(High_{t-100..t}), Lower = min(Low_{t-100..t})",
+        "badge": "Trend",
+    },
+    "pivot": {
+        "title": "Floor Pivots (P, R1/S1, R2/S2)",
+        "short_name": "Floor Pivots",
+        "category": "Price Structure",
+        "short_desc": "Prior session support & resistance",
+        "description": "Intraday liquidity clustering levels derived from prior daily session (D1) high, low, and close.",
+        "citation": "Harris (2003), Oxford University Press; Floor Trading Liquidity Axioms",
+        "formula": "P = (H + L + C) / 3; R1 = 2P - L; S1 = 2P - H; R2 = P + (H - L); S2 = P - (H - L)",
+        "badge": "Price Structure",
+    },
+    "fvg": {
+        "title": "Fair Value Gaps (FVG)",
+        "short_name": "FVG Imbalance",
+        "category": "Price Structure",
+        "short_desc": "Institutional liquidity voids",
+        "description": "Three-candle microstructure price jumps highlighting unfilled institutional liquidity pools.",
+        "citation": "Harris (2003), Oxford Univ. Press; Biais, Hillion, & Spatt (1995), Journal of Finance",
+        "formula": "Bullish: Low_t > High_{t-2}; Bearish: High_t < Low_{t-2}",
+        "badge": "Price Structure",
     },
     "rsi": {
         "title": "Relative Strength Index (RSI 14)",
         "short_name": "RSI (14)",
-        "category": "Trend & Momentum",
+        "category": "Oscillators",
+        "short_desc": "Overbought / oversold",
         "description": "Internal price momentum velocity measuring overbought (>=70) and oversold (<=30) exhaustion.",
         "citation": "Wilder (1978); Lo, Mamaysky, & Wang (2000), Journal of Finance, 55(4)",
         "formula": "RSI = 100 - (100 / (1 + RS)), RS = EMA(Gain, 14) / EMA(Loss, 14)",
-        "badge": "OSCILLATOR",
+        "badge": "Oscillator",
     },
     "macd": {
-        "title": "MACD Momentum Oscillator (12, 26, 9)",
+        "title": "MACD (12, 26, 9)",
         "short_name": "MACD (12,26,9)",
-        "category": "Trend & Momentum",
+        "category": "Oscillators",
+        "short_desc": "Momentum convergence",
         "description": "Moving average convergence-divergence capturing momentum acceleration and signal crossovers.",
         "citation": "Appel (1979); Neely, Rapach, Tu, & Zhou (2014), Management Science",
         "formula": "MACD = EMA(12) - EMA(26); Signal = EMA(MACD, 9); Hist = MACD - Signal",
-        "badge": "MOMENTUM",
-    },
-    "donchian": {
-        "title": "Donchian Breakout Channels (100-Bar Dynamic S/R)",
-        "short_name": "Donchian 100",
-        "category": "Price Structure & Levels",
-        "description": "Rolling extremum envelope tracking 100-period highest high resistance and lowest low support.",
-        "citation": "Donchian (1960); Park & Irwin (2007), Journal of Economic Surveys, 21(4)",
-        "formula": "Upper = max(High_{t-100..t}), Lower = min(Low_{t-100..t})",
-        "badge": "SUPPORT / RESIST",
-    },
-    "pivot": {
-        "title": "Classic Floor Pivots (P, R1/S1, R2/S2)",
-        "short_name": "Floor Pivots",
-        "category": "Price Structure & Levels",
-        "description": "Intraday liquidity clustering levels derived from prior daily session (D1) high, low, and close.",
-        "citation": "Harris (2003), Oxford University Press; Floor Trading Liquidity Axioms",
-        "formula": "P = (H + L + C) / 3; R1 = 2P - L; S1 = 2P - H; R2 = P + (H - L); S2 = P - (H - L)",
-        "badge": "SESSION PIVOTS",
-    },
-    "fvg": {
-        "title": "Fair Value Gaps / Imbalance Voids (FVG)",
-        "short_name": "FVG Imbalance",
-        "category": "Price Structure & Levels",
-        "description": "Three-candle microstructure price jumps highlighting unfilled institutional liquidity pools.",
-        "citation": "Harris (2003), Oxford Univ. Press; Biais, Hillion, & Spatt (1995), Journal of Finance",
-        "formula": "Bullish: Low_t > High_{t-2}; Bearish: High_t < Low_{t-2}",
-        "badge": "SMART MONEY",
+        "badge": "Oscillator",
     },
     "bollinger": {
-        "title": "Bollinger Volatility Bands (20, 2.0sigma)",
+        "title": "Bollinger Bands (20, 2σ)",
         "short_name": "Bollinger (20, 2sigma)",
-        "category": "Volatility & Dispersion",
+        "category": "Oscillators",
+        "short_desc": "Volatility dispersion envelopes",
         "description": "Adaptive volatility envelopes plotted at +/- 2.0 sample standard deviations around a 20-period SMA.",
         "citation": "Bollinger (1992); Lo, Mamaysky, & Wang (2000), Journal of Finance, 55(4)",
         "formula": "Upper = SMA(20) + 2.0 * sigma; Lower = SMA(20) - 2.0 * sigma",
-        "badge": "VOLATILITY",
+        "badge": "Oscillator",
     },
     "vwap": {
-        "title": "Session VWAP & Dispersion Bands (+/-1.5sigma)",
+        "title": "Session VWAP & Bands",
         "short_name": "Session VWAP",
-        "category": "Volatility & Dispersion",
+        "category": "Order Flow & Volume",
+        "short_desc": "Volume-weighted average price",
         "description": "Cumulative volume-weighted average price and volume standard deviation dispersion envelopes.",
         "citation": "Berkowitz, Logue, & Noser (1988), Journal of Finance; Madhavan (2002)",
         "formula": "VWAP = sum(P_typ * Vol) / sum(Vol); Bands = VWAP +/- 1.5 * sigma_vwap",
-        "badge": "FAIR VALUE",
+        "badge": "Order Flow",
     },
     "cvd": {
-        "title": "Cumulative Volume Delta Proxy (CVD)",
+        "title": "Cumulative Volume Delta (CVD)",
         "short_name": "Order Flow CVD",
-        "category": "Order Flow & Microstructure",
+        "category": "Order Flow & Volume",
+        "short_desc": "Aggressive buy / sell order delta",
         "description": "Tick-level signed order flow accumulation measuring aggressive buyer vs seller pressure.",
         "citation": "Kyle (1985), Econometrica, 53(6); Cartea & Jaimungal (2014), Risk Metrics",
         "formula": "Delta_t = Vol_t * ((Close_t - Open_t) / (High_t - Low_t)); CVD = cumsum(Delta)",
-        "badge": "ORDER FLOW",
+        "badge": "Order Flow",
     },
 }
 
@@ -183,41 +193,26 @@ class IndicatorDialog(QDialog):
         self._apply_dialog_theme()
 
     def _init_ui(self):
+        self.resize(720, 520)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 1. Custom Institutional Title Bar (Eliminates OS Qt icon)
+        # 1. Title Bar: Flat, clean 'STUDIES & INDICATORS', zero AI noise, undistorted close button
         self.header_bar = QWidget()
-        self.header_bar.setFixedHeight(44)
+        self.header_bar.setFixedHeight(40)
         header_layout = QHBoxLayout(self.header_bar)
-        header_layout.setContentsMargins(16, 0, 12, 0)
-        header_layout.setSpacing(10)
+        header_layout.setContentsMargins(16, 0, 10, 0)
+        header_layout.setSpacing(8)
 
-        lbl_icon = QLabel("[fx]")
-        lbl_icon.setObjectName("dlgHeaderIcon")
-        lbl_icon.setFont(QFont("Consolas", 11, QFont.Bold))
-        header_layout.addWidget(lbl_icon)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(1)
-        title_col.setAlignment(Qt.AlignVCenter)
-
-        self.lbl_title = QLabel("STUDIES & QUANTITATIVE INDICATORS")
+        self.lbl_title = QLabel("STUDIES & INDICATORS")
         self.lbl_title.setObjectName("dlgTitle")
         self.lbl_title.setFont(QFont("Segoe UI", 10, QFont.Bold))
-
-        self.lbl_subtitle = QLabel("ACADEMIC & INSTITUTIONAL SUITE - PEER-REVIEWED SPECIFICATIONS")
-        self.lbl_subtitle.setObjectName("dlgSubtitle")
-        self.lbl_subtitle.setFont(QFont("Segoe UI", 7, QFont.DemiBold))
-
-        title_col.addWidget(self.lbl_title)
-        title_col.addWidget(self.lbl_subtitle)
-        header_layout.addLayout(title_col)
+        header_layout.addWidget(self.lbl_title)
 
         header_layout.addStretch()
 
-        self.btn_close = QPushButton("X")
+        self.btn_close = QPushButton("✕")
         self.btn_close.setObjectName("dlgBtnClose")
         self.btn_close.setFixedSize(28, 28)
         self.btn_close.setCursor(Qt.PointingHandCursor)
@@ -226,36 +221,36 @@ class IndicatorDialog(QDialog):
 
         main_layout.addWidget(self.header_bar)
 
-        # 2. Search Toolbar
+        # 2. Search Toolbar (Simple placeholder 'Search indicators...')
         search_wrap = QWidget()
         search_layout = QHBoxLayout(search_wrap)
-        search_layout.setContentsMargins(16, 10, 16, 10)
+        search_layout.setContentsMargins(16, 8, 16, 8)
         search_layout.setSpacing(10)
 
         self.search_bar = QLineEdit()
         self.search_bar.setObjectName("dlgSearchBar")
-        self.search_bar.setFixedHeight(32)
-        self.search_bar.setPlaceholderText("Search studies by name, citation (e.g. Brock, Siegel, Kyle), or formula...")
+        self.search_bar.setFixedHeight(30)
+        self.search_bar.setPlaceholderText("Search indicators...")
         self.search_bar.textChanged.connect(self._on_search)
         search_layout.addWidget(self.search_bar)
 
         main_layout.addWidget(search_wrap)
 
-        # Thin divider
+        # Thin separator line
         div = QFrame()
         div.setFixedHeight(1)
         div.setObjectName("dlgDivider")
         main_layout.addWidget(div)
 
-        # 3. Content Split (Sidebar + Cards)
+        # 3. Two-Column Workspace (Left: Categories with counts | Right: Flat 38px rows)
         content_row = QHBoxLayout()
         content_row.setContentsMargins(0, 0, 0, 0)
         content_row.setSpacing(0)
 
-        # Left Sidebar (Categories)
+        # Left Sidebar (TradingView-style Category Navigation with Counts)
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("dlgSidebar")
-        self.sidebar.setFixedWidth(190)
+        self.sidebar.setFixedWidth(180)
         for cat in self._all_categories:
             item = QListWidgetItem(cat)
             self.sidebar.addItem(item)
@@ -268,7 +263,7 @@ class IndicatorDialog(QDialog):
         vsep.setObjectName("dlgVDivider")
         content_row.addWidget(vsep)
 
-        # Right Panel (Scroll Area with Cards)
+        # Right Panel: Flat 38px rows with 1px dividers
         self.scroll_area = QScrollArea()
         self.scroll_area.setObjectName("dlgScrollArea")
         self.scroll_area.setWidgetResizable(True)
@@ -277,8 +272,8 @@ class IndicatorDialog(QDialog):
         self.card_container = QWidget()
         self.card_container.setObjectName("dlgCardContainer")
         self.card_layout = QVBoxLayout(self.card_container)
-        self.card_layout.setContentsMargins(14, 12, 14, 12)
-        self.card_layout.setSpacing(10)
+        self.card_layout.setContentsMargins(0, 0, 0, 0)
+        self.card_layout.setSpacing(0)
         self.card_layout.setAlignment(Qt.AlignTop)
 
         self.scroll_area.setWidget(self.card_container)
@@ -286,9 +281,9 @@ class IndicatorDialog(QDialog):
 
         main_layout.addLayout(content_row)
 
-        # 4. Bottom Action Bar
+        # 4. Bottom Action Bar: Reset All on Left, Apply on Right (dark slate #0f172a)
         bottom_bar = QWidget()
-        bottom_bar.setFixedHeight(48)
+        bottom_bar.setFixedHeight(44)
         bottom_bar.setObjectName("dlgBottomBar")
         bottom_layout = QHBoxLayout(bottom_bar)
         bottom_layout.setContentsMargins(16, 0, 16, 0)
@@ -296,7 +291,7 @@ class IndicatorDialog(QDialog):
 
         self.btn_reset = QPushButton("Reset All")
         self.btn_reset.setObjectName("dlgBtnReset")
-        self.btn_reset.setFixedHeight(28)
+        self.btn_reset.setFixedHeight(26)
         self.btn_reset.setCursor(Qt.PointingHandCursor)
         self.btn_reset.clicked.connect(self._reset_all)
         bottom_layout.addWidget(self.btn_reset)
@@ -308,10 +303,10 @@ class IndicatorDialog(QDialog):
 
         bottom_layout.addStretch()
 
-        self.btn_apply = QPushButton("Apply & Close")
+        self.btn_apply = QPushButton("Apply")
         self.btn_apply.setObjectName("dlgBtnApply")
         self.btn_apply.setFixedHeight(28)
-        self.btn_apply.setFixedWidth(110)
+        self.btn_apply.setFixedWidth(84)
         self.btn_apply.setCursor(Qt.PointingHandCursor)
         self.btn_apply.clicked.connect(self.accept)
         bottom_layout.addWidget(self.btn_apply)
@@ -322,7 +317,7 @@ class IndicatorDialog(QDialog):
         self._update_active_count()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and event.pos().y() <= 44:
+        if event.button() == Qt.LeftButton and event.pos().y() <= 40:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
         else:
@@ -372,14 +367,14 @@ class IndicatorDialog(QDialog):
             if not meta:
                 continue
 
-            # Query filter: matches title, citation, formula, category, or short_name
+            # Query filter matches name, category, formula or citation in the background
             if query:
-                search_corpus = f"{meta['title']} {meta['citation']} {meta['formula']} {meta['category']} {meta['short_name']} {meta['description']}".lower()
+                search_corpus = f"{meta['title']} {meta.get('citation', '')} {meta.get('formula', '')} {meta['category']} {meta['short_name']} {meta.get('short_desc', '')} {meta['description']}".lower()
                 if query not in search_corpus:
                     continue
 
-            card = self._create_indicator_card(ind_id, meta)
-            self.card_layout.addWidget(card)
+            row = self._create_indicator_card(ind_id, meta)
+            self.card_layout.addWidget(row)
             visible_count += 1
 
         if visible_count == 0:
@@ -390,59 +385,45 @@ class IndicatorDialog(QDialog):
             self.card_layout.addWidget(empty_lbl)
 
     def _create_indicator_card(self, ind_id, meta):
-        card = QFrame()
-        card.setObjectName("dlgCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(12, 10, 12, 10)
-        card_layout.setSpacing(6)
+        """Creates a single ultra-clean flat row (height 38px, thin divider 1px #f1f5f9)."""
+        row = QFrame()
+        row.setObjectName("dlgRow")
+        row.setFixedHeight(38)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(14, 0, 16, 0)
+        row_layout.setSpacing(12)
+        row_layout.setAlignment(Qt.AlignVCenter)
 
-        # Top line: Checkbox + Short Badge
-        top_row = QHBoxLayout()
-        top_row.setContentsMargins(0, 0, 0, 0)
-        top_row.setSpacing(8)
-
-        cb = QCheckBox(meta["title"])
-        cb.setObjectName("dlgCardCheckbox")
-        cb.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        # Left: Checkbox + Indicator Name
+        cb = QCheckBox(meta["title"].replace("&", "&&"))
+        cb.setObjectName("dlgRowCheckbox")
+        cb.setFont(QFont("Segoe UI", 9, QFont.DemiBold))
         cb.setCursor(Qt.PointingHandCursor)
         is_active = self.active_indicators.get(ind_id, False)
         cb.setChecked(is_active)
         cb.toggled.connect(lambda checked, i_id=ind_id: self._toggle(i_id, checked))
         self._checkboxes[ind_id] = cb
-        top_row.addWidget(cb)
+        row_layout.addWidget(cb)
 
-        top_row.addStretch()
+        row_layout.addStretch()
 
-        badge = QLabel(meta.get("badge", "STUDY"))
-        badge.setObjectName("dlgCardBadge")
-        badge.setFont(QFont("Segoe UI", 7, QFont.Bold))
-        badge.setFixedHeight(18)
-        top_row.addWidget(badge)
-
-        card_layout.addLayout(top_row)
-
-        # Middle line: Description
-        lbl_desc = QLabel(meta["description"])
-        lbl_desc.setObjectName("dlgCardDesc")
-        lbl_desc.setWordWrap(True)
+        # Middle: Concise 3-5 word description in subtle muted gray
+        desc_text = meta.get("short_desc", meta["description"])
+        lbl_desc = QLabel(desc_text)
+        lbl_desc.setObjectName("dlgRowDesc")
         lbl_desc.setFont(QFont("Segoe UI", 8))
-        card_layout.addWidget(lbl_desc)
+        row_layout.addWidget(lbl_desc)
 
-        # Bottom line: Citation & Formula
-        meta_row = QHBoxLayout()
-        meta_row.setContentsMargins(0, 2, 0, 0)
-        meta_row.setSpacing(6)
+        # Right: Category tag in muted gray text
+        badge_text = meta.get("badge", meta["category"])
+        lbl_cat = QLabel(badge_text)
+        lbl_cat.setObjectName("dlgRowCat")
+        lbl_cat.setFont(QFont("Segoe UI", 8))
+        lbl_cat.setFixedWidth(85)
+        lbl_cat.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_layout.addWidget(lbl_cat)
 
-        lbl_cit = QLabel(f"REF: {meta['citation']}")
-        lbl_cit.setObjectName("dlgCardCitation")
-        lbl_cit.setFont(QFont("Consolas", 7, QFont.DemiBold))
-        meta_row.addWidget(lbl_cit)
-
-        meta_row.addStretch()
-
-        card_layout.addLayout(meta_row)
-
-        return card
+        return row
 
     def _toggle(self, ind_id, checked):
         self.active_indicators[ind_id] = checked
@@ -472,25 +453,19 @@ class IndicatorDialog(QDialog):
                     border: 1px solid #1E293B;
                     border-radius: 6px;
                 }
-                QWidget#dlgHeaderIcon {
-                    color: #38BDF8;
-                }
                 QLabel#dlgTitle {
                     color: #F8FAFC;
                     letter-spacing: 0.5px;
-                }
-                QLabel#dlgSubtitle {
-                    color: #64748B;
-                    letter-spacing: 0.8px;
                 }
                 QPushButton#dlgBtnClose {
                     background: transparent;
                     color: #94A3B8;
                     border: none;
                     border-radius: 4px;
-                    font-family: 'Segoe UI';
-                    font-size: 11px;
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    font-size: 13px;
                     font-weight: bold;
+                    padding: 0;
                 }
                 QPushButton#dlgBtnClose:hover {
                     background-color: #7F1D1D;
@@ -521,7 +496,7 @@ class IndicatorDialog(QDialog):
                     padding: 4px;
                 }
                 QListWidget#dlgSidebar::item {
-                    padding: 8px 12px;
+                    padding: 7px 12px;
                     border-radius: 4px;
                     margin: 1px 0;
                 }
@@ -541,46 +516,34 @@ class IndicatorDialog(QDialog):
                 QWidget#dlgCardContainer {
                     background-color: #0C0E14;
                 }
-                QFrame#dlgCard {
+                QFrame#dlgRow {
+                    background-color: transparent;
+                    border: none;
+                    border-bottom: 1px solid #1E293B;
+                }
+                QFrame#dlgRow:hover {
                     background-color: #111622;
-                    border: 1px solid #1E293B;
-                    border-radius: 5px;
                 }
-                QFrame#dlgCard:hover {
-                    background-color: #141B2B;
-                    border-color: #334155;
-                }
-                QCheckBox#dlgCardCheckbox {
+                QCheckBox#dlgRowCheckbox {
                     color: #F1F5F9;
                     spacing: 8px;
                 }
-                QCheckBox#dlgCardCheckbox::indicator {
+                QCheckBox#dlgRowCheckbox::indicator {
                     width: 15px;
                     height: 15px;
                     border-radius: 3px;
                     border: 1px solid #334155;
                     background-color: #161B26;
                 }
-                QCheckBox#dlgCardCheckbox::indicator:checked {
+                QCheckBox#dlgRowCheckbox::indicator:checked {
                     background-color: #0284C7;
                     border-color: #38BDF8;
                 }
-                QLabel#dlgCardBadge {
-                    background-color: #161F30;
-                    color: #38BDF8;
-                    border: 1px solid #1E3A5F;
-                    border-radius: 3px;
-                    padding: 0 6px;
-                }
-                QLabel#dlgCardDesc {
+                QLabel#dlgRowDesc {
                     color: #94A3B8;
                 }
-                QLabel#dlgCardCitation {
-                    color: #2DD4BF;
-                    background-color: #0E2422;
-                    border: 1px solid #115E59;
-                    border-radius: 3px;
-                    padding: 1px 6px;
+                QLabel#dlgRowCat {
+                    color: #64748B;
                 }
                 QWidget#dlgBottomBar {
                     background-color: #10141F;
@@ -627,25 +590,19 @@ class IndicatorDialog(QDialog):
                     border: 1px solid #CBD5E1;
                     border-radius: 6px;
                 }
-                QWidget#dlgHeaderIcon {
-                    color: #2563EB;
-                }
                 QLabel#dlgTitle {
                     color: #0F172A;
                     letter-spacing: 0.5px;
-                }
-                QLabel#dlgSubtitle {
-                    color: #64748B;
-                    letter-spacing: 0.8px;
                 }
                 QPushButton#dlgBtnClose {
                     background: transparent;
                     color: #64748B;
                     border: none;
                     border-radius: 4px;
-                    font-family: 'Segoe UI';
-                    font-size: 11px;
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    font-size: 13px;
                     font-weight: bold;
+                    padding: 0;
                 }
                 QPushButton#dlgBtnClose:hover {
                     background-color: #FEE2E2;
@@ -661,7 +618,7 @@ class IndicatorDialog(QDialog):
                     font-size: 11px;
                 }
                 QLineEdit#dlgSearchBar:focus {
-                    border: 1px solid #2563EB;
+                    border: 1px solid #0F172A;
                 }
                 QFrame#dlgDivider, QFrame#dlgVDivider {
                     background-color: #E2E8F0;
@@ -676,7 +633,7 @@ class IndicatorDialog(QDialog):
                     padding: 4px;
                 }
                 QListWidget#dlgSidebar::item {
-                    padding: 8px 12px;
+                    padding: 7px 12px;
                     border-radius: 4px;
                     margin: 1px 0;
                 }
@@ -696,46 +653,34 @@ class IndicatorDialog(QDialog):
                 QWidget#dlgCardContainer {
                     background-color: #FFFFFF;
                 }
-                QFrame#dlgCard {
-                    background-color: #FFFFFF;
-                    border: 1px solid #E2E8F0;
-                    border-radius: 5px;
+                QFrame#dlgRow {
+                    background-color: transparent;
+                    border: none;
+                    border-bottom: 1px solid #F1F5F9;
                 }
-                QFrame#dlgCard:hover {
+                QFrame#dlgRow:hover {
                     background-color: #F8FAFC;
-                    border-color: #CBD5E1;
                 }
-                QCheckBox#dlgCardCheckbox {
+                QCheckBox#dlgRowCheckbox {
                     color: #0F172A;
                     spacing: 8px;
                 }
-                QCheckBox#dlgCardCheckbox::indicator {
+                QCheckBox#dlgRowCheckbox::indicator {
                     width: 15px;
                     height: 15px;
                     border-radius: 3px;
                     border: 1px solid #CBD5E1;
                     background-color: #F8FAFC;
                 }
-                QCheckBox#dlgCardCheckbox::indicator:checked {
-                    background-color: #2563EB;
-                    border-color: #2563EB;
+                QCheckBox#dlgRowCheckbox::indicator:checked {
+                    background-color: #0F172A;
+                    border-color: #0F172A;
                 }
-                QLabel#dlgCardBadge {
-                    background-color: #EFF6FF;
-                    color: #1D4ED8;
-                    border: 1px solid #BFDBFE;
-                    border-radius: 3px;
-                    padding: 0 6px;
+                QLabel#dlgRowDesc {
+                    color: #64748B;
                 }
-                QLabel#dlgCardDesc {
-                    color: #475569;
-                }
-                QLabel#dlgCardCitation {
-                    color: #0D9488;
-                    background-color: #F0FDFA;
-                    border: 1px solid #CCFBF1;
-                    border-radius: 3px;
-                    padding: 1px 6px;
+                QLabel#dlgRowCat {
+                    color: #94A3B8;
                 }
                 QWidget#dlgBottomBar {
                     background-color: #F8FAFC;
@@ -758,16 +703,18 @@ class IndicatorDialog(QDialog):
                     color: #64748B;
                 }
                 QPushButton#dlgBtnApply {
-                    background-color: #2563EB;
+                    background-color: #0F172A;
                     color: #FFFFFF;
-                    border: 1px solid #2563EB;
+                    border: 1px solid #0F172A;
                     border-radius: 3px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     font-weight: bold;
+                    padding: 0 16px;
                 }
                 QPushButton#dlgBtnApply:hover {
-                    background-color: #1D4ED8;
+                    background-color: #1E293B;
+                    border-color: #1E293B;
                 }
                 QLabel#dlgEmptyLabel {
                     color: #94A3B8;
@@ -776,10 +723,6 @@ class IndicatorDialog(QDialog):
                 }
             """)
 
-
-# ============================================================
-# INDICATOR CALCULATION & RENDERING HELPERS - Clean Architecture
-# ============================================================
 
 def _compute_indicators(df, active):
     """
