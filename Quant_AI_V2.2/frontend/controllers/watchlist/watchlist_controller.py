@@ -124,7 +124,8 @@ class WatchlistManager(QObject):
                 if hasattr(self.window, "sidebar") and hasattr(self.window, "mainSplitter"):
                     self.window.sidebar.setVisible(False)
                     self.window.watchlist_collapsed = True
-                    self.window.mainSplitter.setSizes([0, 1440])
+                    total_w = max(400, self.window.mainSplitter.width())
+                    self.window.mainSplitter.setSizes([0, total_w])
                     if hasattr(self.window, "btn_edge_wl") and self.window.btn_edge_wl:
                         self.window.btn_edge_wl.setVisible(True)
                     if hasattr(self.window, "btn_top_wl") and self.window.btn_top_wl:

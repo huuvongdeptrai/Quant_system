@@ -44,6 +44,12 @@ from frontend.controllers.chart.trading_plan_panel import (
 from frontend.controllers.chart.drawing_engine import ChartDrawingEngine
 
 
+class CompactRibbonLabel(QLabel):
+    """QLabel subclass that allows shrinking below text length to prevent horizontal window expansion."""
+    def minimumSizeHint(self):
+        return QSize(40, super().minimumSizeHint().height())
+
+
 def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, va_pct: float = 0.70):
     """
     Computes Volume Profile Point of Control (vPOC) and 70% Value Area (VAH & VAL)
@@ -283,7 +289,9 @@ def setup_chart_ui(window):
         if hasattr(window, "sidebar") and hasattr(window, "mainSplitter"):
             window.sidebar.setVisible(True)
             window.watchlist_collapsed = False
-            window.mainSplitter.setSizes([260, 1180])
+            total_w = max(400, window.mainSplitter.width())
+            sidebar_w = 260
+            window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
         btn_edge_wl.setVisible(False)
 
     btn_edge_wl.clicked.connect(_expand_wl_from_ribbon)
@@ -291,17 +299,21 @@ def setup_chart_ui(window):
     window.btn_edge_wl = btn_edge_wl
     ribbon_layout.addWidget(btn_edge_wl)
 
-    lbl_ribbon_left = QLabel(
+    lbl_ribbon_left = CompactRibbonLabel(
         '<span style="font-family:Consolas, monospace; font-size:9px; color:#71717a;">'
         'SESSION: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
         'vPOC: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
+        'VAH: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
+        'VAL: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
         'tPOC: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
-        'DELTA: <b style="color:#ffffff;">--</b>'
+        'Δ: <b style="color:#ffffff;">--</b>'
         '</span>'
     )
+    lbl_ribbon_left.setMinimumWidth(0)
+    lbl_ribbon_left.setToolTip("Steidlmayer Market Profile: 70% Value Area (VAH/VAL), Volume POC, Time POC & Order Flow Delta")
     ribbon_layout.addWidget(lbl_ribbon_left)
 
-    lbl_chart_ohlc = QLabel(
+    lbl_chart_ohlc = CompactRibbonLabel(
         '<span style="font-family:Consolas, monospace; font-size:9px; color:#64748b;">'
         'O: <b style="color:#f8fafc;">--</b> &nbsp;'
         'H: <b style="color:#f8fafc;">--</b> &nbsp;'
@@ -310,6 +322,7 @@ def setup_chart_ui(window):
         '<b style="color:#22c55e;">+0.00%</b>'
         '</span>'
     )
+    lbl_chart_ohlc.setMinimumWidth(0)
     window.lbl_chart_ohlc = lbl_chart_ohlc
     ribbon_layout.addWidget(lbl_chart_ohlc)
     ribbon_layout.addStretch()
@@ -701,13 +714,13 @@ def setup_chart_ui(window):
         angle=0, movable=False,
         pen=pg.mkPen(color="#ef4444", width=1.0, style=QtCore.Qt.SolidLine),
         label="tPOC",
-        labelOpts={"color": "#b91c1c", "position": 0.98, "fill": "#fee2e2", "border": "#b91c1c"}
+        labelOpts={"color": "#b91c1c", "position": 0.90, "fill": "#fee2e2", "border": "#b91c1c"}
     )
     window.line_vpoc = pg.InfiniteLine(
         angle=0, movable=False,
         pen=pg.mkPen(color="#22c55e", width=1.0, style=QtCore.Qt.SolidLine),
         label="vPOC",
-        labelOpts={"color": "#15803d", "position": 0.98, "fill": "#dcfce7", "border": "#15803d"}
+        labelOpts={"color": "#15803d", "position": 0.90, "fill": "#dcfce7", "border": "#15803d"}
     )
     window.plot_widget.addItem(window.line_tpoc, ignoreBounds=True)
     window.plot_widget.addItem(window.line_vpoc, ignoreBounds=True)
@@ -726,13 +739,13 @@ def setup_chart_ui(window):
         angle=0, movable=False,
         pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
         label="VAH (70%)",
-        labelOpts={"color": "#0284c7", "position": 0.98, "fill": "#e0f2fe", "border": "#0284c7"}
+        labelOpts={"color": "#0284c7", "position": 0.90, "fill": "#e0f2fe", "border": "#0284c7"}
     )
     window.line_val = pg.InfiniteLine(
         angle=0, movable=False,
         pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
         label="VAL (70%)",
-        labelOpts={"color": "#0284c7", "position": 0.98, "fill": "#e0f2fe", "border": "#0284c7"}
+        labelOpts={"color": "#0284c7", "position": 0.90, "fill": "#e0f2fe", "border": "#0284c7"}
     )
     window.plot_widget.addItem(window.va_region, ignoreBounds=True)
     window.plot_widget.addItem(window.line_vah, ignoreBounds=True)
@@ -1666,9 +1679,9 @@ def setup_chart_ui(window):
                     f'{sess_prefix}'
                     f'vPOC: <b style="color:{c_vpoc};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
                     f'VAH: <b style="color:{c_va};">{vah_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'VAL: <b style="color:{c_va};">{val_val:,.{digits}f}</b> &nbsp;<span style="color:{c_lbl};">(VA 70%)</span> &nbsp;|&nbsp; '
+                    f'VAL: <b style="color:{c_va};">{val_val:,.{digits}f}</b> &nbsp;|&nbsp; '
                     f'tPOC: <b style="color:{c_tpoc};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'DELTA: <b style="color:{delta_color};">{delta_str}</b>'
+                    f'Δ: <b style="color:{delta_color};">{delta_str}</b>'
                     f'</span>'
                 )
 
@@ -1859,9 +1872,9 @@ def update_chart_theme(window, is_dark: bool = False):
             f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
             f'vPOC: <b style="color:{c_vpoc};">{vpoc_str}</b> &nbsp;|&nbsp; '
             f'VAH: <b style="color:{c_va};">{vah_str}</b> &nbsp;|&nbsp; '
-            f'VAL: <b style="color:{c_va};">{val_str}</b> &nbsp;<span style="color:{c_lbl};">(VA 70%)</span> &nbsp;|&nbsp; '
+            f'VAL: <b style="color:{c_va};">{val_str}</b> &nbsp;|&nbsp; '
             f'tPOC: <b style="color:{c_tpoc};">{tpoc_str}</b> &nbsp;|&nbsp; '
-            f'DELTA: <b style="color:{delta_color};">{delta_str}</b>'
+            f'Δ: <b style="color:{delta_color};">{delta_str}</b>'
             f'</span>'
         )
         window.lbl_ribbon_left.setText(session_text)

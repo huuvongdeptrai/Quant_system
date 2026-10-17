@@ -662,7 +662,7 @@ class WorkspaceHeaderController:
         self.btn_win_min = btn_min
         win_layout.addWidget(btn_min)
 
-        self._is_maximized = False
+        self._is_maximized = self.window.isMaximized()
         btn_max = QPushButton()
         btn_max.setObjectName("btnWinMaximize")
         btn_max.setFixedSize(36, 32)
@@ -674,10 +674,15 @@ class WorkspaceHeaderController:
         btn_max.setStyleSheet(btn_style)
 
         def toggle_maximize():
-            if self._is_maximized:
+            if self.window.isMaximized():
                 self.window.showNormal()
                 self._is_maximized = False
             else:
+                screen = self.window.screen()
+                if screen:
+                    avail = screen.availableGeometry()
+                    self.window.setMaximumSize(avail.width(), avail.height())
+                    self.window.setGeometry(avail)
                 self.window.showMaximized()
                 self._is_maximized = True
         btn_max.clicked.connect(toggle_maximize)
@@ -818,7 +823,9 @@ class WorkspaceHeaderController:
         master_layout.addWidget(bottom_bar, 0)
         self.window.setCentralWidget(master)
         if hasattr(self.window, "mainSplitter"):
-            self.window.mainSplitter.setSizes([285, 1155])
+            total_w = max(400, self.window.mainSplitter.width() or 1440)
+            sidebar_w = 260
+            self.window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
 
 # Backward compatibility alias
 HeaderController = WorkspaceHeaderController

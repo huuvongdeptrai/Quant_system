@@ -198,6 +198,11 @@ class QuantTerminal(QObject):
         else:
             self.overlay = None
 
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            self.window.setMaximumSize(avail.width(), avail.height())
+            self.window.setGeometry(avail)
         self.window.showMaximized()
 
 
@@ -314,15 +319,17 @@ class QuantTerminal(QObject):
 
         # Show institutional watchlist sidebar by default (width: 260px)
         if hasattr(self.window, "sidebar"):
-            self.window.sidebar.setMinimumWidth(280)
-            self.window.sidebar.setMaximumWidth(340)
+            self.window.sidebar.setMinimumWidth(240)
+            self.window.sidebar.setMaximumWidth(320)
             self.window.sidebar.setVisible(True)
             if self.window.sidebar.layout():
                 self.window.sidebar.layout().setContentsMargins(2, 2, 2, 2)
         if hasattr(self.window, "mainSplitter"):
             self.window.mainSplitter.setStretchFactor(0, 0)
             self.window.mainSplitter.setStretchFactor(1, 1)
-            self.window.mainSplitter.setSizes([285, 1155])
+            total_w = max(400, self.window.mainSplitter.width() or 1440)
+            sidebar_w = 260
+            self.window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
         if hasattr(self.window, "chartSplitter"):
             self.window.chartSplitter.setSizes([900, 340])
 
