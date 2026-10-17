@@ -95,10 +95,12 @@ class StateRecoveryManager:
         # Kiểm tra đồng thời cả trên MT5 lẫn Database
         positions = mt5.positions_get(symbol=symbol)
         if positions and len(positions) > 0:
-            return False
+            if any(getattr(p, "symbol", "") == symbol for p in positions):
+                return False
 
         db_trades = self.db.get_open_trades(symbol=symbol)
         if db_trades and len(db_trades) > 0:
-            return False
+            if any(t.get("symbol", "") == symbol for t in db_trades):
+                return False
 
         return True
