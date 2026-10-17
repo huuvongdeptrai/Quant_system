@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QKeySequence, QShortcut, QPixmap, QPen, QBrush, QAction
 )
 from PySide6.QtWidgets import (
+    QGraphicsDropShadowEffect,
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
     QWidget, QGraphicsRectItem, QMenu, QMessageBox, QTableWidgetItem
 )
@@ -535,168 +536,354 @@ def setup_chart_ui(window):
     btn_fvg.clicked.connect(lambda: drawing_engine.set_mode(ChartDrawingEngine.MODE_RECTANGLE))
     tb_layout.addWidget(btn_fvg)
 
-    # 4. Market Profile Levels Menu Button (vPOC, tPOC, VAH, VAL)
-    class ProfileLevelsMenu(QMenu):
-        def mouseReleaseEvent(self, event):
-            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
-            action = self.actionAt(pos)
-            if action and hasattr(action, "is_toggle_item") and action.is_toggle_item:
-                action.trigger()
+    # 4. Market Profile Levels Tool Drawer & Button (TradingView / Exocharts Style)
+    class ModernSwitch(QWidget):
+        """Sleek iOS / TradingView style pill toggle switch."""
+        def __init__(self, checked=True, is_dark=False, on_toggle=None, parent=None):
+            super().__init__(parent)
+            self.setFixedSize(28, 16)
+            self.setCursor(Qt.PointingHandCursor)
+            self._checked = bool(checked)
+            self._is_dark = bool(is_dark)
+            self._on_toggle = on_toggle
+
+        def isChecked(self):
+            return self._checked
+
+        def setChecked(self, val):
+            if self._checked != bool(val):
+                self._checked = bool(val)
+                self.update()
+                if self._on_toggle:
+                    self._on_toggle(self._checked)
+
+        def mousePressEvent(self, event):
+            if event.button() == Qt.LeftButton:
+                self.setChecked(not self._checked)
                 event.accept()
-                return
-            super().mouseReleaseEvent(event)
 
-    def _create_action_icon(checked: bool, color_hex: str, is_dark: bool = False, shape: str = "line"):
-        w, h = 32, 16
-        pm = QPixmap(w, h)
-        pm.fill(Qt.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.Antialiasing)
-
-        cb_x, cb_y, cb_s = 1, 2, 12
-        if checked:
-            p.setBrush(QBrush(QColor("#38bdf8" if is_dark else "#0284c7")))
+        def paintEvent(self, event):
+            p = QPainter(self)
+            p.setRenderHint(QPainter.Antialiasing)
+            if self._checked:
+                track_color = QColor("#0284c7" if not self._is_dark else "#38bdf8")
+            else:
+                track_color = QColor("#cbd5e1" if not self._is_dark else "#334155")
+            p.setBrush(QBrush(track_color))
             p.setPen(Qt.NoPen)
-            p.drawRoundedRect(cb_x, cb_y, cb_s, cb_s, 2.5, 2.5)
-            pen_chk = QPen(QColor("#080b11" if is_dark else "#ffffff"), 1.8)
-            pen_chk.setCapStyle(Qt.RoundCap)
-            pen_chk.setJoinStyle(Qt.RoundJoin)
-            p.setPen(pen_chk)
-            p.drawLine(cb_x + 3, cb_y + 6, cb_x + 5, cb_y + 9)
-            p.drawLine(cb_x + 5, cb_y + 9, cb_x + 9, cb_y + 3)
-        else:
-            border_col = QColor("#334155" if is_dark else "#cbd5e1")
-            bg_col = QColor("#101524" if is_dark else "#f8fafc")
-            p.setBrush(QBrush(bg_col))
-            p.setPen(QPen(border_col, 1.2))
-            p.drawRoundedRect(cb_x, cb_y, cb_s, cb_s, 2.5, 2.5)
+            p.drawRoundedRect(0, 0, 28, 16, 8, 8)
 
-        if shape == "line":
-            pen_swatch = QPen(QColor(color_hex), 2.2)
-            pen_swatch.setCapStyle(Qt.RoundCap)
-            p.setPen(pen_swatch)
-            p.drawLine(17, 8, 30, 8)
-        elif shape == "rect":
-            col = QColor(color_hex)
-            col.setAlpha(120 if is_dark else 90)
-            p.setBrush(QBrush(col))
-            p.setPen(QPen(QColor(color_hex), 1.0))
-            p.drawRoundedRect(17, 3, 13, 10, 2, 2)
+            thumb_color = QColor("#ffffff" if not self._is_dark else "#0f172a")
+            p.setBrush(QBrush(thumb_color))
+            thumb_x = 14 if self._checked else 2
+            p.drawEllipse(thumb_x, 2, 12, 12)
+            p.end()
 
-        p.end()
-        return QIcon(pm)
+    class ProfileLevelRow(QFrame):
+        """Interactive row with color badge, title, subtitle, and toggle switch."""
+        def __init__(self, key, code_name, desc, color_hex, checked=True, shape="line", is_dark=False, on_change=None, parent=None):
+            super().__init__(parent)
+            self.key = key
+            self.color_hex = color_hex
+            self._is_dark = is_dark
+            self._shape = shape
+            self._on_change = on_change
+            self.setFixedHeight(34)
+            self.setCursor(Qt.PointingHandCursor)
+            self.setObjectName(f"row_{key}")
+
+            bg_hover = "#f1f5f9" if not is_dark else "#161d31"
+            self.setStyleSheet(f"""
+                QFrame#{self.objectName()} {{
+                    background-color: transparent;
+                    border: 1px solid transparent;
+                    border-radius: 5px;
+                }}
+                QFrame#{self.objectName()}:hover {{
+                    background-color: {bg_hover};
+                }}
+            """)
+
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(8, 2, 8, 2)
+            layout.setSpacing(8)
+
+            self.lbl_badge = QLabel()
+            self.lbl_badge.setFixedSize(16, 16)
+            self._draw_badge(checked)
+            layout.addWidget(self.lbl_badge)
+
+            title_box = QVBoxLayout()
+            title_box.setContentsMargins(0, 0, 0, 0)
+            title_box.setSpacing(1)
+
+            c_text = "#0f172a" if not is_dark else "#f8fafc"
+            c_sub = "#64748b" if not is_dark else "#94a3b8"
+
+            self.lbl_code = QLabel(code_name)
+            self.lbl_code.setStyleSheet(f"color: {c_text}; font-weight: 700; font-size: 11px; font-family: 'Segoe UI', Consolas;")
+            
+            self.lbl_desc = QLabel(desc)
+            self.lbl_desc.setStyleSheet(f"color: {c_sub}; font-size: 9px; font-family: 'Segoe UI', sans-serif;")
+
+            title_box.addWidget(self.lbl_code)
+            title_box.addWidget(self.lbl_desc)
+            layout.addLayout(title_box, stretch=1)
+
+            self.switch = ModernSwitch(checked=checked, is_dark=is_dark, on_toggle=self._on_switch_toggled, parent=self)
+            layout.addWidget(self.switch)
+
+        def _draw_badge(self, checked):
+            pm = QPixmap(16, 16)
+            pm.fill(Qt.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.Antialiasing)
+
+            color = QColor(self.color_hex)
+            if not checked:
+                color.setAlpha(60)
+
+            if self._shape == "line":
+                pen = QPen(color, 2.5)
+                pen.setCapStyle(Qt.RoundCap)
+                p.setPen(pen)
+                p.drawLine(1, 8, 15, 8)
+            elif self._shape == "rect":
+                col = QColor(self.color_hex)
+                col.setAlpha(90 if checked else 30)
+                p.setBrush(QBrush(col))
+                p.setPen(QPen(color, 1.0))
+                p.drawRoundedRect(1, 4, 14, 8, 2, 2)
+            p.end()
+            self.lbl_badge.setPixmap(pm)
+
+        def _on_switch_toggled(self, val):
+            self._draw_badge(val)
+            if self._on_change:
+                self._on_change(val)
+
+        def mousePressEvent(self, event):
+            if event.button() == Qt.LeftButton:
+                self.switch.setChecked(not self.switch.isChecked())
+                event.accept()
+
+        def setChecked(self, val):
+            self.switch.setChecked(val)
+
+    class MarketProfileDrawer(QWidget):
+        """
+        World-class TradingView / Exocharts style Market Profile Tool Drawer.
+        Floating tool palette with drop shadow, color badges, and iOS switches.
+        """
+        def __init__(self, parent=None, is_dark=False, on_close=None):
+            super().__init__(parent, Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+            self.setAttribute(Qt.WA_TranslucentBackground)
+            self.is_dark = is_dark
+            self.on_close = on_close
+            self.setFixedWidth(256)
+
+            main_layout = QVBoxLayout(self)
+            main_layout.setContentsMargins(10, 10, 10, 10)
+
+            self.card = QFrame()
+            self.card.setObjectName("drawerCard")
+            bg_card = "#ffffff" if not is_dark else "#0c0e17"
+            border_card = "#e2e8f0" if not is_dark else "#272d3b"
+
+            self.card.setStyleSheet(f"""
+                QFrame#drawerCard {{
+                    background-color: {bg_card};
+                    border: 1px solid {border_card};
+                    border-radius: 8px;
+                }}
+            """)
+
+            shadow = QGraphicsDropShadowEffect(self)
+            shadow.setBlurRadius(16)
+            shadow.setColor(QColor(0, 0, 0, 70 if not is_dark else 140))
+            shadow.setOffset(2, 6)
+            self.card.setGraphicsEffect(shadow)
+
+            card_layout = QVBoxLayout(self.card)
+            card_layout.setContentsMargins(10, 10, 10, 10)
+            card_layout.setSpacing(4)
+
+            # Header
+            hdr_layout = QHBoxLayout()
+            hdr_layout.setContentsMargins(2, 0, 2, 4)
+
+            lbl_title = QLabel("MARKET PROFILE LEVELS")
+            lbl_title.setStyleSheet(f"color: {'#64748b' if not is_dark else '#94a3b8'}; font-weight: 700; font-size: 9.5px; letter-spacing: 0.8px; font-family: 'Segoe UI', sans-serif;")
+            hdr_layout.addWidget(lbl_title, stretch=1)
+
+            btn_close = QPushButton("×")
+            btn_close.setFixedSize(18, 18)
+            btn_close.setCursor(Qt.PointingHandCursor)
+            btn_close.setStyleSheet(f"""
+                QPushButton {{
+                    background: transparent;
+                    border: none;
+                    color: {'#94a3b8' if not is_dark else '#64748b'};
+                    font-size: 14px;
+                    font-weight: 700;
+                    border-radius: 9px;
+                }}
+                QPushButton:hover {{
+                    background-color: {'#f1f5f9' if not is_dark else '#1e293b'};
+                    color: {'#0f172a' if not is_dark else '#f8fafc'};
+                }}
+            """)
+            btn_close.clicked.connect(self.close)
+            hdr_layout.addWidget(btn_close)
+
+            card_layout.addLayout(hdr_layout)
+
+            div1 = QFrame()
+            div1.setFixedHeight(1)
+            div1.setStyleSheet(f"background-color: {'#f1f5f9' if not is_dark else '#1e293b'};")
+            card_layout.addWidget(div1)
+            card_layout.addSpacing(2)
+
+            # Rows
+            c_vpoc = "#10b981"
+            c_tpoc = "#f43f5e"
+            c_va = "#0284c7" if not is_dark else "#38bdf8"
+
+            self.rows = {}
+
+            self.rows["vpoc"] = ProfileLevelRow("vpoc", "vPOC", "Volume Point of Control", c_vpoc, getattr(window, "_vpoc_visible", True), "line", is_dark, toggle_vpoc, self)
+            card_layout.addWidget(self.rows["vpoc"])
+
+            self.rows["tpoc"] = ProfileLevelRow("tpoc", "tPOC", "Time Point of Control (CBOT)", c_tpoc, getattr(window, "_tpoc_visible", True), "line", is_dark, toggle_tpoc, self)
+            card_layout.addWidget(self.rows["tpoc"])
+
+            self.rows["vah"] = ProfileLevelRow("vah", "VAH", "Value Area High (70%)", c_va, getattr(window, "_vah_visible", True), "line", is_dark, toggle_vah, self)
+            card_layout.addWidget(self.rows["vah"])
+
+            self.rows["val"] = ProfileLevelRow("val", "VAL", "Value Area Low (70%)", c_va, getattr(window, "_val_visible", True), "line", is_dark, toggle_val, self)
+            card_layout.addWidget(self.rows["val"])
+
+            self.rows["va_fill"] = ProfileLevelRow("va_fill", "Value Area Fill", "70% Shaded Liquidity Zone", c_va, getattr(window, "_va_fill_visible", True), "rect", is_dark, toggle_va_fill, self)
+            card_layout.addWidget(self.rows["va_fill"])
+
+            card_layout.addSpacing(4)
+            div2 = QFrame()
+            div2.setFixedHeight(1)
+            div2.setStyleSheet(f"background-color: {'#f1f5f9' if not is_dark else '#1e293b'};")
+            card_layout.addWidget(div2)
+            card_layout.addSpacing(2)
+
+            # Footer actions
+            ftr_layout = QHBoxLayout()
+            ftr_layout.setContentsMargins(2, 2, 2, 0)
+
+            btn_show_all = QPushButton("Show All")
+            btn_show_all.setCursor(Qt.PointingHandCursor)
+            btn_show_all.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {'#f1f5f9' if not is_dark else '#161d31'};
+                    border: 1px solid {'#e2e8f0' if not is_dark else '#272d3b'};
+                    border-radius: 4px;
+                    color: {'#0f172a' if not is_dark else '#e2e8f0'};
+                    font-size: 10px;
+                    font-weight: 600;
+                    padding: 4px 8px;
+                }}
+                QPushButton:hover {{
+                    background-color: {'#e2e8f0' if not is_dark else '#1e293b'};
+                    color: {'#0284c7' if not is_dark else '#38bdf8'};
+                }}
+            """)
+            btn_show_all.clicked.connect(self._show_all)
+            ftr_layout.addWidget(btn_show_all)
+
+            btn_hide_all = QPushButton("Hide All")
+            btn_hide_all.setCursor(Qt.PointingHandCursor)
+            btn_hide_all.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    border: 1px solid {'#e2e8f0' if not is_dark else '#272d3b'};
+                    border-radius: 4px;
+                    color: {'#64748b' if not is_dark else '#94a3b8'};
+                    font-size: 10px;
+                    font-weight: 600;
+                    padding: 4px 8px;
+                }}
+                QPushButton:hover {{
+                    background-color: {'#f1f5f9' if not is_dark else '#161d31'};
+                    color: {'#ef4444' if not is_dark else '#f87171'};
+                    border-color: {'#fca5a5' if not is_dark else '#7f1d1d'};
+                }}
+            """)
+            btn_hide_all.clicked.connect(self._hide_all)
+            ftr_layout.addWidget(btn_hide_all)
+
+            card_layout.addLayout(ftr_layout)
+            main_layout.addWidget(self.card)
+
+        def _show_all(self):
+            for r in self.rows.values():
+                r.setChecked(True)
+
+        def _hide_all(self):
+            for r in self.rows.values():
+                r.setChecked(False)
+
+        def hideEvent(self, event):
+            super().hideEvent(event)
+            if self.on_close:
+                self.on_close()
+
+    class ProfileToolButton(QPushButton):
+        """
+        Custom toolbar button with authentic TradingView-style expand caret (icon mở ▶).
+        """
+        def __init__(self, is_dark=False, parent=None):
+            super().__init__(parent)
+            self.setFixedSize(22, 22)
+            self.setCursor(Qt.PointingHandCursor)
+            self._is_dark = is_dark
+            self.setCheckable(True)
+
+        def paintEvent(self, event):
+            super().paintEvent(event)
+            p = QPainter(self)
+            p.setRenderHint(QPainter.Antialiasing)
+            caret_col = QColor("#0284c7" if self.isChecked() else ("#94a3b8" if self._is_dark else "#71717a"))
+            p.setBrush(QBrush(caret_col))
+            p.setPen(Qt.NoPen)
+            w, h = self.width(), self.height()
+            # Crisp 4x4 right-facing expand triangle in bottom-right corner (icon mở TradingView)
+            p.drawPolygon([QPoint(w - 5, h - 6), QPoint(w - 1, h - 3.5), QPoint(w - 5, h - 1)])
+            p.end()
 
     def _show_profile_levels_menu(trigger_btn):
         is_dark = getattr(window, "is_dark_theme", False)
-        menu = ProfileLevelsMenu(trigger_btn)
-        if is_dark:
-            menu_style = (
-                "QMenu { background-color: #0c0e17; color: #f8fafc; border: 1px solid #272d3b; "
-                "border-radius: 6px; padding: 6px 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
-                "QMenu::item { padding: 5px 14px 5px 6px; border-radius: 4px; color: #e2e8f0; background-color: transparent; } "
-                "QMenu::item:selected { background-color: #1e293b; color: #38bdf8; } "
-                "QMenu::separator { height: 1px; background-color: #1e293b; margin: 4px 6px; }"
-            )
-        else:
-            menu_style = (
-                "QMenu { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
-                "border-radius: 6px; padding: 6px 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
-                "QMenu::item { padding: 5px 14px 5px 6px; border-radius: 4px; color: #0f172a; background-color: transparent; } "
-                "QMenu::item:selected { background-color: #f1f5f9; color: #0284c7; } "
-                "QMenu::separator { height: 1px; background-color: #f1f5f9; margin: 4px 6px; }"
-            )
-        menu.setStyleSheet(menu_style)
+        
+        # Close existing drawer if already open
+        if hasattr(window, "_profile_drawer") and window._profile_drawer:
+            try:
+                window._profile_drawer.close()
+            except Exception:
+                pass
+            window._profile_drawer = None
 
-        hdr = menu.addAction("MARKET PROFILE LEVELS")
-        hdr.setEnabled(False)
-        menu.addSeparator()
+        trigger_btn.setChecked(True)
 
-        c_vpoc = "#10b981"
-        c_tpoc = "#f43f5e"
-        c_va = "#38bdf8" if is_dark else "#0284c7"
+        def _on_drawer_closed():
+            trigger_btn.setChecked(False)
 
-        # 1. vPOC
-        act_vpoc = menu.addAction(_create_action_icon(getattr(window, "_vpoc_visible", True), c_vpoc, is_dark, "line"), "vPOC (Volume POC)")
-        act_vpoc.is_toggle_item = True
-        def _toggle_vpoc_act():
-            new_v = toggle_vpoc()
-            act_vpoc.setIcon(_create_action_icon(new_v, c_vpoc, is_dark, "line"))
-        act_vpoc.triggered.connect(_toggle_vpoc_act)
+        drawer = MarketProfileDrawer(parent=window, is_dark=is_dark, on_close=_on_drawer_closed)
+        window._profile_drawer = drawer
 
-        # 2. tPOC
-        act_tpoc = menu.addAction(_create_action_icon(getattr(window, "_tpoc_visible", True), c_tpoc, is_dark, "line"), "tPOC (Time POC)")
-        act_tpoc.is_toggle_item = True
-        def _toggle_tpoc_act():
-            new_v = toggle_tpoc()
-            act_tpoc.setIcon(_create_action_icon(new_v, c_tpoc, is_dark, "line"))
-        act_tpoc.triggered.connect(_toggle_tpoc_act)
-
-        # 3. VAH
-        act_vah = menu.addAction(_create_action_icon(getattr(window, "_vah_visible", True), c_va, is_dark, "line"), "VAH (Value Area High)")
-        act_vah.is_toggle_item = True
-        def _toggle_vah_act():
-            new_v = toggle_vah()
-            act_vah.setIcon(_create_action_icon(new_v, c_va, is_dark, "line"))
-        act_vah.triggered.connect(_toggle_vah_act)
-
-        # 4. VAL
-        act_val = menu.addAction(_create_action_icon(getattr(window, "_val_visible", True), c_va, is_dark, "line"), "VAL (Value Area Low)")
-        act_val.is_toggle_item = True
-        def _toggle_val_act():
-            new_v = toggle_val()
-            act_val.setIcon(_create_action_icon(new_v, c_va, is_dark, "line"))
-        act_val.triggered.connect(_toggle_val_act)
-
-        # 5. Value Area Fill
-        menu.addSeparator()
-        act_fill = menu.addAction(_create_action_icon(getattr(window, "_va_fill_visible", True), c_va, is_dark, "rect"), "Value Area Fill (70%)")
-        act_fill.is_toggle_item = True
-        def _toggle_fill_act():
-            new_v = toggle_va_fill()
-            act_fill.setIcon(_create_action_icon(new_v, c_va, is_dark, "rect"))
-        act_fill.triggered.connect(_toggle_fill_act)
-
-        menu.addSeparator()
-        act_show_all = menu.addAction("Show All Levels")
-        act_hide_all = menu.addAction("Hide All Levels")
-
-        def _on_show_all():
-            toggle_vpoc(True)
-            toggle_tpoc(True)
-            toggle_vah(True)
-            toggle_val(True)
-            toggle_va_fill(True)
-            act_vpoc.setIcon(_create_action_icon(True, c_vpoc, is_dark, "line"))
-            act_tpoc.setIcon(_create_action_icon(True, c_tpoc, is_dark, "line"))
-            act_vah.setIcon(_create_action_icon(True, c_va, is_dark, "line"))
-            act_val.setIcon(_create_action_icon(True, c_va, is_dark, "line"))
-            act_fill.setIcon(_create_action_icon(True, c_va, is_dark, "rect"))
-
-        def _on_hide_all():
-            toggle_vpoc(False)
-            toggle_tpoc(False)
-            toggle_vah(False)
-            toggle_val(False)
-            toggle_va_fill(False)
-            act_vpoc.setIcon(_create_action_icon(False, c_vpoc, is_dark, "line"))
-            act_tpoc.setIcon(_create_action_icon(False, c_tpoc, is_dark, "line"))
-            act_vah.setIcon(_create_action_icon(False, c_va, is_dark, "line"))
-            act_val.setIcon(_create_action_icon(False, c_va, is_dark, "line"))
-            act_fill.setIcon(_create_action_icon(False, c_va, is_dark, "rect"))
-
-        act_show_all.triggered.connect(_on_show_all)
-        act_hide_all.triggered.connect(_on_hide_all)
-
-        # Neo tọa độ chính xác sang mép phải ngoài cùng của nút bấm
+        # Position cleanly to the right of the toolbar button
         btn_rect = trigger_btn.rect()
         pos = trigger_btn.mapToGlobal(btn_rect.topRight())
-        pos.setX(pos.x() + 2)
-        menu.exec(pos)
+        drawer.move(pos.x() + 4, pos.y() - 14)
+        drawer.show()
 
-    btn_profile = QPushButton()
+    btn_profile = ProfileToolButton(is_dark=is_d_init)
     btn_profile.setObjectName("btnToolProfile")
-    btn_profile.setFixedSize(22, 22)
-    btn_profile.setCursor(Qt.PointingHandCursor)
     btn_profile.setToolTip("Market Profile Levels (vPOC, tPOC, VAH, VAL)")
     ic_profile = os.path.join(assets_dir, "tool_profile.svg")
     if os.path.exists(ic_profile):
@@ -2240,8 +2427,11 @@ def update_chart_theme(window, is_dark: bool = False):
         tb_bg = "#050608" if is_dark else "#f8fafc"
         tb_border = "#1c1c1c" if is_dark else "#e2e8f0"
         window.toolbarChartDrawing.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg}; border-right: 1px solid {tb_border}; }}")
-        if hasattr(window, "btnToolProfile") and window.btnToolProfile and hasattr(window, "_get_tool_btn_style"):
-            window.btnToolProfile.setStyleSheet(window._get_tool_btn_style(is_dark, is_active=False))
+        if hasattr(window, "btnToolProfile") and window.btnToolProfile:
+            window.btnToolProfile._is_dark = is_dark
+            if hasattr(window, "_get_tool_btn_style"):
+                window.btnToolProfile.setStyleSheet(window._get_tool_btn_style(is_dark, is_active=False))
+            window.btnToolProfile.update()
         if hasattr(window, "drawing_engine") and window.drawing_engine:
             window.drawing_engine._update_button_styles()
 
