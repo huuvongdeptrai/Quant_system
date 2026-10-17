@@ -47,7 +47,7 @@ class DatasetRecorder:
         self._load_ticket_index()
 
     def _load_ticket_index(self):
-        if self.index_file.exists():
+        if Path(self.index_file).exists():
             try:
                 with open(self.index_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -186,7 +186,7 @@ class DatasetRecorder:
         """
         Thread-safe file update replacing record in jsonl.
         """
-        if not self.dataset_file.exists():
+        if not Path(self.dataset_file).exists():
             return
 
         try:
