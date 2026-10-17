@@ -31,9 +31,10 @@ def get_user_strategies_dir() -> Path:
     return get_strategies_dir()
 
 
-def validate_strategy_file(file_path: str) -> Tuple[bool, str, Optional[str]]:
+def validate_strategy_file(file_path: str, is_builtin: bool = False) -> Tuple[bool, str, Optional[str]]:
     """
-    Validates a Python strategy file using AST parsing and interface check.
+    Validates a Python strategy file using AST parsing, interface check,
+    and enforces AST Security Sandbox on custom strategies.
     Returns: (is_valid, message, class_name)
     """
     p = Path(file_path)
@@ -43,6 +44,13 @@ def validate_strategy_file(file_path: str) -> Tuple[bool, str, Optional[str]]:
     try:
         with open(p, "r", encoding="utf-8", errors="replace") as f:
             code = f.read()
+
+        # AST Sandbox Security Guard: Enforce strict safety on all non-builtin strategies
+        if not is_builtin:
+            from backend.core.security_guard import validate_strategy_code
+            is_safe, violation = validate_strategy_code(code)
+            if not is_safe:
+                return False, f"Bảo mật từ chối (AST Sandbox Guard): {violation}", None
 
         tree = ast.parse(code, filename=p.name)
     except SyntaxError as e:
@@ -184,11 +192,19 @@ def discover_strategies() -> List[Dict[str, Any]]:
 
 def load_strategy_instance(file_path: str, class_name: str, config: Optional[Dict] = None) -> Optional[Any]:
     """
-    Dynamically loads and instantiates a strategy class at runtime.
+    Dynamically loads and instantiates a strategy class at runtime,
+    enforcing AST Security Sandbox verification on untrusted code.
     """
     p = Path(file_path)
     if not p.exists():
         logger.error(f"Strategy file not found: {file_path}")
+        return None
+
+    # AST Sandbox verification before executing code
+    is_builtin = p.name in ("ict_strategy.py", "wyckoff_vectorized.py", "ema_stress_test.py")
+    valid, msg, _ = validate_strategy_file(str(p), is_builtin=is_builtin)
+    if not valid:
+        logger.error(f"[StrategyLoader] Refused to load untrusted strategy '{p.name}': {msg}")
         return None
 
     try:
