@@ -377,14 +377,7 @@ class BotOrchestrator(QtCore.QObject):
                 )
                 return
 
-        rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
-        if rates is None or len(rates) == 0:
-            return
-        refined = self.prep.process_technical_data(rates)
-        if not refined:
-            return
-
-        # Max Open Trades capacity gating
+        # 3. Capacity & Position Gating
         if getattr(self, "max_open_trades", 0) > 0:
             all_positions = mt5.positions_get()
             if all_positions and len(all_positions) >= self.max_open_trades:
@@ -392,6 +385,13 @@ class BotOrchestrator(QtCore.QObject):
 
         positions = mt5.positions_get(symbol=sym)
         if positions:
+            return
+
+        rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
+        if rates is None or len(rates) == 0:
+            return
+        refined = self.prep.process_technical_data(rates)
+        if not refined:
             return
 
         # Strategy Evaluation
