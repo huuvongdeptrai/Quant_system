@@ -250,24 +250,9 @@ class WatchlistManager(QObject):
             "US30": "Dow Jones",
             "NAS100": "Nasdaq 100",
         }
-        default_prices = {
-            "XAUUSD": ("2,680.27", "+35.2", "+1.13%"),
-            "XAGUSD": ("31.845", "+12.1", "+0.84%"),
-            "BTCUSD": ("63,458.0", "+1,720", "+2.78%"),
-            "ETHUSD": ("2,642.10", "+88.4", "+3.12%"),
-            "EURUSD": ("1.08450", "-54.2", "-0.13%"),
-            "GBPUSD": ("1.29800", "+33.5", "+0.22%"),
-            "USDJPY": ("144.250", "-18.0", "-0.12%"),
-            "US30": ("42,120.0", "+85.0", "+0.20%"),
-            "NAS100": ("20,185.4", "+108.2", "+0.54%"),
-        }
         sub = subtitles.get(sym, "")
         sym_display = f"{sym}\n{sub}" if sub else sym
-        if sym in default_prices:
-            p, diff, pct = default_prices[sym]
-            child = QTreeWidgetItem([sym_display, p, diff, pct])
-        else:
-            child = QTreeWidgetItem([sym_display, "-", "-", "-"])
+        child = QTreeWidgetItem([sym_display, "--", "--", "--"])
 
         child.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
         child.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
@@ -276,14 +261,19 @@ class WatchlistManager(QObject):
         self.update_item_status(child, sym)
 
         is_dark = getattr(self.window, "is_dark_theme", True)
+        price_color = QColor("#cbd5e1" if is_dark else "#64748b")
         green = QColor("#10b981" if is_dark else "#16a34a")
         red = QColor("#ef4444" if is_dark else "#dc2626")
         if child.text(2).startswith("+"):
             child.setForeground(2, green)
             child.setForeground(3, green)
-        elif child.text(2).startswith("-"):
+        elif child.text(2).startswith("-") and child.text(2) != "--":
             child.setForeground(2, red)
             child.setForeground(3, red)
+        else:
+            child.setForeground(1, price_color)
+            child.setForeground(2, price_color)
+            child.setForeground(3, price_color)
 
         cat_item.addChild(child)
         if auto_save:
@@ -366,9 +356,12 @@ class WatchlistManager(QObject):
                 if diff.startswith("+"):
                     child.setForeground(2, green)
                     child.setForeground(3, green)
-                elif diff.startswith("-"):
+                elif diff.startswith("-") and diff != "--":
                     child.setForeground(2, red)
                     child.setForeground(3, red)
+                else:
+                    child.setForeground(2, price_color)
+                    child.setForeground(3, price_color)
 
         if hasattr(self, "active_sym") and self.active_sym:
             self.set_active_symbol(self.active_sym)
