@@ -223,7 +223,7 @@ class DatasetRecorder:
         """
         Returns statistical summary of harvested data.
         """
-        if not self.dataset_file.exists():
+        if not Path(self.dataset_file).exists():
             return {
                 "total_samples": 0,
                 "active_trades": 0,
@@ -292,7 +292,7 @@ class DatasetRecorder:
             output_file = str(_STORAGE_DIR / "unsloth_lora_train.json")
 
         golden_list = []
-        if self.dataset_file.exists():
+        if Path(self.dataset_file).exists():
             with open(self.dataset_file, "r", encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
