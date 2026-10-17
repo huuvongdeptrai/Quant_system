@@ -687,7 +687,10 @@ def setup_chart_ui(window):
         act_show_all.triggered.connect(_on_show_all)
         act_hide_all.triggered.connect(_on_hide_all)
 
-        pos = trigger_btn.mapToGlobal(QPoint(trigger_btn.width() + 2, 0))
+        # Neo tọa độ chính xác sang mép phải ngoài cùng của nút bấm
+        btn_rect = trigger_btn.rect()
+        pos = trigger_btn.mapToGlobal(btn_rect.topRight())
+        pos.setX(pos.x() + 2)
         menu.exec(pos)
 
     btn_profile = QPushButton()
