@@ -111,9 +111,11 @@ class WorkspaceHeaderController:
             self.is_broker_connected = False
 
         if not is_connected and hasattr(self, "broker_latency_ms"):
-            latency_ms = self.broker_latency_ms
+            val = getattr(self, "broker_latency_ms", 0.0)
+            if isinstance(val, (int, float)):
+                latency_ms = val
 
-        latency_str = f"{latency_ms:.1f}ms" if latency_ms > 0 else "--"
+        latency_str = f"{latency_ms:.1f}ms" if (isinstance(latency_ms, (int, float)) and latency_ms > 0) else "--"
 
         # Check daily loss or drawdown
         loss_pct = 0.0
@@ -124,7 +126,8 @@ class WorkspaceHeaderController:
                 if pnl < 0:
                     loss_pct = abs(pnl) / acc.balance * 100.0
         except Exception:
-            loss_pct = getattr(self, "current_daily_loss_pct", 0.0)
+            val = getattr(self, "current_daily_loss_pct", 0.0)
+            loss_pct = val if isinstance(val, (int, float)) else 0.0
 
         loss_str = f"{loss_pct:.0f}% LOSS" if loss_pct == int(loss_pct) else f"{loss_pct:.1f}% LOSS"
 
