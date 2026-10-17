@@ -50,12 +50,16 @@ class CompactRibbonLabel(QLabel):
         return QSize(40, super().minimumSizeHint().height())
 
 
-def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, va_pct: float = 0.70):
+def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, va_pct: float = 0.70, return_tpoc: bool = False):
     """
-    Computes Volume Profile Point of Control (vPOC) and 70% Value Area (VAH & VAL)
-    according to J. Peter Steidlmayer's Market Profile Theory (CBOT, 1985).
+    Computes Volume Profile Point of Control (vPOC), 70% Value Area (VAH & VAL),
+    and Time Point of Control (tPOC) according to J. Peter Steidlmayer's
+    authentic Market Profile Theory (CBOT, 1985).
+    Optionally returns tPOC (Time Point of Control / highest TPO count).
     """
     if rates is None or len(rates) == 0:
+        if return_tpoc:
+            return 0.0, 0.0, 0.0, 0.0
         return 0.0, 0.0, 0.0
 
     subset = rates[-lookback:] if len(rates) >= lookback else rates
@@ -68,11 +72,14 @@ def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, v
     p_max = max(highs)
     if p_max <= p_min:
         mean_p = float(np.mean(closes))
+        if return_tpoc:
+            return mean_p, mean_p, mean_p, mean_p
         return mean_p, mean_p, mean_p
 
     bins = np.linspace(p_min, p_max, num_bins + 1)
     bin_centers = 0.5 * (bins[:-1] + bins[1:])
     vol_profile = np.zeros(num_bins)
+    tpo_profile = np.zeros(num_bins)
 
     for l, h, c, v in zip(lows, highs, closes, vols):
         if v <= 0:
@@ -81,17 +88,24 @@ def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, v
         cnt = np.count_nonzero(mask)
         if cnt > 0:
             vol_profile[mask] += v / cnt
+            tpo_profile[mask] += 1.0  # Steidlmayer TPO: price bracket presence
         else:
             idx = int(np.argmin(np.abs(bin_centers - c)))
             vol_profile[idx] += v
+            tpo_profile[idx] += 1.0
 
     tot_vol = np.sum(vol_profile)
     if tot_vol <= 0:
         mean_p = float(np.mean(closes))
+        if return_tpoc:
+            return mean_p, mean_p, mean_p, mean_p
         return mean_p, mean_p, mean_p
 
     poc_idx = int(np.argmax(vol_profile))
     vpoc = float(bin_centers[poc_idx])
+
+    tpoc_idx = int(np.argmax(tpo_profile))
+    tpoc = float(bin_centers[tpoc_idx])
 
     # 70% Value Area Expansion (CBOT Market Profile Standard)
     target_vol = tot_vol * va_pct
@@ -117,6 +131,8 @@ def _compute_market_profile_va(rates, lookback: int = 100, num_bins: int = 60, v
 
     vah = float(bin_centers[up_idx])
     val = float(bin_centers[dn_idx])
+    if return_tpoc:
+        return vpoc, vah, val, tpoc
     return vpoc, vah, val
 
 
@@ -241,10 +257,15 @@ def setup_chart_ui(window):
     # Default to closed Trading Plan so chart canvas and right price axis are 100% visible
     _close_ai_drawer()
 
+    is_d_init = getattr(window, "is_dark_theme", False)
+    bg_init = "#000000" if is_d_init else "#ffffff"
+    axis_init = "#1c2438" if is_d_init else "#cbd5e1"
+    text_init = "#64748b" if is_d_init else "#475569"
+
     window.time_axis = TimeAxisItem(orientation="bottom")
 
     window.plot_widget = pg.PlotWidget(
-        background="#000000", axisItems={"bottom": window.time_axis}
+        background=bg_init, axisItems={"bottom": window.time_axis}
     )
 
     window.plot_widget.setMouseEnabled(x=True, y=False)
@@ -254,11 +275,28 @@ def setup_chart_ui(window):
 
     window.plot_widget.showAxis("right")
     window.plot_widget.hideAxis("left")
-    window.plot_widget.getAxis("right").setPen(pg.mkPen(color="#1c2438"))
-    window.plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#1c2438"))
-    window.plot_widget.getAxis("right").setTextPen(pg.mkPen(color="#64748b"))
-    window.plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color="#64748b"))
+    window.plot_widget.getAxis("right").setPen(pg.mkPen(color=axis_init))
+    window.plot_widget.getAxis("bottom").setPen(pg.mkPen(color=axis_init))
+    window.plot_widget.getAxis("right").setTextPen(pg.mkPen(color=text_init))
+    window.plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color=text_init))
     window.plot_widget.getAxis("right").setWidth(55)
+
+    # Sub-Pane PlotWidget for Oscillators (RSI, MACD, CVD)
+    osc_bg_init = "#000000" if is_d_init else "#f8fafc"
+    window.osc_plot_widget = pg.PlotWidget(background=osc_bg_init)
+    window.osc_plot_widget.setMouseEnabled(x=True, y=False)
+    window.osc_plot_widget.showGrid(x=True, y=True, alpha=0.06)
+    window.osc_plot_widget.getPlotItem().hideButtons()
+    window.osc_plot_widget.showAxis("right")
+    window.osc_plot_widget.hideAxis("left")
+    window.osc_plot_widget.hideAxis("bottom")
+    window.osc_plot_widget.getAxis("right").setPen(pg.mkPen(color=axis_init))
+    window.osc_plot_widget.getAxis("right").setTextPen(pg.mkPen(color=text_init))
+    window.osc_plot_widget.getAxis("right").setWidth(55)
+    window.osc_plot_widget.setMaximumHeight(130)
+    window.osc_plot_widget.setMinimumHeight(85)
+    window.osc_plot_widget.setXLink(window.plot_widget)
+    window.osc_plot_widget.setVisible(False)
 
     # Chart Sub-Header Ribbon (height: 24px)
     ribbon = QFrame()
@@ -504,13 +542,22 @@ def setup_chart_ui(window):
 
     drawing_engine.set_toolbar_buttons(btn_crosshair, btn_poc, btn_fvg, btn_ruler, btn_gear, btn_clear)
 
-    # Horizontal row containing vertical toolbar and plot widget
+    # Vertical container for main candlestick plot + collapsible oscillator sub-pane
+    plots_container = QWidget()
+    plots_layout = QVBoxLayout(plots_container)
+    plots_layout.setContentsMargins(0, 0, 0, 0)
+    plots_layout.setSpacing(2)
+    plots_layout.addWidget(window.plot_widget, stretch=4)
+    plots_layout.addWidget(window.osc_plot_widget, stretch=1)
+    window.plots_container = plots_container
+
+    # Horizontal row containing vertical toolbar and plots container
     chart_canvas_row = QWidget()
     canvas_row_layout = QHBoxLayout(chart_canvas_row)
     canvas_row_layout.setContentsMargins(0, 0, 0, 0)
     canvas_row_layout.setSpacing(0)
     canvas_row_layout.addWidget(toolbar_draw)
-    canvas_row_layout.addWidget(window.plot_widget)
+    canvas_row_layout.addWidget(plots_container)
 
     # 1. Dải cảnh báo dữ liệu ngoại tuyến (Kịch bản A - Có dữ liệu đệm cũ)
     offline_banner = QFrame()
@@ -709,19 +756,34 @@ def setup_chart_ui(window):
     )
     window.plot_widget.addItem(window.current_price_line, ignoreBounds=True)
 
-    # Institutional Signal Threads: 1px tPOC (#ef4444) and 1px vPOC (#10b981)
+    # Institutional Signal Threads: 1px tPOC (#f43f5e) and 1px vPOC (#10b981)
+    # Positioned cleanly at right margin (position: 0.98, border: None) so price candlesticks are 100% unobstructed
+    lbl_font = pg.Qt.QtGui.QFont("Consolas", 8)
+
     window.line_tpoc = pg.InfiniteLine(
         angle=0, movable=False,
-        pen=pg.mkPen(color="#ef4444", width=1.0, style=QtCore.Qt.SolidLine),
+        pen=pg.mkPen(color="#f43f5e", width=1.0, style=QtCore.Qt.SolidLine),
         label="tPOC",
-        labelOpts={"color": "#b91c1c", "position": 0.90, "fill": "#fee2e2", "border": "#b91c1c"}
+        labelOpts={
+            "color": "#f43f5e", "position": 0.98, "anchors": [(1, 1), (1, 1)],
+            "fill": (254, 226, 226, 160) if not is_d_init else (127, 29, 29, 160), "border": None
+        }
     )
+    if hasattr(window.line_tpoc, "label") and window.line_tpoc.label:
+        window.line_tpoc.label.setFont(lbl_font)
+
     window.line_vpoc = pg.InfiniteLine(
         angle=0, movable=False,
-        pen=pg.mkPen(color="#22c55e", width=1.0, style=QtCore.Qt.SolidLine),
+        pen=pg.mkPen(color="#10b981", width=1.0, style=QtCore.Qt.SolidLine),
         label="vPOC",
-        labelOpts={"color": "#15803d", "position": 0.90, "fill": "#dcfce7", "border": "#15803d"}
+        labelOpts={
+            "color": "#10b981", "position": 0.98, "anchors": [(1, 1), (1, 1)],
+            "fill": (220, 252, 231, 160) if not is_d_init else (6, 78, 59, 160), "border": None
+        }
     )
+    if hasattr(window.line_vpoc, "label") and window.line_vpoc.label:
+        window.line_vpoc.label.setFont(lbl_font)
+
     window.plot_widget.addItem(window.line_tpoc, ignoreBounds=True)
     window.plot_widget.addItem(window.line_vpoc, ignoreBounds=True)
 
@@ -735,18 +797,32 @@ def setup_chart_ui(window):
     for l_reg in window.va_region.lines:
         l_reg.setPen(pg.mkPen(color=(0, 0, 0, 0)))
 
+    c_va_pen = "#38bdf8" if is_d_init else "#0284c7"
+    va_fill = (56, 189, 248, 120) if is_d_init else (224, 242, 254, 160)
     window.line_vah = pg.InfiniteLine(
         angle=0, movable=False,
-        pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
+        pen=pg.mkPen(color=c_va_pen, width=1.0, style=QtCore.Qt.DashLine),
         label="VAH (70%)",
-        labelOpts={"color": "#0284c7", "position": 0.90, "fill": "#e0f2fe", "border": "#0284c7"}
+        labelOpts={
+            "color": c_va_pen, "position": 0.98, "anchors": [(1, 1), (1, 1)],
+            "fill": va_fill, "border": None
+        }
     )
+    if hasattr(window.line_vah, "label") and window.line_vah.label:
+        window.line_vah.label.setFont(lbl_font)
+
     window.line_val = pg.InfiniteLine(
         angle=0, movable=False,
-        pen=pg.mkPen(color="#38bdf8", width=1.0, style=QtCore.Qt.DashLine),
+        pen=pg.mkPen(color=c_va_pen, width=1.0, style=QtCore.Qt.DashLine),
         label="VAL (70%)",
-        labelOpts={"color": "#0284c7", "position": 0.90, "fill": "#e0f2fe", "border": "#0284c7"}
+        labelOpts={
+            "color": c_va_pen, "position": 0.98, "anchors": [(1, 1), (1, 1)],
+            "fill": va_fill, "border": None
+        }
     )
+    if hasattr(window.line_val, "label") and window.line_val.label:
+        window.line_val.label.setFont(lbl_font)
+
     window.plot_widget.addItem(window.va_region, ignoreBounds=True)
     window.plot_widget.addItem(window.line_vah, ignoreBounds=True)
     window.plot_widget.addItem(window.line_val, ignoreBounds=True)
@@ -1607,9 +1683,9 @@ def setup_chart_ui(window):
         # Market Profile / Volume Profile (J. Peter Steidlmayer, CBOT 1985)
         # Point of Control (vPOC, tPOC) & 70% Value Area (VAH, VAL)
         # -------------------------------------------------------------
-        vpoc_val, vah_val, val_val = _compute_market_profile_va(rates, lookback=100, num_bins=60, va_pct=0.70)
-        close_prices = [float(r["close"]) for r in rates[-100:]]
-        tpoc_val = float(np.median(close_prices)) if close_prices else vpoc_val
+        vpoc_val, vah_val, val_val, tpoc_val = _compute_market_profile_va(
+            rates, lookback=100, num_bins=60, va_pct=0.70, return_tpoc=True
+        )
 
         poc_vis = getattr(window, "_poc_visible", True)
         if hasattr(window, "line_vpoc"):
@@ -1634,6 +1710,18 @@ def setup_chart_ui(window):
         if hasattr(window, "drawing_engine") and window.drawing_engine:
             window.drawing_engine.re_add_to_plot()
 
+        curr_tf = getattr(window, "current_tf", mt5.TIMEFRAME_H1)
+        # Intraday sessions (Asia, London, NY) are strictly applicable to intraday timeframes M1..M30.
+        # Higher timeframes (H1, H4, D1, W1) represent Multi-Day Composite Profiles.
+        if curr_tf in (
+            getattr(mt5, "TIMEFRAME_H1", 16385),
+            getattr(mt5, "TIMEFRAME_H4", 16388),
+            getattr(mt5, "TIMEFRAME_D1", 16408),
+            getattr(mt5, "TIMEFRAME_W1", 32769),
+        ):
+            tf_name = getattr(window, "current_tf_str", "H4")
+            session_name = f"COMPOSITE PROFILE ({tf_name} · 100 BARS)"
+        else:
             from datetime import datetime, timezone
             utc_hour = datetime.now(timezone.utc).hour
             if 0 <= utc_hour < 8:
@@ -1647,43 +1735,43 @@ def setup_chart_ui(window):
             else:
                 session_name = "PACIFIC / SYDNEY"
 
-            up_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] >= r["open"])
-            down_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] < r["open"])
-            delta_val = up_vol - down_vol
-            delta_k = delta_val / 1000.0
-            sign_d = "+" if delta_k >= 0 else ""
-            delta_desc = "Absorption" if abs(delta_k) > 5 else "Balanced"
-            delta_str = f"{sign_d}{delta_k:.1f}k ({delta_desc})"
+        up_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] >= r["open"])
+        down_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] < r["open"])
+        delta_val = up_vol - down_vol
+        delta_k = delta_val / 1000.0
+        sign_d = "+" if delta_k >= 0 else ""
+        delta_desc = "Absorption" if abs(delta_k) > 5 else "Balanced"
+        delta_str = f"{sign_d}{delta_k:.1f}k ({delta_desc})"
 
-            is_d = getattr(window, "is_dark_theme", False)
-            delta_color = "#10b981" if delta_val >= 0 else "#ef4444"
+        is_d = getattr(window, "is_dark_theme", False)
+        delta_color = "#10b981" if delta_val >= 0 else "#ef4444"
 
-            window._last_vpoc = vpoc_val
-            window._last_vah = vah_val
-            window._last_val = val_val
-            window._last_tpoc = tpoc_val
-            window._last_session = session_name
-            window._last_delta_str = delta_str
-            window._last_delta_color = delta_color
-            window._last_digits = digits
+        window._last_vpoc = vpoc_val
+        window._last_vah = vah_val
+        window._last_val = val_val
+        window._last_tpoc = tpoc_val
+        window._last_session = session_name
+        window._last_delta_str = delta_str
+        window._last_delta_color = delta_color
+        window._last_digits = digits
 
-            if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
-                c_lbl = "#71717a" if is_d else "#475569"
-                c_val = "#ffffff" if is_d else "#0f172a"
-                c_va = "#38bdf8" if is_d else "#0284c7"
-                c_vpoc = "#22c55e" if is_d else "#15803d"
-                c_tpoc = "#f43f5e" if is_d else "#b91c1c"
-                sess_prefix = f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; ' if not is_cached_fallback else f'<b style="color:#d97706;">OFFLINE CACHE ({cached_info_str})</b> &nbsp;|&nbsp; '
-                window.lbl_ribbon_left.setText(
-                    f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
-                    f'{sess_prefix}'
-                    f'vPOC: <b style="color:{c_vpoc};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'VAH: <b style="color:{c_va};">{vah_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'VAL: <b style="color:{c_va};">{val_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'tPOC: <b style="color:{c_tpoc};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-                    f'Δ: <b style="color:{delta_color};">{delta_str}</b>'
-                    f'</span>'
-                )
+        if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
+            c_lbl = "#71717a" if is_d else "#475569"
+            c_val = "#ffffff" if is_d else "#0f172a"
+            c_va = "#38bdf8" if is_d else "#0284c7"
+            c_vpoc = "#22c55e" if is_d else "#15803d"
+            c_tpoc = "#f43f5e" if is_d else "#b91c1c"
+            sess_prefix = f'PROFILE: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; ' if not is_cached_fallback else f'<b style="color:#d97706;">OFFLINE CACHE ({cached_info_str})</b> &nbsp;|&nbsp; '
+            window.lbl_ribbon_left.setText(
+                f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
+                f'{sess_prefix}'
+                f'vPOC: <b style="color:{c_vpoc};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                f'VAH: <b style="color:{c_va};">{vah_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                f'VAL: <b style="color:{c_va};">{val_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                f'tPOC: <b style="color:{c_tpoc};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+                f'Δ: <b style="color:{delta_color};">{delta_str}</b>'
+                f'</span>'
+            )
 
         # Gỡ bỏ toàn bộ đường lệnh ảo cũ khi tải lại biểu đồ hoặc chuyển mã
         for line_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
@@ -1869,7 +1957,7 @@ def update_chart_theme(window, is_dark: bool = False):
         tpoc_str = f"{tpoc_val:,.{digits}f}" if tpoc_val is not None else "--"
         session_text = (
             f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
-            f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
+            f'PROFILE: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
             f'vPOC: <b style="color:{c_vpoc};">{vpoc_str}</b> &nbsp;|&nbsp; '
             f'VAH: <b style="color:{c_va};">{vah_str}</b> &nbsp;|&nbsp; '
             f'VAL: <b style="color:{c_va};">{val_str}</b> &nbsp;|&nbsp; '
@@ -1882,13 +1970,45 @@ def update_chart_theme(window, is_dark: bool = False):
     # Market Profile VAH / VAL / Value Area Region theme sync
     if hasattr(window, "line_vah") and window.line_vah:
         c_va = "#38bdf8" if is_dark else "#0284c7"
+        va_fill = (56, 189, 248, 120) if is_dark else (224, 242, 254, 160)
         window.line_vah.setPen(pg.mkPen(color=c_va, width=1.0, style=QtCore.Qt.DashLine))
+        if hasattr(window.line_vah, "label") and window.line_vah.label:
+            window.line_vah.label.setColor(c_va)
+            window.line_vah.label.fill = pg.mkBrush(*va_fill)
     if hasattr(window, "line_val") and window.line_val:
         c_va = "#38bdf8" if is_dark else "#0284c7"
+        va_fill = (56, 189, 248, 120) if is_dark else (224, 242, 254, 160)
         window.line_val.setPen(pg.mkPen(color=c_va, width=1.0, style=QtCore.Qt.DashLine))
+        if hasattr(window.line_val, "label") and window.line_val.label:
+            window.line_val.label.setColor(c_va)
+            window.line_val.label.fill = pg.mkBrush(*va_fill)
+    if hasattr(window, "line_vpoc") and window.line_vpoc:
+        c_vpoc_pen = "#10b981"
+        vpoc_fill = (6, 78, 59, 160) if is_dark else (220, 252, 231, 160)
+        if hasattr(window.line_vpoc, "label") and window.line_vpoc.label:
+            window.line_vpoc.label.setColor(c_vpoc_pen)
+            window.line_vpoc.label.fill = pg.mkBrush(*vpoc_fill)
+    if hasattr(window, "line_tpoc") and window.line_tpoc:
+        c_tpoc_pen = "#f43f5e"
+        tpoc_fill = (127, 29, 29, 160) if is_dark else (254, 226, 226, 160)
+        if hasattr(window.line_tpoc, "label") and window.line_tpoc.label:
+            window.line_tpoc.label.setColor(c_tpoc_pen)
+            window.line_tpoc.label.fill = pg.mkBrush(*tpoc_fill)
     if hasattr(window, "va_region") and window.va_region:
         va_brush_color = (56, 189, 248, 16) if is_dark else (2, 132, 199, 14)
         window.va_region.setBrush(pg.mkBrush(color=va_brush_color))
+
+    # Oscillator Sub-Pane Theme Sync
+    if hasattr(window, "osc_plot_widget") and window.osc_plot_widget:
+        osc_bg = "#000000" if is_dark else "#f8fafc"
+        window.osc_plot_widget.setBackground(osc_bg)
+        osc_axis_color = "#1c2438" if is_dark else "#cbd5e1"
+        osc_text_color = "#64748b" if is_dark else "#475569"
+        osc_right = window.osc_plot_widget.getAxis("right")
+        if osc_right:
+            osc_right.setPen(pg.mkPen(color=osc_axis_color))
+            osc_right.setTextPen(pg.mkPen(color=osc_text_color))
+            osc_right.setWidth(55)
 
     if hasattr(window, "lbl_chart_zoom") and window.lbl_chart_zoom:
         zoom_color = "#71717a" if is_dark else "#64748b"

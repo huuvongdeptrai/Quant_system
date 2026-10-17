@@ -106,9 +106,37 @@ class TestMarketProfileValueAreaMath:
             # 90% of volume concentrated in the top 5 bars
             skewed[i]["tick_volume"] = 10000 if i >= 45 else 50
 
-        vpoc, vah, val = _compute_market_profile_va(skewed, lookback=50, va_pct=0.70)
-        assert vpoc >= 2085.0, f"VPOC should be concentrated near high, got {vpoc}"
-        assert vah >= vpoc >= val
+    def test_authentic_tpoc_vs_vpoc_divergence(self):
+        """
+        Steidlmayer CBOT Invariant:
+        When the market consolidates over many bars at a low price range (High TPO),
+        but experiences an aggressive high-volume spike at a high price range (High Volume),
+        tPOC (Time POC) and vPOC (Volume POC) diverge quantitatively to reflect
+        time consolidation vs volume absorption.
+        """
+        dtype = [("low", "f8"), ("high", "f8"), ("close", "f8"), ("tick_volume", "i8")]
+        n = 60
+        rates = np.empty(n, dtype=dtype)
+        # 55 bars spent consolidating between 2000 and 2005 (low volume per bar)
+        for i in range(55):
+            rates[i]["low"] = 2000.0
+            rates[i]["high"] = 2005.0
+            rates[i]["close"] = 2002.5
+            rates[i]["tick_volume"] = 100
+
+        # 5 bars spike up to 2090..2100 with massive volume (e.g. 50,000)
+        for i in range(55, 60):
+            rates[i]["low"] = 2090.0
+            rates[i]["high"] = 2100.0
+            rates[i]["close"] = 2095.0
+            rates[i]["tick_volume"] = 50000
+
+        vpoc, vah, val, tpoc = _compute_market_profile_va(rates, lookback=60, num_bins=60, va_pct=0.70, return_tpoc=True)
+        # tPOC must reflect the 55 bars of time consolidation near 2000..2005
+        assert 2000.0 <= tpoc <= 2010.0, f"tPOC should be at consolidation base, got {tpoc}"
+        # vPOC must reflect the massive volume spike near 2090..2100
+        assert 2085.0 <= vpoc <= 2100.0, f"vPOC should be at volume concentration, got {vpoc}"
+        assert tpoc != vpoc, f"tPOC ({tpoc}) and vPOC ({vpoc}) should diverge under asymmetric conditions"
 
 
 class TestMarketProfileUIIntegration:

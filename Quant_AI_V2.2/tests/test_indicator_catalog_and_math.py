@@ -154,6 +154,23 @@ class TestIndicatorCalculationEngine:
         assert len(computed["MACD_LINE"]) == len(sample_market_df)
         assert len(computed["MACD_SIGNAL"]) == len(sample_market_df)
 
+    def test_donchian_channels_rolling_envelopes(self, sample_market_df):
+        """Verifies Donchian channels compute full rolling envelopes and invariant LOW <= MID <= HIGH."""
+        active = {"donchian": True}
+        computed = _compute_indicators(sample_market_df, active)
+
+        assert "DONCHIAN_SERIES_HIGH" in computed
+        assert "DONCHIAN_SERIES_LOW" in computed
+        assert "DONCHIAN_SERIES_MID" in computed
+
+        h = np.array(computed["DONCHIAN_SERIES_HIGH"])
+        l = np.array(computed["DONCHIAN_SERIES_LOW"])
+        m = np.array(computed["DONCHIAN_SERIES_MID"])
+
+        assert len(h) == len(sample_market_df)
+        assert np.all(l <= h)
+        assert np.allclose(m, (h + l) / 2.0)
+
     def test_all_ten_indicators_concurrent(self, sample_market_df):
         """Ensures all 10 indicators calculate simultaneously without memory or CPU bottleneck."""
         all_active = {k: True for k in INDICATOR_METADATA.keys()}
@@ -224,3 +241,22 @@ class TestIndicatorDialogUI:
         assert active["rsi"] is False
         assert "0 studies active" in dlg.lbl_active_count.text()
         dlg.close()
+
+    def test_oscillator_subpane_lifecycle(self, qapp):
+        """Verifies oscillator curve management attaches cleanly and toggles safely."""
+        import pyqtgraph as pg
+        from frontend.controllers.chart.indicator_dialog import _get_or_create_osc_curve, _hide_osc_curve
+
+        class MockWindow:
+            def __init__(self):
+                self.plot_widget = pg.PlotWidget()
+                self.osc_plot_widget = pg.PlotWidget()
+
+        win = MockWindow()
+        pen = pg.mkPen("#10b981")
+        curve = _get_or_create_osc_curve(win, "TEST_RSI", pen)
+        assert curve is not None
+        assert curve.isVisible() is True
+
+        _hide_osc_curve(win, "TEST_RSI")
+        assert curve.isVisible() is False

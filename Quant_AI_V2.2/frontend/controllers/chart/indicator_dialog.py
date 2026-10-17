@@ -746,11 +746,18 @@ def _compute_indicators(df, active):
     if active.get("ma200", False):
         result["MA_200"] = df["close"].rolling(window=200, min_periods=1).mean().tolist()
 
-    # 3. Donchian Channels (100) - Donchian (1960); Park & Irwin (2007)
+    # 3. Donchian Channels (Dynamic Rolling Envelopes) - Donchian (1960); Park & Irwin (2007)
     if active.get("donchian", False) and n >= 5:
         lookback = min(100, n)
+        span = min(20, n)
+        d_high = df["high"].rolling(window=span, min_periods=1).max()
+        d_low = df["low"].rolling(window=span, min_periods=1).min()
+        d_mid = (d_high + d_low) / 2.0
         result["DONCHIAN_HIGH"] = float(df["high"].iloc[-lookback:].max())
         result["DONCHIAN_LOW"] = float(df["low"].iloc[-lookback:].min())
+        result["DONCHIAN_SERIES_HIGH"] = d_high.tolist()
+        result["DONCHIAN_SERIES_LOW"] = d_low.tolist()
+        result["DONCHIAN_SERIES_MID"] = d_mid.tolist()
 
     # 4. Classic Floor Pivots - Harris (2003), Oxford University Press
     if active.get("pivot", False):
@@ -771,9 +778,29 @@ def _compute_indicators(df, active):
         )
         vol = vol.astype(float).replace(0, 1.0)
         typical_price = (df["high"] + df["low"] + df["close"]) / 3.0
+
+        # Session anchor: find recent session/day boundary or anchor to last 150 bars
+        anchor_idx = 0
+        if "time" in df.columns and len(df) > 1:
+            try:
+                times = pd.to_datetime(df["time"], unit="s") if np.issubdtype(df["time"].dtype, np.number) else pd.to_datetime(df["time"])
+                day_diffs = np.where(times.dt.day.diff() != 0)[0]
+                if len(day_diffs) > 1:
+                    anchor_idx = int(day_diffs[-1])
+            except Exception:
+                anchor_idx = max(0, n - 150)
+        else:
+            anchor_idx = max(0, n - 150)
+
         cum_vp = (typical_price * vol).cumsum()
         cum_vol = vol.cumsum().replace(0, 1.0)
         vwap = cum_vp / cum_vol
+
+        if 0 < anchor_idx < n:
+            sess_vp = (typical_price.iloc[anchor_idx:] * vol.iloc[anchor_idx:]).cumsum()
+            sess_vol = vol.iloc[anchor_idx:].cumsum().replace(0, 1.0)
+            vwap.iloc[anchor_idx:] = sess_vp / sess_vol
+
         cum_sq_diff = (vol * ((typical_price - vwap) ** 2)).cumsum()
         vwap_std = np.sqrt((cum_sq_diff / cum_vol).clip(lower=0.0)).fillna(0.0)
 
@@ -839,9 +866,23 @@ def _get_or_create_curve(window, key, pen, **kwargs):
         window._ind_curves = {}
     if key not in window._ind_curves:
         curve = pg.PlotCurveItem(pen=pen, **kwargs)
-        window.plot_widget.addItem(curve)
+        if hasattr(window, "plot_widget") and window.plot_widget:
+            window.plot_widget.addItem(curve)
         window._ind_curves[key] = curve
     return window._ind_curves[key]
+
+
+def _get_or_create_osc_curve(window, key, pen, **kwargs):
+    """Retrieves or creates PlotCurveItem attached to window.osc_plot_widget."""
+    target = getattr(window, "osc_plot_widget", None) or getattr(window, "plot_widget", None)
+    if not hasattr(window, "_ind_osc_curves"):
+        window._ind_osc_curves = {}
+    if key not in window._ind_osc_curves:
+        curve = pg.PlotCurveItem(pen=pen, **kwargs)
+        if target:
+            target.addItem(curve)
+        window._ind_osc_curves[key] = curve
+    return window._ind_osc_curves[key]
 
 
 def _get_or_create_hline(window, key, pen):
@@ -850,7 +891,8 @@ def _get_or_create_hline(window, key, pen):
         window._ind_curves = {}
     if key not in window._ind_curves:
         line = pg.InfiniteLine(angle=0, pen=pen, movable=False)
-        window.plot_widget.addItem(line)
+        if hasattr(window, "plot_widget") and window.plot_widget:
+            window.plot_widget.addItem(line)
         window._ind_curves[key] = line
     return window._ind_curves[key]
 
@@ -859,6 +901,12 @@ def _hide_curve(window, key):
     """Hides indicator curve safely without destroying the graphical object."""
     if hasattr(window, "_ind_curves") and key in window._ind_curves:
         window._ind_curves[key].setVisible(False)
+
+
+def _hide_osc_curve(window, key):
+    """Hides oscillator curve safely without destroying the graphical object."""
+    if hasattr(window, "_ind_osc_curves") and key in window._ind_osc_curves:
+        window._ind_osc_curves[key].setVisible(False)
 
 
 def _refresh_indicators(window, df):
@@ -897,19 +945,22 @@ def _refresh_indicators(window, df):
     else:
         _hide_curve(window, "MA_200")
 
-    # 3. Donchian Channel (100)
-    if active.get("donchian", False) and "DONCHIAN_HIGH" in computed:
-        x_start = max(0, n - 100)
-        x_end = max(0, n - 1)
+    # 3. Donchian Channel (Dynamic Rolling Envelopes)
+    if active.get("donchian", False) and "DONCHIAN_SERIES_HIGH" in computed:
         r_curve = _get_or_create_curve(window, "DONCHIAN_R", pg.mkPen(color=(244, 63, 94, 180), width=1.2, style=Qt.DashLine))
-        r_curve.setData([x_start, x_end], [computed["DONCHIAN_HIGH"], computed["DONCHIAN_HIGH"]])
+        r_curve.setData(x, computed["DONCHIAN_SERIES_HIGH"])
         r_curve.setVisible(True)
 
+        m_curve = _get_or_create_curve(window, "DONCHIAN_M", pg.mkPen(color=(148, 163, 184, 140), width=1.0, style=Qt.DotLine))
+        m_curve.setData(x, computed["DONCHIAN_SERIES_MID"])
+        m_curve.setVisible(True)
+
         s_curve = _get_or_create_curve(window, "DONCHIAN_S", pg.mkPen(color=(16, 185, 129, 180), width=1.2, style=Qt.DashLine))
-        s_curve.setData([x_start, x_end], [computed["DONCHIAN_LOW"], computed["DONCHIAN_LOW"]])
+        s_curve.setData(x, computed["DONCHIAN_SERIES_LOW"])
         s_curve.setVisible(True)
     else:
         _hide_curve(window, "DONCHIAN_R")
+        _hide_curve(window, "DONCHIAN_M")
         _hide_curve(window, "DONCHIAN_S")
 
     # 4. Classic Floor Pivots
@@ -917,29 +968,30 @@ def _refresh_indicators(window, df):
         try:
             sym = getattr(window, "current_sym", "XAUUSD")
             d1_rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 0, 3)
+            H, L, C = None, None, None
             if d1_rates is not None and len(d1_rates) >= 2:
                 prev = d1_rates[-2]
                 H = float(prev["high"])
                 L = float(prev["low"])
                 C = float(prev["close"])
+            elif df is not None and len(df) >= 20:
+                prev_chunk = df.iloc[-48:-24] if len(df) >= 48 else df.iloc[:max(1, len(df) // 2)]
+                H = float(prev_chunk["high"].max())
+                L = float(prev_chunk["low"].min())
+                C = float(prev_chunk["close"].iloc[-1])
+
+            if H is not None and L is not None and C is not None:
                 P = (H + L + C) / 3.0
                 R1 = 2 * P - L
                 S1 = 2 * P - H
                 R2 = P + (H - L)
                 S2 = P - (H - L)
 
-                today_open_time = d1_rates[-1]["time"]
-                x_start = 0
-                if "time" in df.columns:
-                    today_mask = df["time"] >= today_open_time
-                    if today_mask.any():
-                        x_start = int(today_mask.idxmax())
+                x_start = max(0, n - 30)
                 x_end = max(0, n - 1)
-                if x_start >= x_end:
-                    x_start = max(0, x_end - 30)
 
                 pivot_cfg = [
-                    ("PIVOT_P", P, pg.mkPen("#94A3B8", width=1.0, style=Qt.DashLine)),
+                    ("PIVOT_P", P, pg.mkPen("#64748B", width=1.0, style=Qt.DashLine)),
                     ("PIVOT_R1", R1, pg.mkPen(color=(244, 63, 94, 200), width=1.1, style=Qt.DashLine)),
                     ("PIVOT_S1", S1, pg.mkPen(color=(16, 185, 129, 200), width=1.1, style=Qt.DashLine)),
                     ("PIVOT_R2", R2, pg.mkPen(color=(244, 63, 94, 130), width=1.0, style=Qt.DotLine)),
@@ -949,7 +1001,7 @@ def _refresh_indicators(window, df):
                     c = _get_or_create_curve(window, key, pen)
                     c.setData([x_start, x_end], [val, val])
                     c.setVisible(True)
-        except Exception as e:
+        except Exception:
             pass
     else:
         for key in ["PIVOT_P", "PIVOT_R1", "PIVOT_S1", "PIVOT_R2", "PIVOT_S2"]:
@@ -994,7 +1046,6 @@ def _refresh_indicators(window, df):
     # 7. Fair Value Gaps (FVG)
     if active.get("fvg", False) and "FVG_ZONES" in computed:
         fvg_zones = computed["FVG_ZONES"]
-        # Plot up to last 10 significant FVGs
         for idx in range(10):
             k_top = f"FVG_TOP_{idx}"
             k_bot = f"FVG_BOT_{idx}"
@@ -1018,86 +1069,103 @@ def _refresh_indicators(window, df):
             _hide_curve(window, f"FVG_TOP_{idx}")
             _hide_curve(window, f"FVG_BOT_{idx}")
 
-    # 8. RSI 14 (Mapped corridor at chart lower bounds)
+    # Sub-Pane Oscillators Management (RSI, MACD, CVD)
+    has_osc = hasattr(window, "osc_plot_widget") and window.osc_plot_widget is not None
+    osc_active = active.get("rsi", False) or active.get("macd", False) or active.get("cvd", False)
+    if has_osc:
+        window.osc_plot_widget.setVisible(osc_active)
+
+    # 8. RSI 14
     if active.get("rsi", False) and "RSI_14" in computed and n > 0:
-        y_min = float(df["low"].min())
-        y_max = float(df["high"].max())
-        y_span = max(y_max - y_min, 1e-4)
+        rsi_raw = computed["RSI_14"]
+        if has_osc:
+            c_rsi = _get_or_create_osc_curve(window, "OSC_RSI_CURVE", pg.mkPen("#10B981", width=1.5))
+            c_rsi.setData(x, rsi_raw)
+            c_rsi.setVisible(True)
 
-        # Map 0..100 RSI to lower 12% corridor of price
-        corridor_base = y_min + y_span * 0.02
-        corridor_height = y_span * 0.12
+            c_r70 = _get_or_create_osc_curve(window, "OSC_RSI_70", pg.mkPen(color=(244, 63, 94, 180), width=1.0, style=Qt.DashLine))
+            c_r70.setData([0, n - 1], [70.0, 70.0])
+            c_r70.setVisible(True)
 
-        rsi_raw = np.array(computed["RSI_14"])
-        rsi_mapped = (corridor_base + (rsi_raw / 100.0) * corridor_height).tolist()
+            c_r50 = _get_or_create_osc_curve(window, "OSC_RSI_50", pg.mkPen(color=(148, 163, 184, 120), width=0.8, style=Qt.DotLine))
+            c_r50.setData([0, n - 1], [50.0, 50.0])
+            c_r50.setVisible(True)
 
-        c_rsi = _get_or_create_curve(window, "RSI_14_CURVE", pg.mkPen("#10B981", width=1.3))
-        c_rsi.setData(x, rsi_mapped)
-        c_rsi.setVisible(True)
+            c_r30 = _get_or_create_osc_curve(window, "OSC_RSI_30", pg.mkPen(color=(16, 185, 129, 180), width=1.0, style=Qt.DashLine))
+            c_r30.setData([0, n - 1], [30.0, 30.0])
+            c_r30.setVisible(True)
 
-        # 70/30 bounds
-        r70 = corridor_base + 0.70 * corridor_height
-        r30 = corridor_base + 0.30 * corridor_height
-        c_r70 = _get_or_create_curve(window, "RSI_70_LINE", pg.mkPen(color=(244, 63, 94, 120), width=1.0, style=Qt.DotLine))
-        c_r70.setData([0, n - 1], [r70, r70])
-        c_r70.setVisible(True)
-
-        c_r30 = _get_or_create_curve(window, "RSI_30_LINE", pg.mkPen(color=(16, 185, 129, 120), width=1.0, style=Qt.DotLine))
-        c_r30.setData([0, n - 1], [r30, r30])
-        c_r30.setVisible(True)
+            window.osc_plot_widget.setYRange(0, 100)
+            r_axis = window.osc_plot_widget.getAxis("right")
+            if r_axis:
+                r_axis.setLabel("RSI")
+        else:
+            _hide_curve(window, "RSI_14_CURVE")
     else:
+        _hide_osc_curve(window, "OSC_RSI_CURVE")
+        _hide_osc_curve(window, "OSC_RSI_70")
+        _hide_osc_curve(window, "OSC_RSI_50")
+        _hide_osc_curve(window, "OSC_RSI_30")
         _hide_curve(window, "RSI_14_CURVE")
         _hide_curve(window, "RSI_70_LINE")
         _hide_curve(window, "RSI_30_LINE")
 
-    # 9. MACD (Mapped to lower corridor above RSI)
+    # 9. MACD (12, 26, 9)
     if active.get("macd", False) and "MACD_LINE" in computed and n > 0:
-        y_min = float(df["low"].min())
-        y_max = float(df["high"].max())
-        y_span = max(y_max - y_min, 1e-4)
-
-        corridor_base = y_min + y_span * 0.16
-        corridor_height = y_span * 0.10
-
         macd_raw = np.array(computed["MACD_LINE"])
         sig_raw = np.array(computed["MACD_SIGNAL"])
-        m_min = min(macd_raw.min(), sig_raw.min())
-        m_max = max(macd_raw.max(), sig_raw.max())
-        m_range = max(m_max - m_min, 1e-5)
+        if has_osc:
+            c_macd = _get_or_create_osc_curve(window, "OSC_MACD_LINE", pg.mkPen("#0284C7", width=1.4))
+            c_macd.setData(x, macd_raw.tolist())
+            c_macd.setVisible(True)
 
-        macd_mapped = (corridor_base + ((macd_raw - m_min) / m_range) * corridor_height).tolist()
-        sig_mapped = (corridor_base + ((sig_raw - m_min) / m_range) * corridor_height).tolist()
+            c_sig = _get_or_create_osc_curve(window, "OSC_MACD_SIG", pg.mkPen("#F43F5E", width=1.2, style=Qt.DashLine))
+            c_sig.setData(x, sig_raw.tolist())
+            c_sig.setVisible(True)
 
-        c_macd = _get_or_create_curve(window, "MACD_CURVE", pg.mkPen("#06B6D4", width=1.2))
-        c_macd.setData(x, macd_mapped)
-        c_macd.setVisible(True)
+            c_zero = _get_or_create_osc_curve(window, "OSC_MACD_ZERO", pg.mkPen(color=(148, 163, 184, 100), width=0.8, style=Qt.DotLine))
+            c_zero.setData([0, n - 1], [0.0, 0.0])
+            c_zero.setVisible(True)
 
-        c_sig = _get_or_create_curve(window, "MACD_SIG_CURVE", pg.mkPen("#F43F5E", width=1.2, style=Qt.DashLine))
-        c_sig.setData(x, sig_mapped)
-        c_sig.setVisible(True)
+            m_all = np.concatenate([macd_raw, sig_raw])
+            m_min, m_max = float(np.min(m_all)), float(np.max(m_all))
+            pad = max(abs(m_max - m_min) * 0.15, 1e-4)
+            window.osc_plot_widget.setYRange(m_min - pad, m_max + pad)
+            r_axis = window.osc_plot_widget.getAxis("right")
+            if r_axis:
+                r_axis.setLabel("MACD")
+        else:
+            _hide_curve(window, "MACD_CURVE")
     else:
+        _hide_osc_curve(window, "OSC_MACD_LINE")
+        _hide_osc_curve(window, "OSC_MACD_SIG")
+        _hide_osc_curve(window, "OSC_MACD_ZERO")
         _hide_curve(window, "MACD_CURVE")
         _hide_curve(window, "MACD_SIG_CURVE")
 
-    # 10. CVD Proxy
+    # 10. Order Flow CVD Proxy
     if active.get("cvd", False) and "CVD_LINE" in computed and n > 0:
-        y_min = float(df["low"].min())
-        y_max = float(df["high"].max())
-        y_span = max(y_max - y_min, 1e-4)
-
-        corridor_base = y_min + y_span * 0.28
-        corridor_height = y_span * 0.08
-
         cvd_raw = np.array(computed["CVD_LINE"])
-        c_min = cvd_raw.min()
-        c_max = cvd_raw.max()
-        c_range = max(c_max - c_min, 1e-5)
+        if has_osc:
+            c_cvd = _get_or_create_osc_curve(window, "OSC_CVD_LINE", pg.mkPen("#8B5CF6", width=1.5))
+            c_cvd.setData(x, cvd_raw.tolist())
+            c_cvd.setVisible(True)
 
-        cvd_mapped = (corridor_base + ((cvd_raw - c_min) / c_range) * corridor_height).tolist()
-        c_cvd = _get_or_create_curve(window, "CVD_CURVE", pg.mkPen("#8B5CF6", width=1.2))
-        c_cvd.setData(x, cvd_mapped)
-        c_cvd.setVisible(True)
+            c_czero = _get_or_create_osc_curve(window, "OSC_CVD_ZERO", pg.mkPen(color=(148, 163, 184, 100), width=0.8, style=Qt.DotLine))
+            c_czero.setData([0, n - 1], [0.0, 0.0])
+            c_czero.setVisible(True)
+
+            cv_min, cv_max = float(np.min(cvd_raw)), float(np.max(cvd_raw))
+            cpad = max(abs(cv_max - cv_min) * 0.15, 1e-4)
+            window.osc_plot_widget.setYRange(cv_min - cpad, cv_max + cpad)
+            r_axis = window.osc_plot_widget.getAxis("right")
+            if r_axis:
+                r_axis.setLabel("CVD")
+        else:
+            _hide_curve(window, "CVD_CURVE")
     else:
+        _hide_osc_curve(window, "OSC_CVD_LINE")
+        _hide_osc_curve(window, "OSC_CVD_ZERO")
         _hide_curve(window, "CVD_CURVE")
 
 
@@ -1109,6 +1177,8 @@ __all__ = [
     "_compute_indicators",
     "_refresh_indicators",
     "_get_or_create_curve",
+    "_get_or_create_osc_curve",
     "_get_or_create_hline",
     "_hide_curve",
+    "_hide_osc_curve",
 ]
