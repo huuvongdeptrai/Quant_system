@@ -36,6 +36,11 @@ class BlotterController:
             "_flatten_countdown", "_flatten_timer"
         ):
             super().__setattr__(name, value)
+            if name == "active_blotter_mode" and hasattr(self, "terminal"):
+                try:
+                    setattr(self.terminal, name, value)
+                except Exception:
+                    pass
         else:
             super().__setattr__(name, value)
             if hasattr(self, "terminal"):

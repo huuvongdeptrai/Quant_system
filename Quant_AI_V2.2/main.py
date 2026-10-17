@@ -622,7 +622,13 @@ class QuantTerminal(QObject):
                 sym = getattr(self.window, "current_sym", "XAUUSD")
                 self.window.draw_and_analyze(sym)
 
-            if getattr(self, "active_blotter_mode", "active") == "active":
+            current_blotter_mode = "active"
+            if hasattr(self, "blotter") and hasattr(self.blotter, "active_blotter_mode"):
+                current_blotter_mode = self.blotter.active_blotter_mode
+            elif hasattr(self, "active_blotter_mode"):
+                current_blotter_mode = self.active_blotter_mode
+
+            if current_blotter_mode == "active":
                 if hasattr(self, "_render_blotter"):
                     self._render_blotter("active")
 

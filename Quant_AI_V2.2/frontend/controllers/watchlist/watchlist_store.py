@@ -59,7 +59,6 @@ class WatchlistStore:
     def save_symbols(self, symbols: List[str]) -> bool:
         target_paths = [
             self.data_file,
-            os.path.join(self.root_dir, "data", "watchlist.json"),
             self.config_file,
         ]
         success = True
@@ -71,6 +70,11 @@ class WatchlistStore:
                         json.dump({"symbols": symbols}, f, indent=4)
                     else:
                         json.dump(symbols, f, indent=4)
+                    f.flush()
+                    try:
+                        os.fsync(f.fileno())
+                    except Exception:
+                        pass
             except Exception as err:
                 logger.debug(f"[WatchlistStore] Non-fatal save exception to {target}: {err}")
                 success = False

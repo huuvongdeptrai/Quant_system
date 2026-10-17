@@ -72,6 +72,16 @@ class WatchlistManager(QObject):
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
         event_bus.market_tick.connect(self.on_tick)
 
+        orig_key_press = self.tree.keyPressEvent
+        def _on_tree_key_press(event):
+            if event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+                curr = self.tree.currentItem()
+                if curr and curr.childCount() == 0:
+                    self._delete_item(curr)
+                    return
+            orig_key_press(event)
+        self.tree.keyPressEvent = _on_tree_key_press
+
         assets_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "frontend", "assets"
@@ -430,11 +440,19 @@ class WatchlistManager(QObject):
             if hasattr(self.window, "draw_and_analyze"):
                 self.window.draw_and_analyze(clean_sym)
         elif action == act_del:
-            parent = item.parent()
+            self._delete_item(item)
+
+    def _delete_item(self, item):
+        if not item or item.childCount() > 0:
+            return
+        parent = item.parent()
+        if parent:
             parent.removeChild(item)
             if parent.childCount() == 0:
                 self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(parent))
-            self.save_watchlist()
+        else:
+            self.tree.takeTopLevelItem(self.tree.indexOfTopLevelItem(item))
+        self.save_watchlist()
 
     def get_all_symbols(self):
         if not self.tree:

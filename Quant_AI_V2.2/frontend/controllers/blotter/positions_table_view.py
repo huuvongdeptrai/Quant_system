@@ -210,6 +210,11 @@ class PositionsTableView:
         if mode is None:
             mode = getattr(self.controller, "active_blotter_mode", "active")
         self.controller.active_blotter_mode = mode
+        if hasattr(self.controller, "terminal"):
+            try:
+                self.controller.terminal.active_blotter_mode = mode
+            except Exception:
+                pass
         is_dark = getattr(self.controller, "is_dark_theme", False)
         is_live = mt5.terminal_info() is not None
 
