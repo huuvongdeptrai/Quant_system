@@ -162,3 +162,99 @@ class TestMarketProfileUIIntegration:
 
         engine.toggle_value_area(False)
         assert mock_win._va_visible is False
+
+    def test_granular_profile_level_toggles(self, qapp):
+        """Verifies individual toggles for vPOC, tPOC, VAH, VAL, and Value Area Fill."""
+        import pyqtgraph as pg
+        from PySide6.QtWidgets import QPushButton
+
+        class MockLine:
+            def __init__(self):
+                self.visible = True
+            def setVisible(self, v):
+                self.visible = bool(v)
+
+        class MockWindow:
+            def __init__(self):
+                self._poc_visible = True
+                self._va_visible = True
+                self._vpoc_visible = True
+                self._tpoc_visible = True
+                self._vah_visible = True
+                self._val_visible = True
+                self._va_fill_visible = True
+                self.plot_widget = pg.PlotWidget()
+                self.line_vpoc = MockLine()
+                self.line_tpoc = MockLine()
+                self.line_vah = MockLine()
+                self.line_val = MockLine()
+                self.va_region = MockLine()
+
+        mock_win = MockWindow()
+        engine = ChartDrawingEngine(mock_win)
+
+        # 1. Toggle vPOC individual
+        engine.toggle_vpoc(False)
+        assert mock_win._vpoc_visible is False
+        assert mock_win.line_vpoc.visible is False
+        engine.toggle_vpoc(True)
+        assert mock_win._vpoc_visible is True
+        assert mock_win.line_vpoc.visible is True
+
+        # 2. Toggle tPOC individual
+        engine.toggle_tpoc(False)
+        assert mock_win._tpoc_visible is False
+        assert mock_win.line_tpoc.visible is False
+        engine.toggle_tpoc(True)
+        assert mock_win._tpoc_visible is True
+        assert mock_win.line_tpoc.visible is True
+
+        # 3. Toggle VAH individual
+        engine.toggle_vah(False)
+        assert mock_win._vah_visible is False
+        assert mock_win.line_vah.visible is False
+        engine.toggle_vah(True)
+        assert mock_win._vah_visible is True
+        assert mock_win.line_vah.visible is True
+
+        # 4. Toggle VAL individual
+        engine.toggle_val(False)
+        assert mock_win._val_visible is False
+        assert mock_win.line_val.visible is False
+        engine.toggle_val(True)
+        assert mock_win._val_visible is True
+        assert mock_win.line_val.visible is True
+
+        # 5. Toggle VA fill individual
+        engine.toggle_va_fill(False)
+        assert mock_win._va_fill_visible is False
+        assert mock_win.va_region.visible is False
+        engine.toggle_va_fill(True)
+        assert mock_win._va_fill_visible is True
+        assert mock_win.va_region.visible is True
+
+    def test_drawing_engine_toolbar_profile_button(self, qapp):
+        """Verifies set_toolbar_buttons accommodates btn_profile and preserves theme updates."""
+        import pyqtgraph as pg
+        from PySide6.QtWidgets import QPushButton
+
+        class MockWindow:
+            def __init__(self):
+                self.plot_widget = pg.PlotWidget()
+                self.is_dark_theme = False
+                self._get_tool_btn_style = lambda is_d, is_active=False, is_accent=False: "/* test-style */"
+
+        mock_win = MockWindow()
+        engine = ChartDrawingEngine(mock_win)
+
+        btn_ch = QPushButton()
+        btn_tl = QPushButton()
+        btn_rect = QPushButton()
+        btn_ruler = QPushButton()
+        btn_gear = QPushButton()
+        btn_clr = QPushButton()
+        btn_prof = QPushButton()
+
+        engine.set_toolbar_buttons(btn_ch, btn_tl, btn_rect, btn_ruler, btn_gear, btn_clr, btn_profile=btn_prof)
+        assert engine.btn_profile is btn_prof
+        assert "/* test-style */" in btn_prof.styleSheet()

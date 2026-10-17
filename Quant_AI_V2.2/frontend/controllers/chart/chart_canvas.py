@@ -11,10 +11,10 @@ import pandas as pd
 import pyqtgraph as pg
 
 from PySide6 import QtCore, QtGui
-from PySide6.QtCore import Qt, QTimer, QSize, QPointF, QEvent, QObject
+from PySide6.QtCore import Qt, QTimer, QSize, QPointF, QPoint, QEvent, QObject
 from PySide6.QtGui import (
     QColor, QFont, QIcon, QPainter, QPicture, QCursor,
-    QKeySequence, QShortcut
+    QKeySequence, QShortcut, QPixmap, QPen, QBrush, QAction
 )
 from PySide6.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
@@ -161,8 +161,64 @@ def setup_chart_ui(window):
     window._rates_cache = {}  # Session memory cache for offline resilience
     window._poc_visible = True
     window._va_visible = True
+    window._vpoc_visible = True
+    window._tpoc_visible = True
+    window._vah_visible = True
+    window._val_visible = True
+    window._va_fill_visible = True
     window._last_vah = None
     window._last_val = None
+
+    def toggle_vpoc(visible: bool = None):
+        if visible is None:
+            visible = not getattr(window, "_vpoc_visible", True)
+        window._vpoc_visible = bool(visible)
+        if hasattr(window, "line_vpoc") and window.line_vpoc:
+            poc_vis = getattr(window, "_poc_visible", True)
+            window.line_vpoc.setVisible(bool(visible) and poc_vis)
+        return window._vpoc_visible
+
+    def toggle_tpoc(visible: bool = None):
+        if visible is None:
+            visible = not getattr(window, "_tpoc_visible", True)
+        window._tpoc_visible = bool(visible)
+        if hasattr(window, "line_tpoc") and window.line_tpoc:
+            poc_vis = getattr(window, "_poc_visible", True)
+            window.line_tpoc.setVisible(bool(visible) and poc_vis)
+        return window._tpoc_visible
+
+    def toggle_vah(visible: bool = None):
+        if visible is None:
+            visible = not getattr(window, "_vah_visible", True)
+        window._vah_visible = bool(visible)
+        if hasattr(window, "line_vah") and window.line_vah:
+            va_vis = getattr(window, "_va_visible", True)
+            window.line_vah.setVisible(bool(visible) and va_vis)
+        return window._vah_visible
+
+    def toggle_val(visible: bool = None):
+        if visible is None:
+            visible = not getattr(window, "_val_visible", True)
+        window._val_visible = bool(visible)
+        if hasattr(window, "line_val") and window.line_val:
+            va_vis = getattr(window, "_va_visible", True)
+            window.line_val.setVisible(bool(visible) and va_vis)
+        return window._val_visible
+
+    def toggle_va_fill(visible: bool = None):
+        if visible is None:
+            visible = not getattr(window, "_va_fill_visible", True)
+        window._va_fill_visible = bool(visible)
+        if hasattr(window, "va_region") and window.va_region:
+            va_vis = getattr(window, "_va_visible", True)
+            window.va_region.setVisible(bool(visible) and va_vis)
+        return window._va_fill_visible
+
+    window.toggle_vpoc = toggle_vpoc
+    window.toggle_tpoc = toggle_tpoc
+    window.toggle_vah = toggle_vah
+    window.toggle_val = toggle_val
+    window.toggle_va_fill = toggle_va_fill
 
     def _open_indicators():
         def _refresh():
@@ -479,7 +535,175 @@ def setup_chart_ui(window):
     btn_fvg.clicked.connect(lambda: drawing_engine.set_mode(ChartDrawingEngine.MODE_RECTANGLE))
     tb_layout.addWidget(btn_fvg)
 
-    # 4. Ruler / Measurement Tool Button
+    # 4. Market Profile Levels Menu Button (vPOC, tPOC, VAH, VAL)
+    class ProfileLevelsMenu(QMenu):
+        def mouseReleaseEvent(self, event):
+            pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+            action = self.actionAt(pos)
+            if action and hasattr(action, "is_toggle_item") and action.is_toggle_item:
+                action.trigger()
+                event.accept()
+                return
+            super().mouseReleaseEvent(event)
+
+    def _create_action_icon(checked: bool, color_hex: str, is_dark: bool = False, shape: str = "line"):
+        w, h = 32, 16
+        pm = QPixmap(w, h)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        cb_x, cb_y, cb_s = 1, 2, 12
+        if checked:
+            p.setBrush(QBrush(QColor("#38bdf8" if is_dark else "#0284c7")))
+            p.setPen(Qt.NoPen)
+            p.drawRoundedRect(cb_x, cb_y, cb_s, cb_s, 2.5, 2.5)
+            pen_chk = QPen(QColor("#080b11" if is_dark else "#ffffff"), 1.8)
+            pen_chk.setCapStyle(Qt.RoundCap)
+            pen_chk.setJoinStyle(Qt.RoundJoin)
+            p.setPen(pen_chk)
+            p.drawLine(cb_x + 3, cb_y + 6, cb_x + 5, cb_y + 9)
+            p.drawLine(cb_x + 5, cb_y + 9, cb_x + 9, cb_y + 3)
+        else:
+            border_col = QColor("#334155" if is_dark else "#cbd5e1")
+            bg_col = QColor("#101524" if is_dark else "#f8fafc")
+            p.setBrush(QBrush(bg_col))
+            p.setPen(QPen(border_col, 1.2))
+            p.drawRoundedRect(cb_x, cb_y, cb_s, cb_s, 2.5, 2.5)
+
+        if shape == "line":
+            pen_swatch = QPen(QColor(color_hex), 2.2)
+            pen_swatch.setCapStyle(Qt.RoundCap)
+            p.setPen(pen_swatch)
+            p.drawLine(17, 8, 30, 8)
+        elif shape == "rect":
+            col = QColor(color_hex)
+            col.setAlpha(120 if is_dark else 90)
+            p.setBrush(QBrush(col))
+            p.setPen(QPen(QColor(color_hex), 1.0))
+            p.drawRoundedRect(17, 3, 13, 10, 2, 2)
+
+        p.end()
+        return QIcon(pm)
+
+    def _show_profile_levels_menu(trigger_btn):
+        is_dark = getattr(window, "is_dark_theme", False)
+        menu = ProfileLevelsMenu(trigger_btn)
+        if is_dark:
+            menu_style = (
+                "QMenu { background-color: #0c0e17; color: #f8fafc; border: 1px solid #272d3b; "
+                "border-radius: 6px; padding: 6px 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
+                "QMenu::item { padding: 5px 14px 5px 6px; border-radius: 4px; color: #e2e8f0; background-color: transparent; } "
+                "QMenu::item:selected { background-color: #1e293b; color: #38bdf8; } "
+                "QMenu::separator { height: 1px; background-color: #1e293b; margin: 4px 6px; }"
+            )
+        else:
+            menu_style = (
+                "QMenu { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
+                "border-radius: 6px; padding: 6px 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
+                "QMenu::item { padding: 5px 14px 5px 6px; border-radius: 4px; color: #0f172a; background-color: transparent; } "
+                "QMenu::item:selected { background-color: #f1f5f9; color: #0284c7; } "
+                "QMenu::separator { height: 1px; background-color: #f1f5f9; margin: 4px 6px; }"
+            )
+        menu.setStyleSheet(menu_style)
+
+        hdr = menu.addAction("MARKET PROFILE LEVELS")
+        hdr.setEnabled(False)
+        menu.addSeparator()
+
+        c_vpoc = "#10b981"
+        c_tpoc = "#f43f5e"
+        c_va = "#38bdf8" if is_dark else "#0284c7"
+
+        # 1. vPOC
+        act_vpoc = menu.addAction(_create_action_icon(getattr(window, "_vpoc_visible", True), c_vpoc, is_dark, "line"), "vPOC (Volume POC)")
+        act_vpoc.is_toggle_item = True
+        def _toggle_vpoc_act():
+            new_v = toggle_vpoc()
+            act_vpoc.setIcon(_create_action_icon(new_v, c_vpoc, is_dark, "line"))
+        act_vpoc.triggered.connect(_toggle_vpoc_act)
+
+        # 2. tPOC
+        act_tpoc = menu.addAction(_create_action_icon(getattr(window, "_tpoc_visible", True), c_tpoc, is_dark, "line"), "tPOC (Time POC)")
+        act_tpoc.is_toggle_item = True
+        def _toggle_tpoc_act():
+            new_v = toggle_tpoc()
+            act_tpoc.setIcon(_create_action_icon(new_v, c_tpoc, is_dark, "line"))
+        act_tpoc.triggered.connect(_toggle_tpoc_act)
+
+        # 3. VAH
+        act_vah = menu.addAction(_create_action_icon(getattr(window, "_vah_visible", True), c_va, is_dark, "line"), "VAH (Value Area High)")
+        act_vah.is_toggle_item = True
+        def _toggle_vah_act():
+            new_v = toggle_vah()
+            act_vah.setIcon(_create_action_icon(new_v, c_va, is_dark, "line"))
+        act_vah.triggered.connect(_toggle_vah_act)
+
+        # 4. VAL
+        act_val = menu.addAction(_create_action_icon(getattr(window, "_val_visible", True), c_va, is_dark, "line"), "VAL (Value Area Low)")
+        act_val.is_toggle_item = True
+        def _toggle_val_act():
+            new_v = toggle_val()
+            act_val.setIcon(_create_action_icon(new_v, c_va, is_dark, "line"))
+        act_val.triggered.connect(_toggle_val_act)
+
+        # 5. Value Area Fill
+        menu.addSeparator()
+        act_fill = menu.addAction(_create_action_icon(getattr(window, "_va_fill_visible", True), c_va, is_dark, "rect"), "Value Area Fill (70%)")
+        act_fill.is_toggle_item = True
+        def _toggle_fill_act():
+            new_v = toggle_va_fill()
+            act_fill.setIcon(_create_action_icon(new_v, c_va, is_dark, "rect"))
+        act_fill.triggered.connect(_toggle_fill_act)
+
+        menu.addSeparator()
+        act_show_all = menu.addAction("Show All Levels")
+        act_hide_all = menu.addAction("Hide All Levels")
+
+        def _on_show_all():
+            toggle_vpoc(True)
+            toggle_tpoc(True)
+            toggle_vah(True)
+            toggle_val(True)
+            toggle_va_fill(True)
+            act_vpoc.setIcon(_create_action_icon(True, c_vpoc, is_dark, "line"))
+            act_tpoc.setIcon(_create_action_icon(True, c_tpoc, is_dark, "line"))
+            act_vah.setIcon(_create_action_icon(True, c_va, is_dark, "line"))
+            act_val.setIcon(_create_action_icon(True, c_va, is_dark, "line"))
+            act_fill.setIcon(_create_action_icon(True, c_va, is_dark, "rect"))
+
+        def _on_hide_all():
+            toggle_vpoc(False)
+            toggle_tpoc(False)
+            toggle_vah(False)
+            toggle_val(False)
+            toggle_va_fill(False)
+            act_vpoc.setIcon(_create_action_icon(False, c_vpoc, is_dark, "line"))
+            act_tpoc.setIcon(_create_action_icon(False, c_tpoc, is_dark, "line"))
+            act_vah.setIcon(_create_action_icon(False, c_va, is_dark, "line"))
+            act_val.setIcon(_create_action_icon(False, c_va, is_dark, "line"))
+            act_fill.setIcon(_create_action_icon(False, c_va, is_dark, "rect"))
+
+        act_show_all.triggered.connect(_on_show_all)
+        act_hide_all.triggered.connect(_on_hide_all)
+
+        pos = trigger_btn.mapToGlobal(QPoint(trigger_btn.width() + 2, 0))
+        menu.exec(pos)
+
+    btn_profile = QPushButton()
+    btn_profile.setObjectName("btnToolProfile")
+    btn_profile.setFixedSize(22, 22)
+    btn_profile.setCursor(Qt.PointingHandCursor)
+    btn_profile.setToolTip("Market Profile Levels (vPOC, tPOC, VAH, VAL)")
+    ic_profile = os.path.join(assets_dir, "tool_profile.svg")
+    if os.path.exists(ic_profile):
+        btn_profile.setIcon(QIcon(ic_profile))
+        btn_profile.setIconSize(QSize(13, 13))
+    btn_profile.setStyleSheet(_get_tool_btn_style(is_d_init, is_active=False, is_accent=False))
+    btn_profile.clicked.connect(lambda: _show_profile_levels_menu(btn_profile))
+    tb_layout.addWidget(btn_profile)
+
+    # 5. Ruler / Measurement Tool Button
     btn_ruler = QPushButton()
     btn_ruler.setObjectName("btnToolRuler")
     btn_ruler.setFixedSize(22, 22)
@@ -538,9 +762,11 @@ def setup_chart_ui(window):
     window.btnToolRuler = btn_ruler
     window.btnToolGear = btn_gear
     window.btnToolClear = btn_clear
+    window.btnToolProfile = btn_profile
+    window.show_profile_levels_menu = _show_profile_levels_menu
     window._get_tool_btn_style = _get_tool_btn_style
 
-    drawing_engine.set_toolbar_buttons(btn_crosshair, btn_poc, btn_fvg, btn_ruler, btn_gear, btn_clear)
+    drawing_engine.set_toolbar_buttons(btn_crosshair, btn_poc, btn_fvg, btn_ruler, btn_gear, btn_clear, btn_profile=btn_profile)
 
     # Vertical container for main candlestick plot + collapsible oscillator sub-pane
     plots_container = QWidget()
@@ -1688,23 +1914,28 @@ def setup_chart_ui(window):
         )
 
         poc_vis = getattr(window, "_poc_visible", True)
+        vpoc_vis = getattr(window, "_vpoc_visible", poc_vis) and poc_vis
+        tpoc_vis = getattr(window, "_tpoc_visible", poc_vis) and poc_vis
         if hasattr(window, "line_vpoc"):
             window.line_vpoc.setValue(vpoc_val)
-            window.line_vpoc.setVisible(poc_vis)
+            window.line_vpoc.setVisible(vpoc_vis)
         if hasattr(window, "line_tpoc"):
             window.line_tpoc.setValue(tpoc_val)
-            window.line_tpoc.setVisible(poc_vis)
+            window.line_tpoc.setVisible(tpoc_vis)
 
         va_vis = getattr(window, "_va_visible", True)
+        vah_vis = getattr(window, "_vah_visible", va_vis) and va_vis
+        val_vis = getattr(window, "_val_visible", va_vis) and va_vis
+        va_fill_vis = getattr(window, "_va_fill_visible", va_vis) and va_vis
         if hasattr(window, "line_vah"):
             window.line_vah.setValue(vah_val)
-            window.line_vah.setVisible(va_vis)
+            window.line_vah.setVisible(vah_vis)
         if hasattr(window, "line_val"):
             window.line_val.setValue(val_val)
-            window.line_val.setVisible(va_vis)
+            window.line_val.setVisible(val_vis)
         if hasattr(window, "va_region"):
             window.va_region.setRegion([val_val, vah_val])
-            window.va_region.setVisible(va_vis)
+            window.va_region.setVisible(va_fill_vis)
 
         # Restore user drawings and annotations from DrawingEngine
         if hasattr(window, "drawing_engine") and window.drawing_engine:
@@ -2006,6 +2237,8 @@ def update_chart_theme(window, is_dark: bool = False):
         tb_bg = "#050608" if is_dark else "#f8fafc"
         tb_border = "#1c1c1c" if is_dark else "#e2e8f0"
         window.toolbarChartDrawing.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg}; border-right: 1px solid {tb_border}; }}")
+        if hasattr(window, "btnToolProfile") and window.btnToolProfile and hasattr(window, "_get_tool_btn_style"):
+            window.btnToolProfile.setStyleSheet(window._get_tool_btn_style(is_dark, is_active=False))
         if hasattr(window, "drawing_engine") and window.drawing_engine:
             window.drawing_engine._update_button_styles()
 

@@ -48,17 +48,19 @@ class ChartDrawingEngine(QObject):
         self.btn_ruler = None
         self.btn_gear = None
         self.btn_clear = None
+        self.btn_profile = None
 
         # Install event filter on viewport to intercept mouse events before ViewBox
         self.plot_widget.viewport().installEventFilter(self)
 
-    def set_toolbar_buttons(self, btn_cross, btn_trend, btn_rect, btn_ruler, btn_gear, btn_clear=None):
+    def set_toolbar_buttons(self, btn_cross, btn_trend, btn_rect, btn_ruler, btn_gear, btn_clear=None, btn_profile=None):
         self.btn_crosshair = btn_cross
         self.btn_trendline = btn_trend
         self.btn_rect = btn_rect
         self.btn_ruler = btn_ruler
         self.btn_gear = btn_gear
         self.btn_clear = btn_clear
+        self.btn_profile = btn_profile
         self._update_button_styles()
 
     def set_mode(self, new_mode: str):
@@ -102,6 +104,8 @@ class ChartDrawingEngine(QObject):
         if self.btn_ruler:
             self.btn_ruler.setStyleSheet(style_fn(is_d, is_active=(self.mode == self.MODE_RULER), is_accent=True))
             self.btn_ruler.setChecked(self.mode == self.MODE_RULER)
+        if hasattr(self, "btn_profile") and self.btn_profile:
+            self.btn_profile.setStyleSheet(style_fn(is_d, is_active=False))
 
     def _cancel_active_drag(self):
         for item in self.temp_items:
@@ -138,19 +142,54 @@ class ChartDrawingEngine(QObject):
 
     def toggle_poc(self, checked: bool):
         self.window._poc_visible = checked
+        vpoc_vis = getattr(self.window, "_vpoc_visible", checked) and checked
+        tpoc_vis = getattr(self.window, "_tpoc_visible", checked) and checked
         if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
-            self.window.line_tpoc.setVisible(checked)
+            self.window.line_tpoc.setVisible(tpoc_vis)
         if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
-            self.window.line_vpoc.setVisible(checked)
+            self.window.line_vpoc.setVisible(vpoc_vis)
+
+    def toggle_vpoc(self, checked: bool):
+        self.window._vpoc_visible = checked
+        poc_vis = getattr(self.window, "_poc_visible", True)
+        if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
+            self.window.line_vpoc.setVisible(checked and poc_vis)
+
+    def toggle_tpoc(self, checked: bool):
+        self.window._tpoc_visible = checked
+        poc_vis = getattr(self.window, "_poc_visible", True)
+        if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
+            self.window.line_tpoc.setVisible(checked and poc_vis)
 
     def toggle_value_area(self, checked: bool):
         self.window._va_visible = checked
+        vah_vis = getattr(self.window, "_vah_visible", checked) and checked
+        val_vis = getattr(self.window, "_val_visible", checked) and checked
+        va_fill_vis = getattr(self.window, "_va_fill_visible", checked) and checked
         if hasattr(self.window, "line_vah") and self.window.line_vah:
-            self.window.line_vah.setVisible(checked)
+            self.window.line_vah.setVisible(vah_vis)
         if hasattr(self.window, "line_val") and self.window.line_val:
-            self.window.line_val.setVisible(checked)
+            self.window.line_val.setVisible(val_vis)
         if hasattr(self.window, "va_region") and self.window.va_region:
-            self.window.va_region.setVisible(checked)
+            self.window.va_region.setVisible(va_fill_vis)
+
+    def toggle_vah(self, checked: bool):
+        self.window._vah_visible = checked
+        va_vis = getattr(self.window, "_va_visible", True)
+        if hasattr(self.window, "line_vah") and self.window.line_vah:
+            self.window.line_vah.setVisible(checked and va_vis)
+
+    def toggle_val(self, checked: bool):
+        self.window._val_visible = checked
+        va_vis = getattr(self.window, "_va_visible", True)
+        if hasattr(self.window, "line_val") and self.window.line_val:
+            self.window.line_val.setVisible(checked and va_vis)
+
+    def toggle_va_fill(self, checked: bool):
+        self.window._va_fill_visible = checked
+        va_vis = getattr(self.window, "_va_visible", True)
+        if hasattr(self.window, "va_region") and self.window.va_region:
+            self.window.va_region.setVisible(checked and va_vis)
 
     def re_add_to_plot(self):
         """Called after plot_widget.clear() to restore user drawings, ruler, and FVG items."""
@@ -185,33 +224,49 @@ class ChartDrawingEngine(QObject):
 
         # Re-apply POC visibility
         poc_vis = getattr(self.window, "_poc_visible", True)
+        vpoc_vis = getattr(self.window, "_vpoc_visible", poc_vis) and poc_vis
+        tpoc_vis = getattr(self.window, "_tpoc_visible", poc_vis) and poc_vis
         if hasattr(self.window, "line_tpoc") and self.window.line_tpoc:
             if self.window.line_tpoc not in curr_items:
                 try:
                     self.plot_widget.addItem(self.window.line_tpoc, ignoreBounds=True)
                 except Exception as err:
                     logger.debug(f"[DrawingEngine] Non-critical addItem(line_tpoc) error: {err}")
-            self.window.line_tpoc.setVisible(poc_vis)
+            self.window.line_tpoc.setVisible(tpoc_vis)
         if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
             if self.window.line_vpoc not in curr_items:
                 try:
                     self.plot_widget.addItem(self.window.line_vpoc, ignoreBounds=True)
                 except Exception as err:
                     logger.debug(f"[DrawingEngine] Non-critical addItem(line_vpoc) error: {err}")
-            self.window.line_vpoc.setVisible(poc_vis)
+            self.window.line_vpoc.setVisible(vpoc_vis)
 
         # Re-apply Value Area 70% visibility (J. Peter Steidlmayer, CBOT 1985)
         va_vis = getattr(self.window, "_va_visible", True)
-        for va_name in ("va_region", "line_vah", "line_val"):
-            if hasattr(self.window, va_name):
-                va_item = getattr(self.window, va_name)
-                if va_item and va_item not in curr_items:
-                    try:
-                        self.plot_widget.addItem(va_item, ignoreBounds=True)
-                    except Exception as err:
-                        logger.debug(f"[DrawingEngine] Non-critical addItem({va_name}) error: {err}")
-                if va_item:
-                    va_item.setVisible(va_vis)
+        vah_vis = getattr(self.window, "_vah_visible", va_vis) and va_vis
+        val_vis = getattr(self.window, "_val_visible", va_vis) and va_vis
+        va_fill_vis = getattr(self.window, "_va_fill_visible", va_vis) and va_vis
+        if hasattr(self.window, "line_vah") and self.window.line_vah:
+            if self.window.line_vah not in curr_items:
+                try:
+                    self.plot_widget.addItem(self.window.line_vah, ignoreBounds=True)
+                except Exception as err:
+                    logger.debug(f"[DrawingEngine] Non-critical addItem(line_vah) error: {err}")
+            self.window.line_vah.setVisible(vah_vis)
+        if hasattr(self.window, "line_val") and self.window.line_val:
+            if self.window.line_val not in curr_items:
+                try:
+                    self.plot_widget.addItem(self.window.line_val, ignoreBounds=True)
+                except Exception as err:
+                    logger.debug(f"[DrawingEngine] Non-critical addItem(line_val) error: {err}")
+            self.window.line_val.setVisible(val_vis)
+        if hasattr(self.window, "va_region") and self.window.va_region:
+            if self.window.va_region not in curr_items:
+                try:
+                    self.plot_widget.addItem(self.window.va_region, ignoreBounds=True)
+                except Exception as err:
+                    logger.debug(f"[DrawingEngine] Non-critical addItem(va_region) error: {err}")
+            self.window.va_region.setVisible(va_fill_vis)
 
     def eventFilter(self, obj, event):
         """Intercept mouse events on plot_widget viewport for interactive drawing tools."""
