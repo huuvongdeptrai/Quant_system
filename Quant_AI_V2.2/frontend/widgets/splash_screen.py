@@ -143,40 +143,35 @@ class FadeOverlayWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Center Container Card (Pure Minimalist Swiss Geometry)
-        self.center_card = QFrame()
-        self.center_card.setFixedSize(420, 140)
-        self.center_card.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 0px;
-            }
-        """)
+        # Center Content Container (Direct on frosted mist - No box, no shadow, ultra-clean)
+        self.center_card = QWidget()
+        self.center_card.setFixedWidth(340)
+        self.center_card.setStyleSheet("background: transparent; border: none;")
 
         card_vbox = QVBoxLayout(self.center_card)
-        card_vbox.setContentsMargins(36, 32, 36, 24)
+        card_vbox.setContentsMargins(0, 0, 0, 0)
         card_vbox.setSpacing(0)
+        card_vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Brand Title
+        # Brand Title (Solid, grounded typography with 2px letter-spacing)
         self.lbl_title = QLabel("VECTRA")
         self.lbl_title.setStyleSheet(
-            "color: #0F172A; font-family: 'Segoe UI'; font-size: 30px; font-weight: 900; letter-spacing: 6px; border: none;"
+            "color: #0F172A; font-family: 'Segoe UI'; font-size: 32px; font-weight: 900; letter-spacing: 2px; border: none; background: transparent;"
         )
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_vbox.addWidget(self.lbl_title)
 
-        # Subtitle
-        self.lbl_sub = QLabel("QUANTITATIVE AI TRADING SYSTEM • V2.2")
+        # Subtitle (Institutional Execution branding - No generic 'AI')
+        self.lbl_sub = QLabel("QUANTITATIVE EXECUTION SYSTEM • V2.2")
         self.lbl_sub.setStyleSheet(
-            "color: #64748B; font-family: 'Segoe UI'; font-size: 9px; font-weight: 700; letter-spacing: 2px; border: none; margin-top: 4px;"
+            "color: #64748B; font-family: 'Segoe UI'; font-size: 9px; font-weight: 700; letter-spacing: 2px; border: none; background: transparent; margin-top: 6px;"
         )
         self.lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_vbox.addWidget(self.lbl_sub)
 
-        card_vbox.addStretch(1)
+        card_vbox.addSpacing(28)
 
-        # Minimalist 2px Progress Bar (No clutter, no AI-style logs)
+        # Minimalist 2px Progress Bar sitting directly on the frosted mist
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(2)
         self.progress_bar.setTextVisible(False)
@@ -184,7 +179,7 @@ class FadeOverlayWidget(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                background-color: #F1F5F9;
+                background-color: #E2E8F0;
                 border: none;
                 border-radius: 0px;
             }
@@ -194,13 +189,6 @@ class FadeOverlayWidget(QWidget):
             }
         """)
         card_vbox.addWidget(self.progress_bar)
-
-        # Subtle drop shadow for center card
-        shadow = QGraphicsDropShadowEffect(self.center_card)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(15, 23, 42, 25))
-        shadow.setOffset(0, 8)
-        self.center_card.setGraphicsEffect(shadow)
 
         layout.addWidget(self.center_card, 0, Qt.AlignmentFlag.AlignCenter)
 
