@@ -102,7 +102,19 @@ class CircuitBreakerGuard:
 
         if self.current_date != today:
             self.current_date = today
-            self.start_of_day_equity = account.equity
+            saved_date = self.db.get_system_state("start_of_day_date", default="")
+            saved_equity = self.db.get_system_state("start_of_day_equity", default="")
+
+            if saved_date == today_str and saved_equity:
+                try:
+                    self.start_of_day_equity = float(saved_equity)
+                except (ValueError, TypeError):
+                    self.start_of_day_equity = float(account.equity)
+            else:
+                self.start_of_day_equity = float(account.equity)
+                self.db.set_system_state("start_of_day_date", today_str)
+                self.db.set_system_state("start_of_day_equity", str(self.start_of_day_equity))
+
             cb_date = self.db.get_system_state("circuit_breaker_date", default="")
             cb_active = self.db.get_system_state("circuit_breaker_active", default="False")
             if cb_date == today_str and cb_active == "True":
@@ -114,7 +126,7 @@ class CircuitBreakerGuard:
                 self.db.set_system_state("circuit_breaker_active", "False")
             self._log(
                 "INFO",
-                f"New trading session. Starting Equity: ${self.start_of_day_equity:,.2f}",
+                f"Session starting equity: ${self.start_of_day_equity:,.2f}",
                 "#8B949E",
             )
 
@@ -129,11 +141,11 @@ class CircuitBreakerGuard:
             ) * 100
 
         self.db.record_equity_snapshot(
-            account.balance,
-            account.equity,
-            account.margin,
-            account.margin_free,
-            drawdown_pct,
+            float(getattr(account, "balance", 0.0) or 0.0),
+            float(getattr(account, "equity", 0.0) or 0.0),
+            float(getattr(account, "margin", 0.0) or 0.0),
+            float(getattr(account, "margin_free", 0.0) or 0.0),
+            float(drawdown_pct),
         )
 
         if self.max_drawdown > 0 and drawdown_pct >= self.max_drawdown:
