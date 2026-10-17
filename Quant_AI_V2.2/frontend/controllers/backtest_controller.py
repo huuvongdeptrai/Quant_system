@@ -755,6 +755,9 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(False)
             self.window.btnRunBacktest.setText("SIMULATING...")
+        self._run_stress_test_network()
+        self._run_stress_test_schema()
+        self._run_stress_test_news()
         self._run_simulation_internal(is_initial=False)
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(True)

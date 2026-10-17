@@ -218,10 +218,10 @@ def setup_chart_ui(window):
 
     lbl_ribbon_left = QLabel(
         '<span style="font-family:Consolas, monospace; font-size:9px; color:#71717a;">'
-        'SESSION: <b style="color:#ffffff;">ASIAN</b> &nbsp;|&nbsp; '
-        'vPOC: <b style="color:#22c55e;">2,679.7</b> &nbsp;|&nbsp; '
-        'tPOC: <b style="color:#ef4444;">2,685.7</b> &nbsp;|&nbsp; '
-        'DELTA: <b style="color:#22c55e;">+14.2k</b>'
+        'SESSION: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
+        'vPOC: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
+        'tPOC: <b style="color:#ffffff;">--</b> &nbsp;|&nbsp; '
+        'DELTA: <b style="color:#ffffff;">--</b>'
         '</span>'
     )
     ribbon_layout.addWidget(lbl_ribbon_left)
@@ -1371,6 +1371,18 @@ def setup_chart_ui(window):
             if hasattr(window, "lbl_ai_reason") and window.lbl_ai_reason:
                 window.lbl_ai_reason.setText("No real-time market data received from MetaTrader 5.")
 
+            if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
+                c_lbl = "#71717a" if getattr(window, "is_dark_theme", False) else "#475569"
+                c_val = "#ffffff" if getattr(window, "is_dark_theme", False) else "#0f172a"
+                window.lbl_ribbon_left.setText(
+                    f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
+                    f'SESSION: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
+                    f'vPOC: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
+                    f'tPOC: <b style="color:{c_val};">--</b> &nbsp;|&nbsp; '
+                    f'DELTA: <b style="color:{c_val};">--</b>'
+                    f'</span>'
+                )
+
             if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "watchlist"):
                 window.quant_terminal.watchlist.set_active_symbol(sym)
 
@@ -1706,20 +1718,22 @@ def update_chart_theme(window, is_dark: bool = False):
             )
 
     if hasattr(window, "lbl_ribbon_left") and window.lbl_ribbon_left:
-        vpoc_val = getattr(window, "_last_vpoc", 2680.0)
-        tpoc_val = getattr(window, "_last_tpoc", 2680.0)
-        session_name = getattr(window, "_last_session", "LONDON SESSION")
-        delta_str = getattr(window, "_last_delta_str", "+14.2k (Absorption)")
-        delta_color = getattr(window, "_last_delta_color", "#15803d")
+        vpoc_val = getattr(window, "_last_vpoc", None)
+        tpoc_val = getattr(window, "_last_tpoc", None)
+        session_name = getattr(window, "_last_session", "--")
+        delta_str = getattr(window, "_last_delta_str", "--")
+        delta_color = getattr(window, "_last_delta_color", "#15803d" if not is_dark else "#22c55e")
         digits = getattr(window, "_last_digits", 2)
 
         c_lbl = "#71717a" if is_dark else "#475569"
         c_val = "#ffffff" if is_dark else "#0f172a"
+        vpoc_str = f"{vpoc_val:,.{digits}f}" if vpoc_val is not None else "--"
+        tpoc_str = f"{tpoc_val:,.{digits}f}" if tpoc_val is not None else "--"
         session_text = (
             f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
             f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
-            f'vPOC: <b style="color:{c_val};">{vpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
-            f'tPOC: <b style="color:{c_val};">{tpoc_val:,.{digits}f}</b> &nbsp;|&nbsp; '
+            f'vPOC: <b style="color:{c_val};">{vpoc_str}</b> &nbsp;|&nbsp; '
+            f'tPOC: <b style="color:{c_val};">{tpoc_str}</b> &nbsp;|&nbsp; '
             f'DELTA: <b style="color:{delta_color};">{delta_str}</b>'
             f'</span>'
         )

@@ -35,33 +35,44 @@ class WorkspaceHeaderController:
             if hasattr(self, "terminal"):
                 setattr(self.terminal, name, value)
 
-    def _format_top_ticker(self, bal=100000.0, eq=100000.0, pnl=0.0, pnl_pct=0.0, max_dd=0.0, latency=1.2, is_algo_active=False, is_dark=None):
+    def _format_top_ticker(self, bal=None, eq=None, pnl=None, pnl_pct=0.0, max_dd=0.0, latency=None, is_algo_active=False, is_dark=None):
         if is_dark is None:
             is_dark = getattr(self, "is_dark_theme", False)
-        if pnl < 0:
-            pnl_txt = f"-${abs(pnl):,.2f}"
-            pnl_color = "#ef4444" if is_dark else "#b91c1c"
-        else:
-            pnl_txt = f"+${pnl:,.2f}"
-            pnl_color = "#10b981" if is_dark else "#15803d"
 
         lbl_col = "#71717a" if is_dark else "#64748b"
         val_col = "#ffffff" if is_dark else "#0f172a"
         sep_col = "#262626" if is_dark else "#cbd5e1"
-        lat_col = "#10b981" if is_dark else "#15803d"
+
+        if bal is None or eq is None:
+            bal_txt = "--"
+            eq_txt = "--"
+            pnl_txt = "--"
+            pnl_color = lbl_col
+        else:
+            bal_txt = f"${bal:,.2f}"
+            eq_txt = f"${eq:,.2f}"
+            if pnl is not None and pnl < 0:
+                pnl_txt = f"-${abs(pnl):,.2f}"
+                pnl_color = "#ef4444" if is_dark else "#b91c1c"
+            elif pnl is not None:
+                pnl_txt = f"+${pnl:,.2f}"
+                pnl_color = "#10b981" if is_dark else "#15803d"
+            else:
+                pnl_txt = "--"
+                pnl_color = lbl_col
 
         return (
             f'<span style="color:{lbl_col}; font-size:9.5px; font-family:Consolas, monospace;">'
-            f'BALANCE: <b style="color:{val_col};">${bal:,.2f}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
-            f'EQUITY: <b style="color:{val_col};">${eq:,.2f}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
+            f'BALANCE: <b style="color:{val_col};">{bal_txt}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
+            f'EQUITY: <b style="color:{val_col};">{eq_txt}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
             f'NET P&L: <b style="color:{pnl_color};">{pnl_txt}</b>'
             f'</span>'
         )
 
     def _format_bottom_telemetry(self, is_dark=None):
         """Consolidated institutional bottom telemetry cluster:
-        FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
-        Matches the 10px Segoe UI typography of the left navigation tabs.
+        FULL-ALGO | ● MT5: 234.0ms | 0% LOSS
+        Reflects genuine live MT5 broker ping latency and real-time loss tracking.
         """
         if is_dark is None:
             is_dark = getattr(self, "is_dark_theme", False)
@@ -76,19 +87,33 @@ class WorkspaceHeaderController:
         else:
             mode_str = mode
 
-        # Check MT5 connection & broker latency
-        is_connected = True
+        # Measure genuine MT5 broker server ping & connection state
+        is_connected = False
+        latency_ms = 0.0
         try:
+            import time
+            t0 = time.perf_counter()
             t_info = mt5.terminal_info()
-            if t_info and hasattr(t_info, "connected"):
-                is_connected = bool(t_info.connected)
+            ipc_elapsed = (time.perf_counter() - t0) * 1000.0
+            if t_info and getattr(t_info, "connected", False):
+                is_connected = True
+                if hasattr(t_info, "ping_last") and t_info.ping_last > 0:
+                    latency_ms = t_info.ping_last / 1000.0
+                else:
+                    latency_ms = max(0.1, ipc_elapsed)
+                self.broker_latency_ms = latency_ms
+                self.is_broker_connected = True
+            elif t_info:
+                self.is_broker_connected = False
             else:
-                is_connected = bool(t_info)
+                self.is_broker_connected = False
         except Exception:
-            is_connected = True
+            self.is_broker_connected = False
 
-        latency_ms = getattr(self, "broker_latency_ms", 1.2)
-        latency_str = f"{latency_ms:.1f}ms"
+        if not is_connected and hasattr(self, "broker_latency_ms"):
+            latency_ms = self.broker_latency_ms
+
+        latency_str = f"{latency_ms:.1f}ms" if latency_ms > 0 else "--"
 
         # Check daily loss or drawdown
         loss_pct = 0.0
@@ -108,19 +133,24 @@ class WorkspaceHeaderController:
             mode_col = "#38bdf8"
             sep_col = "#334155"
             green_col = "#10b981"
+            amber_col = "#f59e0b"
             red_col = "#ef4444"
         else:
             txt_col = "#64748b"
             mode_col = "#0284c7"
             sep_col = "#cbd5e1"
             green_col = "#15803d"
+            amber_col = "#d97706"
             red_col = "#dc2626"
 
         dot_col = green_col if is_connected else red_col
         mt5_val = latency_str if is_connected else "OFFLINE"
-        mt5_val_col = green_col if is_connected else red_col
-        loss_col = green_col if loss_pct <= 0.0 else red_col
+        if is_connected:
+            mt5_val_col = green_col if latency_ms < 300.0 else (amber_col if latency_ms < 500.0 else red_col)
+        else:
+            mt5_val_col = red_col
 
+        loss_col = green_col if loss_pct <= 0.0 else red_col
         sep = f'&nbsp;&nbsp;<span style="color:{sep_col}; font-weight:300;">|</span>&nbsp;&nbsp;'
 
         return (
@@ -173,18 +203,27 @@ class WorkspaceHeaderController:
             is_dark = getattr(self, "is_dark_theme", False)
             sym_color = "#ffffff" if is_dark else "#0f172a"
             sub_color = "#94a3b8" if is_dark else "#64748b"
-            subtitles = {
-                "XAUUSD": "Spot Gold",
-                "XAGUSD": "Spot Silver",
-                "BTCUSD": "Bitcoin",
-                "ETHUSD": "Ethereum",
-                "EURUSD": "Euro / Dollar",
-                "GBPUSD": "Cable / Dollar",
-                "USDJPY": "Dollar / Yen",
-                "US30": "Dow Jones",
-                "NAS100": "Nasdaq Tech",
-            }
-            sub_title = subtitles.get(clean_sym, "Spot Asset")
+            sub_title = None
+            try:
+                s_info = mt5.symbol_info(clean_sym)
+                if s_info and getattr(s_info, "description", None):
+                    sub_title = s_info.description.strip()
+            except Exception:
+                pass
+
+            if not sub_title:
+                subtitles = {
+                    "XAUUSD": "Spot Gold",
+                    "XAGUSD": "Spot Silver",
+                    "BTCUSD": "Bitcoin",
+                    "ETHUSD": "Ethereum",
+                    "EURUSD": "Euro / Dollar",
+                    "GBPUSD": "Cable / Dollar",
+                    "USDJPY": "Dollar / Yen",
+                    "US30": "Dow Jones",
+                    "NAS100": "Nasdaq Tech",
+                }
+                sub_title = subtitles.get(clean_sym, "Spot Asset")
             self.lbl_top_sym.setText(
                 f'<b style="color:{sym_color}; font-family:Consolas, monospace; font-size:11.5px; font-weight:700;">{clean_sym}</b>&nbsp;&nbsp;'
                 f'<span style="color:{sub_color}; font-size:9.5px; font-family:\'Segoe UI\', sans-serif; font-weight:500;">{sub_title}</span>'
