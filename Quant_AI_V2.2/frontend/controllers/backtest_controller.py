@@ -72,7 +72,53 @@ class BacktestWorkbenchController:
         self._run_simulation_internal(is_initial=True)
 
     def _setup_controls(self):
-        # Date pickers
+        # 1. Symbol Selector [XAUUSD ▾] (Placed first on left)
+        if hasattr(self.window, "comboBtSymbol"):
+            self.comboBtSymbol = self.window.comboBtSymbol
+        else:
+            self.comboBtSymbol = QComboBox()
+            self.comboBtSymbol.setObjectName("comboBtSymbol")
+            setattr(self.window, "comboBtSymbol", self.comboBtSymbol)
+
+        self.comboBtSymbol.setFixedHeight(32)
+        self.comboBtSymbol.setFixedWidth(86)
+        self.comboBtSymbol.clear()
+
+        # Available symbols: Standard majors + custom from Watchlist
+        symbols = ["XAUUSD", "BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "USDJPY", "US30", "NAS100"]
+        if hasattr(self.window, "watchlist") and hasattr(self.window.watchlist, "get_all_symbols"):
+            w_syms = self.window.watchlist.get_all_symbols()
+            if w_syms:
+                for s in w_syms:
+                    if s not in symbols:
+                        symbols.append(s)
+        self.comboBtSymbol.addItems(symbols)
+
+        curr_sym = getattr(self.window, "current_sym", self.current_symbol)
+        idx = self.comboBtSymbol.findText(curr_sym)
+        if idx >= 0:
+            self.comboBtSymbol.setCurrentIndex(idx)
+        else:
+            self.comboBtSymbol.setCurrentIndex(0)
+        self.current_symbol = self.comboBtSymbol.currentText()
+        self.comboBtSymbol.currentTextChanged.connect(self._on_symbol_changed)
+
+        # 2. Timeframe & Strategy (No redundant labels TF: or Strategy:)
+        if hasattr(self.window, "comboBtTf"):
+            self.window.comboBtTf.setFixedHeight(32)
+            self.window.comboBtTf.setFixedWidth(58)
+
+        if hasattr(self.window, "comboBtEngine"):
+            self.window.comboBtEngine.setFixedHeight(32)
+            self.window.comboBtEngine.setFixedWidth(230)
+            self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # Hide self-explanatory labels (TF:, Strategy:, Symbol:, Sample:)
+        for lbl_name in ["lblBtTf", "lblBtStrategy", "lblBtSymbol"]:
+            if hasattr(self.window, lbl_name):
+                getattr(self.window, lbl_name).setVisible(False)
+
+        # 3. Date pickers
         today = QDate.currentDate()
         self.dateBtFrom = getattr(self.window, "dateBtFrom", None)
         if self.dateBtFrom:
@@ -94,35 +140,61 @@ class BacktestWorkbenchController:
                 cal_to.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
                 cal_to.setGridVisible(False)
 
-        # Timeframe & Strategy
-        if hasattr(self.window, "comboBtTf"):
-            self.window.comboBtTf.setFixedHeight(32)
-            self.window.comboBtTf.setFixedWidth(58)
-
-        if hasattr(self.window, "comboBtEngine"):
-            self.window.comboBtEngine.setFixedHeight(32)
-            self.window.comboBtEngine.setFixedWidth(240)
-            self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-
-        # Capital, Slippage & Commission
+        # 4. Capital, Slippage & Commission
         if hasattr(self.window, "spinBtCapital"):
             self.spinBtCapital = self.window.spinBtCapital
             self.spinBtCapital.setFixedHeight(32)
             self.spinBtCapital.setFixedWidth(100)
 
+        # Update Slippage label to short 'Slip:'
+        if hasattr(self.window, "lblBtSlippage"):
+            self.window.lblBtSlippage.setText("Slip:")
         if hasattr(self.window, "spinBtSlippage"):
             self.spinBtSlippage = self.window.spinBtSlippage
             self.spinBtSlippage.setFixedHeight(32)
-            self.spinBtSlippage.setFixedWidth(80)
+            self.spinBtSlippage.setFixedWidth(78)
 
+        # Commission spinbox: expand width to 102px so '$7.00 /lot' is never truncated
         if hasattr(self.window, "spinBtComm"):
             self.spinBtComm = self.window.spinBtComm
             self.spinBtComm.setFixedHeight(32)
-            self.spinBtComm.setFixedWidth(88)
+            self.spinBtComm.setFixedWidth(102)
 
-        # Ensure spacer in frameBtParams expands to anchor actions to the right
+        # Subtle dividers between functional groups
+        def _make_divider():
+            div = QFrame()
+            div.setFrameShape(QFrame.VLine)
+            div.setFrameShadow(QFrame.Plain)
+            div.setFixedHeight(18)
+            div.setFixedWidth(1)
+            div.setStyleSheet("background-color: #cbd5e1; border: none; margin: 0px 4px;")
+            return div
+
+        # Reorder layout to guarantee strict sequence:
+        # [Symbol ▾] [TF ▾] [Strategy ▾] | From: [Date] To: [Date] | Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
         if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
             layout = self.window.frameBtParams.layout()
+            layout.insertWidget(0, self.comboBtSymbol)
+            if hasattr(self.window, "comboBtTf"):
+                layout.insertWidget(1, self.window.comboBtTf)
+            if hasattr(self.window, "comboBtEngine"):
+                layout.insertWidget(2, self.window.comboBtEngine)
+
+            # Insert divider 1 after comboBtEngine
+            div1 = _make_divider()
+            layout.insertWidget(3, div1)
+
+            # Find dateBtTo index and insert divider 2 right after it
+            idx_to = -1
+            for k in range(layout.count()):
+                w = layout.itemAt(k).widget()
+                if w and w.objectName() == "dateBtTo":
+                    idx_to = k
+                    break
+            if idx_to >= 0:
+                div2 = _make_divider()
+                layout.insertWidget(idx_to + 1, div2)
+
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
                 if sp:
@@ -656,7 +728,28 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "txtBtConsole"):
             self.window.txtBtConsole.append(text)
             sb = self.window.txtBtConsole.verticalScrollBar()
-            sb.setValue(sb.maximum())
+            if sb:
+                sb.setValue(sb.maximum())
+
+    def _on_symbol_changed(self, sym: str):
+        self.current_symbol = sym.strip()
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log(f"[{now_str}] [SYMBOL] Backtest target asset set to: {self.current_symbol}")
+
+    def set_symbol(self, sym: str):
+        if not sym or not hasattr(self, "comboBtSymbol"):
+            return
+        clean_sym = sym.split("\n")[0].strip().upper()
+        idx = self.comboBtSymbol.findText(clean_sym)
+        if idx >= 0:
+            if idx != self.comboBtSymbol.currentIndex():
+                self.comboBtSymbol.blockSignals(True)
+                self.comboBtSymbol.setCurrentIndex(idx)
+                self.comboBtSymbol.blockSignals(False)
+        else:
+            self.comboBtSymbol.addItem(clean_sym)
+            self.comboBtSymbol.setCurrentText(clean_sym)
+        self.current_symbol = clean_sym
 
     def _on_run_clicked(self):
         if hasattr(self.window, "btnRunBacktest"):

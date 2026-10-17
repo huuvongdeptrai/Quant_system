@@ -44,6 +44,17 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
     from_str = d_from.strftime("%Y-%m-%d")
     to_str = d_to.strftime("%Y-%m-%d")
 
+    sym_str = (
+        self.comboBtSymbol.currentText().strip()
+        if hasattr(self, "comboBtSymbol") and self.comboBtSymbol
+        else (
+            self.window.comboBtSymbol.currentText().strip()
+            if hasattr(self.window, "comboBtSymbol") and self.window.comboBtSymbol
+            else getattr(self, "current_symbol", "XAUUSD")
+        )
+    )
+    self.current_symbol = sym_str
+
     tf_str = (
         self.window.comboBtTf.currentText()
         if hasattr(self.window, "comboBtTf")
@@ -70,8 +81,8 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         )
     )
 
-    self._log(f"[{now_str}] [SIMULATION] Strategy: {strat_name}")
-    self._log(f"[{now_str}] [PARAMS] Range: {from_str} to {to_str} | Timeframe: {tf_str} | Slippage: {slippage_pts} pts")
+    self._log(f"[{now_str}] [SIMULATION] Strategy: {strat_name} | Asset: {self.current_symbol}")
+    self._log(f"[{now_str}] [PARAMS] Asset: {self.current_symbol} | Range: {from_str} to {to_str} | Timeframe: {tf_str} | Slippage: {slippage_pts} pts")
 
     try:
         from research.backtest_vectorized import VectorizedBacktester

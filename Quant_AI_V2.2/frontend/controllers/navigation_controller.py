@@ -169,6 +169,11 @@ class NavigationController:
         if target_tab == getattr(self.window, "tab3", None):
             if hasattr(self, "stats") and self.stats:
                 self.stats.refresh()
+        elif target_tab == getattr(self.window, "tab_5", None):
+            if hasattr(self.window, "backtest_controller") and hasattr(self.window.backtest_controller, "set_symbol"):
+                curr_sym = getattr(self.window, "current_sym", None)
+                if curr_sym:
+                    self.window.backtest_controller.set_symbol(curr_sym)
 
         # Dedicated Viewport: Only show Watchlist on Tab 1 (Terminal), unless manually collapsed
         if hasattr(self.window, "sidebar"):

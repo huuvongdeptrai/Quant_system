@@ -1049,6 +1049,36 @@
       <property name="rightMargin"><number>6</number></property>
       <property name="bottomMargin"><number>2</number></property>
 
+      <item>
+       <widget class="QComboBox" name="comboBtSymbol">
+        <item><property name="text"><string>XAUUSD</string></property></item>
+        <item><property name="text"><string>BTCUSD</string></property></item>
+        <item><property name="text"><string>ETHUSD</string></property></item>
+        <item><property name="text"><string>EURUSD</string></property></item>
+        <item><property name="text"><string>GBPUSD</string></property></item>
+        <item><property name="text"><string>USDJPY</string></property></item>
+        <item><property name="text"><string>US30</string></property></item>
+        <item><property name="text"><string>NAS100</string></property></item>
+       </widget>
+      </item>
+
+      <item>
+       <widget class="QComboBox" name="comboBtTf">
+        <item><property name="text"><string>M15</string></property></item>
+        <item><property name="text"><string>H1</string></property></item>
+        <item><property name="text"><string>M5</string></property></item>
+        <item><property name="text"><string>H4</string></property></item>
+       </widget>
+      </item>
+
+      <item>
+       <widget class="QComboBox" name="comboBtEngine">
+        <item><property name="text"><string>ICT Zones Pro v4.2 (Asian + FVG)</string></property></item>
+        <item><property name="text"><string>Wyckoff Momentum Pro (Vectorized)</string></property></item>
+        <item><property name="text"><string>EMA Dual Cross (Resilience Benchmark)</string></property></item>
+       </widget>
+      </item>
+
       <item><widget class="QLabel" name="lblBtFrom"><property name="text"><string>From:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
        <widget class="QDateEdit" name="dateBtFrom">
@@ -1064,25 +1094,6 @@
        </widget>
       </item>
 
-      <item><widget class="QLabel" name="lblBtTf"><property name="text"><string>TF:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
-      <item>
-       <widget class="QComboBox" name="comboBtTf">
-        <item><property name="text"><string>M15</string></property></item>
-        <item><property name="text"><string>H1</string></property></item>
-        <item><property name="text"><string>M5</string></property></item>
-        <item><property name="text"><string>H4</string></property></item>
-       </widget>
-      </item>
-
-      <item><widget class="QLabel" name="lblBtStrategy"><property name="text"><string>Strategy:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
-      <item>
-       <widget class="QComboBox" name="comboBtEngine">
-        <item><property name="text"><string>ICT Zones Pro v4.2 (Asian + FVG)</string></property></item>
-        <item><property name="text"><string>Wyckoff Momentum Pro (Vectorized)</string></property></item>
-        <item><property name="text"><string>EMA Dual Cross (Resilience Benchmark)</string></property></item>
-       </widget>
-      </item>
-
       <item><widget class="QLabel" name="lblBtCapital"><property name="text"><string>Capital:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
        <widget class="QDoubleSpinBox" name="spinBtCapital">
@@ -1095,7 +1106,7 @@
        </widget>
       </item>
 
-      <item><widget class="QLabel" name="lblBtSlippage"><property name="text"><string>Slippage:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
+      <item><widget class="QLabel" name="lblBtSlippage"><property name="text"><string>Slip:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>
        <widget class="QSpinBox" name="spinBtSlippage">
         <property name="suffix"><string> pts</string></property>
