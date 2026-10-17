@@ -1710,30 +1710,18 @@ def setup_chart_ui(window):
         if hasattr(window, "drawing_engine") and window.drawing_engine:
             window.drawing_engine.re_add_to_plot()
 
-        curr_tf = getattr(window, "current_tf", mt5.TIMEFRAME_H1)
-        # Intraday sessions (Asia, London, NY) are strictly applicable to intraday timeframes M1..M30.
-        # Higher timeframes (H1, H4, D1, W1) represent Multi-Day Composite Profiles.
-        if curr_tf in (
-            getattr(mt5, "TIMEFRAME_H1", 16385),
-            getattr(mt5, "TIMEFRAME_H4", 16388),
-            getattr(mt5, "TIMEFRAME_D1", 16408),
-            getattr(mt5, "TIMEFRAME_W1", 32769),
-        ):
-            tf_name = getattr(window, "current_tf_str", "H4")
-            session_name = f"COMPOSITE PROFILE ({tf_name} · 100 BARS)"
+        from datetime import datetime, timezone
+        utc_hour = datetime.now(timezone.utc).hour
+        if 0 <= utc_hour < 8:
+            session_name = "ASIAN SESSION"
+        elif 8 <= utc_hour < 13:
+            session_name = "LONDON SESSION"
+        elif 13 <= utc_hour < 16:
+            session_name = "LONDON / NY OVERLAP (RTH)"
+        elif 16 <= utc_hour < 21:
+            session_name = "NEW YORK CME (RTH)"
         else:
-            from datetime import datetime, timezone
-            utc_hour = datetime.now(timezone.utc).hour
-            if 0 <= utc_hour < 8:
-                session_name = "ASIAN SESSION"
-            elif 8 <= utc_hour < 13:
-                session_name = "LONDON SESSION"
-            elif 13 <= utc_hour < 16:
-                session_name = "LONDON / NY OVERLAP (RTH)"
-            elif 16 <= utc_hour < 21:
-                session_name = "NEW YORK CME (RTH)"
-            else:
-                session_name = "PACIFIC / SYDNEY"
+            session_name = "PACIFIC / SYDNEY"
 
         up_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] >= r["open"])
         down_vol = sum(float(r["tick_volume"]) for r in rates[-30:] if r["close"] < r["open"])
@@ -1761,7 +1749,7 @@ def setup_chart_ui(window):
             c_va = "#38bdf8" if is_d else "#0284c7"
             c_vpoc = "#22c55e" if is_d else "#15803d"
             c_tpoc = "#f43f5e" if is_d else "#b91c1c"
-            sess_prefix = f'PROFILE: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; ' if not is_cached_fallback else f'<b style="color:#d97706;">OFFLINE CACHE ({cached_info_str})</b> &nbsp;|&nbsp; '
+            sess_prefix = f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; ' if not is_cached_fallback else f'<b style="color:#d97706;">OFFLINE CACHE ({cached_info_str})</b> &nbsp;|&nbsp; '
             window.lbl_ribbon_left.setText(
                 f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
                 f'{sess_prefix}'
@@ -1957,7 +1945,7 @@ def update_chart_theme(window, is_dark: bool = False):
         tpoc_str = f"{tpoc_val:,.{digits}f}" if tpoc_val is not None else "--"
         session_text = (
             f'<span style="color:{c_lbl}; font-family:Consolas, monospace; font-size:8.5px;">'
-            f'PROFILE: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
+            f'SESSION: <b style="color:{c_val};">{session_name}</b> &nbsp;|&nbsp; '
             f'vPOC: <b style="color:{c_vpoc};">{vpoc_str}</b> &nbsp;|&nbsp; '
             f'VAH: <b style="color:{c_va};">{vah_str}</b> &nbsp;|&nbsp; '
             f'VAL: <b style="color:{c_va};">{val_str}</b> &nbsp;|&nbsp; '
