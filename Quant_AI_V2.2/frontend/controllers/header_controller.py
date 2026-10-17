@@ -60,13 +60,11 @@ class WorkspaceHeaderController:
 
     def _format_bottom_telemetry(self, is_dark=None):
         """Consolidated institutional bottom telemetry cluster:
-        CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
+        FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         Matches the 10px Segoe UI typography of the left navigation tabs.
         """
         if is_dark is None:
             is_dark = getattr(self, "is_dark_theme", False)
-
-        session = getattr(self, "market_session", "CME RTH")
 
         mode = getattr(self, "execution_mode", "FULL-ALGO")
         if mode in ("FULL-AUTO", "FULL-ALGO"):
@@ -127,8 +125,6 @@ class WorkspaceHeaderController:
 
         return (
             f'<span style="font-family:\'Segoe UI\', -apple-system, sans-serif; font-size:10px;">'
-            f'<span style="color:{txt_col}; font-weight:600;">{session}</span>'
-            f'{sep}'
             f'<span style="color:{mode_col}; font-weight:600;">{mode_str}</span>'
             f'{sep}'
             f'<span style="color:{dot_col};">●</span> <span style="color:{txt_col}; font-weight:500;">MT5:</span> <b style="color:{mt5_val_col}; font-weight:600;">{mt5_val}</b>'
@@ -408,7 +404,7 @@ class WorkspaceHeaderController:
         if hasattr(self, "sep_bottom_nav") and self.sep_bottom_nav:
             self.sep_bottom_nav.setVisible(False)
 
-        # 11. Consolidated Bottom Telemetry: CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
+        # 11. Consolidated Bottom Telemetry: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
             self.lbl_bot_status.setFixedHeight(26)
             self.lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
@@ -751,7 +747,7 @@ class WorkspaceHeaderController:
         # Spacer pushes all telemetry to the far right
         b_layout.addStretch()
 
-        # Right: Consolidated status strip: CME RTH | FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
+        # Right: Consolidated status strip: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         lbl_bot_status = QLabel()
         lbl_bot_status.setObjectName("lblBottomTelemetry")
         lbl_bot_status.setFixedHeight(26)
