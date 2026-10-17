@@ -849,6 +849,18 @@ def setup_chart_ui(window):
             super().paintEvent(event)
             p = QPainter(self)
             p.setRenderHint(QPainter.Antialiasing)
+
+            # If no icon file found, draw fallback vector profile levels directly
+            if self.icon().isNull():
+                p.setPen(QPen(QColor("#71717a"), 1.2, Qt.SolidLine, Qt.RoundCap))
+                p.drawLine(3, 4, 11, 4)
+                p.setPen(QPen(QColor("#10b981"), 1.6, Qt.SolidLine, Qt.RoundCap))
+                p.drawLine(3, 7, 14, 7)
+                p.setPen(QPen(QColor("#f43f5e"), 1.4, Qt.SolidLine, Qt.RoundCap))
+                p.drawLine(3, 10, 12, 10)
+                p.setPen(QPen(QColor("#71717a"), 1.2, Qt.SolidLine, Qt.RoundCap))
+                p.drawLine(3, 13, 9, 13)
+
             caret_col = QColor("#0284c7" if self.isChecked() else ("#94a3b8" if self._is_dark else "#71717a"))
             p.setBrush(QBrush(caret_col))
             p.setPen(Qt.NoPen)
@@ -885,10 +897,17 @@ def setup_chart_ui(window):
     btn_profile = ProfileToolButton(is_dark=is_d_init)
     btn_profile.setObjectName("btnToolProfile")
     btn_profile.setToolTip("Market Profile Levels (vPOC, tPOC, VAH, VAL)")
-    ic_profile = os.path.join(assets_dir, "tool_profile.svg")
-    if os.path.exists(ic_profile):
-        btn_profile.setIcon(QIcon(ic_profile))
-        btn_profile.setIconSize(QSize(13, 13))
+    ic_candidates = [
+        os.path.join(assets_dir, "tool_profile.svg"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets", "tool_profile.svg"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "tool_profile.svg"),
+        os.path.join(os.path.dirname(__file__), "assets", "tool_profile.svg"),
+    ]
+    for ic_p in ic_candidates:
+        if os.path.exists(ic_p):
+            btn_profile.setIcon(QIcon(ic_p))
+            btn_profile.setIconSize(QSize(13, 13))
+            break
     btn_profile.setStyleSheet(_get_tool_btn_style(is_d_init, is_active=False, is_accent=False))
     btn_profile.clicked.connect(lambda: _show_profile_levels_menu(btn_profile))
     tb_layout.addWidget(btn_profile)
