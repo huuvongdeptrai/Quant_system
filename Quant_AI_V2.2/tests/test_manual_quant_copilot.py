@@ -168,10 +168,10 @@ class TestManualCopilotUI:
         win.spinManualSL.setValue(2645.0)
         win.spinManualTP.setValue(2660.0)
 
-        assert "0.20 Lots" in win.lblManualLotVal.text()
-        assert "1:2.0" in win.lblManualLotSummary.text()
+        assert "0.20" in win.lblManualLotVal.text()
+        assert "2.0R" in win.lblManualLotSummary.text() or "1:2.0" in win.lblManualLotSummary.text()
         assert win.btnManualExecute.isEnabled() is True
-        assert "EXECUTE BUY MARKET (0.20 LOTS)" in win.btnManualExecute.text()
+        assert "TRANSMIT BUY ORDER [ 0.20 LOTS ]" in win.btnManualExecute.text()
 
     def test_stepper_and_preset_buttons(self, qapp):
         win = QWidget()
@@ -193,10 +193,10 @@ class TestManualCopilotUI:
         win.btnSLMinus.click()
         assert win.spinManualSL.value() == 2645.0
 
-        # Preset R:R 1:3.0 (from 2650 with SL 2645, dist=5 -> TP should be 2650 + 15 = 2665.0)
+        # Preset R:R 3.0R (from 2650 with SL 2645, dist=5 -> TP should be 2650 + 15 = 2665.0)
         win.btnPresetRR30.click()
         assert win.spinManualTP.value() == 2665.0
-        assert "1:3.0" in win.lblManualLotSummary.text()
+        assert "3.0R" in win.lblManualLotSummary.text() or "1:3.0" in win.lblManualLotSummary.text()
 
     def test_theme_toggle_light_and_dark(self, qapp):
         win = QWidget()

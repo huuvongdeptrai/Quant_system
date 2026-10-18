@@ -657,24 +657,19 @@ def apply_playbook_cards_theme(window, is_dark: bool):
     # Mode Switcher Bar
     if hasattr(window, "framePlanModeSwitcher") and window.framePlanModeSwitcher:
         sw_bg = "#0b0f19" if is_dark else "#f1f5f9"
-        sw_border = "#1e293b" if is_dark else "#e2e8f0"
+        sw_border = "#1e293b" if is_dark else "#cbd5e1"
         window.framePlanModeSwitcher.setStyleSheet(
-            f"QFrame#framePlanModeSwitcher {{ background-color: {sw_bg}; border: 1px solid {sw_border}; border-radius: 3px; }}"
+            f"QFrame#framePlanModeSwitcher {{ background-color: {sw_bg}; border: 1px solid {sw_border}; border-radius: 2px; }}"
         )
 
-    # Mode Buttons Styling
+    # Mode Buttons Styling via dynamic QSS property
     mode = getattr(window, "_plan_mode", "ai")
     for btn_name, is_act in [("btnPlanModeAI", mode == "ai"), ("btnPlanModeManual", mode == "manual")]:
         b = getattr(window, btn_name, None)
         if b:
-            if is_act:
-                b_bg = "#161d2d" if is_dark else "#ffffff"
-                b_color = "#f8fafc" if is_dark else "#0f172a"
-                b_border = "1px solid #334155" if is_dark else "1px solid #cbd5e1"
-                b.setStyleSheet(f"QPushButton {{ background-color: {b_bg}; color: {b_color}; border: {b_border}; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 2px 6px; }}")
-            else:
-                b_color = "#94a3b8" if is_dark else "#64748b"
-                b.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {b_color}; border: none; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: 500; border-radius: 2px; padding: 2px 6px; }} QPushButton:hover {{ color: {'#f8fafc' if is_dark else '#0f172a'}; }}")
+            b.setProperty("active", "true" if is_act else "false")
+            b.style().unpolish(b)
+            b.style().polish(b)
 
     # Manual Copilot Cards
     for c_name in ["cardManualDir", "cardManualRisk", "cardManualGate", "cardManualAction"]:
@@ -689,114 +684,68 @@ def apply_playbook_cards_theme(window, is_dark: bool):
                 f"background-color: {sep_color}; height: 1px; border: none;"
             )
 
-    # Direction Buttons (BUY / SELL)
+    # Direction Buttons (BUY / SELL) via dynamic QSS property
     man_dir = getattr(window, "_manual_direction", "BUY")
     if hasattr(window, "btnManualBuy") and window.btnManualBuy:
         is_sel = (man_dir == "BUY")
-        if is_sel:
-            bg = "#0d2818" if is_dark else "#f0fdf4"
-            bdr = "1.5px solid #1b4d2e" if is_dark else "1.5px solid #16a34a"
-            fg = "#22c55e" if is_dark else "#15803d"
-        else:
-            bg = "#0c101c" if is_dark else "#ffffff"
-            bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
-            fg = "#94a3b8" if is_dark else "#64748b"
-        window.btnManualBuy.setStyleSheet(f"QPushButton {{ background-color: {bg}; border: {bdr}; border-radius: 3px; padding: 4px 6px; text-align: left; }}")
-        if hasattr(window, "lblManualAskPrice"):
-            window.lblManualAskPrice.setStyleSheet(f"color: {fg}; font-family: Consolas, monospace; font-size: 12px; font-weight: 800; border: none; background: transparent;")
+        window.btnManualBuy.setProperty("selected", "true" if is_sel else "false")
+        window.btnManualBuy.style().unpolish(window.btnManualBuy)
+        window.btnManualBuy.style().polish(window.btnManualBuy)
 
     if hasattr(window, "btnManualSell") and window.btnManualSell:
         is_sel = (man_dir == "SELL")
-        if is_sel:
-            bg = "#271214" if is_dark else "#fef2f2"
-            bdr = "1.5px solid #4a1d24" if is_dark else "1.5px solid #ef4444"
-            fg = "#ef4444" if is_dark else "#dc2626"
-        else:
-            bg = "#0c101c" if is_dark else "#ffffff"
-            bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
-            fg = "#94a3b8" if is_dark else "#64748b"
-        window.btnManualSell.setStyleSheet(f"QPushButton {{ background-color: {bg}; border: {bdr}; border-radius: 3px; padding: 4px 6px; text-align: left; }}")
-        if hasattr(window, "lblManualBidPrice"):
-            window.lblManualBidPrice.setStyleSheet(f"color: {fg}; font-family: Consolas, monospace; font-size: 12px; font-weight: 800; border: none; background: transparent;")
+        window.btnManualSell.setProperty("selected", "true" if is_sel else "false")
+        window.btnManualSell.style().unpolish(window.btnManualSell)
+        window.btnManualSell.style().polish(window.btnManualSell)
 
-    # Risk % Buttons
+    ask_fg = ("#22c55e" if is_dark else "#15803d") if man_dir == "BUY" else ("#94a3b8" if is_dark else "#64748b")
+    bid_fg = ("#ef4444" if is_dark else "#dc2626") if man_dir == "SELL" else ("#94a3b8" if is_dark else "#64748b")
+    if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice:
+        window.lblManualAskPrice.setStyleSheet(f"color: {ask_fg}; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; border: none; background: transparent;")
+    if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice:
+        window.lblManualBidPrice.setStyleSheet(f"color: {bid_fg}; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; border: none; background: transparent;")
+    if hasattr(window, "lblManualBuyText") and window.lblManualBuyText:
+        window.lblManualBuyText.setStyleSheet(f"color: {ask_fg}; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: 700; border: none; background: transparent;")
+    if hasattr(window, "lblManualSellText") and window.lblManualSellText:
+        window.lblManualSellText.setStyleSheet(f"color: {bid_fg}; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: 700; border: none; background: transparent;")
+
+    # Risk % Buttons via dynamic QSS property
     cur_risk = getattr(window, "_manual_risk_pct", 1.0)
     for p_val, b_name in [(0.5, "btnRisk05"), (1.0, "btnRisk10"), (1.5, "btnRisk15"), (2.0, "btnRisk20")]:
         b = getattr(window, b_name, None)
         if b:
-            if abs(cur_risk - p_val) < 0.05:
-                bg = "#0284c7"
-                fg = "#ffffff"
-                bdr = "1px solid #38bdf8" if is_dark else "1px solid #0284c7"
-            else:
-                bg = "#0c101c" if is_dark else "#ffffff"
-                fg = "#94a3b8" if is_dark else "#475569"
-                bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
-            b.setStyleSheet(f"QPushButton {{ background-color: {bg}; color: {fg}; border: {bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; min-height: 18px; max-height: 18px; }}")
+            is_sel = abs(cur_risk - p_val) < 0.05
+            b.setProperty("selected", "true" if is_sel else "false")
+            b.style().unpolish(b)
+            b.style().polish(b)
+
+    # Preset buttons
+    for pre_name in ["btnPresetATR", "btnPresetSwing", "btnPresetRR15", "btnPresetRR20", "btnPresetRR30"]:
+        b = getattr(window, pre_name, None)
+        if b:
+            b.style().unpolish(b)
+            b.style().polish(b)
 
     # SpinBoxes (SL / TP)
-    spin_bg = "#050608" if is_dark else "#ffffff"
-    spin_fg = "#f8fafc" if is_dark else "#0f172a"
-    spin_bdr = "#1e293b" if is_dark else "#cbd5e1"
-    spin_style = f"QDoubleSpinBox {{ background-color: {spin_bg}; color: {spin_fg}; border: 1px solid {spin_bdr}; border-radius: 2px; padding: 1px 4px; font-family: Consolas, monospace; font-size: 11px; font-weight: bold; }} QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0px; border: none; }}"
-    if hasattr(window, "spinManualSL") and window.spinManualSL:
-        window.spinManualSL.setStyleSheet(spin_style)
-    if hasattr(window, "spinManualTP") and window.spinManualTP:
-        window.spinManualTP.setStyleSheet(spin_style)
-
-    # Step Buttons (+ / -)
-    step_bg = "#111622" if is_dark else "#f8fafc"
-    step_fg = "#f8fafc" if is_dark else "#0f172a"
-    step_bdr = "#1e293b" if is_dark else "#cbd5e1"
-    step_hover = "#1e2638" if is_dark else "#e2e8f0"
-    step_style = f"QPushButton {{ background-color: {step_bg}; color: {step_fg}; border: 1px solid {step_bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 9px; font-weight: bold; min-width: 16px; max-width: 16px; min-height: 18px; max-height: 18px; }} QPushButton:hover {{ background-color: {step_hover}; }}"
-    for step_btn in ["btnSLMinus", "btnSLPlus", "btnTPMinus", "btnTPPlus"]:
-        b = getattr(window, step_btn, None)
-        if b:
-            b.setStyleSheet(step_style)
-
-    # Presets Buttons
-    pre_bg = "#0f172a" if is_dark else "#f1f5f9"
-    pre_fg = "#38bdf8" if is_dark else "#0284c7"
-    pre_bdr = "#1e293b" if is_dark else "#e2e8f0"
-    pre_hover = "#1e293b" if is_dark else "#e2e8f0"
-    pre_style = f"QPushButton {{ background-color: {pre_bg}; color: {pre_fg}; border: 1px solid {pre_bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 8px; font-weight: bold; padding: 0 4px; min-height: 16px; max-height: 16px; }} QPushButton:hover {{ background-color: {pre_hover}; }}"
-    for pre_btn in ["btnPresetATR", "btnPresetSwing", "btnPresetRR15", "btnPresetRR20", "btnPresetRR30"]:
-        b = getattr(window, pre_btn, None)
-        if b:
-            b.setStyleSheet(pre_style)
+    for spin_name in ["spinManualSL", "spinManualTP"]:
+        sp = getattr(window, spin_name, None)
+        if sp:
+            sp.style().unpolish(sp)
+            sp.style().polish(sp)
 
     # Lot Summary Box
     if hasattr(window, "boxManualLotSummary") and window.boxManualLotSummary:
         box_bg = "#071524" if is_dark else "#f0f9ff"
         box_bdr = "#0c3359" if is_dark else "#bae6fd"
         window.boxManualLotSummary.setStyleSheet(
-            f"QFrame#boxManualLotSummary {{ background-color: {box_bg}; border: 1px solid {box_bdr}; border-radius: 2px; padding: 4px; }}"
+            f"QFrame#boxManualLotSummary {{ background-color: {box_bg}; border: 1px solid {box_bdr}; border-radius: 2px; padding: 2px 4px; }}"
         )
 
     # Execute Button
     if hasattr(window, "btnManualExecute") and window.btnManualExecute:
-        is_buy = (man_dir == "BUY")
-        if is_dark:
-            exec_bg = "#143d28" if is_buy else "#3b1419"
-            exec_border = "#1e5a3a" if is_buy else "#5a1e26"
-            exec_hover = "#194d33" if is_buy else "#4a1d24"
-            window.btnManualExecute.setStyleSheet(
-                f"QPushButton#btnManualExecute {{ background-color: {exec_bg}; color: #ffffff; border: 1px solid {exec_border}; "
-                f"font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border-radius: 2px; }} "
-                f"QPushButton#btnManualExecute:hover {{ background-color: {exec_hover}; }} "
-                f"QPushButton#btnManualExecute:disabled {{ background-color: #0b0f19; color: #475569; border: 1px solid #1e293b; }}"
-            )
-        else:
-            exec_bg = "#15803d" if is_buy else "#dc2626"
-            exec_border = "#166534" if is_buy else "#b91c1c"
-            exec_hover = "#166534" if is_buy else "#b91c1c"
-            window.btnManualExecute.setStyleSheet(
-                f"QPushButton#btnManualExecute {{ background-color: {exec_bg}; color: #ffffff; border: 1px solid {exec_border}; "
-                f"font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border-radius: 2px; }} "
-                f"QPushButton#btnManualExecute:hover {{ background-color: {exec_hover}; }} "
-                f"QPushButton#btnManualExecute:disabled {{ background-color: #f1f5f9; color: #94a3b8; border: 1px solid #cbd5e1; }}"
-            )
+        window.btnManualExecute.setProperty("direction", man_dir)
+        window.btnManualExecute.style().unpolish(window.btnManualExecute)
+        window.btnManualExecute.style().polish(window.btnManualExecute)
 
     # Manual Titles & Badges
     if hasattr(window, "lblManualHeaderTitle") and window.lblManualHeaderTitle:
@@ -833,6 +782,8 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         window.lblManualTPPips.setStyleSheet(
             f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
         )
+    if hasattr(window, "lblManualLotSummaryTitle") and window.lblManualLotSummaryTitle:
+        window.lblManualLotSummaryTitle.setStyleSheet(sub_style)
     if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
         window.lblManualLotSummary.setStyleSheet(
             f"color: {'#38bdf8' if is_dark else '#0369a1'}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
@@ -1057,14 +1008,14 @@ def _recalculate_manual_lot_and_rr(window):
 
     # Update UI Labels
     if hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
-        window.lblManualLotVal.setText(f"{lot:.2f} Lots")
+        window.lblManualLotVal.setText(f"{lot:.2f} LOTS")
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setText(f"-{sl_pips:.1f} pips / -${risk_dlr:.2f}")
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
         window.lblManualTPPips.setText(f"+{tp_pips:.1f} pips / +${reward_dlr:.2f}")
     if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
         window.lblManualLotSummary.setText(
-            f"RISK: -${risk_dlr:.2f} ({risk_pct:.1f}%) | REW: +${reward_dlr:.2f} | R:R: 1:{rr_ratio:.1f}"
+            f"-${risk_dlr:.2f} ({risk_pct:.1f}%) / +${reward_dlr:.2f} ({rr_ratio:.1f}R)"
         )
 
     # Evaluate compliance
@@ -1096,12 +1047,15 @@ def _recalculate_manual_lot_and_rr(window):
     if hasattr(window, "btnManualExecute") and window.btnManualExecute:
         if passed:
             window.btnManualExecute.setEnabled(True)
-            window.btnManualExecute.setText(f"EXECUTE {dir_str} MARKET ({lot:.2f} LOTS)")
+            window.btnManualExecute.setText(f"TRANSMIT {dir_str} ORDER [ {lot:.2f} LOTS ]")
             window.btnManualExecute.setToolTip(f"Send institutional market {dir_str} order with {risk_pct}% risk")
         else:
             window.btnManualExecute.setEnabled(False)
             window.btnManualExecute.setText(f"LOCKED: {block_reason}")
             window.btnManualExecute.setToolTip(f"Order locked by quant guardrails: {block_reason}")
+        window.btnManualExecute.setProperty("direction", dir_str)
+        window.btnManualExecute.style().unpolish(window.btnManualExecute)
+        window.btnManualExecute.style().polish(window.btnManualExecute)
 
     # Also update chart lines
     _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
@@ -1271,11 +1225,11 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_mode.setContentsMargins(2, 2, 2, 2)
     layout_mode.setSpacing(2)
 
-    btn_mode_ai = QPushButton("🤖 AI SIGNAL (ICT)")
+    btn_mode_ai = QPushButton("AI STRATEGY")
     btn_mode_ai.setObjectName("btnPlanModeAI")
     btn_mode_ai.setCursor(Qt.PointingHandCursor)
 
-    btn_mode_manual = QPushButton("⚡ MANUAL QUANT")
+    btn_mode_manual = QPushButton("MANUAL COPILOT")
     btn_mode_manual.setObjectName("btnPlanModeManual")
     btn_mode_manual.setCursor(Qt.PointingHandCursor)
 
@@ -1513,9 +1467,10 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_dir.setSpacing(4)
 
     row_md_top = QHBoxLayout()
+    row_md_top.setContentsMargins(0, 0, 0, 0)
     lbl_md_title = QLabel("MANUAL EXECUTION")
     lbl_md_title.setObjectName("lblManualHeaderTitle")
-    lbl_md_badge = QLabel("MARKET EXECUTION")
+    lbl_md_badge = QLabel("MARKET DIRECT")
     lbl_md_badge.setObjectName("lblManualExecBadge")
     row_md_top.addWidget(lbl_md_title)
     row_md_top.addStretch()
@@ -1523,36 +1478,41 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_dir.addLayout(row_md_top)
 
     row_quotes = QHBoxLayout()
+    row_quotes.setContentsMargins(0, 0, 0, 0)
     row_quotes.setSpacing(6)
 
     # BUY Button Card
     btn_buy = QPushButton()
     btn_buy.setObjectName("btnManualBuy")
     btn_buy.setCursor(Qt.PointingHandCursor)
-    btn_buy.setFixedHeight(38)
-    layout_buy = QVBoxLayout(btn_buy)
-    layout_buy.setContentsMargins(6, 2, 6, 2)
-    layout_buy.setSpacing(0)
-    lbl_buy_t = QLabel("▲ BUY MARKET")
-    lbl_buy_t.setStyleSheet("font-family: Consolas, monospace; font-size: 8px; font-weight: bold; color: #22c55e; border: none; background: transparent;")
+    btn_buy.setFixedHeight(34)
+    layout_buy = QHBoxLayout(btn_buy)
+    layout_buy.setContentsMargins(8, 2, 8, 2)
+    layout_buy.setSpacing(4)
+    lbl_buy_t = QLabel("BUY MARKET")
+    lbl_buy_t.setObjectName("lblManualBuyText")
     lbl_ask_p = QLabel("0.00")
     lbl_ask_p.setObjectName("lblManualAskPrice")
+    lbl_ask_p.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
     layout_buy.addWidget(lbl_buy_t)
+    layout_buy.addStretch()
     layout_buy.addWidget(lbl_ask_p)
 
     # SELL Button Card
     btn_sell = QPushButton()
     btn_sell.setObjectName("btnManualSell")
     btn_sell.setCursor(Qt.PointingHandCursor)
-    btn_sell.setFixedHeight(38)
-    layout_sell = QVBoxLayout(btn_sell)
-    layout_sell.setContentsMargins(6, 2, 6, 2)
-    layout_sell.setSpacing(0)
-    lbl_sell_t = QLabel("▼ SELL MARKET")
-    lbl_sell_t.setStyleSheet("font-family: Consolas, monospace; font-size: 8px; font-weight: bold; color: #ef4444; border: none; background: transparent;")
+    btn_sell.setFixedHeight(34)
+    layout_sell = QHBoxLayout(btn_sell)
+    layout_sell.setContentsMargins(8, 2, 8, 2)
+    layout_sell.setSpacing(4)
+    lbl_sell_t = QLabel("SELL MARKET")
+    lbl_sell_t.setObjectName("lblManualSellText")
     lbl_bid_p = QLabel("0.00")
     lbl_bid_p.setObjectName("lblManualBidPrice")
+    lbl_bid_p.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
     layout_sell.addWidget(lbl_sell_t)
+    layout_sell.addStretch()
     layout_sell.addWidget(lbl_bid_p)
 
     row_quotes.addWidget(btn_buy)
@@ -1560,7 +1520,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_dir.addLayout(row_quotes)
 
     row_spd = QHBoxLayout()
-    lbl_spd = QLabel("SPREAD: -- PTS")
+    row_spd.setContentsMargins(0, 0, 0, 0)
+    lbl_spd = QLabel("SPREAD: 2.5 PTS")
     lbl_spd.setObjectName("lblManualSpread")
     row_spd.addWidget(lbl_spd)
     row_spd.addStretch()
@@ -1576,12 +1537,13 @@ def setup_trading_plan_cards(window, is_dark=False):
     card_m_risk.setObjectName("cardManualRisk")
     layout_m_risk = QVBoxLayout(card_m_risk)
     layout_m_risk.setContentsMargins(4, 4, 4, 4)
-    layout_m_risk.setSpacing(4)
+    layout_m_risk.setSpacing(5)
 
     row_mr_top = QHBoxLayout()
-    lbl_mr_title = QLabel("RISK MODEL & SIZING")
+    row_mr_top.setContentsMargins(0, 0, 0, 0)
+    lbl_mr_title = QLabel("ORDER & RISK BUDGET")
     lbl_mr_title.setObjectName("lblManualRiskTitle")
-    lbl_m_lot = QLabel("0.10 Lots")
+    lbl_m_lot = QLabel("0.20 LOTS")
     lbl_m_lot.setObjectName("lblManualLotVal")
     row_mr_top.addWidget(lbl_mr_title)
     row_mr_top.addStretch()
@@ -1590,97 +1552,147 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     # Quick Risk Selectors
     row_risk_btns = QHBoxLayout()
+    row_risk_btns.setContentsMargins(0, 0, 0, 0)
     row_risk_btns.setSpacing(4)
-    lbl_risk_lbl = QLabel("RISK:")
+    lbl_risk_lbl = QLabel("RISK BUDGET")
     lbl_risk_lbl.setObjectName("lblManualRiskLabel")
     row_risk_btns.addWidget(lbl_risk_lbl)
+    row_risk_btns.addStretch()
     btn_r05 = QPushButton("0.5%")
     btn_r05.setObjectName("btnRisk05")
+    btn_r05.setProperty("class", "risk_pct_btn")
     btn_r10 = QPushButton("1.0%")
     btn_r10.setObjectName("btnRisk10")
+    btn_r10.setProperty("class", "risk_pct_btn")
     btn_r15 = QPushButton("1.5%")
     btn_r15.setObjectName("btnRisk15")
+    btn_r15.setProperty("class", "risk_pct_btn")
     btn_r20 = QPushButton("2.0%")
     btn_r20.setObjectName("btnRisk20")
+    btn_r20.setProperty("class", "risk_pct_btn")
     for b in [btn_r05, btn_r10, btn_r15, btn_r20]:
         b.setCursor(Qt.PointingHandCursor)
         row_risk_btns.addWidget(b)
     layout_m_risk.addLayout(row_risk_btns)
 
-    # Stop Loss Row
-    row_sl_head = QHBoxLayout()
+    # Stop Loss Row (2-column layout)
+    row_sl = QHBoxLayout()
+    row_sl.setContentsMargins(0, 0, 0, 0)
+    row_sl.setSpacing(6)
+
+    col_sl_info = QVBoxLayout()
+    col_sl_info.setSpacing(1)
     lbl_sl_lbl = QLabel("STOP LOSS")
     lbl_sl_lbl.setObjectName("lblManualSLLabel")
-    lbl_sl_pips = QLabel("-- pips / --")
+    lbl_sl_pips = QLabel("-25.0 pips / -$100.00")
     lbl_sl_pips.setObjectName("lblManualSLPips")
-    row_sl_head.addWidget(lbl_sl_lbl)
-    row_sl_head.addStretch()
-    row_sl_head.addWidget(lbl_sl_pips)
-    layout_m_risk.addLayout(row_sl_head)
+    col_sl_info.addWidget(lbl_sl_lbl)
+    col_sl_info.addWidget(lbl_sl_pips)
+    row_sl.addLayout(col_sl_info)
 
-    row_sl_ctrl = QHBoxLayout()
-    row_sl_ctrl.setSpacing(3)
-    btn_sl_minus = QPushButton("-")
-    btn_sl_minus.setObjectName("btnSLMinus")
+    row_sl.addStretch()
+
     spin_sl = QDoubleSpinBox()
     spin_sl.setObjectName("spinManualSL")
-    spin_sl.setFixedHeight(20)
-    btn_sl_plus = QPushButton("+")
-    btn_sl_plus.setObjectName("btnSLPlus")
-    btn_pre_atr = QPushButton("1.5x ATR")
+    spin_sl.setFixedHeight(22)
+    spin_sl.setFixedWidth(78)
+    spin_sl.setAlignment(Qt.AlignRight)
+    spin_sl.setButtonSymbols(QDoubleSpinBox.NoButtons)
+
+    box_sl_pre = QWidget()
+    box_sl_pre.setFixedWidth(102)
+    layout_sl_pre = QHBoxLayout(box_sl_pre)
+    layout_sl_pre.setContentsMargins(0, 0, 0, 0)
+    layout_sl_pre.setSpacing(3)
+
+    btn_pre_atr = QPushButton("ATR")
     btn_pre_atr.setObjectName("btnPresetATR")
-    btn_pre_swing = QPushButton("Swing")
+    btn_pre_atr.setProperty("class", "preset_tag_btn")
+    btn_pre_atr.setCursor(Qt.PointingHandCursor)
+
+    btn_pre_swing = QPushButton("SWING")
     btn_pre_swing.setObjectName("btnPresetSwing")
+    btn_pre_swing.setProperty("class", "preset_tag_btn")
+    btn_pre_swing.setCursor(Qt.PointingHandCursor)
 
-    row_sl_ctrl.addWidget(btn_sl_minus)
-    row_sl_ctrl.addWidget(spin_sl, 1)
-    row_sl_ctrl.addWidget(btn_sl_plus)
-    row_sl_ctrl.addWidget(btn_pre_atr)
-    row_sl_ctrl.addWidget(btn_pre_swing)
-    layout_m_risk.addLayout(row_sl_ctrl)
+    layout_sl_pre.addWidget(btn_pre_atr)
+    layout_sl_pre.addWidget(btn_pre_swing)
 
-    # Take Profit Row
-    row_tp_head = QHBoxLayout()
+    row_sl.addWidget(spin_sl)
+    row_sl.addWidget(box_sl_pre)
+    layout_m_risk.addLayout(row_sl)
+
+    # Take Profit Row (2-column layout)
+    row_tp = QHBoxLayout()
+    row_tp.setContentsMargins(0, 0, 0, 0)
+    row_tp.setSpacing(6)
+
+    col_tp_info = QVBoxLayout()
+    col_tp_info.setSpacing(1)
     lbl_tp_lbl = QLabel("TAKE PROFIT")
     lbl_tp_lbl.setObjectName("lblManualTPLabel")
-    lbl_tp_pips = QLabel("-- pips / --")
+    lbl_tp_pips = QLabel("+50.0 pips / +$200.00")
     lbl_tp_pips.setObjectName("lblManualTPPips")
-    row_tp_head.addWidget(lbl_tp_lbl)
-    row_tp_head.addStretch()
-    row_tp_head.addWidget(lbl_tp_pips)
-    layout_m_risk.addLayout(row_tp_head)
+    col_tp_info.addWidget(lbl_tp_lbl)
+    col_tp_info.addWidget(lbl_tp_pips)
+    row_tp.addLayout(col_tp_info)
 
-    row_tp_ctrl = QHBoxLayout()
-    row_tp_ctrl.setSpacing(3)
-    btn_tp_minus = QPushButton("-")
-    btn_tp_minus.setObjectName("btnTPMinus")
+    row_tp.addStretch()
+
     spin_tp = QDoubleSpinBox()
     spin_tp.setObjectName("spinManualTP")
-    spin_tp.setFixedHeight(20)
-    btn_tp_plus = QPushButton("+")
-    btn_tp_plus.setObjectName("btnTPPlus")
-    btn_pre_rr15 = QPushButton("1:1.5")
-    btn_pre_rr15.setObjectName("btnPresetRR15")
-    btn_pre_rr20 = QPushButton("1:2.0")
-    btn_pre_rr20.setObjectName("btnPresetRR20")
-    btn_pre_rr30 = QPushButton("1:3.0")
-    btn_pre_rr30.setObjectName("btnPresetRR30")
+    spin_tp.setFixedHeight(22)
+    spin_tp.setFixedWidth(78)
+    spin_tp.setAlignment(Qt.AlignRight)
+    spin_tp.setButtonSymbols(QDoubleSpinBox.NoButtons)
 
-    row_tp_ctrl.addWidget(btn_tp_minus)
-    row_tp_ctrl.addWidget(spin_tp, 1)
-    row_tp_ctrl.addWidget(btn_tp_plus)
-    row_tp_ctrl.addWidget(btn_pre_rr15)
-    row_tp_ctrl.addWidget(btn_pre_rr20)
-    row_tp_ctrl.addWidget(btn_pre_rr30)
-    layout_m_risk.addLayout(row_tp_ctrl)
+    box_tp_pre = QWidget()
+    box_tp_pre.setFixedWidth(102)
+    layout_tp_pre = QHBoxLayout(box_tp_pre)
+    layout_tp_pre.setContentsMargins(0, 0, 0, 0)
+    layout_tp_pre.setSpacing(3)
+
+    btn_pre_rr15 = QPushButton("1.5R")
+    btn_pre_rr15.setObjectName("btnPresetRR15")
+    btn_pre_rr15.setProperty("class", "preset_tag_btn")
+    btn_pre_rr15.setCursor(Qt.PointingHandCursor)
+
+    btn_pre_rr20 = QPushButton("2.0R")
+    btn_pre_rr20.setObjectName("btnPresetRR20")
+    btn_pre_rr20.setProperty("class", "preset_tag_btn")
+    btn_pre_rr20.setCursor(Qt.PointingHandCursor)
+
+    btn_pre_rr30 = QPushButton("3.0R")
+    btn_pre_rr30.setObjectName("btnPresetRR30")
+    btn_pre_rr30.setProperty("class", "preset_tag_btn")
+    btn_pre_rr30.setCursor(Qt.PointingHandCursor)
+
+    layout_tp_pre.addWidget(btn_pre_rr15)
+    layout_tp_pre.addWidget(btn_pre_rr20)
+    layout_tp_pre.addWidget(btn_pre_rr30)
+
+    row_tp.addWidget(spin_tp)
+    row_tp.addWidget(box_tp_pre)
+    layout_m_risk.addLayout(row_tp)
+
+    # Stepper helpers (kept for backward compatibility and testing)
+    btn_sl_minus = QPushButton()
+    btn_sl_plus = QPushButton()
+    btn_tp_minus = QPushButton()
+    btn_tp_plus = QPushButton()
 
     # Summary Box
     box_summary = QFrame()
     box_summary.setObjectName("boxManualLotSummary")
     layout_summary = QHBoxLayout(box_summary)
     layout_summary.setContentsMargins(4, 2, 4, 2)
-    lbl_lot_sum = QLabel("RISK: -$100.00 (1.0%) | REW: +$200.00 | R:R: 1:2.0")
+    lbl_lot_sum_title = QLabel("RISK / REWARD")
+    lbl_lot_sum_title.setObjectName("lblManualLotSummaryTitle")
+    lbl_lot_sum = QLabel("-$100.00 (1.0%) / +$200.00 (2.0R)")
     lbl_lot_sum.setObjectName("lblManualLotSummary")
+    lbl_lot_sum.setAlignment(Qt.AlignRight)
+    layout_summary.addWidget(lbl_lot_sum_title)
+    layout_summary.addStretch()
     layout_summary.addWidget(lbl_lot_sum)
     layout_m_risk.addWidget(box_summary)
 
@@ -1689,14 +1701,14 @@ def setup_trading_plan_cards(window, is_dark=False):
     sep_m2.setObjectName("sepManual2")
     sep_m2.setFixedHeight(1)
 
-    # Card M3: Institutional Compliance Checklist
+    # Card M3: Pre-Trade Compliance Checklist
     card_m_gate = QFrame()
     card_m_gate.setObjectName("cardManualGate")
     layout_m_gate = QVBoxLayout(card_m_gate)
     layout_m_gate.setContentsMargins(4, 4, 4, 4)
     layout_m_gate.setSpacing(3)
 
-    lbl_mg_title = QLabel("PRE-TRADE COMPLIANCE CHECKLIST")
+    lbl_mg_title = QLabel("PRE-TRADE COMPLIANCE")
     lbl_mg_title.setObjectName("lblManualGateTitle")
     layout_m_gate.addWidget(lbl_mg_title)
 
@@ -1707,24 +1719,21 @@ def setup_trading_plan_cards(window, is_dark=False):
         lbl_t.setObjectName(f"{obj_key}Title")
         lbl_v = QLabel("PASS")
         lbl_v.setObjectName(f"{obj_key}Val")
-        lbl_i = QLabel("✓")
-        lbl_i.setObjectName(f"{obj_key}Icon")
+        lbl_v.setAlignment(Qt.AlignRight)
         lbl_t.setStyleSheet("border: none; background: transparent;")
         lbl_v.setStyleSheet("border: none; background: transparent;")
-        lbl_i.setStyleSheet("color: #22c55e; font-size: 8.5px; font-weight: bold; border: none; background: transparent;")
         setattr(window, f"{obj_key}Title", lbl_t)
         setattr(window, f"{obj_key}Val", lbl_v)
-        setattr(window, f"{obj_key}Icon", lbl_i)
+        setattr(window, f"{obj_key}Icon", None)
         r.addWidget(lbl_t)
         r.addStretch()
         r.addWidget(lbl_v)
-        r.addWidget(lbl_i)
         return r
 
-    layout_m_gate.addLayout(_make_gate_check_row("Daily Drawdown Guard (< 4.0%)", "lblGateCheck1"))
-    layout_m_gate.addLayout(_make_gate_check_row("High-Impact News Filter (±15m)", "lblGateCheck2"))
-    layout_m_gate.addLayout(_make_gate_check_row("Max Open Trades (< 3 positions)", "lblGateCheck3"))
-    layout_m_gate.addLayout(_make_gate_check_row("Spread Normalization (Liquidity)", "lblGateCheck4"))
+    layout_m_gate.addLayout(_make_gate_check_row("Daily Drawdown Limit (< 4.0%)", "lblGateCheck1"))
+    layout_m_gate.addLayout(_make_gate_check_row("Event Risk Engine (News +-15m)", "lblGateCheck2"))
+    layout_m_gate.addLayout(_make_gate_check_row("Exposure Gate (Max 3 Trades)", "lblGateCheck3"))
+    layout_m_gate.addLayout(_make_gate_check_row("Spread Normalization", "lblGateCheck4"))
 
     sep_m3 = QFrame()
     sep_m3.setFrameShape(QFrame.HLine)
@@ -1738,9 +1747,9 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_action.setContentsMargins(4, 2, 4, 2)
     layout_m_action.setSpacing(4)
 
-    btn_m_exec = QPushButton("EXECUTE BUY MARKET")
+    btn_m_exec = QPushButton("TRANSMIT BUY ORDER [ 0.20 LOTS ]")
     btn_m_exec.setObjectName("btnManualExecute")
-    btn_m_exec.setFixedHeight(28)
+    btn_m_exec.setFixedHeight(32)
     btn_m_exec.setCursor(Qt.PointingHandCursor)
     layout_m_action.addWidget(btn_m_exec)
 
@@ -1763,8 +1772,10 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.lblManualHeaderTitle = lbl_md_title
     window.lblManualExecBadge = lbl_md_badge
     window.btnManualBuy = btn_buy
+    window.lblManualBuyText = lbl_buy_t
     window.lblManualAskPrice = lbl_ask_p
     window.btnManualSell = btn_sell
+    window.lblManualSellText = lbl_sell_t
     window.lblManualBidPrice = lbl_bid_p
     window.lblManualSpread = lbl_spd
     window.lblManualRiskTitle = lbl_mr_title
@@ -1790,6 +1801,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.btnPresetRR20 = btn_pre_rr20
     window.btnPresetRR30 = btn_pre_rr30
     window.boxManualLotSummary = box_summary
+    window.lblManualLotSummaryTitle = lbl_lot_sum_title
     window.lblManualLotSummary = lbl_lot_sum
     window.lblManualGateTitle = lbl_mg_title
     window.btnManualExecute = btn_m_exec

@@ -1573,3 +1573,152 @@ QCalendarWidget QAbstractItemView:disabled {
     color: #475569;
 }
 
+/* ==========================================================================
+   MANUAL QUANT EXECUTION COPILOT (DARK THEME - DESIGN.MD TOKENS)
+   ========================================================================== */
+QFrame#framePlanModeSwitcher {
+    background-color: #0b0f19;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 2px;
+}
+
+QPushButton#btnPlanModeAI, QPushButton#btnPlanModeManual {
+    background-color: transparent;
+    color: #64748b;
+    border: none;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 3px 6px;
+    border-radius: 2px;
+}
+
+QPushButton#btnPlanModeAI:hover, QPushButton#btnPlanModeManual:hover {
+    color: #f8fafc;
+}
+
+QPushButton#btnPlanModeAI[active="true"], QPushButton#btnPlanModeManual[active="true"] {
+    background-color: #161d31;
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+QPushButton#btnManualBuy {
+    background-color: #0c101c;
+    border: 1px solid #1e293b;
+    border-radius: 2px;
+    padding: 3px 8px;
+    text-align: left;
+}
+QPushButton#btnManualBuy:hover {
+    background-color: #0d2818;
+    border-color: #1b4d2e;
+}
+QPushButton#btnManualBuy[selected="true"] {
+    background-color: #0d2818;
+    border: 1px solid #1b4d2e;
+}
+
+QPushButton#btnManualSell {
+    background-color: #0c101c;
+    border: 1px solid #1e293b;
+    border-radius: 2px;
+    padding: 3px 8px;
+    text-align: left;
+}
+QPushButton#btnManualSell:hover {
+    background-color: #271214;
+    border-color: #4a1d24;
+}
+QPushButton#btnManualSell[selected="true"] {
+    background-color: #271214;
+    border: 1px solid #4a1d24;
+}
+
+QPushButton.risk_pct_btn {
+    background-color: #0c101c;
+    color: #94a3b8;
+    border: 1px solid #1e293b;
+    border-radius: 2px;
+    font-family: Consolas, monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    min-height: 18px;
+    max-height: 18px;
+    padding: 0 4px;
+}
+QPushButton.risk_pct_btn:hover {
+    background-color: #161d31;
+    color: #f8fafc;
+}
+QPushButton.risk_pct_btn[selected="true"] {
+    background-color: #0284c7;
+    color: #ffffff;
+    border: 1px solid #38bdf8;
+}
+
+QDoubleSpinBox#spinManualSL, QDoubleSpinBox#spinManualTP {
+    background-color: #050608;
+    color: #f8fafc;
+    border: 1px solid #1e293b;
+    border-radius: 2px;
+    padding: 1px 4px;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+}
+QDoubleSpinBox#spinManualSL:focus, QDoubleSpinBox#spinManualTP:focus {
+    border: 1px solid #38bdf8;
+}
+QDoubleSpinBox#spinManualSL::up-button, QDoubleSpinBox#spinManualSL::down-button,
+QDoubleSpinBox#spinManualTP::up-button, QDoubleSpinBox#spinManualTP::down-button {
+    width: 0px;
+    border: none;
+}
+
+QPushButton.preset_tag_btn {
+    background-color: #0f172a;
+    color: #38bdf8;
+    border: 1px solid #1e293b;
+    border-radius: 2px;
+    font-family: Consolas, monospace;
+    font-size: 8px;
+    font-weight: 700;
+    min-height: 18px;
+    max-height: 18px;
+    padding: 0 4px;
+}
+QPushButton.preset_tag_btn:hover {
+    background-color: #1e293b;
+    color: #ffffff;
+}
+
+QPushButton#btnManualExecute {
+    background-color: #143d28;
+    color: #ffffff;
+    border: 1px solid #1e5a3a;
+    border-radius: 2px;
+    font-family: Consolas, monospace;
+    font-size: 9.5px;
+    font-weight: 700;
+    min-height: 30px;
+}
+QPushButton#btnManualExecute:hover {
+    background-color: #194d33;
+    border-color: #236c46;
+}
+QPushButton#btnManualExecute[direction="SELL"] {
+    background-color: #3b1419;
+    border: 1px solid #5a1e26;
+}
+QPushButton#btnManualExecute[direction="SELL"]:hover {
+    background-color: #4a1d24;
+}
+QPushButton#btnManualExecute:disabled {
+    background-color: #0b0f19;
+    color: #475569;
+    border: 1px solid #1e293b;
+}
+
+
