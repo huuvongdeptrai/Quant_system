@@ -241,7 +241,7 @@ def setup_chart_ui(window):
         window.frameAIArea.setParent(window.frameChartArea)
         window.frameAIArea.setObjectName("floatingTradingPlan")
         window.frameAIArea.setMinimumSize(310, 0)
-        window.frameAIArea.setMaximumSize(360, 520)
+        window.frameAIArea.setMaximumSize(360, 560)
 
     def _reposition_trading_plan():
         if not hasattr(window, "frameAIArea") or not window.frameAIArea:
@@ -254,7 +254,7 @@ def setup_chart_ui(window):
         x = max(10, c_w - w - 10)
         ribbon_h = window.frameChartRibbon.height() if hasattr(window, "frameChartRibbon") and window.frameChartRibbon else 24
         y = ribbon_h + 8
-        h = min(380, max(200, c_h - y - 10))
+        h = min(460, max(200, c_h - y - 10))
         window.frameAIArea.setGeometry(x, y, w, h)
         window.frameAIArea.raise_()
 
@@ -1372,6 +1372,24 @@ def setup_chart_ui(window):
     )
 
     def _sync_order_metrics():
+        if getattr(window, "_plan_mode", "ai") == "manual":
+            sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+            info = mt5.symbol_info(sym)
+            dig = info.digits if info else 2
+            sl_p = window.line_order_sl.value()
+            tp_p = window.line_order_tp.value()
+            if hasattr(window, "spinManualSL") and window.spinManualSL:
+                window.spinManualSL.blockSignals(True)
+                window.spinManualSL.setValue(round(sl_p, dig))
+                window.spinManualSL.blockSignals(False)
+            if hasattr(window, "spinManualTP") and window.spinManualTP:
+                window.spinManualTP.blockSignals(True)
+                window.spinManualTP.setValue(round(tp_p, dig))
+                window.spinManualTP.blockSignals(False)
+            from frontend.controllers.chart.trading_plan_panel import _recalculate_manual_lot_and_rr
+            _recalculate_manual_lot_and_rr(window)
+            return
+
         if not getattr(window, "order_proposal_active", False):
             return
         entry_p = window.line_order_entry.value()
@@ -1747,6 +1765,13 @@ def setup_chart_ui(window):
             return
 
         window.current_price_line.setPos(bid)
+
+        if getattr(window, "_plan_mode", "ai") == "manual":
+            try:
+                from frontend.controllers.chart.trading_plan_panel import sync_manual_copilot_quotes
+                sync_manual_copilot_quotes(window)
+            except Exception:
+                pass
 
         rates = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 1)
 

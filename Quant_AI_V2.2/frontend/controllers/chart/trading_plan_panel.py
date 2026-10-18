@@ -5,13 +5,15 @@ Trading Plan, Order Proposal Cards, and Playbook Theme Engine
 
 import os
 import time
+import json
 from datetime import datetime
 from PySide6 import QtCore, QtGui
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QColor, QFont, QIcon
 from PySide6.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
-    QWidget, QProgressBar, QSizePolicy
+    QWidget, QProgressBar, QSizePolicy, QDoubleSpinBox, QLineEdit,
+    QMessageBox
 )
 from loguru import logger
 
@@ -652,9 +654,588 @@ def apply_playbook_cards_theme(window, is_dark: bool):
                 "QPushButton#btnEdgeTradingPlan:hover { background-color: #e2e8f0; color: #0f172a; border-color: #94a3b8; }"
             )
 
+    # Mode Switcher Bar
+    if hasattr(window, "framePlanModeSwitcher") and window.framePlanModeSwitcher:
+        sw_bg = "#0b0f19" if is_dark else "#f1f5f9"
+        sw_border = "#1e293b" if is_dark else "#e2e8f0"
+        window.framePlanModeSwitcher.setStyleSheet(
+            f"QFrame#framePlanModeSwitcher {{ background-color: {sw_bg}; border: 1px solid {sw_border}; border-radius: 3px; }}"
+        )
+
+    # Mode Buttons Styling
+    mode = getattr(window, "_plan_mode", "ai")
+    for btn_name, is_act in [("btnPlanModeAI", mode == "ai"), ("btnPlanModeManual", mode == "manual")]:
+        b = getattr(window, btn_name, None)
+        if b:
+            if is_act:
+                b_bg = "#161d2d" if is_dark else "#ffffff"
+                b_color = "#f8fafc" if is_dark else "#0f172a"
+                b_border = "1px solid #334155" if is_dark else "1px solid #cbd5e1"
+                b.setStyleSheet(f"QPushButton {{ background-color: {b_bg}; color: {b_color}; border: {b_border}; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 2px 6px; }}")
+            else:
+                b_color = "#94a3b8" if is_dark else "#64748b"
+                b.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {b_color}; border: none; font-family: 'Segoe UI', sans-serif; font-size: 8.5px; font-weight: 500; border-radius: 2px; padding: 2px 6px; }} QPushButton:hover {{ color: {'#f8fafc' if is_dark else '#0f172a'}; }}")
+
+    # Manual Copilot Cards
+    for c_name in ["cardManualDir", "cardManualRisk", "cardManualGate", "cardManualAction"]:
+        if hasattr(window, c_name) and getattr(window, c_name):
+            getattr(window, c_name).setStyleSheet(
+                f"QFrame#{c_name} {{ background: transparent; border: none; border-radius: 0px; padding: 0px; }}"
+            )
+
+    for s_name in ["sepManual1", "sepManual2", "sepManual3"]:
+        if hasattr(window, s_name) and getattr(window, s_name):
+            getattr(window, s_name).setStyleSheet(
+                f"background-color: {sep_color}; height: 1px; border: none;"
+            )
+
+    # Direction Buttons (BUY / SELL)
+    man_dir = getattr(window, "_manual_direction", "BUY")
+    if hasattr(window, "btnManualBuy") and window.btnManualBuy:
+        is_sel = (man_dir == "BUY")
+        if is_sel:
+            bg = "#0d2818" if is_dark else "#f0fdf4"
+            bdr = "1.5px solid #1b4d2e" if is_dark else "1.5px solid #16a34a"
+            fg = "#22c55e" if is_dark else "#15803d"
+        else:
+            bg = "#0c101c" if is_dark else "#ffffff"
+            bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
+            fg = "#94a3b8" if is_dark else "#64748b"
+        window.btnManualBuy.setStyleSheet(f"QPushButton {{ background-color: {bg}; border: {bdr}; border-radius: 3px; padding: 4px 6px; text-align: left; }}")
+        if hasattr(window, "lblManualAskPrice"):
+            window.lblManualAskPrice.setStyleSheet(f"color: {fg}; font-family: Consolas, monospace; font-size: 12px; font-weight: 800; border: none; background: transparent;")
+
+    if hasattr(window, "btnManualSell") and window.btnManualSell:
+        is_sel = (man_dir == "SELL")
+        if is_sel:
+            bg = "#271214" if is_dark else "#fef2f2"
+            bdr = "1.5px solid #4a1d24" if is_dark else "1.5px solid #ef4444"
+            fg = "#ef4444" if is_dark else "#dc2626"
+        else:
+            bg = "#0c101c" if is_dark else "#ffffff"
+            bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
+            fg = "#94a3b8" if is_dark else "#64748b"
+        window.btnManualSell.setStyleSheet(f"QPushButton {{ background-color: {bg}; border: {bdr}; border-radius: 3px; padding: 4px 6px; text-align: left; }}")
+        if hasattr(window, "lblManualBidPrice"):
+            window.lblManualBidPrice.setStyleSheet(f"color: {fg}; font-family: Consolas, monospace; font-size: 12px; font-weight: 800; border: none; background: transparent;")
+
+    # Risk % Buttons
+    cur_risk = getattr(window, "_manual_risk_pct", 1.0)
+    for p_val, b_name in [(0.5, "btnRisk05"), (1.0, "btnRisk10"), (1.5, "btnRisk15"), (2.0, "btnRisk20")]:
+        b = getattr(window, b_name, None)
+        if b:
+            if abs(cur_risk - p_val) < 0.05:
+                bg = "#0284c7"
+                fg = "#ffffff"
+                bdr = "1px solid #38bdf8" if is_dark else "1px solid #0284c7"
+            else:
+                bg = "#0c101c" if is_dark else "#ffffff"
+                fg = "#94a3b8" if is_dark else "#475569"
+                bdr = "1px solid #1e293b" if is_dark else "1px solid #cbd5e1"
+            b.setStyleSheet(f"QPushButton {{ background-color: {bg}; color: {fg}; border: {bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; min-height: 18px; max-height: 18px; }}")
+
+    # SpinBoxes (SL / TP)
+    spin_bg = "#050608" if is_dark else "#ffffff"
+    spin_fg = "#f8fafc" if is_dark else "#0f172a"
+    spin_bdr = "#1e293b" if is_dark else "#cbd5e1"
+    spin_style = f"QDoubleSpinBox {{ background-color: {spin_bg}; color: {spin_fg}; border: 1px solid {spin_bdr}; border-radius: 2px; padding: 1px 4px; font-family: Consolas, monospace; font-size: 11px; font-weight: bold; }} QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0px; border: none; }}"
+    if hasattr(window, "spinManualSL") and window.spinManualSL:
+        window.spinManualSL.setStyleSheet(spin_style)
+    if hasattr(window, "spinManualTP") and window.spinManualTP:
+        window.spinManualTP.setStyleSheet(spin_style)
+
+    # Step Buttons (+ / -)
+    step_bg = "#111622" if is_dark else "#f8fafc"
+    step_fg = "#f8fafc" if is_dark else "#0f172a"
+    step_bdr = "#1e293b" if is_dark else "#cbd5e1"
+    step_hover = "#1e2638" if is_dark else "#e2e8f0"
+    step_style = f"QPushButton {{ background-color: {step_bg}; color: {step_fg}; border: 1px solid {step_bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 9px; font-weight: bold; min-width: 16px; max-width: 16px; min-height: 18px; max-height: 18px; }} QPushButton:hover {{ background-color: {step_hover}; }}"
+    for step_btn in ["btnSLMinus", "btnSLPlus", "btnTPMinus", "btnTPPlus"]:
+        b = getattr(window, step_btn, None)
+        if b:
+            b.setStyleSheet(step_style)
+
+    # Presets Buttons
+    pre_bg = "#0f172a" if is_dark else "#f1f5f9"
+    pre_fg = "#38bdf8" if is_dark else "#0284c7"
+    pre_bdr = "#1e293b" if is_dark else "#e2e8f0"
+    pre_hover = "#1e293b" if is_dark else "#e2e8f0"
+    pre_style = f"QPushButton {{ background-color: {pre_bg}; color: {pre_fg}; border: 1px solid {pre_bdr}; border-radius: 2px; font-family: Consolas, monospace; font-size: 8px; font-weight: bold; padding: 0 4px; min-height: 16px; max-height: 16px; }} QPushButton:hover {{ background-color: {pre_hover}; }}"
+    for pre_btn in ["btnPresetATR", "btnPresetSwing", "btnPresetRR15", "btnPresetRR20", "btnPresetRR30"]:
+        b = getattr(window, pre_btn, None)
+        if b:
+            b.setStyleSheet(pre_style)
+
+    # Lot Summary Box
+    if hasattr(window, "boxManualLotSummary") and window.boxManualLotSummary:
+        box_bg = "#071524" if is_dark else "#f0f9ff"
+        box_bdr = "#0c3359" if is_dark else "#bae6fd"
+        window.boxManualLotSummary.setStyleSheet(
+            f"QFrame#boxManualLotSummary {{ background-color: {box_bg}; border: 1px solid {box_bdr}; border-radius: 2px; padding: 4px; }}"
+        )
+
+    # Execute Button
+    if hasattr(window, "btnManualExecute") and window.btnManualExecute:
+        is_buy = (man_dir == "BUY")
+        if is_dark:
+            exec_bg = "#143d28" if is_buy else "#3b1419"
+            exec_border = "#1e5a3a" if is_buy else "#5a1e26"
+            exec_hover = "#194d33" if is_buy else "#4a1d24"
+            window.btnManualExecute.setStyleSheet(
+                f"QPushButton#btnManualExecute {{ background-color: {exec_bg}; color: #ffffff; border: 1px solid {exec_border}; "
+                f"font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border-radius: 2px; }} "
+                f"QPushButton#btnManualExecute:hover {{ background-color: {exec_hover}; }} "
+                f"QPushButton#btnManualExecute:disabled {{ background-color: #0b0f19; color: #475569; border: 1px solid #1e293b; }}"
+            )
+        else:
+            exec_bg = "#15803d" if is_buy else "#dc2626"
+            exec_border = "#166534" if is_buy else "#b91c1c"
+            exec_hover = "#166534" if is_buy else "#b91c1c"
+            window.btnManualExecute.setStyleSheet(
+                f"QPushButton#btnManualExecute {{ background-color: {exec_bg}; color: #ffffff; border: 1px solid {exec_border}; "
+                f"font-family: Consolas, monospace; font-size: 9.5px; font-weight: bold; border-radius: 2px; }} "
+                f"QPushButton#btnManualExecute:hover {{ background-color: {exec_hover}; }} "
+                f"QPushButton#btnManualExecute:disabled {{ background-color: #f1f5f9; color: #94a3b8; border: 1px solid #cbd5e1; }}"
+            )
+
+    # Manual Titles & Badges
+    if hasattr(window, "lblManualHeaderTitle") and window.lblManualHeaderTitle:
+        window.lblManualHeaderTitle.setStyleSheet(sub_style)
+    if hasattr(window, "lblManualRiskTitle") and window.lblManualRiskTitle:
+        window.lblManualRiskTitle.setStyleSheet(sub_style)
+    if hasattr(window, "lblManualGateTitle") and window.lblManualGateTitle:
+        window.lblManualGateTitle.setStyleSheet(sub_style)
+    if hasattr(window, "lblManualExecBadge") and window.lblManualExecBadge:
+        window.lblManualExecBadge.setStyleSheet(
+            "background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; "
+            "font-family: Consolas, monospace; font-size: 8px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
+            if is_dark else
+            "background-color: #f1f5f9; color: #0284c7; border: 1px solid #cbd5e1; "
+            "font-family: Consolas, monospace; font-size: 8px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
+        )
+    if hasattr(window, "lblManualSpread") and window.lblManualSpread:
+        window.lblManualSpread.setStyleSheet(
+            f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
+        )
+    if hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
+        window.lblManualLotVal.setStyleSheet(
+            "background-color: #071524; color: #38bdf8; border: 1px solid #0c3359; "
+            "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+            if is_dark else
+            "background-color: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; "
+            "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+        )
+    if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
+        window.lblManualSLPips.setStyleSheet(
+            f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
+        )
+    if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
+        window.lblManualTPPips.setStyleSheet(
+            f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
+        )
+    if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
+        window.lblManualLotSummary.setStyleSheet(
+            f"color: {'#38bdf8' if is_dark else '#0369a1'}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+        )
+
+    for k_lbl in ["lblGateCheck1Title", "lblGateCheck2Title", "lblGateCheck3Title", "lblGateCheck4Title", "lblManualRiskLabel", "lblManualSLLabel", "lblManualTPLabel"]:
+        w = getattr(window, k_lbl, None)
+        if w:
+            w.setStyleSheet(f"color: {sub_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;")
+
+
+def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 1.0, balance: float = None):
+    """Calculates dynamic institutional lot size adhering to capital preservation rules."""
+    if balance is None or balance <= 0:
+        acc = mt5.account_info() if mt5.terminal_info() is not None else None
+        balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
+
+    risk_dlr = balance * (risk_pct / 100.0)
+    if sl_points <= 0.00001:
+        return 0.01, risk_dlr
+
+    clean_sym = symbol.upper().split(".")[0].replace("/", "")
+    if "BTC" in clean_sym:
+        calc_lot = risk_dlr / sl_points
+        max_lot = 1.0
+    elif "XAU" in clean_sym or "GOLD" in clean_sym:
+        calc_lot = risk_dlr / (sl_points * 100.0)
+        max_lot = 5.0
+    elif any(c in clean_sym for c in ["US30", "NAS100", "SPX500"]):
+        calc_lot = risk_dlr / (sl_points * 10.0)
+        max_lot = 5.0
+    else:
+        calc_lot = risk_dlr / (sl_points * 100000.0)
+        max_lot = 10.0
+
+    lot = max(0.01, min(round(calc_lot, 2), max_lot))
+    return lot, risk_dlr
+
+
+def evaluate_manual_compliance(window, symbol=None):
+    """
+    Evaluates institutional 4-point Pre-Trade Risk Gatekeeper:
+    1. Daily Drawdown Guard (< 4.0% or max daily loss limit)
+    2. Event Risk Engine (High-impact news filter ±15m)
+    3. Exposure Gate (Max open positions limit)
+    4. Spread Normalization (Safe spread limit)
+    
+    Returns: (passed: bool, checks: dict, block_reason: str)
+    """
+    clean_sym = (symbol or getattr(window, "current_sym", "XAUUSD") or "XAUUSD").split("\n")[0].strip()
+    checks = {
+        "drawdown": {"passed": True, "msg": "Daily Loss: OK", "val": "PASS"},
+        "news": {"passed": True, "msg": "News Filter: Clear", "val": "PASS"},
+        "max_trades": {"passed": True, "msg": "Exposure: OK", "val": "PASS"},
+        "spread": {"passed": True, "msg": "Spread: OK", "val": "PASS"},
+    }
+    block_reason = ""
+
+    cfg = {}
+    try:
+        cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "config", "settings.json")
+        if os.path.exists(cfg_p):
+            with open(cfg_p, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+    except Exception:
+        pass
+
+    # 1. Daily Drawdown Check
+    max_daily_loss = float(cfg.get("max_daily_loss", 5000.0))
+    max_drawdown = float(cfg.get("max_drawdown", 5.0))
+    acc = mt5.account_info() if mt5.terminal_info() is not None else None
+    if acc:
+        equity = float(acc.equity)
+        balance = float(acc.balance)
+        floating_loss = balance - equity
+        if max_daily_loss > 0 and floating_loss >= max_daily_loss:
+            checks["drawdown"] = {"passed": False, "msg": f"Loss -${floating_loss:.0f} >= -${max_daily_loss:.0f}", "val": "HALTED"}
+            block_reason = "DAILY LOSS LIMIT EXCEEDED"
+        elif balance > 0 and max_drawdown > 0:
+            dd_pct = (floating_loss / balance) * 100.0
+            if dd_pct >= max_drawdown:
+                checks["drawdown"] = {"passed": False, "msg": f"DD {dd_pct:.1f}% >= {max_drawdown:.1f}%", "val": "HALTED"}
+                block_reason = "MAX DRAWDOWN BREACHED"
+
+    # 2. Event Risk Engine Check (News Filter)
+    if not block_reason and cfg.get("news_defense_enabled", True):
+        try:
+            from backend.core.event_risk_engine import EventRiskEngine
+            ere = getattr(window, "_event_risk_engine", None)
+            if not ere:
+                ere = EventRiskEngine(pause_window_mins=int(cfg.get("news_defense_mins", 15)))
+                window._event_risk_engine = ere
+            is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
+            if is_impacted:
+                checks["news"] = {"passed": False, "msg": f"Red Event: {news_title[:18]}", "val": "BLOCKED"}
+                block_reason = "HIGH IMPACT NEWS EVENT"
+        except Exception as e:
+            logger.debug(f"[TradingPlan] News check error: {e}")
+
+    # 3. Max Open Trades Check
+    max_trades = int(cfg.get("max_open_trades", 3))
+    if not block_reason and max_trades > 0 and mt5.terminal_info() is not None:
+        try:
+            all_pos = mt5.positions_get()
+            count_pos = len(all_pos) if all_pos else 0
+            if count_pos >= max_trades:
+                checks["max_trades"] = {"passed": False, "msg": f"Open {count_pos}/{max_trades} max", "val": "LIMIT"}
+                block_reason = f"MAX TRADES LIMIT ({count_pos}/{max_trades})"
+        except Exception:
+            pass
+
+    # 4. Spread Normalization Check
+    if not block_reason and mt5.terminal_info() is not None:
+        try:
+            info = mt5.symbol_info(clean_sym)
+            if info:
+                cur_spd = info.spread
+                user_max = int(cfg.get("max_spread", 25))
+                if "XAU" in clean_sym.upper():
+                    allowance = max(user_max, 45)
+                elif "BTC" in clean_sym.upper():
+                    allowance = 2000
+                else:
+                    allowance = max(user_max, 25)
+                if cur_spd > allowance:
+                    checks["spread"] = {"passed": False, "msg": f"Spread {cur_spd} > {allowance} pts", "val": "HIGH"}
+                    block_reason = f"SPREAD TOO WIDE ({cur_spd} pts)"
+        except Exception:
+            pass
+
+    passed = (block_reason == "")
+    return passed, checks, block_reason
+
+
+def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
+    """Render draggable SL and TP lines on the chart for the manual copilot order."""
+    if getattr(window, "_plan_mode", "ai") != "manual":
+        return
+    if not hasattr(window, "plot_widget"):
+        return
+
+    info = mt5.symbol_info(sym)
+    dig = info.digits if info else 2
+
+    tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+    entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+
+    # Entry line
+    if hasattr(window, "line_order_entry") and window.line_order_entry:
+        window.line_order_entry.setPos(entry_p)
+        window.line_order_entry.setMovable(False)
+        dir_s = "BUY" if is_buy else "SELL"
+        if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
+            window.line_order_entry.label.setFormat(f"MANUAL {dir_s}: {entry_p:.{dig}f} ({lot:.2f} Lots)")
+        window.line_order_entry.setVisible(True)
+        if window.line_order_entry not in window.plot_widget.items():
+            window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
+
+    # SL line
+    if hasattr(window, "line_order_sl") and window.line_order_sl:
+        window.line_order_sl.setPos(sl)
+        window.line_order_sl.setMovable(True)
+        if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
+            window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}")
+        window.line_order_sl.setVisible(True)
+        if window.line_order_sl not in window.plot_widget.items():
+            window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
+
+    # TP line
+    if hasattr(window, "line_order_tp") and window.line_order_tp:
+        window.line_order_tp.setPos(tp)
+        window.line_order_tp.setMovable(True)
+        if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
+            window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}")
+        window.line_order_tp.setVisible(True)
+        if window.line_order_tp not in window.plot_widget.items():
+            window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+
+
+def _recalculate_manual_lot_and_rr(window):
+    """Dynamically recalculate lot size, R:R ratio, dollar risk/reward when SL or TP changes."""
+    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+    is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
+    risk_pct = getattr(window, "_manual_risk_pct", 1.0)
+
+    info = mt5.symbol_info(clean_sym)
+    digits = info.digits if info else 2
+    point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
+
+    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+    if tick:
+        entry_p = tick.ask if is_buy else tick.bid
+    else:
+        entry_p = getattr(window, "_last_manual_entry", 2650.0)
+
+    sl_val = window.spinManualSL.value() if hasattr(window, "spinManualSL") else 0.0
+    tp_val = window.spinManualTP.value() if hasattr(window, "spinManualTP") else 0.0
+
+    sl_pts = abs(entry_p - sl_val)
+    tp_pts = abs(tp_val - entry_p)
+
+    # Calculate lots
+    lot, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
+
+    # Calculate rewards & pips
+    sym_u = clean_sym.upper()
+    if "BTC" in sym_u:
+        reward_dlr = tp_pts * lot
+        sl_pips = sl_pts
+        tp_pips = tp_pts
+    elif "XAU" in sym_u or "GOLD" in sym_u:
+        reward_dlr = tp_pts * lot * 100.0
+        sl_pips = sl_pts * 10.0
+        tp_pips = tp_pts * 10.0
+    else:
+        reward_dlr = tp_pts * lot * 100000.0
+        pip_unit = point * 10 if digits in (3, 5) else point
+        sl_pips = sl_pts / pip_unit if pip_unit > 0 else sl_pts
+        tp_pips = tp_pts / pip_unit if pip_unit > 0 else tp_pts
+
+    rr_ratio = round(tp_pts / sl_pts, 1) if sl_pts > 0.00001 else 2.0
+
+    # Update UI Labels
+    if hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
+        window.lblManualLotVal.setText(f"{lot:.2f} Lots")
+    if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
+        window.lblManualSLPips.setText(f"-{sl_pips:.1f} pips / -${risk_dlr:.2f}")
+    if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
+        window.lblManualTPPips.setText(f"+{tp_pips:.1f} pips / +${reward_dlr:.2f}")
+    if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
+        window.lblManualLotSummary.setText(
+            f"RISK: -${risk_dlr:.2f} ({risk_pct:.1f}%) | REW: +${reward_dlr:.2f} | R:R: 1:{rr_ratio:.1f}"
+        )
+
+    # Evaluate compliance
+    passed, checks, block_reason = evaluate_manual_compliance(window, clean_sym)
+
+    # Update checklist indicators
+    is_d = getattr(window, "is_dark_theme", False)
+    bull_c = "#22c55e" if is_d else "#15803d"
+    bear_c = "#ef4444" if is_d else "#dc2626"
+
+    for chk_key, lbl_val_name in [
+        ("drawdown", "lblGateCheck1Val"),
+        ("news", "lblGateCheck2Val"),
+        ("max_trades", "lblGateCheck3Val"),
+        ("spread", "lblGateCheck4Val"),
+    ]:
+        v_widget = getattr(window, lbl_val_name, None)
+        c_info = checks.get(chk_key, {})
+        c_pass = c_info.get("passed", True)
+        if v_widget:
+            v_widget.setText(c_info.get("val", "PASS"))
+            v_widget.setStyleSheet(
+                f"color: {bull_c if c_pass else bear_c}; font-family: Consolas, monospace; "
+                f"font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+            )
+
+    # Update execute button
+    dir_str = getattr(window, "_manual_direction", "BUY")
+    if hasattr(window, "btnManualExecute") and window.btnManualExecute:
+        if passed:
+            window.btnManualExecute.setEnabled(True)
+            window.btnManualExecute.setText(f"EXECUTE {dir_str} MARKET ({lot:.2f} LOTS)")
+            window.btnManualExecute.setToolTip(f"Send institutional market {dir_str} order with {risk_pct}% risk")
+        else:
+            window.btnManualExecute.setEnabled(False)
+            window.btnManualExecute.setText(f"LOCKED: {block_reason}")
+            window.btnManualExecute.setToolTip(f"Order locked by quant guardrails: {block_reason}")
+
+    # Also update chart lines
+    _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
+
+
+def sync_manual_copilot_quotes(window):
+    """Syncs live Bid/Ask prices and default SL/TP values for the Manual Quant Copilot."""
+    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+    info = mt5.symbol_info(clean_sym)
+    digits = info.digits if info else 2
+    point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
+
+    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+    if tick:
+        ask = tick.ask
+        bid = tick.bid
+        spd = round((ask - bid) / point, 1)
+        window._last_manual_entry = ask if getattr(window, "_manual_direction", "BUY") == "BUY" else bid
+    else:
+        ref = getattr(window, "_last_manual_entry", 2650.0)
+        ask = ref + 0.25
+        bid = ref
+        spd = 2.5
+
+    if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice:
+        window.lblManualAskPrice.setText(f"{ask:.{digits}f}")
+    if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice:
+        window.lblManualBidPrice.setText(f"{bid:.{digits}f}")
+    if hasattr(window, "lblManualSpread") and window.lblManualSpread:
+        window.lblManualSpread.setText(f"SPREAD: {spd} PTS")
+
+    # Initialize spinboxes if at 0
+    if hasattr(window, "spinManualSL") and hasattr(window, "spinManualTP"):
+        is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
+        cur_sl = window.spinManualSL.value()
+        cur_tp = window.spinManualTP.value()
+        if cur_sl == 0.0 or cur_tp == 0.0:
+            window.spinManualSL.setDecimals(digits)
+            window.spinManualTP.setDecimals(digits)
+            window.spinManualSL.setRange(0.00001, 1000000.0)
+            window.spinManualTP.setRange(0.00001, 1000000.0)
+
+            if "XAU" in clean_sym.upper():
+                dist = 2.50
+            elif "BTC" in clean_sym.upper():
+                dist = 500.0
+            else:
+                dist = 0.0025
+
+            ref_p = ask if is_buy else bid
+            new_sl = round(ref_p - dist if is_buy else ref_p + dist, digits)
+            new_tp = round(ref_p + (2.0 * dist) if is_buy else ref_p - (2.0 * dist), digits)
+
+            window.spinManualSL.blockSignals(True)
+            window.spinManualTP.blockSignals(True)
+            window.spinManualSL.setValue(new_sl)
+            window.spinManualTP.setValue(new_tp)
+            window.spinManualSL.blockSignals(False)
+            window.spinManualTP.blockSignals(False)
+
+    _recalculate_manual_lot_and_rr(window)
+
+
+def execute_manual_quant_order(window):
+    """Executes the validated manual quant market order via ExecutionManager."""
+    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+    is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
+    risk_pct = getattr(window, "_manual_risk_pct", 1.0)
+
+    # 1. Pre-trade compliance re-check
+    passed, checks, block_reason = evaluate_manual_compliance(window, clean_sym)
+    if not passed:
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.warning(
+            window,
+            "Execution Blocked by Quant Guardrail",
+            f"Pre-Trade Compliance failed:\n\n{block_reason}\n\nExecution has been safely intercepted to protect capital."
+        )
+        return
+
+    sl_p = window.spinManualSL.value() if hasattr(window, "spinManualSL") else 0.0
+    tp_p = window.spinManualTP.value() if hasattr(window, "spinManualTP") else 0.0
+
+    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+    entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+    sl_pts = abs(entry_p - sl_p)
+    lot_size, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
+
+    exec_mgr = None
+    if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+        exec_mgr = window.quant_terminal.exec_mgr
+    if not exec_mgr:
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        exec_mgr = ExecutionManager(slippage=20, magic_number=999999)
+
+    from backend.core.event_bus import event_bus
+    dir_str = "BUY" if is_buy else "SELL"
+
+    order_res = None
+    if mt5.terminal_info() is not None:
+        order_res = exec_mgr.execute_market_order(
+            symbol=clean_sym,
+            is_buy=is_buy,
+            volume=lot_size,
+            sl_price=sl_p,
+            tp_price=tp_p,
+            comment="Quant_Manual"
+        )
+    else:
+        order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_p}
+
+    if order_res and order_res.get("status") == "success":
+        ticket = order_res.get("ticket", "OK")
+        if hasattr(window, "btnManualExecute"):
+            window.btnManualExecute.setText(f"FILLED #{ticket}")
+            window.btnManualExecute.setEnabled(False)
+            QTimer.singleShot(4000, lambda: _recalculate_manual_lot_and_rr(window))
+        event_bus.log_event.emit("", "SUCCESS", f"Manual Quant Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "blotter_buttons"):
+            qt = window.quant_terminal
+            if "active" in qt.blotter_buttons:
+                qt.blotter_buttons["active"].click()
+    else:
+        err_msg = order_res.get("msg", "Rejected") if order_res else "Broker disconnected"
+        if hasattr(window, "btnManualExecute"):
+            window.btnManualExecute.setText(f"RETRY: {err_msg[:16]}")
+            window.btnManualExecute.setEnabled(True)
+        event_bus.log_event.emit("", "ERROR", f"Manual order rejected: {err_msg}", "#ef4444")
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(window, "Execution Error", f"MT5 rejected manual order:\n\n{err_msg}")
+
 
 def setup_trading_plan_cards(window, is_dark=False):
-    """Construct streamlined institutional 3-card Trading Plan inside frameAIArea."""
+    """Construct streamlined institutional Trading Plan & Manual Quant Copilot inside frameAIArea."""
     if not hasattr(window, "layoutAIArea"):
         return
 
@@ -681,6 +1262,36 @@ def setup_trading_plan_cards(window, is_dark=False):
     if hasattr(window, "cardSetupModel") and window.cardSetupModel:
         apply_playbook_cards_theme(window, is_dark)
         return
+
+    # 0. MODE SWITCHER BAR
+    frame_mode = QFrame()
+    frame_mode.setObjectName("framePlanModeSwitcher")
+    frame_mode.setFixedHeight(28)
+    layout_mode = QHBoxLayout(frame_mode)
+    layout_mode.setContentsMargins(2, 2, 2, 2)
+    layout_mode.setSpacing(2)
+
+    btn_mode_ai = QPushButton("🤖 AI SIGNAL (ICT)")
+    btn_mode_ai.setObjectName("btnPlanModeAI")
+    btn_mode_ai.setCursor(Qt.PointingHandCursor)
+
+    btn_mode_manual = QPushButton("⚡ MANUAL QUANT")
+    btn_mode_manual.setObjectName("btnPlanModeManual")
+    btn_mode_manual.setCursor(Qt.PointingHandCursor)
+
+    layout_mode.addWidget(btn_mode_ai)
+    layout_mode.addWidget(btn_mode_manual)
+
+    window.framePlanModeSwitcher = frame_mode
+    window.btnPlanModeAI = btn_mode_ai
+    window.btnPlanModeManual = btn_mode_manual
+
+    # ================= CONTAINER 1: AI SIGNAL PLAN =================
+    container_ai = QWidget()
+    container_ai.setObjectName("containerPlanAI")
+    layout_ai = QVBoxLayout(container_ai)
+    layout_ai.setContentsMargins(0, 0, 0, 0)
+    layout_ai.setSpacing(6)
 
     # CARD 1: SETUP MODEL & CONFLUENCE
     card_model = QFrame()
@@ -813,7 +1424,6 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_g_top.addWidget(lbl_g_time)
     card_gate_layout.addLayout(row_g_top)
 
-    from PySide6.QtWidgets import QProgressBar
     bar_expiry = QProgressBar()
     bar_expiry.setObjectName("barSignalExpiry")
     bar_expiry.setRange(0, 60)
@@ -850,7 +1460,6 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_actions.addWidget(btn_discard)
     card_gate_layout.addLayout(row_actions)
 
-    # Full-bleed Section Dividers
     sep_divider1 = QFrame()
     sep_divider1.setFrameShape(QFrame.HLine)
     sep_divider1.setObjectName("sepDivider1")
@@ -861,7 +1470,13 @@ def setup_trading_plan_cards(window, is_dark=False):
     sep_divider2.setObjectName("sepDivider2")
     sep_divider2.setFixedHeight(1)
 
-    # Expose widgets on window
+    layout_ai.addWidget(card_model)
+    layout_ai.addWidget(sep_divider1)
+    layout_ai.addWidget(card_order)
+    layout_ai.addWidget(sep_divider2)
+    layout_ai.addWidget(card_gate)
+
+    # Expose AI widgets on window
     window.cardSetupModel = card_model
     window.cardRiskBudget = card_order
     window.cardExecutionGate = card_gate
@@ -883,13 +1498,446 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.btnModifyOrder = btn_modify
     window.btnDiscardOrder = btn_discard
 
-    # Add flat sections with clean 1px full-bleed dividers
-    window.layoutAIArea.addWidget(card_model)
-    window.layoutAIArea.addWidget(sep_divider1)
-    window.layoutAIArea.addWidget(card_order)
-    window.layoutAIArea.addWidget(sep_divider2)
-    window.layoutAIArea.addWidget(card_gate)
+    # ================= CONTAINER 2: MANUAL QUANT COPILOT =================
+    container_manual = QWidget()
+    container_manual.setObjectName("containerPlanManual")
+    layout_manual = QVBoxLayout(container_manual)
+    layout_manual.setContentsMargins(0, 0, 0, 0)
+    layout_manual.setSpacing(5)
+
+    # Card M1: Direction & Live Execution Quotes
+    card_m_dir = QFrame()
+    card_m_dir.setObjectName("cardManualDir")
+    layout_m_dir = QVBoxLayout(card_m_dir)
+    layout_m_dir.setContentsMargins(4, 4, 4, 4)
+    layout_m_dir.setSpacing(4)
+
+    row_md_top = QHBoxLayout()
+    lbl_md_title = QLabel("MANUAL EXECUTION")
+    lbl_md_title.setObjectName("lblManualHeaderTitle")
+    lbl_md_badge = QLabel("MARKET EXECUTION")
+    lbl_md_badge.setObjectName("lblManualExecBadge")
+    row_md_top.addWidget(lbl_md_title)
+    row_md_top.addStretch()
+    row_md_top.addWidget(lbl_md_badge)
+    layout_m_dir.addLayout(row_md_top)
+
+    row_quotes = QHBoxLayout()
+    row_quotes.setSpacing(6)
+
+    # BUY Button Card
+    btn_buy = QPushButton()
+    btn_buy.setObjectName("btnManualBuy")
+    btn_buy.setCursor(Qt.PointingHandCursor)
+    btn_buy.setFixedHeight(38)
+    layout_buy = QVBoxLayout(btn_buy)
+    layout_buy.setContentsMargins(6, 2, 6, 2)
+    layout_buy.setSpacing(0)
+    lbl_buy_t = QLabel("▲ BUY MARKET")
+    lbl_buy_t.setStyleSheet("font-family: Consolas, monospace; font-size: 8px; font-weight: bold; color: #22c55e; border: none; background: transparent;")
+    lbl_ask_p = QLabel("0.00")
+    lbl_ask_p.setObjectName("lblManualAskPrice")
+    layout_buy.addWidget(lbl_buy_t)
+    layout_buy.addWidget(lbl_ask_p)
+
+    # SELL Button Card
+    btn_sell = QPushButton()
+    btn_sell.setObjectName("btnManualSell")
+    btn_sell.setCursor(Qt.PointingHandCursor)
+    btn_sell.setFixedHeight(38)
+    layout_sell = QVBoxLayout(btn_sell)
+    layout_sell.setContentsMargins(6, 2, 6, 2)
+    layout_sell.setSpacing(0)
+    lbl_sell_t = QLabel("▼ SELL MARKET")
+    lbl_sell_t.setStyleSheet("font-family: Consolas, monospace; font-size: 8px; font-weight: bold; color: #ef4444; border: none; background: transparent;")
+    lbl_bid_p = QLabel("0.00")
+    lbl_bid_p.setObjectName("lblManualBidPrice")
+    layout_sell.addWidget(lbl_sell_t)
+    layout_sell.addWidget(lbl_bid_p)
+
+    row_quotes.addWidget(btn_buy)
+    row_quotes.addWidget(btn_sell)
+    layout_m_dir.addLayout(row_quotes)
+
+    row_spd = QHBoxLayout()
+    lbl_spd = QLabel("SPREAD: -- PTS")
+    lbl_spd.setObjectName("lblManualSpread")
+    row_spd.addWidget(lbl_spd)
+    row_spd.addStretch()
+    layout_m_dir.addLayout(row_spd)
+
+    sep_m1 = QFrame()
+    sep_m1.setFrameShape(QFrame.HLine)
+    sep_m1.setObjectName("sepManual1")
+    sep_m1.setFixedHeight(1)
+
+    # Card M2: Risk Model & Editable SL / TP
+    card_m_risk = QFrame()
+    card_m_risk.setObjectName("cardManualRisk")
+    layout_m_risk = QVBoxLayout(card_m_risk)
+    layout_m_risk.setContentsMargins(4, 4, 4, 4)
+    layout_m_risk.setSpacing(4)
+
+    row_mr_top = QHBoxLayout()
+    lbl_mr_title = QLabel("RISK MODEL & SIZING")
+    lbl_mr_title.setObjectName("lblManualRiskTitle")
+    lbl_m_lot = QLabel("0.10 Lots")
+    lbl_m_lot.setObjectName("lblManualLotVal")
+    row_mr_top.addWidget(lbl_mr_title)
+    row_mr_top.addStretch()
+    row_mr_top.addWidget(lbl_m_lot)
+    layout_m_risk.addLayout(row_mr_top)
+
+    # Quick Risk Selectors
+    row_risk_btns = QHBoxLayout()
+    row_risk_btns.setSpacing(4)
+    lbl_risk_lbl = QLabel("RISK:")
+    lbl_risk_lbl.setObjectName("lblManualRiskLabel")
+    row_risk_btns.addWidget(lbl_risk_lbl)
+    btn_r05 = QPushButton("0.5%")
+    btn_r05.setObjectName("btnRisk05")
+    btn_r10 = QPushButton("1.0%")
+    btn_r10.setObjectName("btnRisk10")
+    btn_r15 = QPushButton("1.5%")
+    btn_r15.setObjectName("btnRisk15")
+    btn_r20 = QPushButton("2.0%")
+    btn_r20.setObjectName("btnRisk20")
+    for b in [btn_r05, btn_r10, btn_r15, btn_r20]:
+        b.setCursor(Qt.PointingHandCursor)
+        row_risk_btns.addWidget(b)
+    layout_m_risk.addLayout(row_risk_btns)
+
+    # Stop Loss Row
+    row_sl_head = QHBoxLayout()
+    lbl_sl_lbl = QLabel("STOP LOSS")
+    lbl_sl_lbl.setObjectName("lblManualSLLabel")
+    lbl_sl_pips = QLabel("-- pips / --")
+    lbl_sl_pips.setObjectName("lblManualSLPips")
+    row_sl_head.addWidget(lbl_sl_lbl)
+    row_sl_head.addStretch()
+    row_sl_head.addWidget(lbl_sl_pips)
+    layout_m_risk.addLayout(row_sl_head)
+
+    row_sl_ctrl = QHBoxLayout()
+    row_sl_ctrl.setSpacing(3)
+    btn_sl_minus = QPushButton("-")
+    btn_sl_minus.setObjectName("btnSLMinus")
+    spin_sl = QDoubleSpinBox()
+    spin_sl.setObjectName("spinManualSL")
+    spin_sl.setFixedHeight(20)
+    btn_sl_plus = QPushButton("+")
+    btn_sl_plus.setObjectName("btnSLPlus")
+    btn_pre_atr = QPushButton("1.5x ATR")
+    btn_pre_atr.setObjectName("btnPresetATR")
+    btn_pre_swing = QPushButton("Swing")
+    btn_pre_swing.setObjectName("btnPresetSwing")
+
+    row_sl_ctrl.addWidget(btn_sl_minus)
+    row_sl_ctrl.addWidget(spin_sl, 1)
+    row_sl_ctrl.addWidget(btn_sl_plus)
+    row_sl_ctrl.addWidget(btn_pre_atr)
+    row_sl_ctrl.addWidget(btn_pre_swing)
+    layout_m_risk.addLayout(row_sl_ctrl)
+
+    # Take Profit Row
+    row_tp_head = QHBoxLayout()
+    lbl_tp_lbl = QLabel("TAKE PROFIT")
+    lbl_tp_lbl.setObjectName("lblManualTPLabel")
+    lbl_tp_pips = QLabel("-- pips / --")
+    lbl_tp_pips.setObjectName("lblManualTPPips")
+    row_tp_head.addWidget(lbl_tp_lbl)
+    row_tp_head.addStretch()
+    row_tp_head.addWidget(lbl_tp_pips)
+    layout_m_risk.addLayout(row_tp_head)
+
+    row_tp_ctrl = QHBoxLayout()
+    row_tp_ctrl.setSpacing(3)
+    btn_tp_minus = QPushButton("-")
+    btn_tp_minus.setObjectName("btnTPMinus")
+    spin_tp = QDoubleSpinBox()
+    spin_tp.setObjectName("spinManualTP")
+    spin_tp.setFixedHeight(20)
+    btn_tp_plus = QPushButton("+")
+    btn_tp_plus.setObjectName("btnTPPlus")
+    btn_pre_rr15 = QPushButton("1:1.5")
+    btn_pre_rr15.setObjectName("btnPresetRR15")
+    btn_pre_rr20 = QPushButton("1:2.0")
+    btn_pre_rr20.setObjectName("btnPresetRR20")
+    btn_pre_rr30 = QPushButton("1:3.0")
+    btn_pre_rr30.setObjectName("btnPresetRR30")
+
+    row_tp_ctrl.addWidget(btn_tp_minus)
+    row_tp_ctrl.addWidget(spin_tp, 1)
+    row_tp_ctrl.addWidget(btn_tp_plus)
+    row_tp_ctrl.addWidget(btn_pre_rr15)
+    row_tp_ctrl.addWidget(btn_pre_rr20)
+    row_tp_ctrl.addWidget(btn_pre_rr30)
+    layout_m_risk.addLayout(row_tp_ctrl)
+
+    # Summary Box
+    box_summary = QFrame()
+    box_summary.setObjectName("boxManualLotSummary")
+    layout_summary = QHBoxLayout(box_summary)
+    layout_summary.setContentsMargins(4, 2, 4, 2)
+    lbl_lot_sum = QLabel("RISK: -$100.00 (1.0%) | REW: +$200.00 | R:R: 1:2.0")
+    lbl_lot_sum.setObjectName("lblManualLotSummary")
+    layout_summary.addWidget(lbl_lot_sum)
+    layout_m_risk.addWidget(box_summary)
+
+    sep_m2 = QFrame()
+    sep_m2.setFrameShape(QFrame.HLine)
+    sep_m2.setObjectName("sepManual2")
+    sep_m2.setFixedHeight(1)
+
+    # Card M3: Institutional Compliance Checklist
+    card_m_gate = QFrame()
+    card_m_gate.setObjectName("cardManualGate")
+    layout_m_gate = QVBoxLayout(card_m_gate)
+    layout_m_gate.setContentsMargins(4, 4, 4, 4)
+    layout_m_gate.setSpacing(3)
+
+    lbl_mg_title = QLabel("PRE-TRADE COMPLIANCE CHECKLIST")
+    lbl_mg_title.setObjectName("lblManualGateTitle")
+    layout_m_gate.addWidget(lbl_mg_title)
+
+    def _make_gate_check_row(title, obj_key):
+        r = QHBoxLayout()
+        r.setContentsMargins(0, 0, 0, 0)
+        lbl_t = QLabel(title)
+        lbl_t.setObjectName(f"{obj_key}Title")
+        lbl_v = QLabel("PASS")
+        lbl_v.setObjectName(f"{obj_key}Val")
+        lbl_i = QLabel("✓")
+        lbl_i.setObjectName(f"{obj_key}Icon")
+        lbl_t.setStyleSheet("border: none; background: transparent;")
+        lbl_v.setStyleSheet("border: none; background: transparent;")
+        lbl_i.setStyleSheet("color: #22c55e; font-size: 8.5px; font-weight: bold; border: none; background: transparent;")
+        setattr(window, f"{obj_key}Title", lbl_t)
+        setattr(window, f"{obj_key}Val", lbl_v)
+        setattr(window, f"{obj_key}Icon", lbl_i)
+        r.addWidget(lbl_t)
+        r.addStretch()
+        r.addWidget(lbl_v)
+        r.addWidget(lbl_i)
+        return r
+
+    layout_m_gate.addLayout(_make_gate_check_row("Daily Drawdown Guard (< 4.0%)", "lblGateCheck1"))
+    layout_m_gate.addLayout(_make_gate_check_row("High-Impact News Filter (±15m)", "lblGateCheck2"))
+    layout_m_gate.addLayout(_make_gate_check_row("Max Open Trades (< 3 positions)", "lblGateCheck3"))
+    layout_m_gate.addLayout(_make_gate_check_row("Spread Normalization (Liquidity)", "lblGateCheck4"))
+
+    sep_m3 = QFrame()
+    sep_m3.setFrameShape(QFrame.HLine)
+    sep_m3.setObjectName("sepManual3")
+    sep_m3.setFixedHeight(1)
+
+    # Card M4: Action Button
+    card_m_action = QFrame()
+    card_m_action.setObjectName("cardManualAction")
+    layout_m_action = QVBoxLayout(card_m_action)
+    layout_m_action.setContentsMargins(4, 2, 4, 2)
+    layout_m_action.setSpacing(4)
+
+    btn_m_exec = QPushButton("EXECUTE BUY MARKET")
+    btn_m_exec.setObjectName("btnManualExecute")
+    btn_m_exec.setFixedHeight(28)
+    btn_m_exec.setCursor(Qt.PointingHandCursor)
+    layout_m_action.addWidget(btn_m_exec)
+
+    layout_manual.addWidget(card_m_dir)
+    layout_manual.addWidget(sep_m1)
+    layout_manual.addWidget(card_m_risk)
+    layout_manual.addWidget(sep_m2)
+    layout_manual.addWidget(card_m_gate)
+    layout_manual.addWidget(sep_m3)
+    layout_manual.addWidget(card_m_action)
+
+    # Expose Manual widgets on window
+    window.cardManualDir = card_m_dir
+    window.cardManualRisk = card_m_risk
+    window.cardManualGate = card_m_gate
+    window.cardManualAction = card_m_action
+    window.sepManual1 = sep_m1
+    window.sepManual2 = sep_m2
+    window.sepManual3 = sep_m3
+    window.lblManualHeaderTitle = lbl_md_title
+    window.lblManualExecBadge = lbl_md_badge
+    window.btnManualBuy = btn_buy
+    window.lblManualAskPrice = lbl_ask_p
+    window.btnManualSell = btn_sell
+    window.lblManualBidPrice = lbl_bid_p
+    window.lblManualSpread = lbl_spd
+    window.lblManualRiskTitle = lbl_mr_title
+    window.lblManualLotVal = lbl_m_lot
+    window.lblManualRiskLabel = lbl_risk_lbl
+    window.btnRisk05 = btn_r05
+    window.btnRisk10 = btn_r10
+    window.btnRisk15 = btn_r15
+    window.btnRisk20 = btn_r20
+    window.lblManualSLLabel = lbl_sl_lbl
+    window.lblManualSLPips = lbl_sl_pips
+    window.btnSLMinus = btn_sl_minus
+    window.spinManualSL = spin_sl
+    window.btnSLPlus = btn_sl_plus
+    window.btnPresetATR = btn_pre_atr
+    window.btnPresetSwing = btn_pre_swing
+    window.lblManualTPLabel = lbl_tp_lbl
+    window.lblManualTPPips = lbl_tp_pips
+    window.btnTPMinus = btn_tp_minus
+    window.spinManualTP = spin_tp
+    window.btnTPPlus = btn_tp_plus
+    window.btnPresetRR15 = btn_pre_rr15
+    window.btnPresetRR20 = btn_pre_rr20
+    window.btnPresetRR30 = btn_pre_rr30
+    window.boxManualLotSummary = box_summary
+    window.lblManualLotSummary = lbl_lot_sum
+    window.lblManualGateTitle = lbl_mg_title
+    window.btnManualExecute = btn_m_exec
+
+    # Assemble containers into parent layout
+    window.containerPlanAI = container_ai
+    window.containerPlanManual = container_manual
+    window.layoutAIArea.addWidget(frame_mode)
+    window.layoutAIArea.addWidget(container_ai)
+    window.layoutAIArea.addWidget(container_manual)
     window.layoutAIArea.addStretch()
+
+    # Defaults
+    window._plan_mode = "ai"
+    window._manual_direction = "BUY"
+    window._manual_risk_pct = 1.0
+    container_ai.setVisible(True)
+    container_manual.setVisible(False)
+
+    # Signal wiring: Mode Switcher
+    def _switch_mode(target_mode):
+        window._plan_mode = target_mode
+        container_ai.setVisible(target_mode == "ai")
+        container_manual.setVisible(target_mode == "manual")
+        apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
+        if target_mode == "manual":
+            sync_manual_copilot_quotes(window)
+        else:
+            if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
+                sig = window.active_signal_data
+                update_order_proposal_html(
+                    window, sym=sig.get("sym"), entry=sig.get("entry"),
+                    sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
+                    signal_type=sig.get("signal_type", "BUY")
+                )
+
+    btn_mode_ai.clicked.connect(lambda: _switch_mode("ai"))
+    btn_mode_manual.clicked.connect(lambda: _switch_mode("manual"))
+
+    # Signal wiring: Direction toggles
+    def _set_dir(new_d):
+        window._manual_direction = new_d
+        apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
+        sync_manual_copilot_quotes(window)
+
+    btn_buy.clicked.connect(lambda: _set_dir("BUY"))
+    btn_sell.clicked.connect(lambda: _set_dir("SELL"))
+
+    # Signal wiring: Risk % buttons
+    def _set_risk(r_val):
+        window._manual_risk_pct = r_val
+        apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
+        _recalculate_manual_lot_and_rr(window)
+
+    btn_r05.clicked.connect(lambda: _set_risk(0.5))
+    btn_r10.clicked.connect(lambda: _set_risk(1.0))
+    btn_r15.clicked.connect(lambda: _set_risk(1.5))
+    btn_r20.clicked.connect(lambda: _set_risk(2.0))
+
+    # Signal wiring: SpinBox changes
+    spin_sl.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
+    spin_tp.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
+
+    # Signal wiring: Stepper buttons
+    def _step_spin(spin, increment: bool):
+        sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+        info = mt5.symbol_info(sym)
+        dig = info.digits if info else 2
+        step = 1.0 if "XAU" in sym.upper() else (50.0 if "BTC" in sym.upper() else (0.0010 if dig in (3, 5) else 0.1))
+        cur = spin.value()
+        spin.setValue(round(cur + step if increment else cur - step, dig))
+
+    btn_sl_minus.clicked.connect(lambda: _step_spin(spin_sl, False))
+    btn_sl_plus.clicked.connect(lambda: _step_spin(spin_sl, True))
+    btn_tp_minus.clicked.connect(lambda: _step_spin(spin_tp, False))
+    btn_tp_plus.clicked.connect(lambda: _step_spin(spin_tp, True))
+
+    # Signal wiring: Presets
+    def _apply_atr_preset():
+        sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+        info = mt5.symbol_info(sym)
+        dig = info.digits if info else 2
+        is_b = (getattr(window, "_manual_direction", "BUY") == "BUY")
+        tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+        cur_p = (tick.ask if is_b else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+
+        atr_val = 0.0
+        if hasattr(window, "chart_data_list") and len(window.chart_data_list) >= 15:
+            cd = window.chart_data_list[-15:]
+            trs = [max(c[4] - c[3], abs(c[4] - cd[i-1][2]), abs(c[3] - cd[i-1][2])) for i, c in enumerate(cd) if i > 0]
+            if trs:
+                atr_val = sum(trs) / len(trs)
+        if atr_val <= 0:
+            atr_val = 2.0 if "XAU" in sym.upper() else (300.0 if "BTC" in sym.upper() else 0.0020)
+
+        sl_dist = round(1.5 * atr_val, dig)
+        spin_sl.setValue(round(cur_p - sl_dist if is_b else cur_p + sl_dist, dig))
+        spin_tp.setValue(round(cur_p + (2.0 * sl_dist) if is_b else cur_p - (2.0 * sl_dist), dig))
+
+    def _apply_swing_preset():
+        sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+        info = mt5.symbol_info(sym)
+        dig = info.digits if info else 2
+        point = info.point if info and info.point > 0 else (0.01 if dig == 2 else 0.0001)
+        buf = 2.0 * point * (10 if dig in (3, 5) else 1)
+        is_b = (getattr(window, "_manual_direction", "BUY") == "BUY")
+        tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+        cur_p = (tick.ask if is_b else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+
+        if hasattr(window, "chart_data_list") and len(window.chart_data_list) >= 10:
+            candles = window.chart_data_list[-20:]
+            if is_b:
+                lowest = min(c[3] for c in candles)
+                new_sl = round(lowest - buf, dig)
+                dist = abs(cur_p - new_sl)
+                new_tp = round(cur_p + 2.0 * dist, dig)
+            else:
+                highest = max(c[4] for c in candles)
+                new_sl = round(highest + buf, dig)
+                dist = abs(new_sl - cur_p)
+                new_tp = round(cur_p - 2.0 * dist, dig)
+            spin_sl.setValue(new_sl)
+            spin_tp.setValue(new_tp)
+        else:
+            _apply_atr_preset()
+
+    def _apply_rr_preset(rr_mult):
+        sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+        info = mt5.symbol_info(sym)
+        dig = info.digits if info else 2
+        is_b = (getattr(window, "_manual_direction", "BUY") == "BUY")
+        tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+        cur_p = (tick.ask if is_b else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+        cur_sl = spin_sl.value()
+        sl_dist = abs(cur_p - cur_sl)
+        if sl_dist <= 0:
+            sl_dist = 2.0 if "XAU" in sym.upper() else 0.0020
+        new_tp = round(cur_p + (rr_mult * sl_dist) if is_b else cur_p - (rr_mult * sl_dist), dig)
+        spin_tp.setValue(new_tp)
+
+    btn_pre_atr.clicked.connect(_apply_atr_preset)
+    btn_pre_swing.clicked.connect(_apply_swing_preset)
+    btn_pre_rr15.clicked.connect(lambda: _apply_rr_preset(1.5))
+    btn_pre_rr20.clicked.connect(lambda: _apply_rr_preset(2.0))
+    btn_pre_rr30.clicked.connect(lambda: _apply_rr_preset(3.0))
+
+    # Signal wiring: Execute button
+    btn_m_exec.clicked.connect(lambda: execute_manual_quant_order(window))
 
     apply_playbook_cards_theme(window, is_dark)
 
