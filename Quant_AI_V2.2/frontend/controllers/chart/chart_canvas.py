@@ -1704,6 +1704,11 @@ def setup_chart_ui(window):
                         window.plot_widget.removeItem(l_obj)
                     except Exception as err:
                         logger.debug(f"[ChartCanvas] Line remove error: {err}")
+        if hasattr(window, "_active_proposal_sig") and window._active_proposal_sig:
+            if not hasattr(window, "_discarded_signals"):
+                window._discarded_signals = set()
+            window._discarded_signals.add(window._active_proposal_sig)
+
         if hasattr(window, "btnApproveOrder"):
             window.btnApproveOrder.setEnabled(False)
             window.btnApproveOrder.setText("DISCARDED")

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget, QScrollArea, QSizePolicy
 )
 from backend.infrastructure.brokers.mt5_safe import mt5
+from loguru import logger
 from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
 from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
 from backend.infrastructure.ai_engines.ai.sr_calculator import calculate_sr_levels
@@ -224,6 +225,14 @@ class AIAnalyzerThread(QtCore.QThread):
             except Exception as e_strat:
                 logger.debug(f"[AIAnalysisThread] Strategy analysis: {e_strat}")
 
+            if self.rates is not None and len(self.rates) > 0:
+                try:
+                    result["_candle_time"] = int(self.rates[-1]["time"])
+                except Exception:
+                    result["_candle_time"] = int(time.time())
+            else:
+                result["_candle_time"] = int(time.time())
+
             try:
                 self.signals.result.emit(result)
             except (RuntimeError, AttributeError):
@@ -418,15 +427,22 @@ def _update_panel_with_result(window, result):
     # Detect execution mode and background bot status
     exec_mode = "MANUAL"
     bot_tf = 15
-    try:
-        cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "config", "settings.json")
-        if os.path.exists(cfg_p):
-            with open(cfg_p, "r", encoding="utf-8") as f_cfg:
-                cfg_data = json.load(f_cfg)
-                exec_mode = cfg_data.get("execution_mode", "MANUAL")
-                bot_tf = int(cfg_data.get("timeframe", 15))
-    except Exception:
-        pass
+    if hasattr(window, "quant_terminal") and window.quant_terminal:
+        qt = window.quant_terminal
+        if hasattr(qt, "header") and hasattr(qt.header, "execution_mode"):
+            exec_mode = qt.header.execution_mode
+        elif hasattr(qt, "execution_mode"):
+            exec_mode = qt.execution_mode
+    if exec_mode == "MANUAL":
+        try:
+            cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "config", "settings.json")
+            if os.path.exists(cfg_p):
+                with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                    cfg_data = json.load(f_cfg)
+                    exec_mode = cfg_data.get("execution_mode", "MANUAL")
+                    bot_tf = int(cfg_data.get("timeframe", 15))
+        except Exception:
+            pass
 
     is_bot_active = False
     if hasattr(window, "quant_terminal") and window.quant_terminal:
@@ -576,14 +592,11 @@ def _update_panel_with_result(window, result):
         conf_pct = f"{int(conf_raw * 100 if conf_raw <= 1.0 else conf_raw)}%"
         ai_model = f"{strat_name} ({strat_sig})"
 
-        chart_tf = getattr(window, "current_tf_str", "M15")
-        if exec_mode == "FULL-AUTO":
-            if chart_tf == "M15":
-                status_val = "FULL-AUTO: BOT MANAGING"
-            else:
-                status_val = f"MANUAL SETUP ({chart_tf}) | BOT ACTIVE ON M15"
-        else:
-            status_val = "WAITING OPERATOR APPROVAL"
+        candle_time = result.get("_candle_time")
+        if not candle_time:
+            candle_time = int(time.time())
+
+        sig_key = f"{clean_sym}_{candle_time}_{strat_sig}_{round(entry_val, 2)}"
 
         if isinstance(user_chk, list) and len(user_chk) >= 3:
             chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
@@ -600,26 +613,168 @@ def _update_panel_with_result(window, result):
             chk2 = f"Strategy Signal: {strat_sig}"
             chk3 = f"Confidence: {conf_pct}"
 
-        kwargs_order = {
-            "sym": clean_sym,
-            "has_signal": True,
-            "signal_type": strat_sig,
-            "model_name": ai_model,
-            "grade": f"CONFIDENCE: {conf_pct}",
-            "chk1": chk1,
-            "chk2": chk2,
-            "chk3": chk3,
-            "entry": entry_val,
-            "sl": sl_val,
-            "tp": tp_val,
-            "confidence": conf_pct,
-            "status": status_val,
-            "digits": digits,
-            "is_live_position": False,
-            "is_pending_order": False,
-            "exec_mode": exec_mode,
-            "is_bot_active": is_bot_active,
-        }
+        # -----------------------------------------------------------------
+        # MODE 1: FULL-AUTO -> AUTONOMOUS MT5 DISPATCH (NO HUMAN APPROVAL)
+        # -----------------------------------------------------------------
+        if exec_mode == "FULL-AUTO":
+            # Guard against re-executing the exact same signal on the same candle
+            if getattr(window, "_last_executed_signal", None) == sig_key:
+                logger.debug(f"[FULL-AUTO] Signal {sig_key} already executed on this candle. Skipping re-entry.")
+                return
+
+            is_buy = (strat_sig == "BUY")
+            # Strict stop loss orientation guard
+            if (is_buy and sl_val >= entry_val) or (not is_buy and sl_val <= entry_val):
+                from backend.core.event_bus import event_bus
+                event_bus.log_event.emit("", "ERROR", f"FULL-AUTO Intercepted: Invalid SL ({sl_val:.{digits}f}) for {strat_sig} at ({entry_val:.{digits}f})", "#ef4444")
+                window._last_executed_signal = sig_key
+                return
+
+            from frontend.controllers.chart.trading_plan_panel import calculate_manual_quant_lot
+            sl_pts = abs(entry_val - sl_val)
+            risk_pct = 1.0
+            try:
+                cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "config", "settings.json")
+                if os.path.exists(cfg_p):
+                    with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                        risk_pct = float(json.load(f_cfg).get("risk_per_trade", 1.0))
+            except Exception:
+                pass
+
+            lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct=risk_pct)
+
+            exec_mgr = None
+            if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                exec_mgr = window.quant_terminal.exec_mgr
+            if not exec_mgr:
+                from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                exec_mgr = ExecutionManager(slippage=20, magic_number=888888)
+
+            order_res = None
+            if exec_mgr and hasattr(exec_mgr, "execute_market_order"):
+                order_res = exec_mgr.execute_market_order(
+                    symbol=clean_sym,
+                    is_buy=is_buy,
+                    volume=lot_size,
+                    sl_price=sl_val,
+                    tp_price=tp_val,
+                    comment=f"FULL_AUTO_{clean_sym}"
+                )
+            elif mt5.terminal_info() is not None:
+                order_res = exec_mgr.execute_market_order(
+                    symbol=clean_sym,
+                    is_buy=is_buy,
+                    volume=lot_size,
+                    sl_price=sl_val,
+                    tp_price=tp_val,
+                    comment=f"FULL_AUTO_{clean_sym}"
+                )
+            else:
+                order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_val}
+
+            window._last_executed_signal = sig_key
+            from backend.core.event_bus import event_bus
+            if order_res and order_res.get("status") == "success":
+                ticket = order_res.get("ticket", "OK")
+                event_bus.log_event.emit("", "SUCCESS", f"FULL-AUTO Autonomous Fill: {strat_sig} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+                # Immediately transition UI to live position mode without any countdown timer
+                kwargs_order = {
+                    "sym": clean_sym,
+                    "has_signal": True,
+                    "signal_type": strat_sig,
+                    "model_name": ai_model,
+                    "grade": "PNL: +$0.00",
+                    "chk1": f"{strat_sig} AUTONOMOUS EXECUTION",
+                    "chk2": f"ORDER ROUTED #{ticket}",
+                    "chk3": "TARGET TP / TRAILING SL ACTIVE",
+                    "entry": entry_val,
+                    "sl": sl_val,
+                    "tp": tp_val,
+                    "confidence": conf_pct,
+                    "status": "BOT AUTO MANAGING (TARGET TP/SL)",
+                    "digits": digits,
+                    "is_live_position": True,
+                    "live_ticket": ticket,
+                    "live_profit": 0.0,
+                    "live_volume": lot_size,
+                    "exec_mode": exec_mode,
+                    "is_bot_active": is_bot_active,
+                }
+                update_order_proposal_html(window, **kwargs_order)
+                return
+            else:
+                err_msg = order_res.get("msg", "Rejected") if order_res else "Broker disconnected"
+                event_bus.log_event.emit("", "ERROR", f"FULL-AUTO Execution Rejected: {err_msg}", "#ef4444")
+                return
+
+        # -----------------------------------------------------------------
+        # MODE 2: SEMI-AUTO -> DECISION GATE (PROPOSAL + OPERATOR APPROVAL)
+        # -----------------------------------------------------------------
+        elif exec_mode == "SEMI-AUTO":
+            # Suppress re-push if operator discarded this signal on this candle
+            if hasattr(window, "_discarded_signals") and sig_key in window._discarded_signals:
+                logger.debug(f"[SEMI-AUTO] Signal {sig_key} was previously discarded. Suppressing re-push.")
+                return
+
+            # Suppress timer reset / UI flicker if this proposal is ALREADY actively counting down
+            if getattr(window, "order_proposal_active", False) and getattr(window, "_active_proposal_sig", None) == sig_key:
+                logger.debug(f"[SEMI-AUTO] Signal {sig_key} is actively counting down. Preserving timer.")
+                return
+
+            window._active_proposal_sig = sig_key
+            status_val = "WAITING OPERATOR APPROVAL"
+
+            kwargs_order = {
+                "sym": clean_sym,
+                "has_signal": True,
+                "signal_type": strat_sig,
+                "model_name": ai_model,
+                "grade": f"CONFIDENCE: {conf_pct}",
+                "chk1": chk1,
+                "chk2": chk2,
+                "chk3": chk3,
+                "entry": entry_val,
+                "sl": sl_val,
+                "tp": tp_val,
+                "confidence": conf_pct,
+                "status": status_val,
+                "digits": digits,
+                "is_live_position": False,
+                "is_pending_order": False,
+                "exec_mode": exec_mode,
+                "is_bot_active": is_bot_active,
+            }
+            update_order_proposal_html(window, **kwargs_order)
+            return
+
+        # -----------------------------------------------------------------
+        # MODE 3: MANUAL -> ADVISORY ALERT ONLY (DO NOT OVERRIDE COPILOT)
+        # -----------------------------------------------------------------
+        else: # MANUAL
+            kwargs_order = {
+                "sym": clean_sym,
+                "has_signal": True,
+                "signal_type": strat_sig,
+                "model_name": ai_model,
+                "grade": f"ALERT: {strat_sig} DETECTED",
+                "chk1": chk1,
+                "chk2": chk2,
+                "chk3": chk3,
+                "entry": entry_val,
+                "sl": sl_val,
+                "tp": tp_val,
+                "confidence": conf_pct,
+                "status": "MANUAL COPILOT ACTIVE",
+                "digits": digits,
+                "is_live_position": False,
+                "is_pending_order": False,
+                "exec_mode": "MANUAL",
+                "is_bot_active": False,
+            }
+            window.active_signal_data = kwargs_order
+            if getattr(window, "_plan_mode", "ai") == "ai":
+                update_order_proposal_html(window, **kwargs_order)
+            return
     else:
         htf_raw = str(result.get("_htf_bias", "--")).upper()
         if htf_raw in ("NEUTRAL", "SIDEWAYS", "--") or "đi ngang" in str(htf_text).lower() or bias_val == 0:

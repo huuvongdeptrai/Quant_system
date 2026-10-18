@@ -121,6 +121,21 @@ def update_order_proposal_html(
     if is_dark is None:
         is_dark = getattr(window, "is_dark_theme", False)
 
+    # 0. CHẾ ĐỘ THỦ CÔNG: KHÔNG CHO PHÉP TÍN HIỆU AI NỀN GHI ĐÈ GIAO DIỆN MANUAL COPILOT
+    if getattr(window, "_plan_mode", "ai") == "manual":
+        window.active_signal_data = {
+            "sym": clean_sym,
+            "has_signal": has_signal,
+            "signal_type": signal_type,
+            "entry": entry,
+            "sl": sl,
+            "tp": tp,
+            "is_live_position": is_live_position,
+            "live_ticket": live_ticket,
+            "exec_mode": exec_mode,
+        }
+        return
+
     # 1. TRƯỜNG HỢP: KHÔNG CÓ TÍN HIỆU THỰC TẾ (HOLD / CHỜ SETUP)
     if not has_signal or entry is None or sl is None:
         window.order_proposal_active = False
@@ -419,30 +434,66 @@ def update_order_proposal_html(
             except Exception:
                 pass
     else:
-        if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
-            window.lblGateExpiryTitle.setText("EXPIRATION")
-        if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
-            chart_tf = getattr(window, "current_tf_str", "M15")
-            if exec_mode == "FULL-AUTO" and chart_tf == "M15":
+        if exec_mode == "FULL-AUTO":
+            if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+                window.lblGateExpiryTitle.setText("EXECUTION")
+            if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+                window.lblGateExpiryTime.setText("AUTONOMOUS")
+            if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
+                window.barSignalExpiry.setRange(0, 100)
+                window.barSignalExpiry.setValue(100)
+            if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
                 window.btnApproveOrder.setText("FULL-AUTO: BOT MANAGING")
                 window.btnApproveOrder.setEnabled(False)
                 window.btnApproveOrder.setCursor(Qt.ArrowCursor)
-            elif exec_mode == "FULL-AUTO":
-                window.btnApproveOrder.setText(f"APPROVE {chart_tf} (MANUAL)")
-                window.btnApproveOrder.setEnabled(True)
-                window.btnApproveOrder.setCursor(Qt.PointingHandCursor)
-            else:
+            if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+                window.btnModifyOrder.setEnabled(False)
+            if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+                window.btnDiscardOrder.setText("DISCARD")
+                window.btnDiscardOrder.setEnabled(False)
+                window.btnDiscardOrder.setCursor(Qt.ArrowCursor)
+            if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer:
+                try:
+                    window._signal_expiry_timer.stop()
+                except Exception:
+                    pass
+        elif exec_mode == "SEMI-AUTO":
+            if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+                window.lblGateExpiryTitle.setText("EXPIRATION")
+            if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
                 window.btnApproveOrder.setText("APPROVE ORDER")
                 window.btnApproveOrder.setEnabled(True)
                 window.btnApproveOrder.setCursor(Qt.PointingHandCursor)
-        if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
-            window.btnModifyOrder.setEnabled(True)
-        if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
-            window.btnDiscardOrder.setText("DISCARD")
-            window.btnDiscardOrder.setEnabled(True)
-            window.btnDiscardOrder.setCursor(Qt.PointingHandCursor)
-
-        start_signal_expiry_countdown(window)
+            if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+                window.btnModifyOrder.setEnabled(True)
+            if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+                window.btnDiscardOrder.setText("DISCARD")
+                window.btnDiscardOrder.setEnabled(True)
+                window.btnDiscardOrder.setCursor(Qt.PointingHandCursor)
+            start_signal_expiry_countdown(window)
+        else: # MANUAL
+            if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+                window.lblGateExpiryTitle.setText("EXECUTION")
+            if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+                window.lblGateExpiryTime.setText("MANUAL")
+            if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
+                window.barSignalExpiry.setRange(0, 100)
+                window.barSignalExpiry.setValue(100)
+            if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+                window.btnApproveOrder.setText("MANUAL COPILOT ONLY")
+                window.btnApproveOrder.setEnabled(False)
+                window.btnApproveOrder.setCursor(Qt.ArrowCursor)
+            if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+                window.btnModifyOrder.setEnabled(False)
+            if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+                window.btnDiscardOrder.setText("DISCARD")
+                window.btnDiscardOrder.setEnabled(False)
+                window.btnDiscardOrder.setCursor(Qt.ArrowCursor)
+            if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer:
+                try:
+                    window._signal_expiry_timer.stop()
+                except Exception:
+                    pass
 
     if hasattr(window, "cardSetupModel"):
         apply_playbook_cards_theme(window, is_dark)
@@ -2187,6 +2238,9 @@ def setup_trading_plan_cards(window, is_dark=False):
 
 def start_signal_expiry_countdown(window, duration_sec=None):
     """Start dynamic real-time 1-second countdown timer for Trading Plan signal expiration."""
+    if getattr(window, "is_live_position", False) or getattr(window, "_plan_mode", "ai") == "manual":
+        return
+
     if duration_sec is None:
         try:
             cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "config", "settings.json")
@@ -2239,6 +2293,10 @@ def start_signal_expiry_countdown(window, duration_sec=None):
                 window.barSignalExpiry.setValue(rem)
         else:
             timer.stop()
+            if hasattr(window, "_active_proposal_sig") and window._active_proposal_sig:
+                if not hasattr(window, "_discarded_signals"):
+                    window._discarded_signals = set()
+                window._discarded_signals.add(window._active_proposal_sig)
             if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
                 window.lblGateExpiryTime.setText("0s")
             if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
