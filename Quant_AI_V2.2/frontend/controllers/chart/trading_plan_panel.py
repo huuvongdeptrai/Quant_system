@@ -727,18 +727,17 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             b.style().polish(b)
 
     # SpinBoxes (SL / TP)
-    for spin_name in ["spinManualSL", "spinManualTP"]:
+    # SpinBoxes (SL / TP / Lot)
+    for spin_name in ["spinManualSL", "spinManualTP", "spinManualLot"]:
         sp = getattr(window, spin_name, None)
         if sp:
             sp.style().unpolish(sp)
             sp.style().polish(sp)
 
-    # Lot Summary Box
+    # Lot Summary Box (Transparent, no border, clean whitespace separation)
     if hasattr(window, "boxManualLotSummary") and window.boxManualLotSummary:
-        box_bg = "#071524" if is_dark else "#f0f9ff"
-        box_bdr = "#0c3359" if is_dark else "#bae6fd"
         window.boxManualLotSummary.setStyleSheet(
-            f"QFrame#boxManualLotSummary {{ background-color: {box_bg}; border: 1px solid {box_bdr}; border-radius: 2px; padding: 2px 4px; }}"
+            "QFrame#boxManualLotSummary { background-color: transparent; border: none; border-radius: 0px; padding: 2px 0px; }"
         )
 
     # Execute Button
@@ -766,14 +765,6 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         window.lblManualSpread.setStyleSheet(
             f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
         )
-    if hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
-        window.lblManualLotVal.setStyleSheet(
-            "background-color: #071524; color: #38bdf8; border: 1px solid #0c3359; "
-            "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
-            if is_dark else
-            "background-color: #f0f9ff; color: #0284c7; border: 1px solid #bae6fd; "
-            "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
-        )
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setStyleSheet(
             f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
@@ -784,9 +775,23 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         )
     if hasattr(window, "lblManualLotSummaryTitle") and window.lblManualLotSummaryTitle:
         window.lblManualLotSummaryTitle.setStyleSheet(sub_style)
-    if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
-        window.lblManualLotSummary.setStyleSheet(
-            f"color: {'#38bdf8' if is_dark else '#0369a1'}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+
+    # Split Risk (Red) / Reward (Green) Colors
+    risk_color = "#ef4444" if is_dark else "#b91c1c"
+    slash_color = "#64748b" if is_dark else "#94a3b8"
+    reward_color = "#22c55e" if is_dark else "#15803d"
+
+    if hasattr(window, "lblManualRiskPart") and window.lblManualRiskPart:
+        window.lblManualRiskPart.setStyleSheet(
+            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+        )
+    if hasattr(window, "lblManualSlash") and window.lblManualSlash:
+        window.lblManualSlash.setStyleSheet(
+            f"color: {slash_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+        )
+    if hasattr(window, "lblManualRewardPart") and window.lblManualRewardPart:
+        window.lblManualRewardPart.setStyleSheet(
+            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
         )
 
     for k_lbl in ["lblGateCheck1Title", "lblGateCheck2Title", "lblGateCheck3Title", "lblGateCheck4Title", "lblManualRiskLabel", "lblManualSLLabel", "lblManualTPLabel"]:
@@ -963,8 +968,8 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
 
 
-def _recalculate_manual_lot_and_rr(window):
-    """Dynamically recalculate lot size, R:R ratio, dollar risk/reward when SL or TP changes."""
+def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
+    """Dynamically recalculate lot size, R:R ratio, dollar risk/reward when SL, TP, or Lot changes."""
     clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
     is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
     risk_pct = getattr(window, "_manual_risk_pct", 1.0)
@@ -977,7 +982,24 @@ def _recalculate_manual_lot_and_rr(window):
     if tick:
         entry_p = tick.ask if is_buy else tick.bid
     else:
-        entry_p = getattr(window, "_last_manual_entry", 2650.0)
+        if is_buy:
+            if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice and window.lblManualAskPrice.text() not in ("", "0.00", "--"):
+                try:
+                    entry_p = float(window.lblManualAskPrice.text())
+                except ValueError:
+                    entry_p = getattr(window, "_last_manual_ask", 2650.50)
+            else:
+                entry_p = getattr(window, "_last_manual_ask", 2650.50)
+        else:
+            if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice and window.lblManualBidPrice.text() not in ("", "0.00", "--"):
+                try:
+                    entry_p = float(window.lblManualBidPrice.text())
+                except ValueError:
+                    entry_p = getattr(window, "_last_manual_bid", 2650.25)
+            else:
+                entry_p = getattr(window, "_last_manual_bid", 2650.25)
+
+    window._last_manual_entry = entry_p
 
     sl_val = window.spinManualSL.value() if hasattr(window, "spinManualSL") else 0.0
     tp_val = window.spinManualTP.value() if hasattr(window, "spinManualTP") else 0.0
@@ -985,34 +1007,50 @@ def _recalculate_manual_lot_and_rr(window):
     sl_pts = abs(entry_p - sl_val)
     tp_pts = abs(tp_val - entry_p)
 
-    # Calculate lots
-    lot, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
+    acc = mt5.account_info() if mt5.terminal_info() is not None else None
+    balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
 
-    # Calculate rewards & pips
     sym_u = clean_sym.upper()
     if "BTC" in sym_u:
-        reward_dlr = tp_pts * lot
-        sl_pips = sl_pts
-        tp_pips = tp_pts
+        multiplier = 1.0
+        pip_unit = 1.0
     elif "XAU" in sym_u or "GOLD" in sym_u:
-        reward_dlr = tp_pts * lot * 100.0
-        sl_pips = sl_pts * 10.0
-        tp_pips = tp_pts * 10.0
+        multiplier = 100.0
+        pip_unit = 0.10
     else:
-        reward_dlr = tp_pts * lot * 100000.0
+        multiplier = 100000.0
         pip_unit = point * 10 if digits in (3, 5) else point
-        sl_pips = sl_pts / pip_unit if pip_unit > 0 else sl_pts
-        tp_pips = tp_pts / pip_unit if pip_unit > 0 else tp_pts
+
+    if from_user_lot_change and hasattr(window, "spinManualLot") and window.spinManualLot:
+        lot = round(window.spinManualLot.value(), 2)
+        risk_dlr = sl_pts * lot * multiplier
+        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
+    else:
+        lot, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct, balance=balance)
+        if hasattr(window, "spinManualLot") and window.spinManualLot:
+            window.spinManualLot.blockSignals(True)
+            window.spinManualLot.setValue(lot)
+            window.spinManualLot.blockSignals(False)
+
+    reward_dlr = tp_pts * lot * multiplier
+    sl_pips = sl_pts / pip_unit if pip_unit > 0 else sl_pts
+    tp_pips = tp_pts / pip_unit if pip_unit > 0 else tp_pts
 
     rr_ratio = round(tp_pts / sl_pts, 1) if sl_pts > 0.00001 else 2.0
 
     # Update UI Labels
-    if hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
+    if hasattr(window, "lblManualLotVal") and window.lblManualLotVal and window.lblManualLotVal is not getattr(window, "spinManualLot", None):
         window.lblManualLotVal.setText(f"{lot:.2f} LOTS")
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setText(f"-{sl_pips:.1f} pips / -${risk_dlr:.2f}")
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
         window.lblManualTPPips.setText(f"+{tp_pips:.1f} pips / +${reward_dlr:.2f}")
+
+    # Split Risk (Red) / Reward (Green)
+    if hasattr(window, "lblManualRiskPart") and window.lblManualRiskPart:
+        window.lblManualRiskPart.setText(f"-${risk_dlr:.2f} ({risk_pct:.1f}%)")
+    if hasattr(window, "lblManualRewardPart") and window.lblManualRewardPart:
+        window.lblManualRewardPart.setText(f"+${reward_dlr:.2f} ({rr_ratio:.1f}R)")
     if hasattr(window, "lblManualLotSummary") and window.lblManualLotSummary:
         window.lblManualLotSummary.setText(
             f"-${risk_dlr:.2f} ({risk_pct:.1f}%) / +${reward_dlr:.2f} ({rr_ratio:.1f}R)"
@@ -1042,12 +1080,12 @@ def _recalculate_manual_lot_and_rr(window):
                 f"font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
             )
 
-    # Update execute button
+    # Update execute button with exact price: BUY 0.19 LOTS @ 2650.50
     dir_str = getattr(window, "_manual_direction", "BUY")
     if hasattr(window, "btnManualExecute") and window.btnManualExecute:
         if passed:
             window.btnManualExecute.setEnabled(True)
-            window.btnManualExecute.setText(f"TRANSMIT {dir_str} ORDER [ {lot:.2f} LOTS ]")
+            window.btnManualExecute.setText(f"{dir_str} {lot:.2f} LOTS @ {entry_p:.{digits}f}")
             window.btnManualExecute.setToolTip(f"Send institutional market {dir_str} order with {risk_pct}% risk")
         else:
             window.btnManualExecute.setEnabled(False)
@@ -1073,12 +1111,16 @@ def sync_manual_copilot_quotes(window):
         ask = tick.ask
         bid = tick.bid
         spd = round((ask - bid) / point, 1)
-        window._last_manual_entry = ask if getattr(window, "_manual_direction", "BUY") == "BUY" else bid
     else:
         ref = getattr(window, "_last_manual_entry", 2650.0)
-        ask = ref + 0.25
-        bid = ref
+        ask = round(ref + 0.25, digits)
+        bid = round(ref, digits)
         spd = 2.5
+
+    window._last_manual_ask = ask
+    window._last_manual_bid = bid
+    is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
+    window._last_manual_entry = ask if is_buy else bid
 
     if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice:
         window.lblManualAskPrice.setText(f"{ask:.{digits}f}")
@@ -1229,7 +1271,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_mode_ai.setObjectName("btnPlanModeAI")
     btn_mode_ai.setCursor(Qt.PointingHandCursor)
 
-    btn_mode_manual = QPushButton("MANUAL COPILOT")
+    btn_mode_manual = QPushButton("MANUAL ORDER")
     btn_mode_manual.setObjectName("btnPlanModeManual")
     btn_mode_manual.setCursor(Qt.PointingHandCursor)
 
@@ -1543,11 +1585,20 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_mr_top.setContentsMargins(0, 0, 0, 0)
     lbl_mr_title = QLabel("ORDER & RISK BUDGET")
     lbl_mr_title.setObjectName("lblManualRiskTitle")
-    lbl_m_lot = QLabel("0.20 LOTS")
-    lbl_m_lot.setObjectName("lblManualLotVal")
+    spin_lot = QDoubleSpinBox()
+    spin_lot.setObjectName("spinManualLot")
+    spin_lot.setDecimals(2)
+    spin_lot.setRange(0.01, 100.0)
+    spin_lot.setSingleStep(0.01)
+    spin_lot.setValue(0.20)
+    spin_lot.setSuffix(" LOTS")
+    spin_lot.setFixedWidth(78)
+    spin_lot.setFixedHeight(20)
+    spin_lot.setAlignment(Qt.AlignRight)
+    spin_lot.setButtonSymbols(QDoubleSpinBox.NoButtons)
     row_mr_top.addWidget(lbl_mr_title)
     row_mr_top.addStretch()
-    row_mr_top.addWidget(lbl_m_lot)
+    row_mr_top.addWidget(spin_lot)
     layout_m_risk.addLayout(row_mr_top)
 
     # Quick Risk Selectors
@@ -1579,6 +1630,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_sl = QHBoxLayout()
     row_sl.setContentsMargins(0, 0, 0, 0)
     row_sl.setSpacing(6)
+    row_sl.setAlignment(Qt.AlignVCenter)
 
     col_sl_info = QVBoxLayout()
     col_sl_info.setSpacing(1)
@@ -1594,25 +1646,29 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     spin_sl = QDoubleSpinBox()
     spin_sl.setObjectName("spinManualSL")
-    spin_sl.setFixedHeight(22)
+    spin_sl.setFixedHeight(24)
     spin_sl.setFixedWidth(78)
     spin_sl.setAlignment(Qt.AlignRight)
     spin_sl.setButtonSymbols(QDoubleSpinBox.NoButtons)
 
     box_sl_pre = QWidget()
-    box_sl_pre.setFixedWidth(102)
+    box_sl_pre.setFixedWidth(104)
+    box_sl_pre.setFixedHeight(24)
     layout_sl_pre = QHBoxLayout(box_sl_pre)
     layout_sl_pre.setContentsMargins(0, 0, 0, 0)
-    layout_sl_pre.setSpacing(3)
+    layout_sl_pre.setSpacing(2)
+    layout_sl_pre.setAlignment(Qt.AlignVCenter)
 
     btn_pre_atr = QPushButton("ATR")
     btn_pre_atr.setObjectName("btnPresetATR")
     btn_pre_atr.setProperty("class", "preset_tag_btn")
+    btn_pre_atr.setFixedHeight(24)
     btn_pre_atr.setCursor(Qt.PointingHandCursor)
 
     btn_pre_swing = QPushButton("SWING")
     btn_pre_swing.setObjectName("btnPresetSwing")
     btn_pre_swing.setProperty("class", "preset_tag_btn")
+    btn_pre_swing.setFixedHeight(24)
     btn_pre_swing.setCursor(Qt.PointingHandCursor)
 
     layout_sl_pre.addWidget(btn_pre_atr)
@@ -1626,6 +1682,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_tp = QHBoxLayout()
     row_tp.setContentsMargins(0, 0, 0, 0)
     row_tp.setSpacing(6)
+    row_tp.setAlignment(Qt.AlignVCenter)
 
     col_tp_info = QVBoxLayout()
     col_tp_info.setSpacing(1)
@@ -1641,30 +1698,35 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     spin_tp = QDoubleSpinBox()
     spin_tp.setObjectName("spinManualTP")
-    spin_tp.setFixedHeight(22)
+    spin_tp.setFixedHeight(24)
     spin_tp.setFixedWidth(78)
     spin_tp.setAlignment(Qt.AlignRight)
     spin_tp.setButtonSymbols(QDoubleSpinBox.NoButtons)
 
     box_tp_pre = QWidget()
-    box_tp_pre.setFixedWidth(102)
+    box_tp_pre.setFixedWidth(104)
+    box_tp_pre.setFixedHeight(24)
     layout_tp_pre = QHBoxLayout(box_tp_pre)
     layout_tp_pre.setContentsMargins(0, 0, 0, 0)
-    layout_tp_pre.setSpacing(3)
+    layout_tp_pre.setSpacing(2)
+    layout_tp_pre.setAlignment(Qt.AlignVCenter)
 
     btn_pre_rr15 = QPushButton("1.5R")
     btn_pre_rr15.setObjectName("btnPresetRR15")
     btn_pre_rr15.setProperty("class", "preset_tag_btn")
+    btn_pre_rr15.setFixedHeight(24)
     btn_pre_rr15.setCursor(Qt.PointingHandCursor)
 
     btn_pre_rr20 = QPushButton("2.0R")
     btn_pre_rr20.setObjectName("btnPresetRR20")
     btn_pre_rr20.setProperty("class", "preset_tag_btn")
+    btn_pre_rr20.setFixedHeight(24)
     btn_pre_rr20.setCursor(Qt.PointingHandCursor)
 
     btn_pre_rr30 = QPushButton("3.0R")
     btn_pre_rr30.setObjectName("btnPresetRR30")
     btn_pre_rr30.setProperty("class", "preset_tag_btn")
+    btn_pre_rr30.setFixedHeight(24)
     btn_pre_rr30.setCursor(Qt.PointingHandCursor)
 
     layout_tp_pre.addWidget(btn_pre_rr15)
@@ -1681,18 +1743,32 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_tp_minus = QPushButton()
     btn_tp_plus = QPushButton()
 
-    # Summary Box
+    # Summary Box (Risk Red / Reward Green)
     box_summary = QFrame()
     box_summary.setObjectName("boxManualLotSummary")
     layout_summary = QHBoxLayout(box_summary)
-    layout_summary.setContentsMargins(4, 2, 4, 2)
+    layout_summary.setContentsMargins(0, 2, 0, 2)
+    layout_summary.setSpacing(2)
     lbl_lot_sum_title = QLabel("RISK / REWARD")
     lbl_lot_sum_title.setObjectName("lblManualLotSummaryTitle")
+
+    lbl_risk_part = QLabel("-$100.00 (1.0%)")
+    lbl_risk_part.setObjectName("lblManualRiskPart")
+    lbl_slash = QLabel(" / ")
+    lbl_slash.setObjectName("lblManualSlash")
+    lbl_reward_part = QLabel("+$200.00 (2.0R)")
+    lbl_reward_part.setObjectName("lblManualRewardPart")
+
+    # Hidden compatibility label for existing tests
     lbl_lot_sum = QLabel("-$100.00 (1.0%) / +$200.00 (2.0R)")
     lbl_lot_sum.setObjectName("lblManualLotSummary")
-    lbl_lot_sum.setAlignment(Qt.AlignRight)
+    lbl_lot_sum.setVisible(False)
+
     layout_summary.addWidget(lbl_lot_sum_title)
     layout_summary.addStretch()
+    layout_summary.addWidget(lbl_risk_part)
+    layout_summary.addWidget(lbl_slash)
+    layout_summary.addWidget(lbl_reward_part)
     layout_summary.addWidget(lbl_lot_sum)
     layout_m_risk.addWidget(box_summary)
 
@@ -1701,14 +1777,14 @@ def setup_trading_plan_cards(window, is_dark=False):
     sep_m2.setObjectName("sepManual2")
     sep_m2.setFixedHeight(1)
 
-    # Card M3: Pre-Trade Compliance Checklist
+    # Card M3: Pre-Trade Check Checklist
     card_m_gate = QFrame()
     card_m_gate.setObjectName("cardManualGate")
     layout_m_gate = QVBoxLayout(card_m_gate)
     layout_m_gate.setContentsMargins(4, 4, 4, 4)
     layout_m_gate.setSpacing(3)
 
-    lbl_mg_title = QLabel("PRE-TRADE COMPLIANCE")
+    lbl_mg_title = QLabel("PRE-TRADE CHECK")
     lbl_mg_title.setObjectName("lblManualGateTitle")
     layout_m_gate.addWidget(lbl_mg_title)
 
@@ -1747,7 +1823,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_action.setContentsMargins(4, 2, 4, 2)
     layout_m_action.setSpacing(4)
 
-    btn_m_exec = QPushButton("TRANSMIT BUY ORDER [ 0.20 LOTS ]")
+    btn_m_exec = QPushButton("BUY 0.20 LOTS @ 2650.50")
     btn_m_exec.setObjectName("btnManualExecute")
     btn_m_exec.setFixedHeight(32)
     btn_m_exec.setCursor(Qt.PointingHandCursor)
@@ -1779,7 +1855,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.lblManualBidPrice = lbl_bid_p
     window.lblManualSpread = lbl_spd
     window.lblManualRiskTitle = lbl_mr_title
-    window.lblManualLotVal = lbl_m_lot
+    window.spinManualLot = spin_lot
+    window.lblManualLotVal = spin_lot
     window.lblManualRiskLabel = lbl_risk_lbl
     window.btnRisk05 = btn_r05
     window.btnRisk10 = btn_r10
@@ -1802,6 +1879,9 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.btnPresetRR30 = btn_pre_rr30
     window.boxManualLotSummary = box_summary
     window.lblManualLotSummaryTitle = lbl_lot_sum_title
+    window.lblManualRiskPart = lbl_risk_part
+    window.lblManualSlash = lbl_slash
+    window.lblManualRewardPart = lbl_reward_part
     window.lblManualLotSummary = lbl_lot_sum
     window.lblManualGateTitle = lbl_mg_title
     window.btnManualExecute = btn_m_exec
@@ -1862,6 +1942,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_r20.clicked.connect(lambda: _set_risk(2.0))
 
     # Signal wiring: SpinBox changes
+    spin_lot.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window, from_user_lot_change=True))
     spin_sl.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
     spin_tp.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
 

@@ -1715,6 +1715,8 @@ QDoubleSpinBox#spinManualSL, QDoubleSpinBox#spinManualTP {
     font-family: Consolas, monospace;
     font-size: 11px;
     font-weight: 700;
+    min-height: 24px;
+    max-height: 24px;
 }
 QDoubleSpinBox#spinManualSL:focus, QDoubleSpinBox#spinManualTP:focus {
     border: 1px solid #0284c7;
@@ -1725,21 +1727,73 @@ QDoubleSpinBox#spinManualTP::up-button, QDoubleSpinBox#spinManualTP::down-button
     border: none;
 }
 
+QDoubleSpinBox#spinManualLot {
+    background-color: #f0f9ff;
+    color: #0284c7;
+    border: 1px solid #bae6fd;
+    border-radius: 2px;
+    padding: 1px 4px;
+    font-family: Consolas, monospace;
+    font-size: 9px;
+    font-weight: 700;
+    min-height: 18px;
+    max-height: 18px;
+}
+QDoubleSpinBox#spinManualLot:focus {
+    border: 1px solid #0284c7;
+}
+QDoubleSpinBox#spinManualLot::up-button, QDoubleSpinBox#spinManualLot::down-button {
+    width: 0px;
+    border: none;
+}
+
 QPushButton.preset_tag_btn {
     background-color: #f1f5f9;
     color: #0284c7;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
     border-radius: 2px;
     font-family: Consolas, monospace;
     font-size: 8px;
     font-weight: 700;
-    min-height: 18px;
-    max-height: 18px;
-    padding: 0 4px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0 2px;
 }
 QPushButton.preset_tag_btn:hover {
     background-color: #e2e8f0;
     color: #0f172a;
+    border-color: #94a3b8;
+}
+
+QFrame#boxManualLotSummary {
+    background-color: transparent;
+    border: none;
+    border-radius: 0px;
+    padding: 2px 0px;
+}
+
+QLabel#lblManualRiskPart {
+    color: #b91c1c;
+    font-family: Consolas, monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#lblManualSlash {
+    color: #94a3b8;
+    font-family: Consolas, monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#lblManualRewardPart {
+    color: #15803d;
+    font-family: Consolas, monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    background: transparent;
 }
 
 QPushButton#btnManualExecute {
@@ -1750,7 +1804,8 @@ QPushButton#btnManualExecute {
     font-family: Consolas, monospace;
     font-size: 9.5px;
     font-weight: 700;
-    min-height: 30px;
+    min-height: 32px;
+    max-height: 32px;
 }
 QPushButton#btnManualExecute:hover {
     background-color: #166534;

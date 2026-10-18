@@ -139,6 +139,8 @@ class TestManualCopilotUI:
         assert win.containerPlanManual.isHidden()
 
         # Switch to Manual Mode
+        assert win.btnPlanModeManual.text() == "MANUAL ORDER"
+        assert win.lblManualGateTitle.text() == "PRE-TRADE CHECK"
         win.btnPlanModeManual.click()
         assert win._plan_mode == "manual"
         assert win.containerPlanAI.isHidden()
@@ -160,6 +162,7 @@ class TestManualCopilotUI:
 
         win.btnPlanModeManual.click()
         win._last_manual_entry = 2650.0
+        win.lblManualAskPrice.setText("2650.00")
         win._manual_direction = "BUY"
         win._manual_risk_pct = 1.0
 
@@ -170,8 +173,15 @@ class TestManualCopilotUI:
 
         assert "0.20" in win.lblManualLotVal.text()
         assert "2.0R" in win.lblManualLotSummary.text() or "1:2.0" in win.lblManualLotSummary.text()
+        assert "-$100.00 (1.0%)" in win.lblManualRiskPart.text()
+        assert "+$200.00 (2.0R)" in win.lblManualRewardPart.text()
         assert win.btnManualExecute.isEnabled() is True
-        assert "TRANSMIT BUY ORDER [ 0.20 LOTS ]" in win.btnManualExecute.text()
+        assert "BUY 0.20 LOTS" in win.btnManualExecute.text()
+
+        # Test user editing lot directly to 0.19
+        win.spinManualLot.setValue(0.19)
+        assert "-$95.00 (0.9%)" in win.lblManualRiskPart.text()
+        assert "BUY 0.19 LOTS" in win.btnManualExecute.text()
 
     def test_stepper_and_preset_buttons(self, qapp):
         win = QWidget()
@@ -182,6 +192,7 @@ class TestManualCopilotUI:
 
         win.btnPlanModeManual.click()
         win._last_manual_entry = 2650.0
+        win.lblManualAskPrice.setText("2650.00")
         win.spinManualSL.setValue(2645.0)
         win.spinManualTP.setValue(2660.0)
 
@@ -197,6 +208,27 @@ class TestManualCopilotUI:
         win.btnPresetRR30.click()
         assert win.spinManualTP.value() == 2665.0
         assert "3.0R" in win.lblManualLotSummary.text() or "1:3.0" in win.lblManualLotSummary.text()
+
+    def test_buy_order_pips_calculation_fix(self, qapp):
+        """User reported bug: BUY MARKET @ 2650.50, SL 2645.00, TP 2660.00.
+        SL distance must be -55.0 pips (not -52.5 pips).
+        TP distance must be +95.0 pips (not +97.5 pips)."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=False)
+
+        win.btnPlanModeManual.click()
+        win._manual_direction = "BUY"
+        win.lblManualAskPrice.setText("2650.50")
+        win.lblManualBidPrice.setText("2650.25")
+        win.spinManualSL.setValue(2645.00)
+        win.spinManualTP.setValue(2660.00)
+
+        assert "-55.0 pips" in win.lblManualSLPips.text()
+        assert "+95.0 pips" in win.lblManualTPPips.text()
+        assert "BUY" in win.btnManualExecute.text()
+        assert "2650.50" in win.btnManualExecute.text()
 
     def test_theme_toggle_light_and_dark(self, qapp):
         win = QWidget()
