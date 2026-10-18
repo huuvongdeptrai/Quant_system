@@ -621,6 +621,55 @@ class TestPlanScenarioAudits:
         assert lot == 14.71
         assert risk_dlr == 500.0
 
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    def test_universal_multi_asset_spread_governance_and_sl_friction(self, mock_sym_info, mock_term):
+        """Universal multi-asset test: Validates QuantConnect LEAN BPS & Almgren-Chriss SL friction across symbols."""
+        mock_term.return_value = MagicMock()
+
+        # 1. Solana (Crypto): price $150, spread $0.15 (15 pts at point=0.01) -> BPS = 10.0 < 35.0 BPS -> PASS
+        sol_info = MagicMock()
+        sol_info.spread = 15
+        sol_info.point = 0.01
+        sol_info.digits = 2
+        sol_info.path = "Crypto\\SOLUSD"
+        mock_sym_info.return_value = sol_info
+
+        win = QWidget()
+        win.current_sym = "SOLUSD"
+        win._last_manual_entry = 150.0
+        win.spinManualSL = MagicMock()
+        win.spinManualSL.value.return_value = 145.0
+        win.spinManualTP = MagicMock()
+        win.spinManualTP.value.return_value = 160.0
+
+        passed, checks, reason = evaluate_manual_compliance(win, "SOLUSD")
+        assert passed is True
+        assert checks["spread"]["passed"] is True
+
+        # 2. US30 Index: price 43000, spread 2.0 (20 pts at point=0.1) -> BPS = 0.46 < 10.0 BPS -> PASS
+        us30_info = MagicMock()
+        us30_info.spread = 20
+        us30_info.point = 0.1
+        us30_info.digits = 1
+        us30_info.path = "Indices\\US30"
+        mock_sym_info.return_value = us30_info
+
+        win.current_sym = "US30"
+        win._last_manual_entry = 43000.0
+        win.spinManualSL.value.return_value = 42950.0
+        win.spinManualTP.value.return_value = 43100.0
+
+        passed, checks, reason = evaluate_manual_compliance(win, "US30")
+        assert passed is True
+        assert checks["spread"]["passed"] is True
+
+        # 3. Almgren-Chriss SL friction test: When spread cost ($2.0) >= SL distance ($1.0) -> BLOCKED
+        win.spinManualSL.value.return_value = 42999.0  # SL distance = 1.0 < spread cost 2.0!
+        passed, checks, reason = evaluate_manual_compliance(win, "US30")
+        assert passed is False
+        assert "SPREAD EXCEEDS STOP LOSS DISTANCE" in reason
+
 
 
 

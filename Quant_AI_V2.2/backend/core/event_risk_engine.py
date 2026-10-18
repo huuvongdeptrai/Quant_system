@@ -275,17 +275,17 @@ class EventRiskEngine:
             return True, 0, 0
 
         curr_spread = info.spread
-        # Spread trung bình an toàn dựa trên quy định của từng loại tài sản
-        # Forex 5 số: ~15-25 points; Vàng: ~25-45 points; Chỉ số: ~50-100 points
-        sym_upper = symbol.upper()
-        if "XAU" in sym_upper or "GOLD" in sym_upper:
-            base_safe_spread = 45
-        elif any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX"]):
-            base_safe_spread = 80
-        elif "BTC" in sym_upper:
+        path = getattr(info, "path", "").lower() if info else ""
+        sym_upper = symbol.upper().split(".")[0].replace("/", "")
+
+        if "crypto" in path or any(c in sym_upper for c in ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB"]):
             base_safe_spread = 6000
-        elif "ETH" in sym_upper:
-            base_safe_spread = 1500
+        elif any(idx in path for idx in ["index", "indic"]) or any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX", "GER40", "DAX"]):
+            base_safe_spread = 80
+        elif any(k in path for k in ["metal", "commodit"]) or "XAU" in sym_upper or "GOLD" in sym_upper:
+            base_safe_spread = 45 if getattr(info, "digits", 2) == 2 else 450
+        elif "stock" in path or "equity" in path:
+            base_safe_spread = 50
         else:
             base_safe_spread = 25
 

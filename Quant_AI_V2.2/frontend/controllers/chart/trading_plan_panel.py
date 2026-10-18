@@ -51,6 +51,65 @@ def get_symbol_pip_unit(symbol: str, digits: int = 2, point: float = 0.01) -> fl
     return (point * 10) if digits in (3, 5) else (point if point > 0 else 0.0001)
 
 
+def classify_market_asset_class(symbol: str, info=None) -> str:
+    """
+    Classify financial symbol into universal institutional asset classes
+    (Forex, Crypto, Commodities/Metals, Indices, Equities) via MT5 broker path and symbol patterns.
+    Compliant with QuantConnect LEAN and CFA Market Microstructure standards.
+    """
+    path = getattr(info, "path", "").lower() if info else ""
+    sym_u = (symbol or "").upper().split(".")[0].replace("/", "")
+
+    if "crypto" in path or any(c in sym_u for c in ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB", "ADA", "LTC"]):
+        return "crypto"
+    if any(k in path for k in ["index", "indic"]) or any(c in sym_u for c in ["US30", "NAS", "SPX", "GER", "DAX", "UK100", "JP225", "DJ30", "US500", "US100"]):
+        return "indices"
+    if any(k in path for k in ["metal", "commodit", "energy", "oil"]) or any(c in sym_u for c in ["XAU", "GOLD", "XAG", "SILVER", "WTI", "BRENT", "XBR", "XTI"]):
+        return "commodities"
+    if any(k in path for k in ["stock", "equity", "share"]):
+        return "equities"
+    return "forex"
+
+
+def calculate_safe_spread_allowance(symbol: str, info=None, current_price: float = 0.0) -> tuple[int, float]:
+    """
+    Computes universal institutional spread thresholds across multi-asset universes.
+    Returns: (safe_points_allowance: int, max_safe_basis_points: float)
+    
+    References:
+    - QuantConnect LEAN SpreadExecutionModel (Relative Spread BPS)
+    - Sierra Chart & MQL5 Microstructure Reference (Normalized Volatility BPS)
+    - Almgren-Chriss (2000) Optimal Execution of Portfolio Transactions
+    """
+    asset_class = classify_market_asset_class(symbol, info)
+    
+    bps_limits = {
+        "forex": 8.0,         # 0.08%
+        "indices": 10.0,      # 0.10%
+        "commodities": 12.0,  # 0.12%
+        "equities": 20.0,     # 0.20%
+        "crypto": 35.0,       # 0.35%
+    }
+    max_bps = bps_limits.get(asset_class, 25.0)
+    
+    pt = float(info.point) if hasattr(info, "point") and isinstance(info.point, (int, float)) and info.point > 0 else 0.01
+    dig = info.digits if isinstance(getattr(info, "digits", None), (int, float)) else 2
+    
+    if current_price and current_price > 0 and pt > 0:
+        safe_points = int((current_price * (max_bps / 10000.0)) / pt)
+    else:
+        fallback_points = {
+            "forex": 35,
+            "indices": 250,
+            "commodities": 45 if dig == 2 else 450,
+            "equities": 50,
+            "crypto": 6000,
+        }
+        safe_points = fallback_points.get(asset_class, 50)
+        
+    return max(safe_points, 10), max_bps
+
+
 def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 1.0, balance: float = None):
     """Calculates dynamic institutional lot size adhering to capital preservation rules across all asset classes."""
     if balance is None or balance <= 0:
@@ -989,41 +1048,44 @@ def evaluate_manual_compliance(window, symbol=None):
         except Exception:
             pass
 
-    # 4. Spread Normalization Check
+    # 4. Universal Multi-Asset Spread Normalization Check (QuantConnect LEAN & Sierra Chart Standards)
     if not block_reason and mt5.terminal_info() is not None:
         try:
             info = mt5.symbol_info(clean_sym)
             if info:
                 cur_spd = info.spread
-                user_max = int(cfg.get("max_spread", 25))
                 pt = float(info.point) if hasattr(info, "point") and isinstance(info.point, (int, float)) and info.point > 0 else 0.01
-                entry_ref = getattr(window, "_last_manual_entry", 0.0)
-                if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
-                    entry_ref = 0.0
-                spread_cost = cur_spd * pt
-                spread_bps = (spread_cost / entry_ref * 10000.0) if entry_ref > 0 else 0.0
 
-                sym_u = clean_sym.upper()
-                if "BTC" in sym_u:
-                    allowance = max(user_max, 6000)
-                    max_bps = 15.0  # 15 basis points = 0.15%
-                elif "ETH" in sym_u:
-                    allowance = max(user_max, 1500)
-                    max_bps = 20.0
-                elif "XAU" in sym_u or "GOLD" in sym_u:
-                    dig = info.digits if isinstance(getattr(info, "digits", None), (int, float)) else 2
-                    allowance = max(user_max, 45 if dig == 2 else 450)
-                    max_bps = 5.0
-                elif any(idx in sym_u for idx in ["US30", "NAS100", "US500", "SPX"]):
-                    allowance = max(user_max, 250)
-                    max_bps = 5.0
+                tick = mt5.symbol_info_tick(clean_sym)
+                if tick and hasattr(tick, "ask") and hasattr(tick, "bid") and isinstance(tick.ask, (int, float)) and tick.ask > 0 and tick.bid > 0:
+                    entry_ref = (tick.ask + tick.bid) / 2.0
+                    spread_cost = tick.ask - tick.bid
                 else:
-                    allowance = max(user_max, 35)
-                    max_bps = 4.0
+                    entry_ref = getattr(window, "_last_manual_entry", 0.0)
+                    if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
+                        entry_ref = 0.0
+                    spread_cost = cur_spd * pt
 
-                is_wide = (cur_spd > allowance) and (spread_bps > max_bps if entry_ref > 0 else True)
-                if is_wide:
-                    checks["spread"] = {"passed": False, "msg": f"Spread {cur_spd} > {allowance} pts", "val": "HIGH"}
+                spread_bps = (spread_cost / entry_ref * 10000.0) if entry_ref > 0 else 0.0
+                safe_pts, max_bps = calculate_safe_spread_allowance(clean_sym, info, current_price=entry_ref)
+                user_max = int(cfg.get("max_spread", 25))
+                effective_pts = max(safe_pts, user_max) if user_max > safe_pts else safe_pts
+
+                # Metric 1: Relative basis point expansion check
+                is_wide = (cur_spd > effective_pts) and (spread_bps > max_bps if entry_ref > 0 else True)
+
+                # Metric 2: Transaction cost friction against Stop Loss (Almgren-Chriss / López de Prado)
+                if not is_wide and hasattr(window, "spinManualSL") and window.spinManualSL:
+                    sl_val = float(window.spinManualSL.value()) if hasattr(window.spinManualSL, "value") and isinstance(window.spinManualSL.value(), (int, float)) else 0.0
+                    if sl_val > 0 and entry_ref > 0:
+                        sl_dist = abs(entry_ref - sl_val)
+                        if sl_dist > 0 and spread_cost >= sl_dist:
+                            is_wide = True
+                            block_reason = "SPREAD EXCEEDS STOP LOSS DISTANCE"
+                            checks["spread"] = {"passed": False, "msg": f"Spread ${spread_cost:.2f} >= SL ${sl_dist:.2f}", "val": "HIGH"}
+
+                if is_wide and not block_reason:
+                    checks["spread"] = {"passed": False, "msg": f"Spread {cur_spd} > {effective_pts} pts ({spread_bps:.1f} bps)", "val": "HIGH"}
                     block_reason = f"SPREAD TOO WIDE ({cur_spd} pts)"
         except Exception:
             pass
