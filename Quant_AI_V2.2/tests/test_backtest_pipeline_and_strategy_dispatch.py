@@ -161,3 +161,41 @@ def generate_signals(df):
         assert any("ICT" in name for name in strat_names)
         assert any("Wyckoff" in name for name in strat_names)
         assert any("EMA" in name for name in strat_names)
+
+    def test_ict_pro_event_driven_backtester_execution(self):
+        """Verify event-driven ICTZonesProStrategy execution via ICTProBacktester."""
+        from datetime import datetime, timedelta
+        from backend.backtest.backtest_ict_pro import ICTProBacktester, run_ict_pro_backtest
+
+        n = 260
+        base_time = datetime(2026, 10, 1, 8, 0, 0)
+        times = [base_time + timedelta(minutes=15 * i) for i in range(n)]
+        np.random.seed(42)
+        closes = 2500.0 + np.cumsum(np.random.randn(n) * 2.0)
+        highs = closes + np.random.rand(n) * 3.0
+        lows = closes - np.random.rand(n) * 3.0
+        opens = (closes + np.roll(closes, 1)) / 2.0
+        opens[0] = closes[0]
+        volumes = np.random.randint(100, 1000, n)
+
+        df = pd.DataFrame({
+            "time": times,
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": closes,
+            "tick_volume": volumes,
+        })
+
+        tester = ICTProBacktester(initial_balance=100000.0, risk_per_trade_pct=1.0)
+        report = tester.run(df=df, symbol="XAUUSD")
+        assert report is not None
+        assert report.sample_size == n
+        assert report.final_equity > 0
+        assert isinstance(report.trade_records, list)
+
+        # Run convenience function
+        res = run_ict_pro_backtest(df=df, symbol="XAUUSD")
+        assert "error" not in res
+        assert res["bars_tested"] == n
+        assert "trade_records" in res

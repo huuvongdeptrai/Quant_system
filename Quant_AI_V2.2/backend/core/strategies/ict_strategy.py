@@ -59,6 +59,7 @@ class ICTZonesProStrategy:
         self.lookback_bars = self.config.get("lookback_bars", 300) # Khôi phục trạng thái từ 300 nến
         self.sweep_len = self.config.get("sweep_len", 20)
         self.sweep_memory = self.config.get("sweep_memory", 10)
+        self.save_state = self.config.get("save_state", True)
         
     def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
@@ -401,39 +402,37 @@ class ICTZonesProStrategy:
                 
             return max(0, score), zTop, zBtm
 
-        import json
-        state_file = PROJECT_ROOT / "data" / "strategy_state.json"
-        
-        # Tải Order Block cũ
-        prev_obs = []
-        if state_file.exists():
-            try:
-                with open(state_file, "r") as f:
-                    old_state = json.load(f)
-                    prev_obs = old_state.get("active_obs", [])
-            except Exception as e:
-                logger.warning(f"Lỗi đọc state cũ: {e}")
+        if self.save_state:
+            import json
+            state_file = PROJECT_ROOT / "data" / "strategy_state.json"
+            
+            # Tải Order Block cũ
+            prev_obs = []
+            if state_file.exists():
+                try:
+                    with open(state_file, "r") as f:
+                        old_state = json.load(f)
+                        prev_obs = old_state.get("active_obs", [])
+                except Exception as e:
+                    logger.warning(f"Lỗi đọc state cũ: {e}")
+                    
+            # Ghi nhận Order Block hiện tại
+            serialized_obs = []
+            for ob in active_obs:
+                serialized_obs.append({
+                    "top": ob.top,
+                    "btm": ob.btm,
+                    "is_bull": ob.is_bull,
+                    "score": ob.current_score(),
+                    "start_idx": ob.start_idx
+                })
                 
-        # Ghi nhận Order Block hiện tại
-        serialized_obs = []
-        for ob in active_obs:
-            serialized_obs.append({
-                "top": ob.top,
-                "btm": ob.btm,
-                "is_bull": ob.is_bull,
-                "score": ob.current_score(),
-                "start_idx": ob.start_idx
-            })
-            
-        # Thông báo Order Block mới
-        
-            
-        # Lưu trạng thái mới
-        try:
-            with open(state_file, "w") as f:
-                json.dump({"strategy": "ICT_Zones_Pro", "active_obs": serialized_obs}, f, indent=4)
-        except Exception as e:
-            logger.warning(f"Lỗi lưu state: {e}")
+            # Lưu trạng thái mới
+            try:
+                with open(state_file, "w") as f:
+                    json.dump({"strategy": "ICT_Zones_Pro", "active_obs": serialized_obs}, f, indent=4)
+            except Exception as e:
+                logger.warning(f"Lỗi lưu state: {e}")
             
         l_score, l_top, l_btm = calc_confluence(is_long=True)
         s_score, s_top, s_btm = calc_confluence(is_long=False)
