@@ -94,12 +94,26 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
 
         tf_map = {
             "M1": mt5.TIMEFRAME_M1,
+            "M2": getattr(mt5, "TIMEFRAME_M2", 2),
+            "M3": getattr(mt5, "TIMEFRAME_M3", 3),
+            "M4": getattr(mt5, "TIMEFRAME_M4", 4),
             "M5": mt5.TIMEFRAME_M5,
+            "M6": getattr(mt5, "TIMEFRAME_M6", 6),
+            "M10": getattr(mt5, "TIMEFRAME_M10", 10),
+            "M12": getattr(mt5, "TIMEFRAME_M12", 12),
             "M15": mt5.TIMEFRAME_M15,
+            "M20": getattr(mt5, "TIMEFRAME_M20", 20),
             "M30": mt5.TIMEFRAME_M30,
             "H1": mt5.TIMEFRAME_H1,
+            "H2": getattr(mt5, "TIMEFRAME_H2", 16386),
+            "H3": getattr(mt5, "TIMEFRAME_H3", 16387),
             "H4": mt5.TIMEFRAME_H4,
+            "H6": getattr(mt5, "TIMEFRAME_H6", 16390),
+            "H8": getattr(mt5, "TIMEFRAME_H8", 16392),
+            "H12": getattr(mt5, "TIMEFRAME_H12", 16396),
             "D1": mt5.TIMEFRAME_D1,
+            "W1": getattr(mt5, "TIMEFRAME_W1", 32769),
+            "MN1": getattr(mt5, "TIMEFRAME_MN1", 49153),
         }
         selected_tf = tf_map.get(tf_str, mt5.TIMEFRAME_M15)
 

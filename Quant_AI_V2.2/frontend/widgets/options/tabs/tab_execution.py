@@ -87,6 +87,8 @@ class ExecutionSettingsTab(QWidget):
         self.comboTradingTimeframe.addItem("H1 (1 Hour)", 60)
         self.comboTradingTimeframe.addItem("H4 (4 Hours)", 240)
         self.comboTradingTimeframe.addItem("D1 (Daily)", 1440)
+        self.comboTradingTimeframe.addItem("W1 (Weekly)", 10080)
+        self.comboTradingTimeframe.addItem("MN1 (Monthly)", 43200)
         self.comboTradingTimeframe.addItem("Follow Chart TF", "FOLLOW_CHART")
 
         self.comboExecutionMode = QComboBox()

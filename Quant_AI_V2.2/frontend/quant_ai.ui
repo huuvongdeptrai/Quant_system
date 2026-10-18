@@ -1063,10 +1063,22 @@
 
       <item>
        <widget class="QComboBox" name="comboBtTf">
-        <item><property name="text"><string>M15</string></property></item>
-        <item><property name="text"><string>H1</string></property></item>
-        <item><property name="text"><string>M5</string></property></item>
-        <item><property name="text"><string>H4</string></property></item>
+         <item><property name="text"><string>M1</string></property></item>
+         <item><property name="text"><string>M2</string></property></item>
+         <item><property name="text"><string>M3</string></property></item>
+         <item><property name="text"><string>M5</string></property></item>
+         <item><property name="text"><string>M10</string></property></item>
+         <item><property name="text"><string>M15</string></property></item>
+         <item><property name="text"><string>M30</string></property></item>
+         <item><property name="text"><string>H1</string></property></item>
+         <item><property name="text"><string>H2</string></property></item>
+         <item><property name="text"><string>H4</string></property></item>
+         <item><property name="text"><string>H6</string></property></item>
+         <item><property name="text"><string>H8</string></property></item>
+         <item><property name="text"><string>H12</string></property></item>
+         <item><property name="text"><string>D1</string></property></item>
+         <item><property name="text"><string>W1</string></property></item>
+         <item><property name="text"><string>MN1</string></property></item>
        </widget>
       </item>
 

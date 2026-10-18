@@ -722,6 +722,8 @@ class QuantTerminal(QObject):
                 60: mt5.TIMEFRAME_H1,
                 240: mt5.TIMEFRAME_H4,
                 1440: mt5.TIMEFRAME_D1,
+                10080: getattr(mt5, "TIMEFRAME_W1", 32769),
+                43200: getattr(mt5, "TIMEFRAME_MN1", 49153),
             }
             TF_NAMES = {
                 mt5.TIMEFRAME_M1: "M1",
@@ -731,6 +733,8 @@ class QuantTerminal(QObject):
                 mt5.TIMEFRAME_H1: "H1",
                 mt5.TIMEFRAME_H4: "H4",
                 mt5.TIMEFRAME_D1: "D1",
+                getattr(mt5, "TIMEFRAME_W1", 32769): "W1",
+                getattr(mt5, "TIMEFRAME_MN1", 49153): "MN1",
             }
             tf_setting = 15
             cfg_d = {}

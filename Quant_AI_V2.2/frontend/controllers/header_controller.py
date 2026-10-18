@@ -527,7 +527,9 @@ class WorkspaceHeaderController:
         self.tf_buttons = {}
         tf_map = {
             "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-            "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4, "D1": mt5.TIMEFRAME_D1
+            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1, "W1": getattr(mt5, "TIMEFRAME_W1", 32769),
+            "MN1": getattr(mt5, "TIMEFRAME_MN1", 49153)
         }
 
         self.active_timeframe = "H1"
@@ -537,10 +539,10 @@ class WorkspaceHeaderController:
             if hasattr(self.window, "change_timeframe"):
                 self.window.change_timeframe(tf_map.get(tf_k, mt5.TIMEFRAME_H1), tf_k)
 
-        for tf_name in ["M1", "M5", "M15", "H1", "H4", "D1"]:
+        for tf_name in ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]:
             btn_tf = QPushButton(tf_name)
             btn_tf.setObjectName(f"btnTopTf_{tf_name}")
-            btn_tf.setFixedSize(26, 20)
+            btn_tf.setFixedSize(28, 20)
             btn_tf.setCursor(Qt.PointingHandCursor)
             btn_tf.clicked.connect(lambda chk=False, k=tf_name: _on_tf_click(k))
             tf_layout.addWidget(btn_tf)

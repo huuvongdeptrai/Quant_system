@@ -105,8 +105,22 @@ class BacktestWorkbenchController:
 
         # 2. Timeframe & Strategy (No redundant labels TF: or Strategy:)
         if hasattr(self.window, "comboBtTf"):
-            self.window.comboBtTf.setFixedHeight(32)
-            self.window.comboBtTf.setFixedWidth(58)
+            combo_tf = self.window.comboBtTf
+            combo_tf.setFixedHeight(32)
+            combo_tf.setFixedWidth(68)
+            combo_tf.setMaxVisibleItems(16)
+            curr_tf = combo_tf.currentText().strip() if combo_tf.currentText() else "M15"
+            combo_tf.blockSignals(True)
+            combo_tf.clear()
+            tf_list = [
+                "M1", "M2", "M3", "M5", "M10", "M15", "M30",
+                "H1", "H2", "H4", "H6", "H8", "H12",
+                "D1", "W1", "MN1"
+            ]
+            combo_tf.addItems(tf_list)
+            idx = combo_tf.findText(curr_tf)
+            combo_tf.setCurrentIndex(idx if idx >= 0 else tf_list.index("M15"))
+            combo_tf.blockSignals(False)
 
         if hasattr(self.window, "comboBtEngine"):
             self.window.comboBtEngine.setFixedHeight(32)
