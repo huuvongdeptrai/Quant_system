@@ -1297,9 +1297,9 @@ QFrame#topHeaderContainer {
 
 QFrame#bottomTabBar, QFrame#bottomTabBarContainer {
     background-color: #ffffff;
-    border-top: 1px solid #e2e8f0;
-    min-height: 26px;
-    max-height: 26px;
+    border-top: 1px solid #cbd5e1;
+    min-height: 30px;
+    max-height: 30px;
 }
 
 /* Master-Detail Settings Architecture */

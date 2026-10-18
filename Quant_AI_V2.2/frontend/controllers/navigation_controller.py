@@ -141,32 +141,33 @@ class NavigationController:
                 it.setVisible(checked)
 
     def _get_nav_btn_styles(self, is_dark):
-        """Unified institutional styling for bottom workspace tab buttons:
-        Transparent background, 2px #0284c7 hairline top border on active tab, no gray blocks.
+        """Unified institutional styling for bottom workspace tab buttons (MT5 Toolbox / VS Code style):
+        12px font, Title Case, generous horizontal padding (0 18px), 30px comfortable height,
+        and clean top hairline active indicator with subtle background tint.
         """
         if is_dark:
             act_style = (
-                "QPushButton { background-color: transparent; color: #ffffff; font-family: 'Segoe UI', -apple-system, sans-serif; "
-                "font-size: 10px; font-weight: 700; letter-spacing: 0.3px; border: none; border-top: 2px solid #0284c7; padding: 0 10px; "
-                "min-height: 26px; max-height: 26px; border-radius: 0px; }"
+                "QPushButton { background-color: #0f172a; color: #38bdf8; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; "
+                "font-size: 12px; font-weight: 600; letter-spacing: 0.2px; border: none; border-top: 2px solid #38bdf8; padding: 0 18px; "
+                "min-height: 30px; max-height: 30px; border-radius: 0px; }"
             )
             inact_style = (
-                "QPushButton { background-color: transparent; color: #94a3b8; font-family: 'Segoe UI', -apple-system, sans-serif; "
-                "font-size: 10px; font-weight: 500; letter-spacing: 0.3px; border: none; border-top: 2px solid transparent; padding: 0 10px; "
-                "min-height: 26px; max-height: 26px; border-radius: 0px; } "
-                "QPushButton:hover { color: #ffffff; border-top: 2px solid #334155; }"
+                "QPushButton { background-color: transparent; color: #94a3b8; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; "
+                "font-size: 12px; font-weight: 500; letter-spacing: 0.2px; border: none; border-top: 2px solid transparent; padding: 0 18px; "
+                "min-height: 30px; max-height: 30px; border-radius: 0px; } "
+                "QPushButton:hover { color: #f8fafc; border-top: 2px solid #475569; background-color: #121827; }"
             )
         else:
             act_style = (
-                "QPushButton { background-color: transparent; color: #0f172a; font-family: 'Segoe UI', -apple-system, sans-serif; "
-                "font-size: 10px; font-weight: 700; letter-spacing: 0.3px; border: none; border-top: 2px solid #0284c7; padding: 0 10px; "
-                "min-height: 26px; max-height: 26px; border-radius: 0px; }"
+                "QPushButton { background-color: #f8fafc; color: #0284c7; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; "
+                "font-size: 12px; font-weight: 600; letter-spacing: 0.2px; border: none; border-top: 2px solid #0284c7; padding: 0 18px; "
+                "min-height: 30px; max-height: 30px; border-radius: 0px; }"
             )
             inact_style = (
-                "QPushButton { background-color: transparent; color: #64748b; font-family: 'Segoe UI', -apple-system, sans-serif; "
-                "font-size: 10px; font-weight: 500; letter-spacing: 0.3px; border: none; border-top: 2px solid transparent; padding: 0 10px; "
-                "min-height: 26px; max-height: 26px; border-radius: 0px; } "
-                "QPushButton:hover { color: #0f172a; border-top: 2px solid #cbd5e1; }"
+                "QPushButton { background-color: transparent; color: #64748b; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; "
+                "font-size: 12px; font-weight: 500; letter-spacing: 0.2px; border: none; border-top: 2px solid transparent; padding: 0 18px; "
+                "min-height: 30px; max-height: 30px; border-radius: 0px; } "
+                "QPushButton:hover { color: #0f172a; border-top: 2px solid #cbd5e1; background-color: #f1f5f9; }"
             )
         return act_style, inact_style
 

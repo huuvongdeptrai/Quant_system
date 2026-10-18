@@ -157,7 +157,7 @@ class WorkspaceHeaderController:
         sep = f'&nbsp;&nbsp;<span style="color:{sep_col}; font-weight:300;">|</span>&nbsp;&nbsp;'
 
         return (
-            f'<span style="font-family:\'Segoe UI\', -apple-system, sans-serif; font-size:10px;">'
+            f'<span style="font-family:\'Segoe UI\', -apple-system, sans-serif; font-size:11px;">'
             f'<span style="color:{dot_col};">●</span> <span style="color:{txt_col}; font-weight:500;">MT5:</span> <b style="color:{mt5_val_col}; font-weight:600;">{mt5_val}</b>'
             f'{sep}'
             f'<b style="color:{loss_col}; font-weight:600;">{loss_str}</b>'
@@ -350,11 +350,11 @@ class WorkspaceHeaderController:
                 f"QFrame#topHeaderContainer {{ background-color: {bg}; border-bottom: 1px solid {border}; }}"
             )
 
-        # 2. Bottom Tab Bar (Height: 26px)
+        # 2. Bottom Tab Bar (Height: 30px)
         if hasattr(self, "bottom_bar") and self.bottom_bar:
             bg = "#090d16" if is_dark else "#ffffff"
-            border = "#1e222d" if is_dark else "#e2e8f0"
-            self.bottom_bar.setFixedHeight(26)
+            border = "#1e222d" if is_dark else "#cbd5e1"
+            self.bottom_bar.setFixedHeight(30)
             self.bottom_bar.setStyleSheet(
                 f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}"
             )
@@ -446,7 +446,7 @@ class WorkspaceHeaderController:
 
         # 11. Consolidated Bottom Telemetry: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
-            self.lbl_bot_status.setFixedHeight(26)
+            self.lbl_bot_status.setFixedHeight(30)
             self.lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
 
         # 12. Bottom Audit Log Button (Ctrl+L trigger)
@@ -454,15 +454,19 @@ class WorkspaceHeaderController:
             if is_dark:
                 self.btn_bottom_audit.setStyleSheet(
                     "QPushButton#btnBottomAudit { background-color: #0d121f; color: #94a3b8; border: 1px solid #1e293b; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 6px; min-height: 18px; max-height: 18px; } "
+                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; border-radius: 2px; padding: 0 8px; min-height: 22px; max-height: 22px; } "
                     "QPushButton#btnBottomAudit:hover { background-color: #1e293b; color: #38bdf8; border-color: #38bdf8; }"
                 )
             else:
                 self.btn_bottom_audit.setStyleSheet(
                     "QPushButton#btnBottomAudit { background-color: #ffffff; color: #475569; border: 1px solid #cbd5e1; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 6px; min-height: 18px; max-height: 18px; } "
+                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; border-radius: 2px; padding: 0 8px; min-height: 22px; max-height: 22px; } "
                     "QPushButton#btnBottomAudit:hover { background-color: #f1f5f9; color: #0284c7; border-color: #0284c7; }"
                 )
+
+        # 13. Sync Bottom Navigation Tab Buttons Styling
+        if hasattr(self, "_update_nav_buttons_style"):
+            self._update_nav_buttons_style(is_dark)
 
 
 
@@ -738,31 +742,31 @@ class WorkspaceHeaderController:
         header_container.mouseMoveEvent = mouse_move
         header_container.mouseReleaseEvent = mouse_release
 
-        # BOTTOM BAR (26px): 4 Tabs on Left, Consolidated Telemetry on Right
+        # BOTTOM BAR (30px): 3 Workspaces on Left, Consolidated Telemetry on Right
         bottom_bar = QFrame()
         bottom_bar.setObjectName("bottomTabBar")
-        bottom_bar.setFixedHeight(26)
+        bottom_bar.setFixedHeight(30)
         bg = "#090d16" if is_dark else "#ffffff"
-        border = "#1e222d" if is_dark else "#e2e8f0"
+        border = "#1e222d" if is_dark else "#cbd5e1"
         bottom_bar.setStyleSheet(f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}")
         self.bottom_bar = bottom_bar
 
         b_layout = QHBoxLayout(bottom_bar)
         b_layout.setContentsMargins(10, 0, 10, 0)
-        b_layout.setSpacing(4)
+        b_layout.setSpacing(2)
 
-        # 3 Core Workspaces on Left: TERMINAL · PERFORMANCE · BACKTEST
+        # 3 Core Workspaces on Left: Terminal · Performance · Backtest (MT5 Toolbox / VS style)
         self.nav_buttons = []
         tabs_spec = [
-            ("btnNavTerminal", "TERMINAL", self.window.tab2, "TERMINAL"),
-            ("btnNavStats", "PERFORMANCE", self.window.tab3, "PERFORMANCE"),
-            ("btnNavBacktest", "BACKTEST", self.window.tab_5, "BACKTEST"),
+            ("btnNavTerminal", "Terminal", self.window.tab2, "Terminal"),
+            ("btnNavStats", "Performance", self.window.tab3, "Performance"),
+            ("btnNavBacktest", "Backtest", self.window.tab_5, "Backtest"),
         ]
 
         for obj_name, label_text, target_tab, full_title in tabs_spec:
             btn = QPushButton(label_text)
             btn.setObjectName(obj_name)
-            btn.setFixedHeight(26)
+            btn.setFixedHeight(30)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setCheckable(True)
             def _make_nav_handler(target_tab, btn_obj, tab_title):
@@ -809,7 +813,7 @@ class WorkspaceHeaderController:
         # Clickable Journal Pill (Ctrl+L)
         btn_audit = QPushButton("JOURNAL")
         btn_audit.setObjectName("btnBottomAudit")
-        btn_audit.setFixedHeight(18)
+        btn_audit.setFixedHeight(22)
         btn_audit.setCursor(Qt.PointingHandCursor)
         btn_audit.setToolTip("System Journal (Ctrl+L)")
         def _open_audit_journal(checked=False):
@@ -842,7 +846,7 @@ class WorkspaceHeaderController:
         # Right: Consolidated status strip: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         lbl_bot_status = QLabel()
         lbl_bot_status.setObjectName("lblBottomTelemetry")
-        lbl_bot_status.setFixedHeight(26)
+        lbl_bot_status.setFixedHeight(30)
         lbl_bot_status.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
         lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
         self.lbl_bot_status = lbl_bot_status
