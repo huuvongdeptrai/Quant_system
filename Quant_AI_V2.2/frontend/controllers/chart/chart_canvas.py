@@ -280,6 +280,15 @@ def setup_chart_ui(window):
             window.frameAIArea.setVisible(False)
         if hasattr(window, "btn_edge_plan") and window.btn_edge_plan:
             window.btn_edge_plan.setVisible(True)
+        # Institutional UX: Remove draft preview lines from chart if there is no active MT5 position/order
+        is_live = getattr(window, "is_live_position", False)
+        is_pending = getattr(window, "is_pending_order", False)
+        if not is_live and not is_pending:
+            try:
+                from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                clear_manual_chart_lines(window)
+            except Exception:
+                pass
 
     def _open_ai_drawer():
         if hasattr(window, "frameAIArea") and window.frameAIArea:
@@ -287,6 +296,25 @@ def setup_chart_ui(window):
             _reposition_trading_plan()
         if hasattr(window, "btn_edge_plan") and window.btn_edge_plan:
             window.btn_edge_plan.setVisible(False)
+        # Restore preview lines if drawer is reopened
+        try:
+            if getattr(window, "_plan_mode", "ai") == "manual":
+                if getattr(window, "_show_manual_preview", True):
+                    from frontend.controllers.chart.trading_plan_panel import _recalculate_manual_lot_and_rr
+                    _recalculate_manual_lot_and_rr(window)
+            else:
+                if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
+                    sig = window.active_signal_data
+                    from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
+                    update_order_proposal_html(
+                        window, sym=sig.get("sym"), entry=sig.get("entry"),
+                        sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
+                        signal_type=sig.get("signal_type", "BUY"),
+                        is_live_position=sig.get("is_live_position", False),
+                        live_ticket=sig.get("live_ticket", None)
+                    )
+        except Exception:
+            pass
 
     window._close_ai_drawer = _close_ai_drawer
     window._open_ai_drawer = _open_ai_drawer
@@ -1356,19 +1384,19 @@ def setup_chart_ui(window):
         angle=0, movable=False, pos=0.0,
         pen=pg.mkPen(color="#22c55e", width=1.5),
         label="BUY ORDER: --",
-        labelOpts={"color": "#22c55e", "position": 0.25, "fill": (0, 0, 0, 180)}
+        labelOpts={"color": "#22c55e", "position": 0.15, "fill": (0, 0, 0, 180)}
     )
     window.line_order_sl = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
         pen=pg.mkPen(color="#ef4444", width=1.5),
         label="STOP LOSS: --",
-        labelOpts={"color": "#ef4444", "position": 0.25, "fill": (0, 0, 0, 180)}
+        labelOpts={"color": "#ef4444", "position": 0.65, "fill": (0, 0, 0, 180)}
     )
     window.line_order_tp = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
         pen=pg.mkPen(color="#22c55e", width=1.5),
         label="TAKE PROFIT: --",
-        labelOpts={"color": "#22c55e", "position": 0.25, "fill": (0, 0, 0, 180)}
+        labelOpts={"color": "#22c55e", "position": 0.35, "fill": (0, 0, 0, 180)}
     )
 
     def _sync_order_metrics():

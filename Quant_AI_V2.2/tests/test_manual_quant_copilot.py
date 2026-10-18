@@ -14,6 +14,8 @@ from frontend.controllers.chart.trading_plan_panel import (
     execute_manual_quant_order,
     setup_trading_plan_cards,
     apply_playbook_cards_theme,
+    clear_manual_chart_lines,
+    _setup_chart_manual_lines,
 )
 
 
@@ -416,3 +418,97 @@ class TestPlanScenarioAudits:
         req = mock_order_send.call_args[0][0]
         assert req["action"] == mt5.TRADE_ACTION_REMOVE
         assert req["order"] == 987654
+
+    def test_manual_preview_toggle_and_clear_lines(self, qapp):
+        """User request audit: Manual order preview lines can be hidden/cleared via btnManualClearPreview."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=True)
+
+        assert hasattr(win, "btnManualClearPreview")
+        assert hasattr(win, "btnManualReset")
+        assert win.btnManualClearPreview.text() == "HIDE PREVIEW"
+        assert getattr(win, "_show_manual_preview", None) is True
+
+        mock_plot = MagicMock()
+        mock_items = set()
+        mock_plot.items.return_value = mock_items
+        mock_plot.addItem.side_effect = lambda it, **kw: mock_items.add(it)
+        mock_plot.removeItem.side_effect = lambda it: mock_items.discard(it)
+        win.plot_widget = mock_plot
+
+        line_entry = MagicMock()
+        line_sl = MagicMock()
+        line_tp = MagicMock()
+        win.line_order_entry = line_entry
+        win.line_order_sl = line_sl
+        win.line_order_tp = line_tp
+
+        # Click HIDE PREVIEW
+        win.btnManualClearPreview.click()
+        assert win._show_manual_preview is False
+        assert win.btnManualClearPreview.text() == "SHOW PREVIEW"
+        line_entry.setVisible.assert_called_with(False)
+        line_sl.setVisible.assert_called_with(False)
+        line_tp.setVisible.assert_called_with(False)
+        mock_plot.removeItem.assert_any_call(line_entry)
+        mock_plot.removeItem.assert_any_call(line_sl)
+        mock_plot.removeItem.assert_any_call(line_tp)
+
+        # Click SHOW PREVIEW to re-enable
+        win.btnManualClearPreview.click()
+        assert win._show_manual_preview is True
+        assert win.btnManualClearPreview.text() == "HIDE PREVIEW"
+
+    def test_drawer_close_clears_draft_lines_when_no_live_position(self, qapp):
+        """User request audit: When trading plan drawer is closed, draft lines are purged if not in a live position."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.is_live_position = False
+        win.is_pending_order = False
+
+        mock_plot = MagicMock()
+        mock_items = set()
+        mock_plot.items.return_value = mock_items
+        win.plot_widget = mock_plot
+
+        line_entry = MagicMock()
+        line_sl = MagicMock()
+        line_tp = MagicMock()
+        win.line_order_entry = line_entry
+        win.line_order_sl = line_sl
+        win.line_order_tp = line_tp
+
+        clear_manual_chart_lines(win)
+        line_entry.setVisible.assert_called_with(False)
+        line_sl.setVisible.assert_called_with(False)
+        line_tp.setVisible.assert_called_with(False)
+        mock_plot.removeItem.assert_any_call(line_entry)
+        mock_plot.removeItem.assert_any_call(line_sl)
+        mock_plot.removeItem.assert_any_call(line_tp)
+
+    def test_setup_chart_manual_lines_respects_preview_flag_and_drawer(self, qapp):
+        """_setup_chart_manual_lines will NOT render lines if preview is off or drawer is hidden."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win._plan_mode = "manual"
+        mock_plot = MagicMock()
+        win.plot_widget = mock_plot
+
+        line_entry = MagicMock()
+        win.line_order_entry = line_entry
+
+        # Case 1: _show_manual_preview is False
+        win._show_manual_preview = False
+        _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
+        mock_plot.addItem.assert_not_called()
+
+        # Case 2: frameAIArea is not visible
+        win._show_manual_preview = True
+        frame_ai = MagicMock()
+        frame_ai.isVisible.return_value = False
+        win.frameAIArea = frame_ai
+        _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
+        mock_plot.addItem.assert_not_called()
+

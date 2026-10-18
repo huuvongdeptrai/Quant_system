@@ -78,6 +78,23 @@ def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 
     return lot, risk_dlr
 
 
+def clear_manual_chart_lines(window):
+    """Safely remove and hide preview/draft order lines from the chart."""
+    for line_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
+        if hasattr(window, line_name):
+            l_obj = getattr(window, line_name)
+            if l_obj is not None:
+                try:
+                    l_obj.setVisible(False)
+                except Exception:
+                    pass
+                if hasattr(window, "plot_widget") and window.plot_widget:
+                    try:
+                        window.plot_widget.removeItem(l_obj)
+                    except Exception:
+                        pass
+
+
 def update_order_proposal_html(
     window,
     sym=None,
@@ -145,19 +162,7 @@ def update_order_proposal_html(
         window.pending_ticket = None
 
         # Gỡ bỏ toàn bộ đường lệnh ảo khỏi biểu đồ
-        for line_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
-            if hasattr(window, line_name):
-                l_obj = getattr(window, line_name)
-                if l_obj is not None:
-                    try:
-                        l_obj.setVisible(False)
-                    except Exception:
-                        pass
-                    if hasattr(window, "plot_widget"):
-                        try:
-                            window.plot_widget.removeItem(l_obj)
-                        except Exception:
-                            pass
+        clear_manual_chart_lines(window)
 
         # Card 1: Mô hình thiết lập (Standby)
         if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
@@ -813,7 +818,7 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             b.style().polish(b)
 
     # Preset buttons
-    for pre_name in ["btnPresetATR", "btnPresetSwing", "btnPresetRR15", "btnPresetRR20", "btnPresetRR30"]:
+    for pre_name in ["btnPresetATR", "btnPresetSwing", "btnPresetRR15", "btnPresetRR20", "btnPresetRR30", "btnManualClearPreview", "btnManualReset"]:
         b = getattr(window, pre_name, None)
         if b:
             b.style().unpolish(b)
@@ -1020,7 +1025,13 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     """Render draggable SL and TP lines on the chart for the manual copilot order."""
     if getattr(window, "_plan_mode", "ai") != "manual":
         return
-    if not hasattr(window, "plot_widget"):
+    if not hasattr(window, "plot_widget") or not window.plot_widget:
+        return
+    if not getattr(window, "_show_manual_preview", True):
+        clear_manual_chart_lines(window)
+        return
+    if hasattr(window, "frameAIArea") and not window.frameAIArea.isVisible():
+        clear_manual_chart_lines(window)
         return
 
     info = mt5.symbol_info(sym)
@@ -1195,7 +1206,10 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         window.btnManualExecute.style().polish(window.btnManualExecute)
 
     # Also update chart lines
-    _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
+    if getattr(window, "_show_manual_preview", True) and (not hasattr(window, "frameAIArea") or window.frameAIArea.isVisible()):
+        _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
+    else:
+        clear_manual_chart_lines(window)
 
 
 def sync_manual_copilot_quotes(window):
@@ -1971,6 +1985,26 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_m_exec.setCursor(Qt.PointingHandCursor)
     layout_m_action.addWidget(btn_m_exec)
 
+    row_m_subaction = QHBoxLayout()
+    row_m_subaction.setContentsMargins(0, 0, 0, 0)
+    row_m_subaction.setSpacing(6)
+
+    btn_m_clear_preview = QPushButton("HIDE PREVIEW")
+    btn_m_clear_preview.setObjectName("btnManualClearPreview")
+    btn_m_clear_preview.setFixedHeight(22)
+    btn_m_clear_preview.setCursor(Qt.PointingHandCursor)
+    btn_m_clear_preview.setToolTip("Toggle preview order lines on the chart")
+
+    btn_m_reset = QPushButton("RESET")
+    btn_m_reset.setObjectName("btnManualReset")
+    btn_m_reset.setFixedHeight(22)
+    btn_m_reset.setCursor(Qt.PointingHandCursor)
+    btn_m_reset.setToolTip("Reset SL/TP to standard ATR volatility defaults")
+
+    row_m_subaction.addWidget(btn_m_clear_preview, 2)
+    row_m_subaction.addWidget(btn_m_reset, 1)
+    layout_m_action.addLayout(row_m_subaction)
+
     layout_manual.addWidget(card_m_dir)
     layout_manual.addWidget(sep_m1)
     layout_manual.addWidget(card_m_risk)
@@ -2027,6 +2061,9 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.lblManualLotSummary = lbl_lot_sum
     window.lblManualGateTitle = lbl_mg_title
     window.btnManualExecute = btn_m_exec
+    window.btnManualClearPreview = btn_m_clear_preview
+    window.btnManualReset = btn_m_reset
+    window._show_manual_preview = True
 
     # Assemble containers into parent layout
     window.containerPlanAI = container_ai
@@ -2068,14 +2105,7 @@ def setup_trading_plan_cards(window, is_dark=False):
                     live_ticket=sig.get("live_ticket", None)
                 )
             else:
-                for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
-                    if hasattr(window, l_name):
-                        l_obj = getattr(window, l_name)
-                        if l_obj is not None:
-                            try:
-                                l_obj.setVisible(False)
-                            except Exception:
-                                pass
+                clear_manual_chart_lines(window)
 
     btn_mode_ai.clicked.connect(lambda: _switch_mode("ai"))
     btn_mode_manual.clicked.connect(lambda: _switch_mode("manual"))
@@ -2233,6 +2263,27 @@ def setup_trading_plan_cards(window, is_dark=False):
     # Signal wiring: Execute button
     btn_m_exec.clicked.connect(lambda: execute_manual_quant_order(window))
 
+    # Signal wiring: Preview toggle and Reset
+    def _toggle_manual_preview():
+        cur_vis = getattr(window, "_show_manual_preview", True)
+        new_vis = not cur_vis
+        window._show_manual_preview = new_vis
+        if new_vis:
+            btn_m_clear_preview.setText("HIDE PREVIEW")
+            _recalculate_manual_lot_and_rr(window)
+        else:
+            btn_m_clear_preview.setText("SHOW PREVIEW")
+            clear_manual_chart_lines(window)
+
+    def _reset_manual_defaults():
+        window._show_manual_preview = True
+        btn_m_clear_preview.setText("HIDE PREVIEW")
+        _apply_atr_preset()
+        _recalculate_manual_lot_and_rr(window)
+
+    btn_m_clear_preview.clicked.connect(_toggle_manual_preview)
+    btn_m_reset.clicked.connect(_reset_manual_defaults)
+
     apply_playbook_cards_theme(window, is_dark)
 
 
@@ -2307,19 +2358,7 @@ def start_signal_expiry_countdown(window, duration_sec=None):
             if hasattr(window, "lblSignalExpiry") and window.lblSignalExpiry:
                 window.lblSignalExpiry.setText("STATUS: SIGNAL EXPIRED")
                 window.lblSignalExpiry.setStyleSheet("color: #ef4444; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
-            for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
-                if hasattr(window, l_name):
-                    l_obj = getattr(window, l_name)
-                    if l_obj is not None:
-                        try:
-                            l_obj.setVisible(False)
-                        except Exception:
-                            pass
-                        if hasattr(window, "plot_widget"):
-                            try:
-                                window.plot_widget.removeItem(l_obj)
-                            except Exception:
-                                pass
+            clear_manual_chart_lines(window)
             window.order_proposal_active = False
 
     timer.timeout.connect(_tick)
