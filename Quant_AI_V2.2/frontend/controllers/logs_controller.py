@@ -42,6 +42,7 @@ class LogManager:
         self.current_tag_filter = "ALL"
         self.is_dark_theme = False  # Default to strict light mode
         self.audit_dialog = None
+        self.auto_scroll_enabled = True
 
         if self.tb:
             self.setup_ui()
@@ -583,12 +584,9 @@ class LogManager:
             )
             btn_export.clicked.connect(self.export_csv)
 
-        # Style Auto-Scroll CheckBox
+        # Auto-Scroll is an intrinsic default behavior; ensure checkbox is not shown on UI
         if hasattr(self.window, "checkAutoScroll"):
-            self.window.checkAutoScroll.setText("Auto-Scroll")
-            self.window.checkAutoScroll.setStyleSheet(
-                "QCheckBox { font-family: 'Segoe UI', sans-serif; font-size: 10.5px; color: #475569; spacing: 5px; }"
-            )
+            self.window.checkAutoScroll.setVisible(False)
 
     def export_csv(self):
         """Export current log table to CSV in storage/logs/."""

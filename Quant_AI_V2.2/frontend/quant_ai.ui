@@ -968,7 +968,6 @@
     <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
 
     <item><widget class="QLineEdit" name="searchLog"><property name="placeholderText"><string>Search...</string></property><property name="minimumWidth"><number>240</number></property></widget></item>
-    <item><widget class="QCheckBox" name="checkAutoScroll"><property name="text"><string>Auto-scroll</string></property><property name="checked"><bool>true</bool></property></widget></item>
     <item><widget class="QPushButton" name="btnClearLogs"><property name="text"><string>CLEAR</string></property></widget></item>
     <item><widget class="QPushButton" name="btnExportLogs"><property name="text"><string>EXPORT</string></property><property name="class"><string>btn_primary</string></property></widget></item>
    </layout>
