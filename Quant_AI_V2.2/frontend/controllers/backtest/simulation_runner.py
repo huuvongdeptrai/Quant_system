@@ -111,13 +111,14 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         if rates is None or len(rates) < 30:
             self._log(f"[{now_str}] [ERROR] Insufficient bar data from MetaTrader 5 ({self.current_symbol}) for {from_str} to {to_str}.")
             self._log(f"[{now_str}] [CANCELLED] Simulation aborted due to missing MT5 market data.")
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self.window,
-                "Missing MT5 Data",
-                f"Unable to load historical bars from MetaTrader 5 for {self.current_symbol} between {from_str} and {to_str}.\n\n"
-                "Please ensure MT5 is connected and history is loaded for this symbol and period."
-            )
+            if not is_initial:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self.window,
+                    "Missing MT5 Data",
+                    f"Unable to load historical bars from MetaTrader 5 for {self.current_symbol} between {from_str} and {to_str}.\n\n"
+                    "Please ensure MT5 is connected and history is loaded for this symbol and period."
+                )
             if hasattr(self, "btn_run_sim"):
                 self.btn_run_sim.setEnabled(True)
             if hasattr(self, "progress_bar"):
@@ -137,7 +138,13 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             commission_per_trade=comm_val,
             slippage_pct=float(slippage_pts) * 0.00001,
         )
-        report = bt.run(df, target_rr=target_rr)
+        report = bt.run(
+            df,
+            target_rr=target_rr,
+            strategy_name=strat_name,
+            symbol=self.current_symbol,
+            fill_on_next_open=True,
+        )
         self.last_report = report
         exec_time = (time.perf_counter() - t0) * 1000.0
 
@@ -353,7 +360,8 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         if hasattr(report, "trade_records") and report.trade_records:
             for idx, t in enumerate(report.trade_records, 1):
                 pnl_str = f"+${t['pnl']:,.2f}" if t['pnl'] >= 0 else f"-${abs(t['pnl']):,.2f}"
-                self._log(f"[{now_str}] [TRADE #{idx:02d}] {t['side']} {self.current_symbol} 1.00 lot @ {t['entry']:.2f} -> {t['outcome']} {t['exit']:.2f} | PnL: {pnl_str}")
+                vol = t.get("volume", 1.0)
+                self._log(f"[{now_str}] [TRADE #{idx:02d}] {t['side']} {self.current_symbol} {vol:.2f} lots @ {t['entry']:.2f} -> {t['outcome']} {t['exit']:.2f} | PnL: {pnl_str}")
         elif report.trades:
             for idx, pnl in enumerate(report.trades, 1):
                 side = "BUY" if idx % 2 == 1 else "SELL"

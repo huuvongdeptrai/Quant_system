@@ -43,6 +43,20 @@ class BacktestReport:
     trade_records: list = None
 
 
+def get_symbol_multiplier(symbol: str) -> float:
+    """Return USD value change per 1.0 price unit per 1.0 standard lot."""
+    s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
+    if "BTC" in s or "ETH" in s:
+        return 1.0
+    if "XAU" in s or "GOLD" in s or "XAG" in s:
+        return 100.0
+    if any(idx in s for idx in ["US30", "NAS100", "SPX500", "GER40", "DAX", "US100", "US500", "DJ30"]):
+        return 10.0
+    if "JPY" in s:
+        return 667.0
+    return 100000.0
+
+
 class VectorizedBacktester:
     """
     Động cơ Backtest Vectorized xử lý thuần ma trận NumPy.
@@ -70,12 +84,24 @@ class VectorizedBacktester:
             res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
         return res
 
-    def run(self, df: pd.DataFrame, target_rr: float = 2.5) -> BacktestReport:
+    def run(
+        self,
+        df: pd.DataFrame,
+        target_rr: float = 2.5,
+        strategy_name: str = "wyckoff",
+        symbol: str = "XAUUSD",
+        fill_on_next_open: bool = False,
+    ) -> BacktestReport:
         start_time = time.perf_counter()
 
         closes = df["close"].to_numpy(dtype=np.float64)
         highs = df["high"].to_numpy(dtype=np.float64)
         lows = df["low"].to_numpy(dtype=np.float64)
+        opens = (
+            df["open"].to_numpy(dtype=np.float64)
+            if "open" in df.columns
+            else closes
+        )
         volumes = (
             df["tick_volume"].to_numpy(dtype=np.float64)
             if "tick_volume" in df.columns
@@ -106,7 +132,9 @@ class VectorizedBacktester:
         sl_price = 0.0
         tp_price = 0.0
         risk_amt = 0.0
+        lot_size = 0.1
         total_comm = 0.0
+        mult = get_symbol_multiplier(symbol)
 
         balance = self.initial_balance
         equity_curve = [balance]
@@ -124,14 +152,30 @@ class VectorizedBacktester:
                     if l <= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
-                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": sl_price, "outcome": "SL", "pnl": loss_pnl})
+                        trade_records.append({
+                            "side": "BUY",
+                            "entry": entry_price,
+                            "exit": sl_price,
+                            "outcome": "SL",
+                            "pnl": loss_pnl,
+                            "volume": round(lot_size, 2),
+                            "symbol": symbol,
+                        })
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
                     elif h >= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
-                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": tp_price, "outcome": "TP", "pnl": win_pnl})
+                        trade_records.append({
+                            "side": "BUY",
+                            "entry": entry_price,
+                            "exit": tp_price,
+                            "outcome": "TP",
+                            "pnl": win_pnl,
+                            "volume": round(lot_size, 2),
+                            "symbol": symbol,
+                        })
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
@@ -139,14 +183,30 @@ class VectorizedBacktester:
                     if h >= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
-                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": sl_price, "outcome": "SL", "pnl": loss_pnl})
+                        trade_records.append({
+                            "side": "SELL",
+                            "entry": entry_price,
+                            "exit": sl_price,
+                            "outcome": "SL",
+                            "pnl": loss_pnl,
+                            "volume": round(lot_size, 2),
+                            "symbol": symbol,
+                        })
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
                     elif l <= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
-                        trade_records.append({"side": "BUY" if pos_type == 1 else "SELL", "entry": entry_price, "exit": tp_price, "outcome": "TP", "pnl": win_pnl})
+                        trade_records.append({
+                            "side": "SELL",
+                            "entry": entry_price,
+                            "exit": tp_price,
+                            "outcome": "TP",
+                            "pnl": win_pnl,
+                            "volume": round(lot_size, 2),
+                            "symbol": symbol,
+                        })
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
@@ -154,30 +214,46 @@ class VectorizedBacktester:
             if not in_pos and i < n - 5:
                 risk_amt = balance * (self.risk_per_trade_pct / 100.0)
                 sl_dist = 1.5 * a
+                lot_size = max(0.01, min(round(risk_amt / (max(sl_dist, 0.0001) * mult), 2), 50.0))
 
-                # Tín hiệu Wyckoff Trend Momentum + Volume Expansion
-                if (
-                    ema20[i] > ema50[i]
-                    and c > ema20[i]
-                    and closes[i - 1] <= ema20[i - 1]
-                    and v >= 1.1 * vol_ma[i]
-                ):
+                strat_lower = (strategy_name or "wyckoff").lower()
+                if "ict" in strat_lower or "fvg" in strat_lower:
+                    # ICT Zones Pro v4.2 (Fair Value Gap displacement + trend alignment)
+                    is_bull_fvg = (lows[i] - highs[i - 2]) > (0.15 * a) and closes[i - 1] > closes[i - 2]
+                    is_bear_fvg = (lows[i - 2] - highs[i]) > (0.15 * a) and closes[i - 1] < closes[i - 2]
+                    buy_cond = is_bull_fvg and c > ema20[i] and ema20[i] >= ema50[i]
+                    sell_cond = is_bear_fvg and c < ema20[i] and ema20[i] <= ema50[i]
+                elif "ema" in strat_lower:
+                    # EMA Dual Cross (Fast EMA20 crossing Slow EMA50)
+                    buy_cond = ema20[i] > ema50[i] and closes[i - 1] <= ema20[i - 1] and c > ema20[i]
+                    sell_cond = ema20[i] < ema50[i] and closes[i - 1] >= ema20[i - 1] and c < ema20[i]
+                else:
+                    # Wyckoff Trend Momentum + Volume Expansion (Default baseline)
+                    buy_cond = (
+                        ema20[i] > ema50[i]
+                        and c > ema20[i]
+                        and closes[i - 1] <= ema20[i - 1]
+                        and v >= 1.1 * vol_ma[i]
+                    )
+                    sell_cond = (
+                        ema20[i] < ema50[i]
+                        and c < ema20[i]
+                        and closes[i - 1] >= ema20[i - 1]
+                        and v >= 1.1 * vol_ma[i]
+                    )
+
+                if buy_cond:
                     in_pos = True
                     pos_type = 1
-                    entry_price = c
-                    sl_price = c - sl_dist
-                    tp_price = c + sl_dist * target_rr
-                elif (
-                    ema20[i] < ema50[i]
-                    and c < ema20[i]
-                    and closes[i - 1] >= ema20[i - 1]
-                    and v >= 1.1 * vol_ma[i]
-                ):
+                    entry_price = float(opens[i + 1]) if fill_on_next_open and "open" in df.columns and i + 1 < n else c
+                    sl_price = entry_price - sl_dist
+                    tp_price = entry_price + sl_dist * target_rr
+                elif sell_cond:
                     in_pos = True
                     pos_type = -1
-                    entry_price = c
-                    sl_price = c + sl_dist
-                    tp_price = c - sl_dist * target_rr
+                    entry_price = float(opens[i + 1]) if fill_on_next_open and "open" in df.columns and i + 1 < n else c
+                    sl_price = entry_price + sl_dist
+                    tp_price = entry_price - sl_dist * target_rr
 
             equity_curve.append(balance)
 

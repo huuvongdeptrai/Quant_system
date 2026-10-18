@@ -7,6 +7,20 @@ import os
 import sys
 
 
+def get_symbol_multiplier(symbol: str) -> float:
+    """Return USD value change per 1.0 price unit per 1.0 standard lot."""
+    s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
+    if "BTC" in s or "ETH" in s:
+        return 1.0
+    if "XAU" in s or "GOLD" in s or "XAG" in s:
+        return 100.0
+    if any(idx in s for idx in ["US30", "NAS100", "SPX500", "GER40", "DAX", "US100", "US500", "DJ30"]):
+        return 10.0
+    if "JPY" in s:
+        return 667.0
+    return 100000.0
+
+
 class BacktestWorker(QThread):
     finished_signal = Signal(dict)
     log_signal = Signal(str)
@@ -154,10 +168,14 @@ class BacktestWorker(QThread):
 
                 # Thực thi đóng lệnh
                 if exit_reason:
-                    if pos_type == 1:
-                        pnl = (exit_price - entry_price) / entry_price * balance * 10
+                    pts = (exit_price - entry_price) if pos_type == 1 else (entry_price - exit_price)
+                    mult = get_symbol_multiplier(self.symbol)
+                    if current_sl and abs(entry_price - current_sl) > 0:
+                        sl_dist = abs(entry_price - current_sl)
+                        lot_size = max(0.01, min(round((balance * 0.01) / (sl_dist * mult), 2), 10.0))
                     else:
-                        pnl = (entry_price - exit_price) / entry_price * balance * 10
+                        lot_size = 1.0
+                    pnl = pts * lot_size * mult
 
                     balance += pnl
                     trades.append(
@@ -168,6 +186,7 @@ class BacktestWorker(QThread):
                             "entry_price": entry_price,
                             "exit_price": exit_price,
                             "pnl": pnl,
+                            "volume": lot_size,
                             "reason": exit_reason,
                         }
                     )

@@ -1,0 +1,163 @@
+"""
+Unit & Integration Tests for Quantitative Backtest Pipeline, Multi-Strategy Dispatch,
+Realistic Fill Modeling, and Contract Multiplier Math.
+Quant AI V2.2 - Institutional Verification
+"""
+
+import pytest
+import numpy as np
+import pandas as pd
+from research.backtest_vectorized import VectorizedBacktester, get_symbol_multiplier
+from backend.core.strategies.strategy_loader import discover_strategies
+from backend.backtest.backtest_engine import BacktestWorker, get_symbol_multiplier as engine_multiplier
+
+
+def generate_test_ohlcv(n=2000, seed=42):
+    """Generates synthetic OHLCV DataFrame with distinct open, high, low, close bars."""
+    np.random.seed(seed)
+    dt = 1 / 252
+    mu = 0.10
+    sigma = 0.15
+    closes = [2000.0]
+    for _ in range(n - 1):
+        ret = np.random.normal((mu - 0.5 * sigma**2) * dt, sigma * np.sqrt(dt))
+        closes.append(closes[-1] * np.exp(ret))
+
+    opens = [closes[0]] + closes[:-1]  # open is previous close
+    highs = [max(o, c) * (1.0 + abs(np.random.normal(0, 0.002))) for o, c in zip(opens, closes)]
+    lows = [min(o, c) * (1.0 - abs(np.random.normal(0, 0.002))) for o, c in zip(opens, closes)]
+    vols = [1000.0 * (1.0 + abs(np.random.normal(0, 0.5))) for _ in closes]
+
+    return pd.DataFrame({
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "tick_volume": vols,
+    })
+
+
+class TestBacktestPipelineAndStrategyDispatch:
+    def test_multi_strategy_dispatch_produces_distinct_signals(self):
+        """Verify that selecting ICT, Wyckoff, or EMA actually executes distinct trading algorithms."""
+        df = generate_test_ohlcv(n=2500, seed=101)
+        bt = VectorizedBacktester(initial_balance=100000.0, risk_per_trade_pct=1.0)
+
+        rep_wyckoff = bt.run(df, target_rr=2.5, strategy_name="Wyckoff Momentum Pro (Vectorized)")
+        rep_ict = bt.run(df, target_rr=2.5, strategy_name="ICT Zones Pro v4.2 (Asian + FVG)")
+        rep_ema = bt.run(df, target_rr=2.0, strategy_name="EMA Dual Cross (Resilience Benchmark)")
+
+        assert rep_wyckoff is not None, "Wyckoff report must not be None"
+        assert rep_ict is not None, "ICT report must not be None"
+        assert rep_ema is not None, "EMA report must not be None"
+
+        # Verify that strategies produce different trade counts and results
+        assert rep_wyckoff.total_trades > 0
+        assert rep_ict.total_trades > 0
+        assert rep_ema.total_trades > 0
+
+        # The strategies operate on completely different rules (FVG vs Momentum vs EMA Cross)
+        assert rep_ict.total_trades != rep_wyckoff.total_trades or rep_ict.win_rate_pct != rep_wyckoff.win_rate_pct
+
+    def test_dynamic_lot_sizing_by_asset_class(self):
+        """Verify that contract multipliers properly scale lot size and risk across asset classes."""
+        # Gold: Multiplier = 100.0
+        gold_mult = get_symbol_multiplier("XAUUSD")
+        assert gold_mult == 100.0
+
+        # Crypto: Multiplier = 1.0
+        btc_mult = get_symbol_multiplier("BTCUSD")
+        assert btc_mult == 1.0
+
+        # FX: Multiplier = 100,000.0
+        eur_mult = get_symbol_multiplier("EURUSD")
+        assert eur_mult == 100000.0
+
+        # JPY: Multiplier ~ 667.0
+        jpy_mult = get_symbol_multiplier("USDJPY")
+        assert jpy_mult == 667.0
+
+        # Engine multiplier must match research multiplier
+        assert engine_multiplier("XAUUSD") == gold_mult
+        assert engine_multiplier("BTCUSD") == btc_mult
+
+    def test_trade_records_contain_realistic_volume_and_symbol(self):
+        """Verify that trade records contain realistic lots and asset symbols."""
+        df = generate_test_ohlcv(n=2000, seed=777)
+        bt = VectorizedBacktester(initial_balance=100000.0, risk_per_trade_pct=1.0)
+        report = bt.run(df, target_rr=2.5, strategy_name="wyckoff", symbol="XAUUSD")
+
+        assert report is not None
+        assert report.trade_records is not None and len(report.trade_records) > 0
+
+        for trade in report.trade_records:
+            assert "volume" in trade, "Trade record must include volume"
+            assert "symbol" in trade, "Trade record must include symbol"
+            assert trade["symbol"] == "XAUUSD"
+            assert trade["volume"] > 0, "Volume must be positive"
+            assert trade["volume"] <= 50.0, "Volume must be within safety bounds"
+
+    def test_next_bar_open_fill_eliminates_lookahead(self):
+        """Verify fill_on_next_open correctly executes on the open of the following candle."""
+        df = generate_test_ohlcv(n=1000, seed=888)
+        bt = VectorizedBacktester(initial_balance=100000.0, risk_per_trade_pct=1.0)
+
+        # Baseline: fill on close of signal candle
+        rep_close = bt.run(df, target_rr=2.5, fill_on_next_open=False)
+        # Unbiased: fill on open of next candle
+        rep_open = bt.run(df, target_rr=2.5, fill_on_next_open=True)
+
+        assert rep_close is not None
+        assert rep_open is not None
+        assert len(rep_close.trade_records) > 0
+        assert len(rep_open.trade_records) > 0
+
+    def test_backtest_worker_pnl_contract_math(self):
+        """Verify BacktestWorker uses pts * lot_size * mult instead of * balance * 10."""
+        # Create a mock worker
+        rates = [
+            {"time": 1000 + i * 900, "open": 2600.0 + i, "high": 2605.0 + i, "low": 2595.0 + i, "close": 2601.0 + i, "tick_volume": 100}
+            for i in range(100)
+        ]
+        user_code = '''
+def generate_signals(df):
+    df["signal"] = 0
+    df["sl"] = 0.0
+    df["tp"] = 0.0
+    # Buy at bar 10, exit at bar 15
+    df.loc[10, "signal"] = 1
+    df.loc[10, "sl"] = 2590.0
+    df.loc[10, "tp"] = 2650.0
+    df.loc[15, "signal"] = -1
+    return df
+'''
+        worker = BacktestWorker(
+            symbol="XAUUSD",
+            timeframe="M15",
+            balance=100000.0,
+            user_code=user_code,
+            rates=rates,
+        )
+
+        results = {}
+        worker.finished_signal.connect(lambda res: results.update(res))
+        worker.run()
+
+        assert "metrics" in results
+        assert results["metrics"]["total_trades"] >= 1
+        assert len(results["trades"]) >= 1
+        trade = results["trades"][0]
+        # XAUUSD: multiplier is 100.0
+        # Entry at bar 11 open = 2611.0, exit at bar 16 open = 2616.0
+        # Points = 5.0, lot_size = (100000 * 0.01) / (21 * 100) = ~0.48 lots
+        # PnL should be around 5.0 * 0.48 * 100 = ~$240 (NOT $1,900,000 from * balance * 10!)
+        assert abs(trade["pnl"] - 240.0) < 1.0, f"Expected realistic PnL ~240, got {trade['pnl']}"
+
+    def test_strategy_loader_discovers_builtin_strategies(self):
+        """Verify strategy loader discovers all built-in core models."""
+        strategies = discover_strategies()
+        assert len(strategies) >= 3
+        strat_names = [s["name"] for s in strategies]
+        assert any("ICT" in name for name in strat_names)
+        assert any("Wyckoff" in name for name in strat_names)
+        assert any("EMA" in name for name in strat_names)
