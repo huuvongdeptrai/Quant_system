@@ -434,7 +434,7 @@ def audit_frontend_ui():
             terminal._switch_nav_tab(tab_widget, btn, title)
             app.processEvents()
         t_tabs = (time.perf_counter() - t0) * 1000
-        record_audit("UI Navigation", "Workspace Tabs Switch (1-4)", tabs_ok, t_tabs, "Navigated all 4 workspaces seamlessly")
+        record_audit("UI Navigation", "Workspace Tabs Switch (1-3)", tabs_ok, t_tabs, "Navigated all 3 core workspaces seamlessly")
 
         # 2. Test MT5 Options Dialog Modal
         t0 = time.perf_counter()
@@ -445,6 +445,16 @@ def audit_frontend_ui():
         app.processEvents()
         t_dlg = (time.perf_counter() - t0) * 1000
         record_audit("UI Dialog", "MT5 Options Overlay (Ctrl+O)", dlg_open, t_dlg, "Modal successfully created and closed")
+
+        # 3. Test System Audit & Journal Dialog (Ctrl+L)
+        t0 = time.perf_counter()
+        dlg_audit = terminal.logs.open_audit_dialog()
+        app.processEvents()
+        dlg_audit_open = dlg_audit.isVisible()
+        dlg_audit.close()
+        app.processEvents()
+        t_audit = (time.perf_counter() - t0) * 1000
+        record_audit("UI Dialog", "System Audit Journal (Ctrl+L)", dlg_audit_open, t_audit, "Audit dialog opened and closed cleanly")
 
         # 3. Test Dual-Theme Engine Switching
         t0 = time.perf_counter()

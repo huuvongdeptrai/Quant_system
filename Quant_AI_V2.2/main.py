@@ -180,6 +180,11 @@ class QuantTerminal(QObject):
             self.shortcut_options = QShortcut(QKeySequence("Ctrl+O"), self.window)
             self.shortcut_options.activated.connect(self.settings.open_options_dialog)
 
+        # Global shortcut Ctrl+L for authentic System Audit & Journal Dialog
+        if hasattr(self, "logs") and hasattr(self.logs, "toggle_audit_dialog"):
+            self.shortcut_logs = QShortcut(QKeySequence("Ctrl+L"), self.window)
+            self.shortcut_logs.activated.connect(self.logs.toggle_audit_dialog)
+
         # Initialize directly in institutional Light Theme per user preference
         self._on_theme_changed(False)
 

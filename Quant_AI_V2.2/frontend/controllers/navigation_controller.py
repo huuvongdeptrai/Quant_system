@@ -93,6 +93,13 @@ class NavigationController:
             if idx_tab1 != -1:
                 self.window.tabWidget.removeTab(idx_tab1)
 
+        # Remove Tab 4 (System Audit Logs) from main tabWidget
+        # Logs are displayed in floating modal System Audit Dialog via Ctrl+L or Telemetry button
+        if hasattr(self.window, "tab4"):
+            idx_tab4 = self.window.tabWidget.indexOf(self.window.tab4)
+            if idx_tab4 != -1:
+                self.window.tabWidget.removeTab(idx_tab4)
+
 
     def _toggle_candles(self, checked):
         if hasattr(self.window, "candlesticks") and self.window.candlesticks:

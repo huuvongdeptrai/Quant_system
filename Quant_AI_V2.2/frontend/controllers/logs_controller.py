@@ -41,6 +41,7 @@ class LogManager:
         self.tb = getattr(window, "tableLogs", None)
         self.current_tag_filter = "ALL"
         self.is_dark_theme = False  # Default to strict light mode
+        self.audit_dialog = None
 
         if self.tb:
             self.setup_ui()
@@ -48,6 +49,24 @@ class LogManager:
             self.setup_search()
 
         self._seed_initial_logs()
+
+    def open_audit_dialog(self):
+        """Open or focus the floating institutional System Audit & Journal Dialog (Ctrl+L)."""
+        if self.audit_dialog is None:
+            from frontend.widgets.audit_log_dialog import AuditLogDialog
+            self.audit_dialog = AuditLogDialog(
+                parent=self.window,
+                log_widget=getattr(self.window, "tab4", None),
+                log_manager=self,
+                is_dark=self.is_dark_theme
+            )
+        return self.audit_dialog.open_dialog()
+
+    def toggle_audit_dialog(self):
+        """Toggle the visibility of the System Audit & Journal Dialog."""
+        if self.audit_dialog is None:
+            return self.open_audit_dialog()
+        return self.audit_dialog.toggle_dialog()
 
     def _setup_inspector_panel(self):
         """Constructs an institutional 24px header and Event Context / JSON Payload Inspector."""
@@ -630,7 +649,7 @@ class LogManager:
 
         self._add_audit_row(time_str, subsystem, lvl, asset_ticket, msg)
 
-    def update_theme(self, is_dark: bool):
+    def update_theme(self, is_dark: bool, update_dialog: bool = True):
         """Called when user switches Dark/Light mode to adjust text contrast and pill colors."""
         self.is_dark_theme = is_dark
         if not self.tb:
@@ -654,6 +673,9 @@ class LogManager:
                 it_msg.setForeground(msg_color)
 
         self.tb.viewport().update()
+
+        if update_dialog and self.audit_dialog and hasattr(self.audit_dialog, "update_theme"):
+            self.audit_dialog.update_theme(is_dark)
 
     def filter_logs(self):
         if not self.tb:

@@ -451,6 +451,21 @@ class WorkspaceHeaderController:
             self.lbl_bot_status.setFixedHeight(26)
             self.lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
 
+        # 12. Bottom Audit Log Button (Ctrl+L trigger)
+        if hasattr(self, "btn_bottom_audit") and self.btn_bottom_audit:
+            if is_dark:
+                self.btn_bottom_audit.setStyleSheet(
+                    "QPushButton#btnBottomAudit { background-color: #0d121f; color: #94a3b8; border: 1px solid #1e293b; "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 6px; min-height: 18px; max-height: 18px; } "
+                    "QPushButton#btnBottomAudit:hover { background-color: #1e293b; color: #38bdf8; border-color: #38bdf8; }"
+                )
+            else:
+                self.btn_bottom_audit.setStyleSheet(
+                    "QPushButton#btnBottomAudit { background-color: #ffffff; color: #475569; border: 1px solid #cbd5e1; "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 6px; min-height: 18px; max-height: 18px; } "
+                    "QPushButton#btnBottomAudit:hover { background-color: #f1f5f9; color: #0284c7; border-color: #0284c7; }"
+                )
+
 
 
     def _setup_custom_title_bar(self):
@@ -738,13 +753,13 @@ class WorkspaceHeaderController:
         b_layout.setContentsMargins(10, 0, 10, 0)
         b_layout.setSpacing(4)
 
-        # 4 Core Workspaces on Left: TERMINAL · PERFORMANCE · BACKTEST · LOGS
+        # 3 Core Workspaces on Left: TERMINAL · PERFORMANCE · BACKTEST
+        # (System Audit Log is accessed via floating dialog with Ctrl+L or Telemetry button)
         self.nav_buttons = []
         tabs_spec = [
             ("btnNavTerminal", "TERMINAL", self.window.tab2, "LIVE TRADING TERMINAL"),
             ("btnNavStats", "PERFORMANCE", self.window.tab3, "PERFORMANCE ANALYTICS"),
             ("btnNavBacktest", "BACKTEST", self.window.tab_5, "STRATEGY BACKTESTING WORKBENCH"),
-            ("btnNavLogs", "LOGS", self.window.tab4, "SYSTEM AUDIT & EXECUTION LOGS"),
         ]
 
         for obj_name, label_text, target_tab, full_title in tabs_spec:
@@ -793,6 +808,35 @@ class WorkspaceHeaderController:
 
         # Spacer pushes all telemetry to the far right
         b_layout.addStretch()
+
+        # Clickable Audit Journal Pill (Ctrl+L)
+        btn_audit = QPushButton("AUDIT: OK (Ctrl+L)")
+        btn_audit.setObjectName("btnBottomAudit")
+        btn_audit.setFixedHeight(18)
+        btn_audit.setCursor(Qt.PointingHandCursor)
+        btn_audit.setToolTip("Open System Audit & Execution Journal (Ctrl+L)")
+        def _open_audit_journal(checked=False):
+            logs_mgr = (
+                getattr(self, "logs", None)
+                or getattr(self.terminal, "logs", None)
+                or getattr(self.window, "logs", None)
+            )
+            if logs_mgr and hasattr(logs_mgr, "toggle_audit_dialog"):
+                logs_mgr.toggle_audit_dialog()
+            elif logs_mgr and hasattr(logs_mgr, "open_audit_dialog"):
+                logs_mgr.open_audit_dialog()
+            else:
+                from frontend.widgets.audit_log_dialog import AuditLogDialog
+                dlg = AuditLogDialog(
+                    parent=self.window,
+                    log_widget=getattr(self.window, "tab4", None),
+                    log_manager=logs_mgr,
+                    is_dark=getattr(self, "is_dark_theme", False)
+                )
+                dlg.open_dialog()
+        btn_audit.clicked.connect(_open_audit_journal)
+        self.btn_bottom_audit = btn_audit
+        b_layout.addWidget(btn_audit)
 
         # Right: Consolidated status strip: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         lbl_bot_status = QLabel()
