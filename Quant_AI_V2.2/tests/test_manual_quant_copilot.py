@@ -592,5 +592,35 @@ class TestPlanScenarioAudits:
         line_sl.setVisible.assert_called_with(False)
         line_tp.setVisible.assert_called_with(False)
 
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    def test_btc_crypto_spread_and_risk_reward_consistency(self, mock_sym_info, mock_term):
+        """User image audit: BTC spread 2700 pts must PASS, and R:R must be mathematically consistent."""
+        mock_term.return_value = MagicMock()
+        mock_info = MagicMock()
+        mock_info.spread = 2700
+        mock_info.point = 0.01
+        mock_info.digits = 2
+        mock_sym_info.return_value = mock_info
+
+        win = QWidget()
+        win.current_sym = "BTCUSD"
+        win._last_manual_entry = 81470.00
+        win.spinManualSL = MagicMock()
+        win.spinManualSL.value.return_value = 81436.00
+        win.spinManualTP = MagicMock()
+        win.spinManualTP.value.return_value = 81822.22
+
+        passed, checks, reason = evaluate_manual_compliance(win, "BTCUSD")
+        assert passed is True
+        assert checks["spread"]["passed"] is True
+        assert reason == ""
+
+        # Test lot calculation for BTC with $100,000 balance and 0.5% risk
+        lot, risk_dlr = calculate_manual_quant_lot("BTCUSD", sl_points=34.0, risk_pct=0.5, balance=100000.0)
+        assert lot == 14.71
+        assert risk_dlr == 500.0
+
+
 
 

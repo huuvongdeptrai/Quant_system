@@ -21,9 +21,10 @@ import pyqtgraph as pg
 
 
 def get_symbol_multiplier(symbol: str, info=None) -> float:
-    """Return USD value change per 1.0 price unit per 1.0 standard lot."""
-    if info and getattr(info, "trade_tick_value", 0) > 0 and getattr(info, "trade_tick_size", 0) > 0:
-        return float(info.trade_tick_value / info.trade_tick_size)
+    tick_val = getattr(info, "trade_tick_value", None)
+    tick_sz = getattr(info, "trade_tick_size", None)
+    if isinstance(tick_val, (int, float)) and isinstance(tick_sz, (int, float)) and tick_sz > 0 and tick_val > 0:
+        return float(tick_val / tick_sz)
     s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
     if "BTC" in s or "ETH" in s:
         return 1.0
@@ -56,28 +57,31 @@ def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 
         acc = mt5.account_info() if mt5.terminal_info() is not None else None
         balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
 
-    risk_dlr = balance * (risk_pct / 100.0)
+    target_risk_dlr = balance * (risk_pct / 100.0)
     if sl_points <= 0.00001:
-        return 0.01, risk_dlr
+        return 0.01, target_risk_dlr
 
     info = mt5.symbol_info(symbol) if mt5.terminal_info() is not None else None
     mult = get_symbol_multiplier(symbol, info)
 
     clean_sym = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
-    if "BTC" in clean_sym or "ETH" in clean_sym:
-        max_lot = 1.0
-    elif "XAU" in clean_sym or "GOLD" in clean_sym:
-        max_lot = 5.0
-    elif any(c in clean_sym for c in ["US30", "NAS100", "SPX500", "GER40", "DAX"]):
-        max_lot = 5.0
-    elif "JPY" in clean_sym:
-        max_lot = 5.0
-    else:
-        max_lot = 10.0
+    v_min = getattr(info, "volume_min", None)
+    v_max = getattr(info, "volume_max", None)
+    v_step = getattr(info, "volume_step", None)
 
-    calc_lot = risk_dlr / (sl_points * mult)
-    lot = max(0.01, min(round(calc_lot, 2), max_lot))
-    return lot, risk_dlr
+    vol_min = float(v_min) if isinstance(v_min, (int, float)) and v_min > 0 else 0.01
+    vol_max = float(v_max) if isinstance(v_max, (int, float)) and v_max > 0 else (
+        50.0 if ("BTC" in clean_sym or "ETH" in clean_sym) else (
+            100.0 if ("XAU" in clean_sym or "GOLD" in clean_sym) else 50.0
+        )
+    )
+    vol_step = float(v_step) if isinstance(v_step, (int, float)) and v_step > 0 else 0.01
+
+    calc_lot = target_risk_dlr / (sl_points * mult)
+    if vol_step > 0:
+        calc_lot = round(round(calc_lot / vol_step) * vol_step, 2)
+    lot = max(vol_min, min(calc_lot, vol_max))
+    return lot, target_risk_dlr
 
 
 def clear_manual_chart_lines(window):
@@ -821,10 +825,11 @@ def apply_playbook_cards_theme(window, is_dark: bool):
 
     # Risk % Buttons via dynamic QSS property
     cur_risk = getattr(window, "_manual_risk_pct", 1.0)
+    is_custom = getattr(window, "_user_custom_lot", False)
     for p_val, b_name in [(0.5, "btnRisk05"), (1.0, "btnRisk10"), (1.5, "btnRisk15"), (2.0, "btnRisk20")]:
         b = getattr(window, b_name, None)
         if b:
-            is_sel = abs(cur_risk - p_val) < 0.05
+            is_sel = (not is_custom) and (abs(cur_risk - p_val) < 0.05)
             b.setProperty("selected", "true" if is_sel else "false")
             b.style().unpolish(b)
             b.style().polish(b)
@@ -836,7 +841,6 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             b.style().unpolish(b)
             b.style().polish(b)
 
-    # SpinBoxes (SL / TP)
     # SpinBoxes (SL / TP / Lot)
     for spin_name in ["spinManualSL", "spinManualTP", "spinManualLot"]:
         sp = getattr(window, spin_name, None)
@@ -871,25 +875,26 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             "background-color: #f1f5f9; color: #0284c7; border: 1px solid #cbd5e1; "
             "font-family: Consolas, monospace; font-size: 8px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
         )
+
+    # Split Risk (Red) / Reward (Green) Colors
+    risk_color = "#ef4444" if is_dark else "#b91c1c"
+    slash_color = "#64748b" if is_dark else "#94a3b8"
+    reward_color = "#22c55e" if is_dark else "#15803d"
+
     if hasattr(window, "lblManualSpread") and window.lblManualSpread:
         window.lblManualSpread.setStyleSheet(
             f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setStyleSheet(
-            f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
+            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
         window.lblManualTPPips.setStyleSheet(
-            f"color: {text_sec}; font-family: Consolas, monospace; font-size: 8.5px; border: none; background: transparent;"
+            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualLotSummaryTitle") and window.lblManualLotSummaryTitle:
         window.lblManualLotSummaryTitle.setStyleSheet(sub_style)
-
-    # Split Risk (Red) / Reward (Green) Colors
-    risk_color = "#ef4444" if is_dark else "#b91c1c"
-    slash_color = "#64748b" if is_dark else "#94a3b8"
-    reward_color = "#22c55e" if is_dark else "#15803d"
 
     if hasattr(window, "lblManualRiskPart") and window.lblManualRiskPart:
         window.lblManualRiskPart.setStyleSheet(
@@ -991,13 +996,33 @@ def evaluate_manual_compliance(window, symbol=None):
             if info:
                 cur_spd = info.spread
                 user_max = int(cfg.get("max_spread", 25))
-                if "XAU" in clean_sym.upper():
-                    allowance = max(user_max, 45)
-                elif "BTC" in clean_sym.upper():
-                    allowance = 2000
+                pt = float(info.point) if hasattr(info, "point") and isinstance(info.point, (int, float)) and info.point > 0 else 0.01
+                entry_ref = getattr(window, "_last_manual_entry", 0.0)
+                if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
+                    entry_ref = 0.0
+                spread_cost = cur_spd * pt
+                spread_bps = (spread_cost / entry_ref * 10000.0) if entry_ref > 0 else 0.0
+
+                sym_u = clean_sym.upper()
+                if "BTC" in sym_u:
+                    allowance = max(user_max, 6000)
+                    max_bps = 15.0  # 15 basis points = 0.15%
+                elif "ETH" in sym_u:
+                    allowance = max(user_max, 1500)
+                    max_bps = 20.0
+                elif "XAU" in sym_u or "GOLD" in sym_u:
+                    dig = info.digits if isinstance(getattr(info, "digits", None), (int, float)) else 2
+                    allowance = max(user_max, 45 if dig == 2 else 450)
+                    max_bps = 5.0
+                elif any(idx in sym_u for idx in ["US30", "NAS100", "US500", "SPX"]):
+                    allowance = max(user_max, 250)
+                    max_bps = 5.0
                 else:
-                    allowance = max(user_max, 25)
-                if cur_spd > allowance:
+                    allowance = max(user_max, 35)
+                    max_bps = 4.0
+
+                is_wide = (cur_spd > allowance) and (spread_bps > max_bps if entry_ref > 0 else True)
+                if is_wide:
                     checks["spread"] = {"passed": False, "msg": f"Spread {cur_spd} > {allowance} pts", "val": "HIGH"}
                     block_reason = f"SPREAD TOO WIDE ({cur_spd} pts)"
         except Exception:
@@ -1173,12 +1198,14 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         lot = round(window.spinManualLot.value(), 2)
         risk_dlr = sl_pts * lot * multiplier
         risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
+        apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
     elif getattr(window, "_user_custom_lot", False) and hasattr(window, "spinManualLot") and window.spinManualLot and window.spinManualLot.value() > 0:
         lot = round(window.spinManualLot.value(), 2)
         risk_dlr = sl_pts * lot * multiplier
         risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
     else:
         lot, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct, balance=balance)
+        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else risk_pct
         if hasattr(window, "spinManualLot") and window.spinManualLot:
             window.spinManualLot.blockSignals(True)
             window.spinManualLot.setValue(lot)
@@ -1776,8 +1803,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     card_m_risk = QFrame()
     card_m_risk.setObjectName("cardManualRisk")
     layout_m_risk = QVBoxLayout(card_m_risk)
-    layout_m_risk.setContentsMargins(4, 4, 4, 4)
-    layout_m_risk.setSpacing(5)
+    layout_m_risk.setContentsMargins(4, 5, 4, 5)
+    layout_m_risk.setSpacing(7)
 
     row_mr_top = QHBoxLayout()
     row_mr_top.setContentsMargins(0, 0, 0, 0)
@@ -1831,7 +1858,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_sl.setAlignment(Qt.AlignVCenter)
 
     col_sl_info = QVBoxLayout()
-    col_sl_info.setSpacing(1)
+    col_sl_info.setSpacing(2)
     lbl_sl_lbl = QLabel("STOP LOSS")
     lbl_sl_lbl.setObjectName("lblManualSLLabel")
     lbl_sl_pips = QLabel("-25.0 pips / -$100.00")
@@ -1883,7 +1910,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_tp.setAlignment(Qt.AlignVCenter)
 
     col_tp_info = QVBoxLayout()
-    col_tp_info.setSpacing(1)
+    col_tp_info.setSpacing(2)
     lbl_tp_lbl = QLabel("TAKE PROFIT")
     lbl_tp_lbl.setObjectName("lblManualTPLabel")
     lbl_tp_pips = QLabel("+50.0 pips / +$200.00")

@@ -283,7 +283,9 @@ class EventRiskEngine:
         elif any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX"]):
             base_safe_spread = 80
         elif "BTC" in sym_upper:
-            base_safe_spread = 2000
+            base_safe_spread = 6000
+        elif "ETH" in sym_upper:
+            base_safe_spread = 1500
         else:
             base_safe_spread = 25
 
