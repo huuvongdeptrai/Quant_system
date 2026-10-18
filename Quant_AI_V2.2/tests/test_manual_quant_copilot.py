@@ -9,6 +9,7 @@ from frontend.controllers.chart.trading_plan_panel import (
     evaluate_manual_compliance,
     _recalculate_manual_lot_and_rr,
     sync_manual_copilot_quotes,
+    execute_manual_quant_order,
     setup_trading_plan_cards,
     apply_playbook_cards_theme,
 )
@@ -240,3 +241,46 @@ class TestManualCopilotUI:
         apply_playbook_cards_theme(win, is_dark=True)
         # Test applying light theme
         apply_playbook_cards_theme(win, is_dark=False)
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.execution_manager.ExecutionManager.execute_market_order")
+    def test_custom_lot_preservation_and_execution(self, mock_exec, mock_term, qapp):
+        """Verify that user-edited lot is preserved during recalculate/tick and passed to broker."""
+        mock_term.return_value = MagicMock()
+        mock_exec.return_value = {"status": "success", "ticket": 123456}
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=False)
+
+        win.btnPlanModeManual.click()
+        win._manual_direction = "BUY"
+        win.lblManualAskPrice.setText("2650.50")
+        win.lblManualBidPrice.setText("2650.25")
+        win.spinManualSL.setValue(2645.00)
+        win.spinManualTP.setValue(2660.00)
+
+        # User edits lot to 0.20
+        win.spinManualLot.setValue(0.20)
+        assert win._user_custom_lot is True
+        assert "BUY 0.20 LOTS" in win.btnManualExecute.text()
+
+        # Simulate a market tick arriving
+        sync_manual_copilot_quotes(win)
+        # Custom lot should still be 0.20, NOT overwritten
+        assert win.spinManualLot.value() == 0.20
+        assert "BUY 0.20 LOTS" in win.btnManualExecute.text()
+
+        # Execute order
+        execute_manual_quant_order(win)
+        mock_exec.assert_called_once()
+        _, kwargs = mock_exec.call_args
+        assert kwargs["volume"] == 0.20
+        assert kwargs["is_buy"] is True
+        assert kwargs["symbol"] == "XAUUSD"
+
+        # Now click 2.0% risk button -> resets custom lot
+        win.btnRisk20.click()
+        assert win._user_custom_lot is False
+        assert win._manual_risk_pct == 2.0

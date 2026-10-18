@@ -1022,6 +1022,11 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         pip_unit = point * 10 if digits in (3, 5) else point
 
     if from_user_lot_change and hasattr(window, "spinManualLot") and window.spinManualLot:
+        window._user_custom_lot = True
+        lot = round(window.spinManualLot.value(), 2)
+        risk_dlr = sl_pts * lot * multiplier
+        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
+    elif getattr(window, "_user_custom_lot", False) and hasattr(window, "spinManualLot") and window.spinManualLot and window.spinManualLot.value() > 0:
         lot = round(window.spinManualLot.value(), 2)
         risk_dlr = sl_pts * lot * multiplier
         risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
@@ -1042,9 +1047,9 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     if hasattr(window, "lblManualLotVal") and window.lblManualLotVal and window.lblManualLotVal is not getattr(window, "spinManualLot", None):
         window.lblManualLotVal.setText(f"{lot:.2f} LOTS")
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
-        window.lblManualSLPips.setText(f"-{sl_pips:.1f} pips / -${risk_dlr:.2f}")
+        window.lblManualSLPips.setText(f"-{sl_pips:.1f} pips")
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
-        window.lblManualTPPips.setText(f"+{tp_pips:.1f} pips / +${reward_dlr:.2f}")
+        window.lblManualTPPips.setText(f"+{tp_pips:.1f} pips")
 
     # Split Risk (Red) / Reward (Green)
     if hasattr(window, "lblManualRiskPart") and window.lblManualRiskPart:
@@ -1184,7 +1189,10 @@ def execute_manual_quant_order(window):
     tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
     entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
     sl_pts = abs(entry_p - sl_p)
-    lot_size, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
+    if hasattr(window, "spinManualLot") and window.spinManualLot and window.spinManualLot.value() > 0:
+        lot_size = round(window.spinManualLot.value(), 2)
+    else:
+        lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
 
     exec_mgr = None
     if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
@@ -1514,9 +1522,9 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_md_title.setObjectName("lblManualHeaderTitle")
     lbl_md_badge = QLabel("MARKET DIRECT")
     lbl_md_badge.setObjectName("lblManualExecBadge")
+    lbl_md_badge.setVisible(False)
     row_md_top.addWidget(lbl_md_title)
     row_md_top.addStretch()
-    row_md_top.addWidget(lbl_md_badge)
     layout_m_dir.addLayout(row_md_top)
 
     row_quotes = QHBoxLayout()
@@ -1583,7 +1591,7 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     row_mr_top = QHBoxLayout()
     row_mr_top.setContentsMargins(0, 0, 0, 0)
-    lbl_mr_title = QLabel("ORDER & RISK BUDGET")
+    lbl_mr_title = QLabel("RISK & VOLUME")
     lbl_mr_title.setObjectName("lblManualRiskTitle")
     spin_lot = QDoubleSpinBox()
     spin_lot.setObjectName("spinManualLot")
@@ -1605,7 +1613,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_risk_btns = QHBoxLayout()
     row_risk_btns.setContentsMargins(0, 0, 0, 0)
     row_risk_btns.setSpacing(4)
-    lbl_risk_lbl = QLabel("RISK BUDGET")
+    lbl_risk_lbl = QLabel("PRESET")
     lbl_risk_lbl.setObjectName("lblManualRiskLabel")
     row_risk_btns.addWidget(lbl_risk_lbl)
     row_risk_btns.addStretch()
@@ -1932,6 +1940,7 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     # Signal wiring: Risk % buttons
     def _set_risk(r_val):
+        window._user_custom_lot = False
         window._manual_risk_pct = r_val
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
         _recalculate_manual_lot_and_rr(window)
