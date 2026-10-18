@@ -188,6 +188,6 @@ class CircuitBreakerGuard:
         if not self._circuit_breaker_alert_sent:
             self._circuit_breaker_alert_sent = True
             telegram_notifier.send_message(
-                f"🚨 <b>[QUANT AI CIRCUIT BREAKER - {reason}]</b>\n{msg}",
+                f"🚨 <b>[VECTRA CIRCUIT BREAKER - {reason}]</b>\n{msg}",
                 category="risk_halt",
             )

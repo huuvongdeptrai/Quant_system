@@ -42,7 +42,7 @@ class ExecutionManager:
         volume: float,
         sl_price: float,
         tp_price: float,
-        comment: str = "Quant_AI",
+        comment: str = "VECTRA",
         max_retries: int = 3,
     ) -> dict:
         """

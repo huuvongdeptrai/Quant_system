@@ -1212,7 +1212,7 @@ def execute_manual_quant_order(window):
             volume=lot_size,
             sl_price=sl_p,
             tp_price=tp_p,
-            comment="Quant_Manual"
+            comment="VECTRA_Manual"
         )
     else:
         order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_p}
@@ -1223,7 +1223,7 @@ def execute_manual_quant_order(window):
             window.btnManualExecute.setText(f"FILLED #{ticket}")
             window.btnManualExecute.setEnabled(False)
             QTimer.singleShot(4000, lambda: _recalculate_manual_lot_and_rr(window))
-        event_bus.log_event.emit("", "SUCCESS", f"Manual Quant Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+        event_bus.log_event.emit("", "SUCCESS", f"VECTRA Manual Order Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
         if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "blotter_buttons"):
             qt = window.quant_terminal
             if "active" in qt.blotter_buttons:

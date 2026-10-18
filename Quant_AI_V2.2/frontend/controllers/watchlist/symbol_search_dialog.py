@@ -1,5 +1,5 @@
 """
-Symbol Search Modal Dialog for Quant AI Terminal.
+Symbol Search Modal Dialog for VECTRA Terminal.
 Allows filtering, browsing, and adding assets from MT5 market catalog into the user's Watchlist.
 """
 

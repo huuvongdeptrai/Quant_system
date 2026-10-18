@@ -274,7 +274,7 @@ class SwissSplashCard(QWidget):
 
         brand_box = QVBoxLayout()
         brand_box.setSpacing(3)
-        self.lbl_title = QLabel("QUANT AI")
+        self.lbl_title = QLabel("VECTRA")
         self.lbl_title.setStyleSheet("color: #0F172A; font-family: 'Segoe UI'; font-size: 22px; font-weight: 900; letter-spacing: 2px; border: none;")
 
         self.lbl_sub = QLabel("INSTITUTIONAL QUANTITATIVE TERMINAL")

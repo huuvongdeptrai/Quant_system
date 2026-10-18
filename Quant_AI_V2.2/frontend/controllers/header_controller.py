@@ -582,7 +582,7 @@ class WorkspaceHeaderController:
         h_layout.addWidget(self.chart_context_bar)
 
         # Dedicated Non-Terminal Workspace Branding (Shown on Stats, Backtest, Logs)
-        self.lbl_header_app_title = QLabel("QUANT AI TERMINAL v2.2")
+        self.lbl_header_app_title = QLabel("VECTRA TERMINAL v2.2")
         self.lbl_header_app_title.setObjectName("lblHeaderAppTitle")
         self.lbl_header_app_title.setStyleSheet(
             f"color: {'#94a3b8' if is_dark else '#475569'}; font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;"

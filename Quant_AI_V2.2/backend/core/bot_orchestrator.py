@@ -238,7 +238,7 @@ class BotOrchestrator(QtCore.QObject):
             )
         syms_display = ", ".join(self.symbols) if self.symbols else "Standby (0 symbols in watchlist)"
         telegram_notifier.send_message(
-            f"🟢 <b>[Quant AI V2.2]</b> Automated execution started for {syms_display}.\nMode: <b>{self.trade_mode}</b>\nStrategy: <b>{self.strategy_name}</b>"
+            f"🟢 <b>[VECTRA V2.2]</b> Automated execution started for {syms_display}.\nMode: <b>{self.trade_mode}</b>\nStrategy: <b>{self.strategy_name}</b>"
         )
         if not mt5.terminal_info():
             return
@@ -494,5 +494,5 @@ class BotOrchestrator(QtCore.QObject):
         self.is_running = False
         self.log("INFO", "Safe bot shutdown routine initiated...", "#8B949E")
         telegram_notifier.send_message(
-            "🔴 <b>[Quant AI V2.2]</b> Bot stopped."
+            "🔴 <b>[VECTRA V2.2]</b> Bot stopped."
         )

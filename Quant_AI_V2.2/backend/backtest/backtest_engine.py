@@ -254,7 +254,7 @@ class BacktestWorker(QThread):
                     qs.reports.html(
                         daily_returns,
                         output=report_path,
-                        title="Quant AI V2.2 - Institutional Tear Sheet",
+                        title="VECTRA V2.2 - Institutional Tear Sheet",
                     )
             except Exception as e:
                 self.error_signal.emit(f"Không thể tạo Báo cáo QuantStats: {str(e)}")

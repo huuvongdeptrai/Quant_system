@@ -1,4 +1,4 @@
-# Khung Hệ Thống Phân Tích & Giao Dịch AI (Quant AI Terminal)
+# VECTRA - Hệ Thống Phân Tích & Giao Dịch Định Lượng (Institutional Terminal)
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)

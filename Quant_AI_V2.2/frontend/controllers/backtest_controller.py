@@ -803,7 +803,7 @@ class BacktestWorkbenchController:
             qs.reports.html(
                 self.daily_returns,
                 output=file_path,
-                title=f"Quant AI V2.2 - Institutional Tear Sheet ({self.current_symbol})"
+                title=f"VECTRA V2.2 - Institutional Tear Sheet ({self.current_symbol})"
             )
 
             self._log(f"[{now_str}] [REPORT] Report exported successfully: {file_path}")

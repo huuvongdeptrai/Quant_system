@@ -1,5 +1,5 @@
 """
-Institutional MT5 Options Dialog Widget for Quant_AI V2.2.
+Institutional MT5 Options Dialog Widget for VECTRA V2.2.
 Modular 4-page modal configuration dialog (Broker, Risk Management, Execution Strategy, Telegram Alerts).
 """
 
