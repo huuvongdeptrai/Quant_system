@@ -19,7 +19,8 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
-    QWidget, QGraphicsRectItem, QMenu, QMessageBox, QTableWidgetItem
+    QWidget, QGraphicsRectItem, QMenu, QMessageBox, QTableWidgetItem,
+    QCheckBox
 )
 from loguru import logger
 
@@ -580,7 +581,10 @@ def setup_chart_ui(window):
             p.end()
 
     class ProfileLevelRow(QFrame):
-        """Interactive row with color badge, title, subtitle, and toggle switch."""
+        """
+        Interactive level row with tick box on the left, color badge, title, and subtitle.
+        Provides 100% design consistency with the Studies & Indicators dialog.
+        """
         def __init__(self, key, code_name, desc, color_hex, checked=True, shape="line", is_dark=False, on_change=None, parent=None):
             super().__init__(parent)
             self.key = key
@@ -605,14 +609,72 @@ def setup_chart_ui(window):
             """)
 
             layout = QHBoxLayout(self)
-            layout.setContentsMargins(8, 2, 8, 2)
+            layout.setContentsMargins(6, 2, 8, 2)
             layout.setSpacing(8)
+            layout.setAlignment(Qt.AlignVCenter)
 
+            # 1. Tick box (Checkbox on LEFT, matching indicator_dialog.py design)
+            self.cb = QCheckBox()
+            self.cb.setObjectName("profileRowCheckbox")
+            self.cb.setFixedSize(16, 16)
+            self.cb.setCursor(Qt.PointingHandCursor)
+            self.cb.setChecked(checked)
+
+            ic_check_clean = os.path.join(assets_dir, "check_icon.svg").replace("\\", "/")
+            if not is_dark:
+                cb_style = f"""
+                    QCheckBox#profileRowCheckbox {{
+                        spacing: 0px;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator {{
+                        width: 15px;
+                        height: 15px;
+                        border-radius: 3px;
+                        border: 1px solid #cbd5e1;
+                        background-color: #f8fafc;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator:hover {{
+                        border-color: #0f172a;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator:checked {{
+                        background-color: #0f172a;
+                        border: 1px solid #0f172a;
+                        image: url("{ic_check_clean}");
+                    }}
+                """
+            else:
+                cb_style = f"""
+                    QCheckBox#profileRowCheckbox {{
+                        spacing: 0px;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator {{
+                        width: 15px;
+                        height: 15px;
+                        border-radius: 3px;
+                        border: 1px solid #334155;
+                        background-color: #161b26;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator:hover {{
+                        border-color: #38bdf8;
+                    }}
+                    QCheckBox#profileRowCheckbox::indicator:checked {{
+                        background-color: #0284c7;
+                        border: 1px solid #38bdf8;
+                        image: url("{ic_check_clean}");
+                    }}
+                """
+            self.cb.setStyleSheet(cb_style)
+            self.cb.toggled.connect(self._on_cb_toggled)
+            layout.addWidget(self.cb)
+
+            # 2. Color swatch badge
             self.lbl_badge = QLabel()
             self.lbl_badge.setFixedSize(16, 16)
+            self.lbl_badge.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             self._draw_badge(checked)
             layout.addWidget(self.lbl_badge)
 
+            # 3. Title + Description
             title_box = QVBoxLayout()
             title_box.setContentsMargins(0, 0, 0, 0)
             title_box.setSpacing(1)
@@ -621,17 +683,16 @@ def setup_chart_ui(window):
             c_sub = "#64748b" if not is_dark else "#94a3b8"
 
             self.lbl_code = QLabel(code_name)
+            self.lbl_code.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             self.lbl_code.setStyleSheet(f"color: {c_text}; font-weight: 700; font-size: 11px; font-family: 'Segoe UI', Consolas;")
-            
+
             self.lbl_desc = QLabel(desc)
+            self.lbl_desc.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             self.lbl_desc.setStyleSheet(f"color: {c_sub}; font-size: 9px; font-family: 'Segoe UI', sans-serif;")
 
             title_box.addWidget(self.lbl_code)
             title_box.addWidget(self.lbl_desc)
             layout.addLayout(title_box, stretch=1)
-
-            self.switch = ModernSwitch(checked=checked, is_dark=is_dark, on_toggle=self._on_switch_toggled, parent=self)
-            layout.addWidget(self.switch)
 
         def _draw_badge(self, checked):
             pm = QPixmap(16, 16)
@@ -657,18 +718,28 @@ def setup_chart_ui(window):
             p.end()
             self.lbl_badge.setPixmap(pm)
 
-        def _on_switch_toggled(self, val):
+        def _on_cb_toggled(self, val):
             self._draw_badge(val)
             if self._on_change:
                 self._on_change(val)
 
         def mousePressEvent(self, event):
             if event.button() == Qt.LeftButton:
-                self.switch.setChecked(not self.switch.isChecked())
+                if not self.cb.geometry().contains(event.pos()):
+                    self.cb.setChecked(not self.cb.isChecked())
                 event.accept()
+            else:
+                super().mousePressEvent(event)
 
         def setChecked(self, val):
-            self.switch.setChecked(val)
+            self.cb.setChecked(val)
+
+        def isChecked(self):
+            return self.cb.isChecked()
+
+        @property
+        def switch(self):
+            return self.cb
 
     class MarketProfileDrawer(QWidget):
         """
