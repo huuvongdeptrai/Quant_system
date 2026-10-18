@@ -824,9 +824,13 @@ class WorkspaceHeaderController:
                 logs_mgr.open_audit_dialog()
             else:
                 from frontend.widgets.audit_log_dialog import AuditLogDialog
+                log_w = getattr(self.window, "tab4", None)
+                if log_w:
+                    log_w.setVisible(True)
+                    log_w.show()
                 dlg = AuditLogDialog(
                     parent=self.window,
-                    log_widget=getattr(self.window, "tab4", None),
+                    log_widget=log_w,
                     log_manager=logs_mgr,
                     is_dark=getattr(self, "is_dark_theme", False)
                 )

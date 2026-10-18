@@ -99,6 +99,7 @@ class NavigationController:
             idx_tab4 = self.window.tabWidget.indexOf(self.window.tab4)
             if idx_tab4 != -1:
                 self.window.tabWidget.removeTab(idx_tab4)
+            self.window.tab4.setVisible(True)
 
 
     def _toggle_candles(self, checked):

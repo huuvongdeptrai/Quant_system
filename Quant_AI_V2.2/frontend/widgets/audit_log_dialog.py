@@ -41,6 +41,8 @@ class AuditLogDialog(QDialog):
         root_layout.setSpacing(0)
 
         if self.log_widget:
+            self.log_widget.setVisible(True)
+            self.log_widget.show()
             self.log_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             root_layout.addWidget(self.log_widget, 1)
 
@@ -56,6 +58,10 @@ class AuditLogDialog(QDialog):
 
     def open_dialog(self):
         """Centers and brings the dialog to the front."""
+        if self.log_widget:
+            self.log_widget.setVisible(True)
+            self.log_widget.show()
+
         if self.parent_window:
             geo = self.parent_window.geometry()
             x = geo.x() + max(0, (geo.width() - self.width()) // 2)

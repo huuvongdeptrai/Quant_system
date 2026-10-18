@@ -52,11 +52,15 @@ class LogManager:
 
     def open_audit_dialog(self):
         """Open or focus the floating institutional System Audit & Journal Dialog (Ctrl+L)."""
+        log_w = getattr(self.window, "tab4", None)
+        if log_w:
+            log_w.setVisible(True)
+            log_w.show()
         if self.audit_dialog is None:
             from frontend.widgets.audit_log_dialog import AuditLogDialog
             self.audit_dialog = AuditLogDialog(
                 parent=self.window,
-                log_widget=getattr(self.window, "tab4", None),
+                log_widget=log_w,
                 log_manager=self,
                 is_dark=self.is_dark_theme
             )
