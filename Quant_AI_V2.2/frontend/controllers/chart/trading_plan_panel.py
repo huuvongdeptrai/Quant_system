@@ -214,7 +214,13 @@ def update_order_proposal_html(
             "tp": tp,
             "is_live_position": is_live_position,
             "live_ticket": live_ticket,
+            "live_volume": live_volume,
+            "live_profit": live_profit,
+            "model_name": model_name,
+            "grade": grade,
+            "confidence": confidence,
             "exec_mode": exec_mode,
+            "status": status,
         }
         return
 
@@ -293,6 +299,32 @@ def update_order_proposal_html(
         return
 
     # 2. TRƯỜNG HỢP: CÓ TÍN HIỆU THỰC TẾ HOẶC CÓ VỊ THẾ LIVE
+    if is_live_position:
+        try:
+            if mt5.terminal_info() is not None:
+                p_list = None
+                if live_ticket:
+                    try:
+                        p_list = mt5.positions_get(ticket=int(live_ticket))
+                    except Exception:
+                        p_list = None
+                if not p_list:
+                    p_list = mt5.positions_get(symbol=clean_sym)
+                if p_list and len(p_list) > 0:
+                    pos = p_list[0]
+                    live_ticket = pos.ticket
+                    if live_volume is None or live_volume <= 0:
+                        live_volume = float(pos.volume)
+                    live_profit = float(pos.profit)
+                    if entry is None or entry == 0.0:
+                        entry = float(pos.price_open)
+                    if (sl is None or sl == 0.0) and pos.sl > 0:
+                        sl = float(pos.sl)
+                    if (tp is None or tp == 0.0) and pos.tp > 0:
+                        tp = float(pos.tp)
+        except Exception:
+            pass
+
     window.order_proposal_active = True
     window.is_live_position = is_live_position
     window.live_ticket = live_ticket
@@ -336,6 +368,12 @@ def update_order_proposal_html(
         "rr_ratio": rr_ratio,
         "is_live_position": is_live_position,
         "live_ticket": live_ticket,
+        "live_volume": calc_lot if is_live_position else None,
+        "live_profit": live_profit,
+        "model_name": model_name,
+        "grade": grade,
+        "confidence": confidence,
+        "status": status,
     }
 
     # Tên hành động hiển thị
@@ -450,8 +488,8 @@ def update_order_proposal_html(
             window.lblTPVal.setText(f"{tp:.{digits}f}  (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
     if hasattr(window, "lblSizeVal") and window.lblSizeVal:
         if is_live_position:
-            pnl_sign = '+' if live_profit >= 0 else ''
-            window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (PNL: {pnl_sign}${live_profit:.2f})")
+            pnl_str = f"+${live_profit:.2f}" if live_profit >= 0 else f"-${abs(live_profit):.2f}"
+            window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (PNL: {pnl_str})")
         else:
             window.lblSizeVal.setText(f"{calc_lot:.2f} LOTS (${risk_dlr:.2f})")
 
@@ -946,11 +984,11 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         )
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setStyleSheet(
-            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border: none; background: transparent;"
+            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding-bottom: 1px; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
         window.lblManualTPPips.setStyleSheet(
-            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border: none; background: transparent;"
+            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding-bottom: 1px; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualLotSummaryTitle") and window.lblManualLotSummaryTitle:
         window.lblManualLotSummaryTitle.setStyleSheet(sub_style)
@@ -1221,25 +1259,26 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
 
     tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
-    if tick:
-        entry_p = tick.ask if is_buy else tick.bid
+    if tick and hasattr(tick, "ask") and isinstance(getattr(tick, "ask", None), (int, float)):
+        entry_p = float(tick.ask if is_buy else tick.bid)
     else:
+        fallback_p = getattr(window, "_last_manual_entry", 2650.50 if is_buy else 2650.25)
         if is_buy:
             if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice and window.lblManualAskPrice.text() not in ("", "0.00", "--"):
                 try:
                     entry_p = float(window.lblManualAskPrice.text())
                 except ValueError:
-                    entry_p = getattr(window, "_last_manual_ask", 2650.50)
+                    entry_p = getattr(window, "_last_manual_ask", fallback_p)
             else:
-                entry_p = getattr(window, "_last_manual_ask", 2650.50)
+                entry_p = getattr(window, "_last_manual_ask", fallback_p)
         else:
             if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice and window.lblManualBidPrice.text() not in ("", "0.00", "--"):
                 try:
                     entry_p = float(window.lblManualBidPrice.text())
                 except ValueError:
-                    entry_p = getattr(window, "_last_manual_bid", 2650.25)
+                    entry_p = getattr(window, "_last_manual_bid", fallback_p)
             else:
-                entry_p = getattr(window, "_last_manual_bid", 2650.25)
+                entry_p = getattr(window, "_last_manual_bid", fallback_p)
 
     window._last_manual_entry = entry_p
 
@@ -1258,22 +1297,19 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     if from_user_lot_change and hasattr(window, "spinManualLot") and window.spinManualLot:
         window._user_custom_lot = True
         lot = round(window.spinManualLot.value(), 2)
-        risk_dlr = sl_pts * lot * multiplier
-        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
     elif getattr(window, "_user_custom_lot", False) and hasattr(window, "spinManualLot") and window.spinManualLot and window.spinManualLot.value() > 0:
         lot = round(window.spinManualLot.value(), 2)
-        risk_dlr = sl_pts * lot * multiplier
-        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
     else:
-        lot, risk_dlr = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct, balance=balance)
-        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else risk_pct
+        lot, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct, balance=balance)
         if hasattr(window, "spinManualLot") and window.spinManualLot:
             window.spinManualLot.blockSignals(True)
             window.spinManualLot.setValue(lot)
             window.spinManualLot.blockSignals(False)
 
-    reward_dlr = tp_pts * lot * multiplier
+    risk_dlr = round(sl_pts * lot * multiplier, 2)
+    risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
+    reward_dlr = round(tp_pts * lot * multiplier, 2)
     sl_pips = sl_pts / pip_unit if pip_unit > 0 else sl_pts
     tp_pips = tp_pts / pip_unit if pip_unit > 0 else tp_pts
 
@@ -1341,6 +1377,98 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
     else:
         clear_manual_chart_lines(window)
+
+
+def sync_live_position_to_ai_plan(window):
+    """Dynamically synchronizes live open MT5 position volume and floating PnL with AI Strategy Card."""
+    if getattr(window, "_plan_mode", "ai") == "manual":
+        return
+
+    clean_sym = getattr(window, "current_sym", "").split("\n")[0].strip()
+    if not clean_sym:
+        return
+
+    try:
+        if mt5.terminal_info() is None:
+            return
+
+        pos = None
+        ticket = getattr(window, "live_ticket", None)
+        if ticket:
+            try:
+                positions = mt5.positions_get(ticket=int(ticket))
+                if positions and len(positions) > 0:
+                    pos = positions[0]
+            except Exception:
+                pos = None
+        if pos is None:
+            positions = mt5.positions_get(symbol=clean_sym)
+            if positions and len(positions) > 0:
+                pos = positions[0]
+
+        if pos is not None:
+            ticket = pos.ticket
+            vol = float(pos.volume)
+            pnl = float(pos.profit)
+            open_p = float(pos.price_open)
+            pos_sl = float(pos.sl)
+            pos_tp = float(pos.tp)
+            pos_type = "BUY" if pos.type == 0 else "SELL"
+
+            info = mt5.symbol_info(clean_sym)
+            digits = info.digits if info else (2 if open_p > 10 else 5)
+
+            window.is_live_position = True
+            window.live_ticket = ticket
+            pnl_str = f"+${pnl:.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
+
+            if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                window.lblSizeVal.setText(f"{vol:.2f} LOTS (PNL: {pnl_str})")
+
+            if hasattr(window, "lblEntryVal") and window.lblEntryVal:
+                window.lblEntryVal.setText(f"{open_p:.{digits}f}")
+
+            if hasattr(window, "lblSLVal") and window.lblSLVal:
+                window.lblSLVal.setText(f"{pos_sl:.{digits}f}  (LIVE)" if pos_sl > 0 else "NO SL")
+
+            if hasattr(window, "lblTPVal") and window.lblTPVal:
+                window.lblTPVal.setText(f"{pos_tp:.{digits}f}  (LIVE)" if pos_tp > 0 else "NO TP")
+
+            if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
+                window.lblOrderTypeBadge.setText(pos_type)
+
+            if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
+                window.lblOrderBudgetTitle.setText("LIVE POSITION & RISK")
+
+            if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
+                window.lblModelSubtitle.setText(f"POSITION IN MARKET (#{ticket})")
+
+            # Store active signal data for future tab switches or reopenings
+            if not hasattr(window, "active_signal_data") or not isinstance(window.active_signal_data, dict):
+                window.active_signal_data = {}
+            window.active_signal_data.update({
+                "sym": clean_sym,
+                "has_signal": True,
+                "signal_type": pos_type,
+                "entry": open_p,
+                "sl": pos_sl if pos_sl > 0 else (open_p * 0.99 if pos_type == "BUY" else open_p * 1.01),
+                "tp": pos_tp if pos_tp > 0 else (open_p * 1.01 if pos_type == "BUY" else open_p * 0.99),
+                "is_live_position": True,
+                "live_ticket": ticket,
+                "live_profit": pnl,
+                "live_volume": vol,
+            })
+        else:
+            if getattr(window, "is_live_position", False):
+                window.is_live_position = False
+                window.live_ticket = None
+                clear_manual_chart_lines(window)
+                if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
+                    window.lblModelSubtitle.setText("SETUP MODEL")
+                if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                    window.lblSizeVal.setText("--")
+    except Exception as e:
+        logger.debug(f"[sync_live_position_to_ai_plan] Error: {e}")
 
 
 def sync_manual_copilot_quotes(window):
@@ -1925,6 +2053,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_sl_lbl.setObjectName("lblManualSLLabel")
     lbl_sl_pips = QLabel("-25.0 pips / -$100.00")
     lbl_sl_pips.setObjectName("lblManualSLPips")
+    lbl_sl_pips.setMinimumHeight(15)
     col_sl_info.addWidget(lbl_sl_lbl)
     col_sl_info.addWidget(lbl_sl_pips)
     row_sl.addLayout(col_sl_info)
@@ -1964,6 +2093,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_sl.addWidget(spin_sl)
     row_sl.addWidget(box_sl_pre)
     layout_m_risk.addLayout(row_sl)
+    layout_m_risk.addSpacing(6)
 
     # Take Profit Row (2-column layout)
     row_tp = QHBoxLayout()
@@ -1977,6 +2107,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_tp_lbl.setObjectName("lblManualTPLabel")
     lbl_tp_pips = QLabel("+50.0 pips / +$200.00")
     lbl_tp_pips.setObjectName("lblManualTPPips")
+    lbl_tp_pips.setMinimumHeight(15)
     col_tp_info.addWidget(lbl_tp_lbl)
     col_tp_info.addWidget(lbl_tp_pips)
     row_tp.addLayout(col_tp_info)
@@ -2226,6 +2357,7 @@ def setup_trading_plan_cards(window, is_dark=False):
                     pass
             sync_manual_copilot_quotes(window)
         else:
+            sync_live_position_to_ai_plan(window)
             if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
                 sig = window.active_signal_data
                 update_order_proposal_html(
@@ -2233,7 +2365,12 @@ def setup_trading_plan_cards(window, is_dark=False):
                     sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
                     signal_type=sig.get("signal_type", "BUY"),
                     is_live_position=sig.get("is_live_position", False),
-                    live_ticket=sig.get("live_ticket", None)
+                    live_ticket=sig.get("live_ticket", None),
+                    live_volume=sig.get("live_volume", None),
+                    live_profit=sig.get("live_profit", 0.0),
+                    model_name=sig.get("model_name", None),
+                    grade=sig.get("grade", None),
+                    status=sig.get("status", "LIVE POSITION IN MARKET"),
                 )
             else:
                 clear_manual_chart_lines(window)

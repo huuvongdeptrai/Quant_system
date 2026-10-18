@@ -303,6 +303,11 @@ def setup_chart_ui(window):
                     from frontend.controllers.chart.trading_plan_panel import _recalculate_manual_lot_and_rr
                     _recalculate_manual_lot_and_rr(window)
             else:
+                try:
+                    from frontend.controllers.chart.trading_plan_panel import sync_live_position_to_ai_plan
+                    sync_live_position_to_ai_plan(window)
+                except Exception:
+                    pass
                 if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
                     sig = window.active_signal_data
                     from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
@@ -311,7 +316,12 @@ def setup_chart_ui(window):
                         sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
                         signal_type=sig.get("signal_type", "BUY"),
                         is_live_position=sig.get("is_live_position", False),
-                        live_ticket=sig.get("live_ticket", None)
+                        live_ticket=sig.get("live_ticket", None),
+                        live_volume=sig.get("live_volume", None),
+                        live_profit=sig.get("live_profit", 0.0),
+                        model_name=sig.get("model_name", None),
+                        grade=sig.get("grade", None),
+                        status=sig.get("status", "LIVE POSITION IN MARKET"),
                     )
         except Exception:
             pass
@@ -1886,6 +1896,12 @@ def setup_chart_ui(window):
                 sync_manual_copilot_quotes(window)
             except Exception:
                 pass
+        else:
+            try:
+                from frontend.controllers.chart.trading_plan_panel import sync_live_position_to_ai_plan
+                sync_live_position_to_ai_plan(window)
+            except Exception:
+                pass
 
         rates = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 1)
 
@@ -2449,6 +2465,12 @@ def setup_chart_ui(window):
             model_name=strat_display_name,
             digits=digits,
         )
+
+        try:
+            from frontend.controllers.chart.trading_plan_panel import sync_live_position_to_ai_plan
+            sync_live_position_to_ai_plan(window)
+        except Exception:
+            pass
 
         total_candles = len(window.chart_data_list)
 

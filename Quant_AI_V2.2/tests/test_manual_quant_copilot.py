@@ -11,6 +11,7 @@ from frontend.controllers.chart.trading_plan_panel import (
     evaluate_manual_compliance,
     _recalculate_manual_lot_and_rr,
     sync_manual_copilot_quotes,
+    sync_live_position_to_ai_plan,
     execute_manual_quant_order,
     setup_trading_plan_cards,
     apply_playbook_cards_theme,
@@ -669,6 +670,126 @@ class TestPlanScenarioAudits:
         passed, checks, reason = evaluate_manual_compliance(win, "US30")
         assert passed is False
         assert "SPREAD EXCEEDS STOP LOSS DISTANCE" in reason
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.account_info")
+    def test_manual_order_dollar_risk_matches_actual_sl_distance(self, mock_acc, mock_sym, mock_tick, mock_term, qapp):
+        """Dollar risk must strictly equal actual lot * SL distance * multiplier, ensuring reward/risk ratio matches."""
+        mock_term.return_value = MagicMock()
+        mock_t = MagicMock()
+        mock_t.ask = 81209.0
+        mock_t.bid = 81209.0
+        mock_tick.return_value = mock_t
+
+        acc = MagicMock()
+        acc.balance = 99352.0  # $99,352 balance
+        mock_acc.return_value = acc
+
+        btc_info = MagicMock()
+        btc_info.digits = 2
+        btc_info.point = 0.01
+        btc_info.spread = 10
+        btc_info.volume_min = 0.01
+        btc_info.volume_max = 50.0
+        btc_info.volume_step = 0.01
+        btc_info.trade_contract_size = 1.0
+        mock_sym.return_value = btc_info
+
+        win = QWidget()
+        win.current_sym = "BTCUSD"
+        win._last_manual_entry = 81209.0
+        win._last_manual_ask = 81209.0
+        win._last_manual_bid = 81209.0
+        win.is_dark_theme = True
+
+        from PySide6.QtWidgets import QLabel, QDoubleSpinBox
+        win.spinManualSL = QDoubleSpinBox()
+        win.spinManualSL.setRange(0.0, 1000000.0)
+        win.spinManualSL.setValue(81172.0)  # sl_pts = 37.0
+        win.spinManualTP = QDoubleSpinBox()
+        win.spinManualTP.setRange(0.0, 1000000.0)
+        win.spinManualTP.setValue(81558.22)  # tp_pts = 349.22
+        win.spinManualLot = QDoubleSpinBox()
+        win.spinManualLot.setValue(1.00)  # 1.00 lot custom
+        win.lblManualSLPips = QLabel()
+        win.lblManualTPPips = QLabel()
+        win.lblManualRiskPart = QLabel()
+        win.lblManualRewardPart = QLabel()
+        win.lblManualLotSummary = QLabel()
+
+        # Recalculate with user lot change = True (1.00 lot)
+        _recalculate_manual_lot_and_rr(win, from_user_lot_change=True)
+
+        # 1.00 lot * 37.0 points * 1.0 multiplier = $37.00 (NOT $496.76!)
+        assert "-$37.00" in win.lblManualRiskPart.text()
+        assert "+$349.22" in win.lblManualRewardPart.text()
+        assert "9.4R" in win.lblManualRewardPart.text()
+        assert "-37.0 pips" in win.lblManualSLPips.text()
+        assert "+349.2 pips" in win.lblManualTPPips.text()
+
+    def test_trading_plan_sl_tp_spacing_and_pips_label(self, qapp):
+        """Verifies 6px spacing between SL/TP rows and minimum height on pips labels to prevent clipping."""
+        win = QWidget()
+        win.layoutAIArea = QVBoxLayout(win)
+        win.is_dark_theme = True
+        setup_trading_plan_cards(win)
+
+        assert hasattr(win, "lblManualSLPips")
+        assert hasattr(win, "lblManualTPPips")
+        assert win.lblManualSLPips.minimumHeight() >= 14
+        assert win.lblManualTPPips.minimumHeight() >= 14
+
+        # Card manual risk should have layouts with spacing
+        assert hasattr(win, "cardManualRisk")
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    def test_ai_plan_live_position_volume_and_pnl_sync(self, mock_sym, mock_pos, mock_term, qapp):
+        """Verifies live open position volume and floating PnL are dynamically synced to the AI plan."""
+        mock_term.return_value = MagicMock()
+        sym_info = MagicMock()
+        sym_info.digits = 2
+        mock_sym.return_value = sym_info
+
+        # Mock position #282779749: 0.64 lots, PnL -$196.42
+        mock_p = MagicMock()
+        mock_p.ticket = 282779749
+        mock_p.volume = 0.64
+        mock_p.profit = -196.42
+        mock_p.price_open = 81491.40
+        mock_p.sl = 79905.70
+        mock_p.tp = 84580.61
+        mock_p.type = 0  # BUY
+        mock_pos.return_value = [mock_p]
+
+        win = QWidget()
+        win.current_sym = "BTCUSD"
+        win._plan_mode = "ai"
+
+        from PySide6.QtWidgets import QLabel
+        win.lblSizeVal = QLabel("--")
+        win.lblEntryVal = QLabel("--")
+        win.lblSLVal = QLabel("--")
+        win.lblTPVal = QLabel("--")
+        win.lblModelSubtitle = QLabel("SETUP MODEL")
+
+        sync_live_position_to_ai_plan(win)
+
+        assert win.lblSizeVal.text() == "0.64 LOTS (PNL: -$196.42)"
+        assert "81491.40" in win.lblEntryVal.text()
+        assert "79905.70" in win.lblSLVal.text()
+        assert "84580.61" in win.lblTPVal.text()
+        assert "282779749" in win.lblModelSubtitle.text()
+        assert win.is_live_position is True
+
+        # Test positive profit
+        mock_p.profit = 250.80
+        sync_live_position_to_ai_plan(win)
+        assert win.lblSizeVal.text() == "0.64 LOTS (PNL: +$250.80)"
+
 
 
 
