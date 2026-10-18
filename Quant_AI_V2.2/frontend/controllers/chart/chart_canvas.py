@@ -1382,19 +1382,19 @@ def setup_chart_ui(window):
     window.order_proposal_active = False
     window.line_order_entry = pg.InfiniteLine(
         angle=0, movable=False, pos=0.0,
-        pen=pg.mkPen(color="#22c55e", width=1.5),
+        pen=pg.mkPen(color="#22c55e", width=1.5, style=QtCore.Qt.DashLine),
         label="BUY ORDER: --",
         labelOpts={"color": "#22c55e", "position": 0.15, "fill": (0, 0, 0, 180)}
     )
     window.line_order_sl = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
-        pen=pg.mkPen(color="#ef4444", width=1.5),
+        pen=pg.mkPen(color="#ef4444", width=1.5, style=QtCore.Qt.DashLine),
         label="STOP LOSS: --",
         labelOpts={"color": "#ef4444", "position": 0.65, "fill": (0, 0, 0, 180)}
     )
     window.line_order_tp = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
-        pen=pg.mkPen(color="#22c55e", width=1.5),
+        pen=pg.mkPen(color="#22c55e", width=1.5, style=QtCore.Qt.DashLine),
         label="TAKE PROFIT: --",
         labelOpts={"color": "#22c55e", "position": 0.35, "fill": (0, 0, 0, 180)}
     )
@@ -2637,18 +2637,23 @@ def update_chart_theme(window, is_dark: bool = False):
     fill_rgba = (0, 0, 0, 180) if is_dark else (241, 245, 249, 230)
     bull_color = "#22c55e" if is_dark else "#15803D"
     bear_color = "#ef4444" if is_dark else "#B91C1C"
+    is_live = getattr(window, "is_live_position", False)
+    is_pending = getattr(window, "is_pending_order", False)
+    line_style = QtCore.Qt.SolidLine if is_live else (QtCore.Qt.DashDotLine if is_pending else QtCore.Qt.DashLine)
+    line_w = 1.8 if is_live else 1.5
+
     if hasattr(window, "line_order_entry") and window.line_order_entry:
-        window.line_order_entry.setPen(pg.mkPen(color=bull_color, width=1.5))
+        window.line_order_entry.setPen(pg.mkPen(color=bull_color, width=line_w, style=line_style))
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
             window.line_order_entry.label.setColor(bull_color)
             window.line_order_entry.label.fill = pg.mkBrush(*fill_rgba)
     if hasattr(window, "line_order_sl") and window.line_order_sl:
-        window.line_order_sl.setPen(pg.mkPen(color=bear_color, width=1.5))
+        window.line_order_sl.setPen(pg.mkPen(color=bear_color, width=line_w, style=line_style))
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
             window.line_order_sl.label.setColor(bear_color)
             window.line_order_sl.label.fill = pg.mkBrush(*fill_rgba)
     if hasattr(window, "line_order_tp") and window.line_order_tp:
-        window.line_order_tp.setPen(pg.mkPen(color=bull_color, width=1.5))
+        window.line_order_tp.setPen(pg.mkPen(color=bull_color, width=line_w, style=line_style))
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
             window.line_order_tp.label.setColor(bull_color)
             window.line_order_tp.label.fill = pg.mkBrush(*fill_rgba)

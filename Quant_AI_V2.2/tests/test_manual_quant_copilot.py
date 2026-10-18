@@ -512,3 +512,41 @@ class TestPlanScenarioAudits:
         _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
         mock_plot.addItem.assert_not_called()
 
+    def test_manual_order_lines_dashed_pen_style(self, qapp):
+        """Audit: Manual draft preview lines must use Qt.DashLine to distinguish from live positions."""
+        from PySide6.QtCore import Qt
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win._plan_mode = "manual"
+        win._show_manual_preview = True
+        mock_plot = MagicMock()
+        mock_items = set()
+        mock_plot.items.return_value = mock_items
+        win.plot_widget = mock_plot
+
+        line_entry = MagicMock()
+        line_sl = MagicMock()
+        line_tp = MagicMock()
+        line_entry.value.return_value = 0.0
+        line_sl.value.return_value = 0.0
+        line_tp.value.return_value = 0.0
+        win.line_order_entry = line_entry
+        win.line_order_sl = line_sl
+        win.line_order_tp = line_tp
+
+        _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
+
+        # Verify setPen was called with a pen having style Qt.DashLine
+        assert line_entry.setPen.called
+        entry_pen = line_entry.setPen.call_args[0][0]
+        assert entry_pen.style() == Qt.DashLine
+
+        assert line_sl.setPen.called
+        sl_pen = line_sl.setPen.call_args[0][0]
+        assert sl_pen.style() == Qt.DashLine
+
+        assert line_tp.setPen.called
+        tp_pen = line_tp.setPen.call_args[0][0]
+        assert tp_pen.style() == Qt.DashLine
+
+

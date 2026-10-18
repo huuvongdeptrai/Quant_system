@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QMessageBox
 )
 from loguru import logger
+import pyqtgraph as pg
+
 
 
 def get_symbol_multiplier(symbol: str, info=None) -> float:
@@ -283,8 +285,16 @@ def update_order_proposal_html(
 
     # Cập nhật đường ngang trên biểu đồ nến
     try:
+        is_dark_val = getattr(window, "is_dark_theme", False) if is_dark is None else is_dark
+        bull_c = "#22c55e" if is_dark_val else "#15803D"
+        bear_c = "#ef4444" if is_dark_val else "#B91C1C"
+        dir_c = bull_c if signal_type == "BUY" else bear_c
+        order_style = Qt.SolidLine if is_live_position else (Qt.DashDotLine if is_pending_order else Qt.DashLine)
+        order_w = 1.8 if is_live_position else 1.5
+
         if hasattr(window, "line_order_entry") and window.line_order_entry:
             window.line_order_entry.setValue(entry)
+            window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=order_w, style=order_style))
             window.line_order_entry.setVisible(True)
             if is_live_position:
                 window.line_order_entry.label.setFormat(f"OPEN #{live_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
@@ -301,6 +311,7 @@ def update_order_proposal_html(
 
         if hasattr(window, "line_order_sl") and window.line_order_sl:
             window.line_order_sl.setValue(sl)
+            window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=order_w, style=order_style))
             window.line_order_sl.setVisible(True)
             if is_live_position:
                 window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
@@ -315,6 +326,7 @@ def update_order_proposal_html(
 
         if hasattr(window, "line_order_tp") and window.line_order_tp:
             window.line_order_tp.setValue(tp)
+            window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=order_w, style=order_style))
             window.line_order_tp.setVisible(True)
             if is_live_position:
                 window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
@@ -1040,12 +1052,18 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
     entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
 
-    # Entry line
+    is_d = getattr(window, "is_dark_theme", False)
+    bull_c = "#22c55e" if is_d else "#15803D"
+    bear_c = "#ef4444" if is_d else "#B91C1C"
+    dir_c = bull_c if is_buy else bear_c
+
+    # Entry line (Draft Preview: Qt.DashLine)
     if hasattr(window, "line_order_entry") and window.line_order_entry:
         if abs(window.line_order_entry.value() - entry_p) > 1e-6:
             window.line_order_entry.blockSignals(True)
             window.line_order_entry.setPos(entry_p)
             window.line_order_entry.blockSignals(False)
+        window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=1.5, style=Qt.DashLine))
         window.line_order_entry.setMovable(False)
         dir_s = "BUY" if is_buy else "SELL"
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
@@ -1054,12 +1072,13 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         if window.line_order_entry not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
 
-    # SL line
+    # SL line (Draft Preview: Qt.DashLine)
     if hasattr(window, "line_order_sl") and window.line_order_sl:
         if abs(window.line_order_sl.value() - sl) > 1e-6:
             window.line_order_sl.blockSignals(True)
             window.line_order_sl.setPos(sl)
             window.line_order_sl.blockSignals(False)
+        window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.5, style=Qt.DashLine))
         window.line_order_sl.setMovable(True)
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
             window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}")
@@ -1067,12 +1086,13 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         if window.line_order_sl not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
 
-    # TP line
+    # TP line (Draft Preview: Qt.DashLine)
     if hasattr(window, "line_order_tp") and window.line_order_tp:
         if abs(window.line_order_tp.value() - tp) > 1e-6:
             window.line_order_tp.blockSignals(True)
             window.line_order_tp.setPos(tp)
             window.line_order_tp.blockSignals(False)
+        window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.5, style=Qt.DashLine))
         window.line_order_tp.setMovable(True)
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
             window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}")
