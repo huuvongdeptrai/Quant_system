@@ -7,6 +7,7 @@ import os
 import time
 import json
 from datetime import datetime
+from typing import Optional, Dict, Any, List
 from PySide6 import QtCore, QtGui
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QColor, QFont, QIcon
@@ -160,6 +161,84 @@ def clear_manual_chart_lines(window):
                         pass
 
 
+def resolve_strategy_model_name(window, model_name: Optional[str] = None) -> str:
+    """Resolve human-readable model name based on active strategy selection."""
+    if model_name and model_name.strip() and model_name.strip() not in ("Quantitative Strategy", "--"):
+        return model_name.strip()
+
+    try:
+        import shiboken6
+        if hasattr(window, "comboStrategy") and window.comboStrategy is not None and shiboken6.isValid(window.comboStrategy):
+            cur_text = window.comboStrategy.currentText()
+            if cur_text and cur_text.strip():
+                return cur_text.split("(")[0].strip()
+    except Exception:
+        pass
+
+    try:
+        from pathlib import Path
+        root_p = Path(__file__).resolve().parent.parent.parent.parent
+        cfg_p = root_p / "config" / "settings.json"
+        if cfg_p.exists():
+            with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                cfg_data = json.load(f_cfg)
+                strat = cfg_data.get("strategy", "builtin_ict_pro")
+                if "wyckoff" in strat.lower():
+                    return "Wyckoff Momentum Pro"
+                if "ema" in strat.lower():
+                    return "EMA Dual Cross"
+    except Exception:
+        pass
+
+    return "ICT Zones Pro v4.2"
+
+
+def update_strategy_checklist_ui(
+    window,
+    model_name: str,
+    chk1: Optional[str] = None,
+    chk2: Optional[str] = None,
+    chk3: Optional[str] = None,
+    is_active: bool = False,
+):
+    """Dynamically updates Card 1 checklist keys and values based on the active quantitative strategy."""
+    m_low = (model_name or "").lower()
+    is_wyckoff = "wyckoff" in m_low
+    is_ema = "ema" in m_low
+
+    if is_wyckoff:
+        k1, k2, k3 = "Trend Structure", "Pullback Retest", "Volume Expansion"
+        default_chk1 = "Mark-up/Mark-down Phase" if is_active else "Awaiting Clear Trend"
+        default_chk2 = "EMA20 Retest Confirmed" if is_active else "Awaiting EMA Retest"
+        default_chk3 = "Volume Expansion Confirmed" if is_active else "Awaiting Volume Surge"
+    elif is_ema:
+        k1, k2, k3 = "Trend Structure", "EMA Crossover", "Risk / Reward"
+        default_chk1 = "Trend Confirmed" if is_active else "Awaiting Trend Direction"
+        default_chk2 = "EMA Cross Confirmed" if is_active else "Awaiting EMA Crossover"
+        default_chk3 = "Target RR Active" if is_active else "Monitoring Volatility"
+    else:
+        k1, k2, k3 = "Trend Structure", "Liquidity Sweep", "Order Blocks & FVG"
+        default_chk1 = "Confirmed" if is_active else "Awaiting Clear Trend"
+        default_chk2 = "Asian Range Swept" if is_active else "Awaiting Asian Sweep"
+        default_chk3 = "FVG Mitigated" if is_active else "Awaiting Mitigation"
+
+    # Update row keys dynamically
+    if hasattr(window, "lblKey_lblChk1Val") and window.lblKey_lblChk1Val:
+        window.lblKey_lblChk1Val.setText(k1)
+    if hasattr(window, "lblKey_lblChk2Val") and window.lblKey_lblChk2Val:
+        window.lblKey_lblChk2Val.setText(k2)
+    if hasattr(window, "lblKey_lblChk3Val") and window.lblKey_lblChk3Val:
+        window.lblKey_lblChk3Val.setText(k3)
+
+    # Update row values
+    if hasattr(window, "lblChk1Val") and window.lblChk1Val:
+        window.lblChk1Val.setText(chk1 or default_chk1)
+    if hasattr(window, "lblChk2Val") and window.lblChk2Val:
+        window.lblChk2Val.setText(chk2 or default_chk2)
+    if hasattr(window, "lblChk3Val") and window.lblChk3Val:
+        window.lblChk3Val.setText(chk3 or default_chk3)
+
+
 def update_order_proposal_html(
     window,
     sym=None,
@@ -236,22 +315,18 @@ def update_order_proposal_html(
         clear_manual_chart_lines(window)
 
         # Card 1: Mô hình thiết lập (Standby)
+        resolved_model = resolve_strategy_model_name(window, model_name)
         if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
             window.lblModelSubtitle.setText("SETUP MODEL")
         if hasattr(window, "lblModelName") and window.lblModelName:
-            window.lblModelName.setText(model_name or "ICT Zones Pro v4.2")
+            window.lblModelName.setText(resolved_model)
         if hasattr(window, "lblModelGrade") and window.lblModelGrade:
             window.lblModelGrade.setText(grade or "AWAITING SETUP")
             window.lblModelGrade.setStyleSheet(
                 "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; "
                 "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
             )
-        if hasattr(window, "lblChk1Val") and window.lblChk1Val:
-            window.lblChk1Val.setText(chk1 or "Awaiting Clear Trend")
-        if hasattr(window, "lblChk2Val") and window.lblChk2Val:
-            window.lblChk2Val.setText(chk2 or "Awaiting Asian Sweep")
-        if hasattr(window, "lblChk3Val") and window.lblChk3Val:
-            window.lblChk3Val.setText(chk3 or "Awaiting Mitigation")
+        update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=False)
 
         # Card 2: Lệnh và Quản trị rủi ro (Chưa có lệnh)
         if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -443,22 +518,18 @@ def update_order_proposal_html(
         logger.error(f"[TradingPlanPanel] Failed to update chart order lines: {e}")
 
     # Card 1: Mô hình thiết lập (Active)
+    resolved_model = resolve_strategy_model_name(window, model_name)
     if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
         window.lblModelSubtitle.setText("POSITION IN MARKET" if is_live_position else ("PENDING ORDER" if is_pending_order else "SETUP MODEL"))
     if hasattr(window, "lblModelName") and window.lblModelName:
-        window.lblModelName.setText(model_name or "ICT Zones Pro v4.2")
+        window.lblModelName.setText(resolved_model)
     if hasattr(window, "lblModelGrade") and window.lblModelGrade:
         window.lblModelGrade.setText(grade or f"CONFIDENCE: {confidence or '85%'}")
         badge_bg = "#0d2818" if is_dark else "#f0fdf4"
         badge_border = "#272d3b" if is_dark else "#cbd5e1"
         badge_text = "#16a34a" if is_dark else "#15803d"
         window.lblModelGrade.setStyleSheet(f"background-color: {badge_bg}; color: {badge_text}; border: 1px solid {badge_border}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;")
-    if hasattr(window, "lblChk1Val") and window.lblChk1Val:
-        window.lblChk1Val.setText(chk1 or "Confirmed")
-    if hasattr(window, "lblChk2Val") and window.lblChk2Val:
-        window.lblChk2Val.setText(chk2 or "Asian Range Swept")
-    if hasattr(window, "lblChk3Val") and window.lblChk3Val:
-        window.lblChk3Val.setText(chk3 or "FVG Mitigated")
+    update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=True)
 
     # Card 2: Lệnh và Quản trị rủi ro (Active)
     if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -1781,6 +1852,10 @@ def setup_trading_plan_cards(window, is_dark=False):
     card_model_layout.addLayout(_make_checklist_row("Trend Structure", "Awaiting Clear Trend", "lblChk1Val", "lblChk1Icon"))
     card_model_layout.addLayout(_make_checklist_row("Liquidity Sweep", "Awaiting Asian Sweep", "lblChk2Val", "lblChk2Icon"))
     card_model_layout.addLayout(_make_checklist_row("Order Blocks & FVG", "Awaiting Mitigation", "lblChk3Val", "lblChk3Icon"))
+
+    init_model = resolve_strategy_model_name(window, None)
+    lbl_m_name.setText(init_model)
+    update_strategy_checklist_ui(window, init_model, is_active=False)
 
     # CARD 2: ORDER & RISK (Concise & Institutional)
     card_order = QFrame()

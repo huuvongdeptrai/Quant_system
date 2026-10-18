@@ -791,6 +791,159 @@ class TestPlanScenarioAudits:
         assert win.lblSizeVal.text() == "0.64 LOTS (PNL: +$250.80)"
 
 
+class TestStrategyAdaptiveTradingPlan:
+    """Verifies that the Trading Plan panel dynamically adapts its model title,
+    checklist keys, and evaluation criteria based on active strategy (Wyckoff vs ICT vs EMA)."""
+
+    def test_wyckoff_momentum_strategy_analysis(self):
+        from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+        import numpy as np
+        import pandas as pd
+
+        strat = WyckoffMomentumStrategy()
+        # 1. Short data test (insufficient bars)
+        short_df = pd.DataFrame({"close": [2000.0] * 10})
+        res_short = strat.analyze(short_df)
+        assert res_short["action"] == "HOLD"
+        assert res_short["confidence"] == 0.0
+
+        # 2. Bullish breakout with volume test
+        n = 80
+        closes = [2000.0 + i * 0.5 for i in range(n)]
+        highs = [c + 2.0 for c in closes]
+        lows = [c - 2.0 for c in closes]
+        vols = [1000.0] * n
+        vols[-1] = 2500.0  # 2.5x volume surge
+
+        df = pd.DataFrame({
+            "close": closes,
+            "high": highs,
+            "low": lows,
+            "tick_volume": vols,
+        })
+        res = strat.analyze(df)
+        assert "strategy" in res
+        assert res["strategy"] == "Wyckoff_Momentum_Pro"
+        assert "checklist" in res
+        assert len(res["checklist"]) == 3
+        assert "metadata" in res
+        assert "bias" in res["metadata"]
+
+    def test_strategy_model_resolution_and_checklist_keys(self, qapp):
+        from frontend.controllers.chart.trading_plan_panel import (
+            resolve_strategy_model_name,
+            update_strategy_checklist_ui,
+        )
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        win = QWidget()
+        win.lblKey_lblChk1Val = QLabel("Trend Structure")
+        win.lblKey_lblChk2Val = QLabel("Liquidity Sweep")
+        win.lblKey_lblChk3Val = QLabel("Order Blocks & FVG")
+        win.lblChk1Val = QLabel("Awaiting Clear Trend")
+        win.lblChk2Val = QLabel("Awaiting Asian Sweep")
+        win.lblChk3Val = QLabel("Awaiting Mitigation")
+
+        # 1. Wyckoff Mode
+        update_strategy_checklist_ui(win, "Wyckoff Momentum Pro", is_active=False)
+        assert win.lblKey_lblChk1Val.text() == "Trend Structure"
+        assert win.lblKey_lblChk2Val.text() == "Pullback Retest"
+        assert win.lblKey_lblChk3Val.text() == "Volume Expansion"
+        assert win.lblChk2Val.text() == "Awaiting EMA Retest"
+        assert win.lblChk3Val.text() == "Awaiting Volume Surge"
+
+        # 2. EMA Mode
+        update_strategy_checklist_ui(win, "EMA Dual Cross", is_active=False)
+        assert win.lblKey_lblChk2Val.text() == "EMA Crossover"
+        assert win.lblKey_lblChk3Val.text() == "Risk / Reward"
+        assert win.lblChk2Val.text() == "Awaiting EMA Crossover"
+
+        # 3. ICT Mode
+        update_strategy_checklist_ui(win, "ICT Zones Pro v4.2", is_active=False)
+        assert win.lblKey_lblChk2Val.text() == "Liquidity Sweep"
+        assert win.lblKey_lblChk3Val.text() == "Order Blocks & FVG"
+        assert win.lblChk2Val.text() == "Awaiting Asian Sweep"
+        assert win.lblChk3Val.text() == "Awaiting Mitigation"
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    def test_trading_plan_panel_wyckoff_full_cycle(self, mock_sym, qapp):
+        from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
+        from PySide6.QtWidgets import QLabel, QWidget, QPushButton, QProgressBar
+
+        mock_info = MagicMock()
+        mock_info.digits = 2
+        mock_sym.return_value = mock_info
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.is_dark_theme = True
+        win._plan_mode = "ai"
+
+        win.lblModelSubtitle = QLabel("SETUP MODEL")
+        win.lblModelName = QLabel("ICT Zones Pro v4.2")
+        win.lblModelGrade = QLabel("AWAITING SETUP")
+        win.lblKey_lblChk1Val = QLabel("Trend Structure")
+        win.lblKey_lblChk2Val = QLabel("Liquidity Sweep")
+        win.lblKey_lblChk3Val = QLabel("Order Blocks & FVG")
+        win.lblChk1Val = QLabel("Awaiting Clear Trend")
+        win.lblChk2Val = QLabel("Awaiting Asian Sweep")
+        win.lblChk3Val = QLabel("Awaiting Mitigation")
+
+        win.lblOrderBudgetTitle = QLabel("ORDER & RISK BUDGET")
+        win.lblOrderTypeBadge = QLabel("NO ORDER")
+        win.lblEntryVal = QLabel("--")
+        win.lblSLVal = QLabel("--")
+        win.lblTPVal = QLabel("--")
+        win.lblSizeVal = QLabel("--")
+        win.lblGateExpiryTitle = QLabel("EXPIRATION")
+        win.lblGateExpiryTime = QLabel("--")
+        win.barSignalExpiry = QProgressBar()
+        win.btnApproveOrder = QPushButton("APPROVE")
+        win.btnModifyOrder = QPushButton("MODIFY")
+        win.btnDiscardOrder = QPushButton("DISCARD")
+
+        # 1. Update in Wyckoff standby mode
+        update_order_proposal_html(
+            win,
+            has_signal=False,
+            model_name="Wyckoff Momentum Pro",
+            chk1="Mark-up Phase (EMA20 > EMA50)",
+            chk2="Awaiting Pullback to EMA20",
+            chk3="Normal Volume (1.0x MA)",
+        )
+
+        assert win.lblModelName.text() == "Wyckoff Momentum Pro"
+        assert win.lblKey_lblChk2Val.text() == "Pullback Retest"
+        assert win.lblKey_lblChk3Val.text() == "Volume Expansion"
+        assert win.lblChk1Val.text() == "Mark-up Phase (EMA20 > EMA50)"
+        assert win.lblChk2Val.text() == "Awaiting Pullback to EMA20"
+        assert win.lblChk3Val.text() == "Normal Volume (1.0x MA)"
+
+        # 2. Update with active Wyckoff BUY signal
+        update_order_proposal_html(
+            win,
+            has_signal=True,
+            signal_type="BUY",
+            model_name="Wyckoff Momentum Pro (BUY)",
+            entry=2650.00,
+            sl=2640.00,
+            tp=2675.00,
+            chk1="Wyckoff BUY Structure",
+            chk2="EMA20 Pullback Confirmed",
+            chk3="Volume Expansion Confirmed",
+        )
+
+        assert "Wyckoff" in win.lblModelName.text()
+        assert win.lblKey_lblChk2Val.text() == "Pullback Retest"
+        assert win.lblKey_lblChk3Val.text() == "Volume Expansion"
+        assert win.lblChk1Val.text() == "Wyckoff BUY Structure"
+        assert win.lblChk2Val.text() == "EMA20 Pullback Confirmed"
+        assert win.lblChk3Val.text() == "Volume Expansion Confirmed"
+        assert "2650.00" in win.lblEntryVal.text()
+        assert "2640.00" in win.lblSLVal.text()
+        assert "2675.00" in win.lblTPVal.text()
+
+
 
 
 

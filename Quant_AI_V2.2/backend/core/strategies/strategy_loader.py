@@ -128,7 +128,7 @@ def discover_strategies() -> List[Dict[str, Any]]:
             "name": "Wyckoff Momentum Pro (Vectorized)",
             "file_name": "wyckoff_vectorized.py",
             "file_path": str(strat_dir / "wyckoff_vectorized.py"),
-            "class_name": "VectorizedBacktester",
+            "class_name": "WyckoffMomentumStrategy",
             "is_builtin": True,
             "description": "Vectorized NumPy ATR envelope and Volume expansion momentum model."
         },

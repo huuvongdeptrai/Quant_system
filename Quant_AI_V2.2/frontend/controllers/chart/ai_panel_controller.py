@@ -52,6 +52,7 @@ class AIAnalyzerThread(QtCore.QThread):
         tech_data=None,
         d1_rates=None,
         h4_rates=None,
+        strategy_id=None,
     ):
 
         super().__init__(parent)
@@ -71,6 +72,8 @@ class AIAnalyzerThread(QtCore.QThread):
         self.d1_rates = d1_rates
 
         self.h4_rates = h4_rates
+
+        self.strategy_id = strategy_id
 
         self.signals = AISignals()
 
@@ -196,28 +199,40 @@ class AIAnalyzerThread(QtCore.QThread):
                         else {"volatility_risk": "LOW", "bias": "NEUTRAL"}
                     )
 
-                    strat_id = "builtin_ict_pro"
-                    cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "settings.json")
-                    if os.path.exists(cfg_p):
+                    strat_id = getattr(self, "strategy_id", None)
+                    if not strat_id:
                         try:
-                            with open(cfg_p, "r", encoding="utf-8") as f_cfg:
-                                cfg_data = json.load(f_cfg)
-                                strat_id = cfg_data.get("strategy", "builtin_ict_pro")
+                            from pathlib import Path
+                            proj_root = Path(__file__).resolve().parent.parent.parent.parent
+                            cfg_p = proj_root / "config" / "settings.json"
+                            if cfg_p.exists():
+                                with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                                    cfg_data = json.load(f_cfg)
+                                    strat_id = cfg_data.get("strategy", "builtin_ict_pro")
                         except Exception:
-                            pass
+                            strat_id = "builtin_ict_pro"
 
                     strat_inst = None
                     strat_display = "ICT Zones Pro v4.2"
                     all_strats = discover_strategies()
                     for s in all_strats:
-                        if s["id"] == strat_id:
+                        if s["id"] == strat_id or (s["id"] == "builtin_wyckoff" and "wyckoff" in str(strat_id).lower()):
                             strat_display = s["name"].split("(")[0].strip()
                             strat_inst = load_strategy_instance(s["file_path"], s["class_name"])
                             break
 
                     if strat_inst is None:
-                        strat_inst = ICTZonesProStrategy()
-                        strat_display = "ICT Zones Pro v4.2"
+                        if "wyckoff" in str(strat_id).lower():
+                            from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+                            strat_inst = WyckoffMomentumStrategy()
+                            strat_display = "Wyckoff Momentum Pro"
+                        elif "ema" in str(strat_id).lower():
+                            from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
+                            strat_inst = EMAStressTestStrategy()
+                            strat_display = "EMA Dual Cross"
+                        else:
+                            strat_inst = ICTZonesProStrategy()
+                            strat_display = "ICT Zones Pro v4.2"
 
                     res_strat = strat_inst.analyze(df, macro_ctx)
                     result["_strategy_res"] = res_strat
@@ -500,15 +515,28 @@ def _update_panel_with_result(window, result):
 
         status_txt = ("BOT AUTO MANAGING (TRAILING SL)" if ts_on else "BOT AUTO MANAGING (TARGET TP/SL)") if (is_bot_active or exec_mode == "FULL-AUTO") else "LIVE POSITION IN MARKET"
 
+        if "wyckoff" in strat_name.lower():
+            chk1_pos = f"WYCKOFF {pos_side} STRUCTURE"
+            chk2_pos = f"EMA20 {'PULLBACK' if pos_side == 'BUY' else 'RETEST'} FILLED"
+            chk3_pos = "VOLUME EXPANSION ACTIVE"
+        elif "ema" in strat_name.lower():
+            chk1_pos = f"EMA {pos_side} STRUCTURE"
+            chk2_pos = "CROSSOVER ACTIVE"
+            chk3_pos = "TARGET TRAILING ACTIVE"
+        else:
+            chk1_pos = f"{pos_side} STRUCTURE CONFIRMED"
+            chk2_pos = f"ASIAN {'HIGH' if pos_side == 'SELL' else 'LOW'} SWEPT"
+            chk3_pos = "M15 FVG MITIGATED"
+
         kwargs_order = {
             "sym": clean_sym,
             "has_signal": True,
             "signal_type": pos_side,
             "model_name": strat_name,
             "grade": f"PNL: {pnl_str}",
-            "chk1": f"{pos_side} STRUCTURE CONFIRMED",
-            "chk2": f"ASIAN {'HIGH' if pos_side == 'SELL' else 'LOW'} SWEPT",
-            "chk3": "M15 FVG MITIGATED",
+            "chk1": chk1_pos,
+            "chk2": chk2_pos,
+            "chk3": chk3_pos,
             "entry": live_entry,
             "sl": live_sl,
             "tp": live_tp,
@@ -545,15 +573,28 @@ def _update_panel_with_result(window, result):
         o_tp = float(o.tp) if o.tp > 0 else (o_entry + pts_default * 2.0 if o_side == "BUY" else o_entry - pts_default * 2.0)
         o_vol = float(getattr(o, "volume_current", getattr(o, "volume_initial", 0.10)))
 
+        if "wyckoff" in strat_name.lower():
+            chk1_pnd = f"{o_side} SETUP CONFIRMED"
+            chk2_pnd = f"EMA LEVEL AT {o_entry:.{digits}f}"
+            chk3_pnd = "AWAITING VOLUME EXPANSION"
+        elif "ema" in strat_name.lower():
+            chk1_pnd = f"{o_side} TREND CONFIRMED"
+            chk2_pnd = f"LIMIT AT {o_entry:.{digits}f}"
+            chk3_pnd = "AWAITING FILL IN MARKET"
+        else:
+            chk1_pnd = f"{o_side} SETUP CONFIRMED"
+            chk2_pnd = f"LIMIT ORDER AT {o_entry:.{digits}f}"
+            chk3_pnd = "AWAITING FILL IN MARKET"
+
         kwargs_order = {
             "sym": clean_sym,
             "has_signal": True,
             "signal_type": o_side,
             "model_name": strat_name,
             "grade": f"PENDING #{o.ticket}",
-            "chk1": f"{o_side} SETUP CONFIRMED",
-            "chk2": f"LIMIT ORDER AT {o_entry:.{digits}f}",
-            "chk3": "AWAITING FILL IN MARKET",
+            "chk1": chk1_pnd,
+            "chk2": chk2_pnd,
+            "chk3": chk3_pnd,
             "entry": o_entry,
             "sl": o_sl,
             "tp": o_tp,
@@ -583,6 +624,7 @@ def _update_panel_with_result(window, result):
     user_chk = strat_res.get("checklist") or strat_meta.get("checklist") or []
     is_ict = "ict" in strat_name.lower()
     is_ema = "ema" in strat_name.lower()
+    is_wyckoff = "wyckoff" in strat_name.lower()
 
     if has_valid_signal:
         entry_val = float(raw_entry)
@@ -604,6 +646,10 @@ def _update_panel_with_result(window, result):
             chk1 = f"{strat_sig} Structure Confirmed"
             chk2 = f"Asian {'High' if strat_sig == 'SELL' else 'Low'} Swept"
             chk3 = "FVG Mitigated"
+        elif is_wyckoff:
+            chk1 = f"Wyckoff {strat_sig} Structure"
+            chk2 = f"EMA20 {'Pullback' if strat_sig == 'BUY' else 'Retest'} Confirmed"
+            chk3 = "Volume Expansion Confirmed"
         elif is_ema:
             chk1 = "Trend Confirmed"
             chk2 = "EMA Crossover Confirmed"
@@ -794,6 +840,10 @@ def _update_panel_with_result(window, result):
             chk1 = chk1_ict
             chk2 = "Awaiting Asian Sweep"
             chk3 = "Awaiting Mitigation"
+        elif is_wyckoff:
+            chk1 = "Mark-up Phase (EMA20 > EMA50)" if bias_val > 0 else ("Mark-down Phase (EMA20 < EMA50)" if bias_val < 0 else "Awaiting Clear Trend")
+            chk2 = "Awaiting EMA Pullback" if bias_val > 0 else ("Awaiting EMA Retest" if bias_val < 0 else "Awaiting Retest")
+            chk3 = "Awaiting Volume Surge"
         elif is_ema:
             chk1 = f"{htf_raw} Trend" if htf_raw in ("BULLISH", "BEARISH") else "Awaiting Trend Direction"
             chk2 = "Awaiting EMA Crossover"
@@ -872,6 +922,19 @@ def _run_analysis(window, sym, force=False):
             active_id = window.comboAIModel.currentText()
     except Exception:
         active_id = None
+
+    active_strat_id = None
+    try:
+        import shiboken6
+        if (
+            hasattr(window, "comboStrategy")
+            and window.comboStrategy is not None
+            and shiboken6.isValid(window.comboStrategy)
+            and window.comboStrategy.count() > 0
+        ):
+            active_strat_id = window.comboStrategy.currentData()
+    except Exception:
+        active_strat_id = None
 
     rates = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 5000)
 
@@ -1011,6 +1074,7 @@ def _run_analysis(window, sym, force=False):
         tech_data=tech_data,
         d1_rates=d1_rates,
         h4_rates=h4_rates,
+        strategy_id=active_strat_id,
     )
 
     window.ai_thread = thread

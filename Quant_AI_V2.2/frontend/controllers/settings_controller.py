@@ -524,6 +524,12 @@ class SettingsManager:
             win.comboExecutionMode.addItem("Full-Auto (Autonomous STP)", "FULL-AUTO")
             win.comboExecutionMode.currentIndexChanged.connect(self._on_execution_mode_changed)
 
+        if hasattr(win, "comboStrategy"):
+            try:
+                win.comboStrategy.currentIndexChanged.connect(self._on_strategy_changed)
+            except Exception:
+                pass
+
         if hasattr(win, "comboAIModel"):
             try:
                 import shiboken6
@@ -531,6 +537,53 @@ class SettingsManager:
                     win.comboAIModel.addItems(["qwen2.5", "llama3.1", "gemini-2.0-flash"])
             except Exception as err:
                 logger.debug(f"[SettingsController] AI model populate error: {err}")
+
+    def _on_strategy_changed(self, idx):
+        if not hasattr(self.window, "comboStrategy"):
+            return
+        strat_id = self.window.comboStrategy.currentData()
+        strat_name = self.window.comboStrategy.currentText().split("(")[0].strip()
+        if not strat_id:
+            return
+
+        # 1. Persist to settings.json
+        try:
+            merged = {}
+            if os.path.exists(CONFIG_PATH):
+                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                    merged = json.load(f)
+            merged["strategy"] = strat_id
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(merged, f, indent=4)
+        except Exception as e:
+            logger.debug(f"[SettingsController] Auto-persist strategy error: {e}")
+
+        # 2. Hot-reload strategy on running bot worker if active
+        qt = getattr(self.window, "quant_terminal", None)
+        bot = getattr(qt, "bot_worker", None) if qt else None
+        if bot and hasattr(bot, "strategy"):
+            try:
+                from backend.core.strategies.strategy_loader import discover_strategies, load_strategy_instance
+                for s in discover_strategies():
+                    if s["id"] == strat_id:
+                        bot.strategy = load_strategy_instance(s["file_path"], s["class_name"])
+                        break
+            except Exception as e_bot:
+                logger.debug(f"[SettingsController] Bot strategy hot reload error: {e_bot}")
+
+        # 3. Update Trading Plan panel immediately
+        try:
+            from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
+            update_order_proposal_html(self.window, has_signal=False, model_name=strat_name)
+        except Exception as e_plan:
+            logger.debug(f"[SettingsController] Update trading plan panel error: {e_plan}")
+
+        # 4. Trigger reanalysis on current chart
+        try:
+            from frontend.controllers.chart.ai_panel_controller import _force_reanalyze
+            _force_reanalyze(self.window)
+        except Exception as e_an:
+            logger.debug(f"[SettingsController] Force reanalyze error: {e_an}")
 
     def _on_execution_mode_changed(self, idx):
         if hasattr(self.window, "comboExecutionMode"):
@@ -747,6 +800,19 @@ class SettingsManager:
         if "alert_risk_halt" in data: telegram_notifier.alert_risk_halt = bool(data["alert_risk_halt"])
 
         self._hot_reload_live_bot(data)
+
+        # Refresh trading plan with loaded strategy
+        strat_id = data.get("strategy", DEFAULTS.get("strategy", "builtin_ict_pro"))
+        strat_name = "ICT Zones Pro v4.2"
+        if "wyckoff" in str(strat_id).lower():
+            strat_name = "Wyckoff Momentum Pro"
+        elif "ema" in str(strat_id).lower():
+            strat_name = "EMA Dual Cross"
+        try:
+            from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
+            update_order_proposal_html(self.window, has_signal=False, model_name=strat_name)
+        except Exception:
+            pass
 
         self._set_status("CONFIGURATION READY", "#475569")
 
