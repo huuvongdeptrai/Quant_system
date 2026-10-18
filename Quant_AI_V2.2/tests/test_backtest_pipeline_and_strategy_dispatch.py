@@ -199,3 +199,67 @@ def generate_signals(df):
         assert "error" not in res
         assert res["bars_tested"] == n
         assert "trade_records" in res
+
+    def test_backend_backtest_package_exports_and_single_source_of_truth(self):
+        """Verify that backend.backtest exposes the full backtesting subsystem cleanly."""
+        import backend.backtest as bt_pkg
+        from backend.backtest import (
+            VectorizedBacktester,
+            EventDrivenBacktester,
+            ICTProBacktester,
+            BacktestWorker,
+            BacktestReport,
+            get_symbol_multiplier,
+            run_ict_pro_backtest,
+        )
+
+        # All exports must be accessible directly
+        for name in bt_pkg.__all__:
+            assert hasattr(bt_pkg, name), f"backend.backtest must export {name}"
+
+        # Wrappers must re-export identical types
+        from backend.backtest.engine_vectorized import VectorizedBacktester as VecWrap
+        from backend.backtest.engine_event_driven import EventDrivenBacktester as EvWrap
+        from backend.backtest.worker import BacktestWorker as WorkerWrap
+        from research.backtest_vectorized import VectorizedBacktester as ResVec
+
+        assert VecWrap is VectorizedBacktester
+        assert EvWrap is EventDrivenBacktester
+        assert WorkerWrap is BacktestWorker
+        assert ResVec is VectorizedBacktester
+
+    def test_event_driven_backtester_polymorphism(self):
+        """Verify EventDrivenBacktester executes bar-by-bar polymorphically across strategies."""
+        from datetime import datetime, timedelta
+        from backend.backtest import EventDrivenBacktester
+        from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+        from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
+
+        n = 200
+        base_time = datetime(2026, 10, 1, 8, 0, 0)
+        times = [base_time + timedelta(minutes=15 * i) for i in range(n)]
+        closes = 2600.0 + np.cumsum(np.random.randn(n) * 2.0)
+        df = pd.DataFrame({
+            "time": times,
+            "open": closes,
+            "high": closes + 2.0,
+            "low": closes - 2.0,
+            "close": closes,
+            "tick_volume": np.ones(n) * 1000,
+        })
+
+        # Test with string identifiers
+        for strat_name in ["ict", "wyckoff", "ema"]:
+            bt = EventDrivenBacktester(strategy=strat_name)
+            report = bt.run(df, symbol="XAUUSD")
+            assert report is not None
+            assert report.sample_size == n
+            assert report.final_equity > 0
+
+        # Test with instantiated strategy object
+        strat_obj = WyckoffMomentumStrategy()
+        bt_obj = EventDrivenBacktester(strategy=strat_obj)
+        rep_obj = bt_obj.run(df, symbol="XAUUSD")
+        assert rep_obj is not None
+        assert rep_obj.sample_size == n
+

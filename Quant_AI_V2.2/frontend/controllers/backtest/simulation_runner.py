@@ -85,7 +85,13 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
     self._log(f"[{now_str}] [PARAMS] Asset: {self.current_symbol} | Range: {from_str} to {to_str} | Timeframe: {tf_str} | Slippage: {slippage_pts} pts")
 
     try:
-        from research.backtest_vectorized import VectorizedBacktester
+        from backend.backtest import (
+            VectorizedBacktester,
+            EventDrivenBacktester,
+            ICTProBacktester,
+            BacktestReport,
+            get_symbol_multiplier,
+        )
 
         t0 = time.perf_counter()
         rates = None
@@ -142,23 +148,57 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         df = pd.DataFrame(rates)
         self._log(f"[{now_str}] [DATA] Loaded {len(df):,} real bars from MT5 ({self.current_symbol}) for {from_str} to {to_str}.")
 
-        # Execute Backtest
+        # Execute Backtest via Unified backend.backtest package
         target_rr = 2.5 if "ICT" in strat_name else 2.0
         init_cap = self.spinBtCapital.value() if hasattr(self, "spinBtCapital") else 100000.0
         comm_val = self.spinBtComm.value() if hasattr(self, "spinBtComm") else 7.0
-        bt = VectorizedBacktester(
-            initial_balance=init_cap,
-            risk_per_trade_pct=1.0,
-            commission_per_trade=comm_val,
-            slippage_pct=float(slippage_pts) * 0.00001,
+
+        is_event_driven = (
+            not is_initial
+            and ("ict" in strat_name.lower() or (strat_data and "ict" in strat_data.get("name", "").lower()))
+            and len(df) <= 1500
         )
-        report = bt.run(
-            df,
-            target_rr=target_rr,
-            strategy_name=strat_name,
-            symbol=self.current_symbol,
-            fill_on_next_open=True,
-        )
+
+        if is_event_driven:
+            self._log(f"[{now_str}] [BACKTEST] Engine: EventDrivenBacktester (backend.backtest) | High-Fidelity Bar-by-Bar")
+            bt_event = ICTProBacktester(
+                initial_balance=init_cap,
+                risk_per_trade_pct=1.0,
+                commission_per_lot=comm_val,
+                slippage_pts=float(slippage_pts),
+            )
+            report = bt_event.run(df, symbol=self.current_symbol)
+            if report is None:
+                self._log(f"[{now_str}] [BACKTEST] Insufficient history for event engine, falling back to VectorizedBacktester...")
+                bt_vec = VectorizedBacktester(
+                    initial_balance=init_cap,
+                    risk_per_trade_pct=1.0,
+                    commission_per_trade=comm_val,
+                    slippage_pct=float(slippage_pts) * 0.00001,
+                )
+                report = bt_vec.run(
+                    df,
+                    target_rr=target_rr,
+                    strategy_name=strat_name,
+                    symbol=self.current_symbol,
+                    fill_on_next_open=True,
+                )
+        else:
+            self._log(f"[{now_str}] [BACKTEST] Engine: VectorizedBacktester (backend.backtest) | Pure Matrix Acceleration")
+            bt = VectorizedBacktester(
+                initial_balance=init_cap,
+                risk_per_trade_pct=1.0,
+                commission_per_trade=comm_val,
+                slippage_pct=float(slippage_pts) * 0.00001,
+            )
+            report = bt.run(
+                df,
+                target_rr=target_rr,
+                strategy_name=strat_name,
+                symbol=self.current_symbol,
+                fill_on_next_open=True,
+            )
+
         self.last_report = report
         exec_time = (time.perf_counter() - t0) * 1000.0
 

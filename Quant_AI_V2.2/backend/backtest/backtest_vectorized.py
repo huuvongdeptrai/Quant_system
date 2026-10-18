@@ -264,7 +264,31 @@ class VectorizedBacktester:
         trades = np.array(trades_pnl)
         total_trades = len(trades)
         if total_trades == 0:
-            return None
+            return BacktestReport(
+                sample_size=n,
+                initial_balance=self.initial_balance,
+                final_equity=self.initial_balance,
+                total_net_profit=0.0,
+                total_return_pct=0.0,
+                max_drawdown_dollars=0.0,
+                max_drawdown_pct=0.0,
+                sharpe_ratio=0.0,
+                sortino_ratio=0.0,
+                profit_factor=0.0,
+                total_trades=0,
+                win_trades=0,
+                loss_trades=0,
+                win_rate_pct=0.0,
+                avg_win=0.0,
+                avg_loss=0.0,
+                risk_reward_ratio=0.0,
+                mathematical_expectancy=0.0,
+                execution_time_ms=round(exec_ms, 2),
+                total_commission_paid=0.0,
+                equity_curve=equity_curve,
+                trades=[],
+                trade_records=[],
+            )
 
         wins = trades[trades > 0]
         losses = trades[trades < 0]
@@ -402,3 +426,11 @@ if __name__ == "__main__":
     print(f" Total Commission Paid       : {rep.total_commission_paid:,.2f} USD")
     print(f" Execution Time (Pure Matrix): {rep.execution_time_ms:.2f} ms")
     print("=" * 65)
+
+
+__all__ = [
+    "VectorizedBacktester",
+    "BacktestReport",
+    "get_symbol_multiplier",
+]
+

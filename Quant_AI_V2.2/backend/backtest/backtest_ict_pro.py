@@ -28,69 +28,51 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from backend.core.strategies.ict_strategy import ICTZonesProStrategy
 from backend.infrastructure.brokers.mt5_safe import mt5
+from backend.backtest.backtest_vectorized import BacktestReport, get_symbol_multiplier
 
 
-@dataclass
-class BacktestReport:
-    sample_size: int
-    initial_balance: float
-    final_equity: float
-    total_net_profit: float
-    total_return_pct: float
-    max_drawdown_dollars: float
-    max_drawdown_pct: float
-    sharpe_ratio: float
-    sortino_ratio: float
-    profit_factor: float
-    total_trades: int
-    win_trades: int
-    loss_trades: int
-    win_rate_pct: float
-    avg_win: float
-    avg_loss: float
-    risk_reward_ratio: float
-    mathematical_expectancy: float
-    execution_time_ms: float
-    total_commission_paid: float = 0.0
-    equity_curve: list = None
-    trades: list = None
-    trade_records: list = None
-
-
-def get_symbol_multiplier(symbol: str) -> float:
-    """Return USD value change per 1.0 price unit per 1.0 standard lot."""
-    s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
-    if "BTC" in s or "ETH" in s:
-        return 1.0
-    if "XAU" in s or "GOLD" in s or "XAG" in s:
-        return 100.0
-    if any(idx in s for idx in ["US30", "NAS100", "SPX500", "GER40", "DAX", "US100", "US500", "DJ30"]):
-        return 10.0
-    if "JPY" in s:
-        return 667.0
-    return 100000.0
-
-
-class ICTProBacktester:
+class EventDrivenBacktester:
     """
-    Event-driven backtester strictly running ICTZonesProStrategy.
-    Preserves 100% of the official ICT strategy logic while ensuring
-    realistic position sizing, execution friction, and fast in-memory execution.
+    Polymorphic Event-Driven Backtesting Engine that executes bar-by-bar
+    against any BaseStrategy instance (or built-in ICTZonesProStrategy).
+    Preserves 100% fidelity to live trading execution with:
+    - Bar-by-bar rolling window analysis (zero lookahead)
+    - Realistic slippage, commission, and position sizing
+    - Intrabar SL/TP execution checking open proximity
+    - Full trade records with timestamps and PnL breakdown
     """
 
     def __init__(
         self,
+        strategy: Optional[Any] = None,
         initial_balance: float = 100000.0,
         risk_per_trade_pct: float = 1.0,
         commission_per_lot: float = 7.0,
         slippage_pts: float = 20.0,
         max_lot_cap: float = 10.0,
     ):
+        self.strategy = strategy
         self.initial_balance = initial_balance
         self.risk_per_trade_pct = risk_per_trade_pct
         self.commission_per_lot = commission_per_lot
         self.slippage_pts = slippage_pts
         self.max_lot_cap = max_lot_cap
+
+    def _resolve_strategy(self, strategy_config: Optional[Dict[str, Any]] = None):
+        if self.strategy is not None and not isinstance(self.strategy, str):
+            return self.strategy
+        strat_key = (self.strategy or "ict").lower() if isinstance(self.strategy, str) else "ict"
+        cfg = {"lookback_bars": 150, "save_state": False}
+        if strategy_config:
+            cfg.update(strategy_config)
+        if "wyckoff" in strat_key:
+            from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+            return WyckoffMomentumStrategy(cfg)
+        elif "ema" in strat_key:
+            from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
+            return EMAStressTestStrategy(cfg)
+        else:
+            return ICTZonesProStrategy(cfg)
 
     def run(
         self,
@@ -107,11 +89,7 @@ class ICTProBacktester:
         if "time" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["time"]):
             df["time"] = pd.to_datetime(df["time"], unit="s" if float(df["time"].iloc[0]) > 1e8 else None)
 
-        # 1. Khởi tạo ICTZonesProStrategy với save_state=False để triệt tiêu Disk I/O lockup
-        strat_cfg = {"lookback_bars": 150, "save_state": False}
-        if strategy_config:
-            strat_cfg.update(strategy_config)
-        ict = ICTZonesProStrategy(strat_cfg)
+        strat = self._resolve_strategy(strategy_config)
 
         mult = get_symbol_multiplier(symbol)
         point = 0.01 if mult == 100.0 else 0.0001
@@ -223,20 +201,26 @@ class ICTProBacktester:
                     })
                     in_pos = False
 
-            # B. Quét tín hiệu mới từ ICTZonesProStrategy (Chỉ quét khi chưa có vị thế)
+            # B. Quét tín hiệu mới từ chiến lược (Chỉ quét khi chưa có vị thế)
             if not in_pos and i < n - 3:
                 window_df = df.iloc[max(0, i - 250) : i + 1]
-                res = ict.analyze(window_df, macro_context={})
-                sig = res.get("signal", "HOLD")
+                res = strat.analyze(window_df, macro_context={})
+                sig = res.get("signal") if hasattr(res, "get") else getattr(res, "signal", "HOLD")
+
+                cand_sl = res.get("sl") if hasattr(res, "get") else getattr(res, "sl", None)
+                cand_tp = res.get("tp1") if hasattr(res, "get") else getattr(res, "tp1", None)
+                if cand_tp is None:
+                    cand_tp = res.get("tp") if hasattr(res, "get") else getattr(res, "tp", None)
+                cand_entry = res.get("entry_price") if hasattr(res, "get") else getattr(res, "entry_price", c)
 
                 if (
                     sig in ["BUY", "SELL"]
-                    and res.get("sl") is not None
-                    and res.get("tp1") is not None
+                    and cand_sl is not None
+                    and cand_tp is not None
                 ):
-                    candidate_entry = float(res["entry_price"])
-                    candidate_sl = float(res["sl"])
-                    candidate_tp = float(res["tp1"])
+                    candidate_entry = float(cand_entry)
+                    candidate_sl = float(cand_sl)
+                    candidate_tp = float(cand_tp)
                     sl_dist = abs(candidate_entry - candidate_sl)
 
                     # Ngưỡng chặn SL Floor tối thiểu để bảo vệ rủi ro vi cấu trúc
@@ -353,6 +337,31 @@ class ICTProBacktester:
         )
 
 
+class ICTProBacktester(EventDrivenBacktester):
+    """
+    Event-driven backtester strictly running ICTZonesProStrategy.
+    Preserves 100% of the official ICT strategy logic while ensuring
+    realistic position sizing, execution friction, and fast in-memory execution.
+    """
+
+    def __init__(
+        self,
+        initial_balance: float = 100000.0,
+        risk_per_trade_pct: float = 1.0,
+        commission_per_lot: float = 7.0,
+        slippage_pts: float = 20.0,
+        max_lot_cap: float = 10.0,
+    ):
+        super().__init__(
+            strategy="ict",
+            initial_balance=initial_balance,
+            risk_per_trade_pct=risk_per_trade_pct,
+            commission_per_lot=commission_per_lot,
+            slippage_pts=slippage_pts,
+            max_lot_cap=max_lot_cap,
+        )
+
+
 def run_ict_pro_backtest(
     bars: int = 1500,
     risk_pct: float = 1.0,
@@ -444,3 +453,13 @@ if __name__ == "__main__":
         print(f" Mathematical Expectancy     : ${res['expectancy_usd']:,.2f} / trade")
         print(f" Event Execution Time        : {res['exec_time_seconds']:.2f} seconds")
         print("=" * 65)
+
+
+__all__ = [
+    "EventDrivenBacktester",
+    "ICTProBacktester",
+    "run_ict_pro_backtest",
+    "BacktestReport",
+    "get_symbol_multiplier",
+]
+
