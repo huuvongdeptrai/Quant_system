@@ -1043,31 +1043,21 @@ def _refresh_indicators(window, df):
         _hide_curve(window, "VWAP_UPPER")
         _hide_curve(window, "VWAP_LOWER")
 
-    # 7. Fair Value Gaps (FVG)
-    if active.get("fvg", False) and "FVG_ZONES" in computed:
-        fvg_zones = computed["FVG_ZONES"]
-        for idx in range(10):
-            k_top = f"FVG_TOP_{idx}"
-            k_bot = f"FVG_BOT_{idx}"
-            if idx < len(fvg_zones):
-                x1, x2, top_p, bot_p, is_bull = fvg_zones[-(idx + 1)]
-                pen_color = (6, 182, 212, 180) if is_bull else (245, 158, 11, 180)
-                pen = pg.mkPen(color=pen_color, width=1.2, style=Qt.DashLine)
+    # 7. Fair Value Gaps (FVG) - Institutional Engine (LuxAlgo / ICT Standard)
+    for idx in range(10):
+        _hide_curve(window, f"FVG_TOP_{idx}")
+        _hide_curve(window, f"FVG_BOT_{idx}")
 
-                c_top = _get_or_create_curve(window, k_top, pen)
-                c_top.setData([x1, x2 + 15], [top_p, top_p])
-                c_top.setVisible(True)
-
-                c_bot = _get_or_create_curve(window, k_bot, pen)
-                c_bot.setData([x1, x2 + 15], [bot_p, bot_p])
-                c_bot.setVisible(True)
-            else:
-                _hide_curve(window, k_top)
-                _hide_curve(window, k_bot)
+    fvg_on = active.get("fvg", False)
+    if hasattr(window, "drawing_engine") and window.drawing_engine:
+        window.drawing_engine.toggle_fvg(fvg_on)
     else:
-        for idx in range(10):
-            _hide_curve(window, f"FVG_TOP_{idx}")
-            _hide_curve(window, f"FVG_BOT_{idx}")
+        window._fvg_visible = fvg_on
+        try:
+            from frontend.controllers.chart.fvg_engine import update_chart_fvgs
+            update_chart_fvgs(window, force_visible=fvg_on)
+        except Exception:
+            pass
 
     # Sub-Pane Oscillators Management (RSI, MACD, CVD)
     has_osc = hasattr(window, "osc_plot_widget") and window.osc_plot_widget is not None

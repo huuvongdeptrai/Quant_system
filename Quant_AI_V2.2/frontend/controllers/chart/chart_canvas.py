@@ -2289,42 +2289,12 @@ def setup_chart_ui(window):
         window.candlesticks = CandlestickItem(window.chart_data_list, is_dark=is_d)
         window.plot_widget.addItem(window.candlesticks)
 
-        # Tự động nhận diện và vẽ các dải kênh FVG (Fair Value Gap)
-        if hasattr(window, "drawing_engine") and window.drawing_engine:
-            window.drawing_engine.fvg_items.clear()
-        if len(window.chart_data_list) >= 15:
-            total_n = len(window.chart_data_list)
-            fvg_zones = []
-            fvg_threshold = cur_p * 0.0003
-            for i in range(5, total_n - 5):
-                t_cur, _, _, l_cur, h_cur = window.chart_data_list[i]
-                t_prev2, _, _, l_prev2, h_prev2 = window.chart_data_list[i - 2]
-                if l_cur > h_prev2 and (l_cur - h_prev2) > fvg_threshold:
-                    fvg_zones.append(('bull', t_prev2, h_prev2, l_cur, l_cur - h_prev2))
-                elif h_cur < l_prev2 and (l_prev2 - h_cur) > fvg_threshold:
-                    fvg_zones.append(('bear', t_prev2, l_prev2, h_cur, l_prev2 - h_cur))
-
-            fvg_zones.sort(key=lambda z: z[4], reverse=True)
-            fvg_vis = getattr(window, "_fvg_visible", True)
-            for z_type, t_start, y1, y2, _ in fvg_zones[:3]:
-                top_y = max(y1, y2)
-                bot_y = min(y1, y2)
-                box_width = (total_n - t_start + 12)
-                fvg_item = QGraphicsRectItem(t_start, bot_y, box_width, top_y - bot_y)
-                fvg_item.setBrush(pg.mkBrush(217, 119, 6, 40))
-                fvg_item.setPen(pg.mkPen(color=pg.mkColor(217, 119, 6, 140), width=1, style=QtCore.Qt.SolidLine))
-                fvg_item.setVisible(fvg_vis)
-                window.plot_widget.addItem(fvg_item)
-
-                fvg_text = "FVG (Bullish Liquidity)" if z_type == 'bull' else "FVG (Session Premium Supply)"
-                fvg_lbl = pg.TextItem(text=fvg_text, color=(245, 158, 11, 220), anchor=(0, 0.5))
-                fvg_lbl.setFont(QFont("Consolas", 9, QFont.Bold))
-                fvg_lbl.setPos(t_start + 1, (top_y + bot_y) / 2)
-                fvg_lbl.setVisible(fvg_vis)
-                window.plot_widget.addItem(fvg_lbl)
-
-                if hasattr(window, "drawing_engine") and window.drawing_engine:
-                    window.drawing_engine.fvg_items.extend([fvg_item, fvg_lbl])
+        # Tự động nhận diện và vẽ Fair Value Gap (FVG) chuẩn mực thể chế & LuxAlgo
+        try:
+            from frontend.controllers.chart.fvg_engine import update_chart_fvgs
+            update_chart_fvgs(window)
+        except Exception as e_fvg:
+            logger.debug(f"[FVG] Error updating chart FVGs: {e_fvg}")
 
         # Thêm lại crosshair, live price line, tPOC, vPOC do hàm clear() đã xóa mất
         if hasattr(window, "vLine"):

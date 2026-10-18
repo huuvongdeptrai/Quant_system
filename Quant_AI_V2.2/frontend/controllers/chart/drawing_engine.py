@@ -136,9 +136,16 @@ class ChartDrawingEngine(QObject):
 
     def toggle_fvg(self, checked: bool):
         self.window._fvg_visible = checked
-        for it in self.fvg_items:
-            if it:
-                it.setVisible(checked)
+        if checked and not self.fvg_items:
+            try:
+                from frontend.controllers.chart.fvg_engine import update_chart_fvgs
+                update_chart_fvgs(self.window, force_visible=True)
+            except Exception:
+                pass
+        else:
+            for it in self.fvg_items:
+                if it:
+                    it.setVisible(checked)
 
     def toggle_poc(self, checked: bool):
         self.window._poc_visible = checked
