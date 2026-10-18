@@ -1067,7 +1067,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_entry.setMovable(False)
         dir_s = "BUY" if is_buy else "SELL"
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
-            window.line_order_entry.label.setFormat(f"MANUAL {dir_s}: {entry_p:.{dig}f} ({lot:.2f} Lots)")
+            window.line_order_entry.label.setFormat(f"MANUAL {dir_s}: {entry_p:.{dig}f} ({lot:.2f} Lots)  [×]")
         window.line_order_entry.setVisible(True)
         if window.line_order_entry not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
@@ -1081,7 +1081,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.5, style=Qt.DashLine))
         window.line_order_sl.setMovable(True)
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
-            window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}")
+            window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}  [×]")
         window.line_order_sl.setVisible(True)
         if window.line_order_sl not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
@@ -1095,10 +1095,32 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.5, style=Qt.DashLine))
         window.line_order_tp.setMovable(True)
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
-            window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}")
+            window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}  [×]")
         window.line_order_tp.setVisible(True)
         if window.line_order_tp not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+
+    # Interactive [×] dismiss handler on chart labels
+    def _dismiss_manual_preview(ev=None):
+        window._show_manual_preview = False
+        clear_manual_chart_lines(window)
+        if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+            window.btnManualClearPreview.setText("SHOW PREVIEW")
+        if ev is not None:
+            try:
+                ev.accept()
+            except Exception:
+                pass
+
+    for l_obj in (getattr(window, "line_order_entry", None), getattr(window, "line_order_sl", None), getattr(window, "line_order_tp", None)):
+        if l_obj and hasattr(l_obj, "label") and l_obj.label:
+            l_obj.label.setToolTip("Click [×] to dismiss draft order preview lines from chart")
+            try:
+                from pyqtgraph.Qt import QtCore, QtGui
+                l_obj.label.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.PointingHandCursor))
+            except Exception:
+                pass
+            l_obj.label.mouseClickEvent = _dismiss_manual_preview
 
 
 def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):

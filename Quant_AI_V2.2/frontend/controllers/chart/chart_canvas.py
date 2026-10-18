@@ -1838,6 +1838,37 @@ def setup_chart_ui(window):
 
     window.plot_widget.scene().sigMouseMoved.connect(mouseMoved)
 
+    # Interactive canvas click dismissal for draft preview order lines
+    def _on_chart_scene_clicked(ev):
+        try:
+            from pyqtgraph.Qt import QtCore
+            if ev.button() != QtCore.Qt.MouseButton.LeftButton:
+                return
+            if getattr(window, "_plan_mode", "ai") != "manual":
+                return
+            if not getattr(window, "_show_manual_preview", True):
+                return
+            if getattr(window, "is_live_position", False) or getattr(window, "is_pending_order", False):
+                return
+
+            for l_attr in ("line_order_entry", "line_order_sl", "line_order_tp"):
+                if hasattr(window, l_attr):
+                    l_obj = getattr(window, l_attr)
+                    if l_obj and hasattr(l_obj, "label") and l_obj.label and l_obj.label.isVisible():
+                        rect = l_obj.label.sceneBoundingRect()
+                        if rect.contains(ev.scenePos()):
+                            window._show_manual_preview = False
+                            from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                            clear_manual_chart_lines(window)
+                            if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+                                window.btnManualClearPreview.setText("SHOW PREVIEW")
+                            ev.accept()
+                            return
+        except Exception:
+            pass
+
+    window.plot_widget.scene().sigMouseClicked.connect(_on_chart_scene_clicked)
+
     # Live chart update
 
     def on_market_tick(sym, bid, ask):
