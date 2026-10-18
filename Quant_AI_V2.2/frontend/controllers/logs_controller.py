@@ -86,14 +86,14 @@ class LogManager:
         hdr_layout = QHBoxLayout(hdr)
         hdr_layout.setContentsMargins(8, 0, 8, 0)
 
-        lbl_hdr = QLabel("EVENT CONTEXT")
+        lbl_hdr = QLabel("DETAILS")
         lbl_hdr.setFont(QFont("Segoe UI", 8, QFont.Bold))
         lbl_hdr.setStyleSheet("color: #334155; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
         hdr_layout.addWidget(lbl_hdr)
 
         hdr_layout.addStretch()
 
-        self.lbl_inspect_status = QLabel("STATUS: OK")
+        self.lbl_inspect_status = QLabel("OK")
         self.lbl_inspect_status.setFont(QFont("Consolas", 8, QFont.Bold))
         self.lbl_inspect_status.setStyleSheet("color: #15803d; font-size: 8.5px; font-weight: 700;")
         hdr_layout.addWidget(self.lbl_inspect_status)
@@ -129,10 +129,10 @@ class LogManager:
             rl.addStretch()
             return r, v
 
-        row_t, self.val_inspect_time = make_kv_row("Timestamp:")
-        row_sub, self.val_inspect_subsystem = make_kv_row("Subsystem:")
-        row_lvl, self.val_inspect_level = make_kv_row("Severity:")
-        row_sym, self.val_inspect_asset = make_kv_row("Symbol / ID:")
+        row_t, self.val_inspect_time = make_kv_row("Time:")
+        row_sub, self.val_inspect_subsystem = make_kv_row("Source:")
+        row_lvl, self.val_inspect_level = make_kv_row("Level:")
+        row_sym, self.val_inspect_asset = make_kv_row("Symbol:")
 
         meta_layout.addWidget(row_t)
         meta_layout.addWidget(row_sub)
@@ -141,7 +141,7 @@ class LogManager:
         body_layout.addWidget(meta_box)
 
         # JSON Payload Label
-        lbl_payload_title = QLabel("PAYLOAD:")
+        lbl_payload_title = QLabel("DATA:")
         lbl_payload_title.setStyleSheet("color: #64748b; font-family: 'Consolas', monospace; font-size: 8.5px; font-weight: 700; margin-top: 4px;")
         body_layout.addWidget(lbl_payload_title)
 
@@ -229,7 +229,7 @@ class LogManager:
                 last_time = last_item.text().split(".")[0]
 
         self.lbl_audit_telemetry.setText(
-            f"TOTAL EVENTS: {total}   |   WARNINGS: {warn_count}   |   ERRORS: {err_count}   |   LAST RECORD: {last_time}"
+            f"EVENTS: {total}  |  WARN: {warn_count}  |  ERR: {err_count}  |  LAST: {last_time}"
         )
 
     def _add_audit_row(self, t_display: str, subsystem: str, level_str: str, asset_ticket: str, message: str):
@@ -342,9 +342,9 @@ class LogManager:
         tag_labels = {
             "ALL": "ALL",
             "INFO": "INFO",
-            "EXECUTION": "EXECUTION",
-            "RECOVERY": "RECOVERY",
-            "WARNING": "WARNING",
+            "EXECUTION": "EXEC",
+            "RECOVERY": "RECOV",
+            "WARNING": "WARN",
         }
 
         for tag, btn in self.filter_btns.items():
@@ -532,7 +532,7 @@ class LogManager:
     def setup_search(self):
         search_widget = getattr(self.window, "searchLog", None) or getattr(self.window, "editSearchLogs", None)
         if search_widget:
-            search_widget.setPlaceholderText("Filter events...")
+            search_widget.setPlaceholderText("Search...")
             search_widget.setFixedHeight(24)
             search_widget.setMinimumWidth(100)
             search_widget.setMaximumWidth(200)
@@ -546,13 +546,13 @@ class LogManager:
         # Style Clear Button
         if hasattr(self.window, "btnClearLogs"):
             btn_clear = self.window.btnClearLogs
-            btn_clear.setText("Clear Logs")
+            btn_clear.setText("Clear")
             icon_reset = os.path.join(ASSETS_DIR, "icon_reset.svg")
             if os.path.exists(icon_reset):
                 btn_clear.setIcon(QIcon(icon_reset))
                 btn_clear.setIconSize(QSize(11, 11))
             btn_clear.setFixedHeight(24)
-            btn_clear.setFixedWidth(92)
+            btn_clear.setFixedWidth(68)
             btn_clear.setCursor(Qt.PointingHandCursor)
             btn_clear.setStyleSheet(
                 "QPushButton { background-color: #ffffff; color: #334155; border: 1px solid #cbd5e1; "
@@ -564,13 +564,13 @@ class LogManager:
         # Style Export Button
         if hasattr(self.window, "btnExportLogs"):
             btn_export = self.window.btnExportLogs
-            btn_export.setText("Export CSV")
+            btn_export.setText("Export")
             icon_export = os.path.join(ASSETS_DIR, "icon_export.svg")
             if os.path.exists(icon_export):
                 btn_export.setIcon(QIcon(icon_export))
                 btn_export.setIconSize(QSize(11, 11))
             btn_export.setFixedHeight(24)
-            btn_export.setFixedWidth(82)
+            btn_export.setFixedWidth(68)
             btn_export.setCursor(Qt.PointingHandCursor)
             btn_export.setStyleSheet(
                 "QPushButton { background-color: #ffffff; color: #334155; border: 1px solid #cbd5e1; "

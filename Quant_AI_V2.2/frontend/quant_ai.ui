@@ -961,16 +961,16 @@
     
     <item><widget class="QPushButton" name="btnFilterAll"><property name="text"><string>ALL</string></property><property name="class"><string>pill_filter_active</string></property></widget></item>
     <item><widget class="QPushButton" name="btnFilterInfo"><property name="text"><string>INFO</string></property><property name="class"><string>pill_filter</string></property></widget></item>
-    <item><widget class="QPushButton" name="btnFilterExec"><property name="text"><string>EXECUTION</string></property><property name="class"><string>pill_filter</string></property></widget></item>
-    <item><widget class="QPushButton" name="btnFilterRecovery"><property name="text"><string>RECOVERY</string></property><property name="class"><string>pill_filter</string></property></widget></item>
-    <item><widget class="QPushButton" name="btnFilterWarn"><property name="text"><string>WARNING</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterExec"><property name="text"><string>EXEC</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterRecovery"><property name="text"><string>RECOV</string></property><property name="class"><string>pill_filter</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnFilterWarn"><property name="text"><string>WARN</string></property><property name="class"><string>pill_filter</string></property></widget></item>
 
     <item><spacer><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
 
-    <item><widget class="QLineEdit" name="searchLog"><property name="placeholderText"><string>Search events, regex, trace...</string></property><property name="minimumWidth"><number>240</number></property></widget></item>
+    <item><widget class="QLineEdit" name="searchLog"><property name="placeholderText"><string>Search...</string></property><property name="minimumWidth"><number>240</number></property></widget></item>
     <item><widget class="QCheckBox" name="checkAutoScroll"><property name="text"><string>Auto-scroll</string></property><property name="checked"><bool>true</bool></property></widget></item>
-    <item><widget class="QPushButton" name="btnClearLogs"><property name="text"><string>CLEAR LOGS</string></property></widget></item>
-    <item><widget class="QPushButton" name="btnExportLogs"><property name="text"><string>EXPORT CSV</string></property><property name="class"><string>btn_primary</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnClearLogs"><property name="text"><string>CLEAR</string></property></widget></item>
+    <item><widget class="QPushButton" name="btnExportLogs"><property name="text"><string>EXPORT</string></property><property name="class"><string>btn_primary</string></property></widget></item>
    </layout>
   </item>
 

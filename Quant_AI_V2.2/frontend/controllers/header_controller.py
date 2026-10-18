@@ -158,8 +158,6 @@ class WorkspaceHeaderController:
 
         return (
             f'<span style="font-family:\'Segoe UI\', -apple-system, sans-serif; font-size:10px;">'
-            f'<span style="color:{mode_col}; font-weight:600;">{mode_str}</span>'
-            f'{sep}'
             f'<span style="color:{dot_col};">●</span> <span style="color:{txt_col}; font-weight:500;">MT5:</span> <b style="color:{mt5_val_col}; font-weight:600;">{mt5_val}</b>'
             f'{sep}'
             f'<b style="color:{loss_col}; font-weight:600;">{loss_str}</b>'
@@ -274,11 +272,11 @@ class WorkspaceHeaderController:
         self.execution_mode = mode
         if hasattr(self.window, "lblAISubtitle") and self.window.lblAISubtitle:
             if mode == "MANUAL":
-                self.window.lblAISubtitle.setText("Manual Execution Gate (Alerts Only)")
+                self.window.lblAISubtitle.setText("Manual Alerts")
             elif mode == "FULL-AUTO":
-                self.window.lblAISubtitle.setText("Autonomous STP Gate (Full-Auto)")
+                self.window.lblAISubtitle.setText("Autonomous STP")
             else:
-                self.window.lblAISubtitle.setText("Semi-Automated Execution Gate")
+                self.window.lblAISubtitle.setText("Semi-Automated")
         self._update_title_and_bottom_bar_theme(getattr(self, "is_dark_theme", False))
 
     def _update_panel_toggle_styles(self, is_dark=None):
@@ -754,12 +752,11 @@ class WorkspaceHeaderController:
         b_layout.setSpacing(4)
 
         # 3 Core Workspaces on Left: TERMINAL · PERFORMANCE · BACKTEST
-        # (System Audit Log is accessed via floating dialog with Ctrl+L or Telemetry button)
         self.nav_buttons = []
         tabs_spec = [
-            ("btnNavTerminal", "TERMINAL", self.window.tab2, "LIVE TRADING TERMINAL"),
-            ("btnNavStats", "PERFORMANCE", self.window.tab3, "PERFORMANCE ANALYTICS"),
-            ("btnNavBacktest", "BACKTEST", self.window.tab_5, "STRATEGY BACKTESTING WORKBENCH"),
+            ("btnNavTerminal", "TERMINAL", self.window.tab2, "TERMINAL"),
+            ("btnNavStats", "PERFORMANCE", self.window.tab3, "PERFORMANCE"),
+            ("btnNavBacktest", "BACKTEST", self.window.tab_5, "BACKTEST"),
         ]
 
         for obj_name, label_text, target_tab, full_title in tabs_spec:
@@ -809,12 +806,12 @@ class WorkspaceHeaderController:
         # Spacer pushes all telemetry to the far right
         b_layout.addStretch()
 
-        # Clickable Audit Journal Pill (Ctrl+L)
-        btn_audit = QPushButton("AUDIT: OK (Ctrl+L)")
+        # Clickable Journal Pill (Ctrl+L)
+        btn_audit = QPushButton("JOURNAL")
         btn_audit.setObjectName("btnBottomAudit")
         btn_audit.setFixedHeight(18)
         btn_audit.setCursor(Qt.PointingHandCursor)
-        btn_audit.setToolTip("Open System Audit & Execution Journal (Ctrl+L)")
+        btn_audit.setToolTip("System Journal (Ctrl+L)")
         def _open_audit_journal(checked=False):
             logs_mgr = (
                 getattr(self, "logs", None)

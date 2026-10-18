@@ -1518,7 +1518,7 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     row_md_top = QHBoxLayout()
     row_md_top.setContentsMargins(0, 0, 0, 0)
-    lbl_md_title = QLabel("MANUAL EXECUTION")
+    lbl_md_title = QLabel("ORDER")
     lbl_md_title.setObjectName("lblManualHeaderTitle")
     lbl_md_badge = QLabel("MARKET DIRECT")
     lbl_md_badge.setObjectName("lblManualExecBadge")
@@ -1613,7 +1613,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_risk_btns = QHBoxLayout()
     row_risk_btns.setContentsMargins(0, 0, 0, 0)
     row_risk_btns.setSpacing(4)
-    lbl_risk_lbl = QLabel("PRESET")
+    lbl_risk_lbl = QLabel("% RISK")
     lbl_risk_lbl.setObjectName("lblManualRiskLabel")
     row_risk_btns.addWidget(lbl_risk_lbl)
     row_risk_btns.addStretch()
@@ -1814,10 +1814,10 @@ def setup_trading_plan_cards(window, is_dark=False):
         r.addWidget(lbl_v)
         return r
 
-    layout_m_gate.addLayout(_make_gate_check_row("Daily Drawdown Limit (< 4.0%)", "lblGateCheck1"))
-    layout_m_gate.addLayout(_make_gate_check_row("Event Risk Engine (News +-15m)", "lblGateCheck2"))
-    layout_m_gate.addLayout(_make_gate_check_row("Exposure Gate (Max 3 Trades)", "lblGateCheck3"))
-    layout_m_gate.addLayout(_make_gate_check_row("Spread Normalization", "lblGateCheck4"))
+    layout_m_gate.addLayout(_make_gate_check_row("Daily Drawdown (< 4%)", "lblGateCheck1"))
+    layout_m_gate.addLayout(_make_gate_check_row("News Defense (±15m)", "lblGateCheck2"))
+    layout_m_gate.addLayout(_make_gate_check_row("Max Open Trades (≤ 3)", "lblGateCheck3"))
+    layout_m_gate.addLayout(_make_gate_check_row("Spread Check", "lblGateCheck4"))
 
     sep_m3 = QFrame()
     sep_m3.setFrameShape(QFrame.HLine)

@@ -195,7 +195,7 @@ class NavigationController:
         if hasattr(self, "lbl_header_app_title") and self.lbl_header_app_title:
             self.lbl_header_app_title.setVisible(not is_terminal)
             if tab_name:
-                self.lbl_header_app_title.setText(f"VECTRA TERMINAL v2.2 · {tab_name.upper()}")
+                self.lbl_header_app_title.setText(f"VECTRA · {tab_name.upper()}")
 
         if target_tab == getattr(self.window, "tab3", None):
             if hasattr(self, "stats") and self.stats:
