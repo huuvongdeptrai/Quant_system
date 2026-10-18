@@ -49,8 +49,13 @@ class ModifyOrderDialog(QDialog):
         self.is_dark = is_dark
 
         self.setWindowTitle(f"Order #{ticket} - Modify")
-        self.setFixedSize(360, 260)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setWindowFlags(
+            Qt.Dialog
+            | Qt.WindowTitleHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowCloseButtonHint
+        )
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
 
         self._setup_ui(current_sl, current_tp)
         self._apply_styling()

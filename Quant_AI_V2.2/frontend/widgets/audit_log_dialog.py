@@ -26,7 +26,14 @@ class AuditLogDialog(QDialog):
         self.setWindowTitle("System Journal")
         self.resize(1080, 580)
         self.setMinimumSize(780, 400)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.WindowTitleHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowCloseButtonHint
+            | Qt.WindowMinMaxButtonsHint
+        )
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
 
         icon_path = os.path.join(ASSETS_DIR, "nav_logs.svg")
         if os.path.exists(icon_path):
@@ -79,6 +86,15 @@ class AuditLogDialog(QDialog):
             self.hide()
         else:
             self.open_dialog()
+
+    def closeEvent(self, event):
+        """Cleanly hides the dialog when the X button or close command is triggered."""
+        self.hide()
+        event.accept()
+
+    def reject(self):
+        """Handles Escape and dialog rejection by hiding without destroying log state."""
+        self.hide()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:

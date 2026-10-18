@@ -27,8 +27,13 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.manager = manager
         self.setWindowTitle("System Options & Configurations")
-        self.setFixedSize(720, 480)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setWindowFlags(
+            Qt.Dialog
+            | Qt.WindowTitleHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowCloseButtonHint
+        )
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
 
         icon_path = os.path.join(ASSETS_DIR, "nav_settings.svg")
         if os.path.exists(icon_path):
