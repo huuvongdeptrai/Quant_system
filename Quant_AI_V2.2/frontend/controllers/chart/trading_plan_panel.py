@@ -17,6 +17,67 @@ from PySide6.QtWidgets import (
 )
 from loguru import logger
 
+
+def get_symbol_multiplier(symbol: str, info=None) -> float:
+    """Return USD value change per 1.0 price unit per 1.0 standard lot."""
+    if info and getattr(info, "trade_tick_value", 0) > 0 and getattr(info, "trade_tick_size", 0) > 0:
+        return float(info.trade_tick_value / info.trade_tick_size)
+    s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
+    if "BTC" in s or "ETH" in s:
+        return 1.0
+    if "XAU" in s or "GOLD" in s or "XAG" in s:
+        return 100.0
+    if any(idx in s for idx in ["US30", "NAS100", "SPX500", "GER40", "DAX", "US100", "US500", "DJ30"]):
+        return 10.0
+    if "JPY" in s:
+        return 667.0
+    return 100000.0
+
+
+def get_symbol_pip_unit(symbol: str, digits: int = 2, point: float = 0.01) -> float:
+    """Return price movement equivalent to 1 pip."""
+    s = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
+    if "BTC" in s or "ETH" in s:
+        return 1.0
+    if "XAU" in s or "GOLD" in s or "XAG" in s:
+        return 0.10
+    if any(idx in s for idx in ["US30", "NAS100", "SPX500", "GER40", "DAX", "US100", "US500", "DJ30"]):
+        return 1.0
+    if "JPY" in s:
+        return 0.01
+    return (point * 10) if digits in (3, 5) else (point if point > 0 else 0.0001)
+
+
+def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 1.0, balance: float = None):
+    """Calculates dynamic institutional lot size adhering to capital preservation rules across all asset classes."""
+    if balance is None or balance <= 0:
+        acc = mt5.account_info() if mt5.terminal_info() is not None else None
+        balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
+
+    risk_dlr = balance * (risk_pct / 100.0)
+    if sl_points <= 0.00001:
+        return 0.01, risk_dlr
+
+    info = mt5.symbol_info(symbol) if mt5.terminal_info() is not None else None
+    mult = get_symbol_multiplier(symbol, info)
+
+    clean_sym = (symbol or "XAUUSD").upper().split(".")[0].replace("/", "")
+    if "BTC" in clean_sym or "ETH" in clean_sym:
+        max_lot = 1.0
+    elif "XAU" in clean_sym or "GOLD" in clean_sym:
+        max_lot = 5.0
+    elif any(c in clean_sym for c in ["US30", "NAS100", "SPX500", "GER40", "DAX"]):
+        max_lot = 5.0
+    elif "JPY" in clean_sym:
+        max_lot = 5.0
+    else:
+        max_lot = 10.0
+
+    calc_lot = risk_dlr / (sl_points * mult)
+    lot = max(0.01, min(round(calc_lot, 2), max_lot))
+    return lot, risk_dlr
+
+
 def update_order_proposal_html(
     window,
     sym=None,
@@ -152,17 +213,6 @@ def update_order_proposal_html(
     window.live_ticket = live_ticket
     window.is_pending_order = is_pending_order
     window.pending_ticket = pending_ticket
-    window.active_signal_data = {
-        "sym": clean_sym,
-        "has_signal": True,
-        "signal_type": signal_type,
-        "entry": entry,
-        "sl": sl,
-        "tp": tp,
-        "is_live_position": is_live_position,
-        "live_ticket": live_ticket,
-    }
-
     sl_pts = abs(entry - sl)
     tp_pts = abs(tp - entry) if tp is not None else (sl_pts * 2.0)
     if tp is None:
@@ -170,46 +220,38 @@ def update_order_proposal_html(
     if rr_ratio is None:
         rr_ratio = round(tp_pts / sl_pts, 1) if sl_pts > 0 else 2.0
 
-    # Lấy số dư thực tế từ MT5
+    # Lay so du thuc te tu MT5
     acc_info = mt5.account_info() if mt5.terminal_info() is not None else None
     real_balance = acc_info.balance if acc_info and acc_info.balance > 0 else 10000.0
     risk_pct_val = risk_pct if risk_pct is not None else 1.0
-    target_risk_dlr = real_balance * (risk_pct_val / 100.0)
 
-    # Tính toán khối lượng lot chuẩn rủi ro
+    sym_mult = get_symbol_multiplier(clean_sym, info)
+
+    # Tinh toan khoi luong lot chuan rui ro
     if is_live_position or is_pending_order:
         calc_lot = float(live_volume) if live_volume is not None else 0.10
-        if "BTC" in clean_sym:
-            risk_dlr = round(sl_pts * calc_lot, 2)
-            reward_dlr = round(tp_pts * calc_lot, 2)
-        elif "XAU" in clean_sym:
-            risk_dlr = round(sl_pts * calc_lot * 100.0, 2)
-            reward_dlr = round(tp_pts * calc_lot * 100.0, 2)
-        else:
-            risk_dlr = round(sl_pts * calc_lot * 100000.0, 2)
-            reward_dlr = round(tp_pts * calc_lot * 100000.0, 2)
+        risk_dlr = round(sl_pts * calc_lot * sym_mult, 2)
+        reward_dlr = round(tp_pts * calc_lot * sym_mult, 2)
     else:
-        if "BTC" in clean_sym:
-            calc_lot = max(0.01, round(target_risk_dlr / max(1.0, sl_pts), 2))
-            calc_lot = min(calc_lot, 1.0)
-            risk_dlr = round(sl_pts * calc_lot, 2)
-            reward_dlr = round(tp_pts * calc_lot, 2)
-        elif "XAU" in clean_sym:
-            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100.0), 2))
-            calc_lot = min(calc_lot, 2.0)
-            risk_dlr = round(sl_pts * calc_lot * 100.0, 2)
-            reward_dlr = round(tp_pts * calc_lot * 100.0, 2)
-        elif "JPY" in clean_sym:
-            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 1000.0 * 0.07), 2))
-            calc_lot = min(calc_lot, 5.0)
-            risk_dlr = round(sl_pts * 1000 * calc_lot * 0.07, 2)
-            reward_dlr = round(tp_pts * 1000 * calc_lot * 0.07, 2)
-        else:
-            calc_lot = max(0.01, round(target_risk_dlr / max(10.0, sl_pts * 100000.0), 2))
-            calc_lot = min(calc_lot, 5.0)
-            risk_dlr = round(sl_pts * calc_lot * 100000.0, 2)
-            reward_dlr = round(tp_pts * calc_lot * 100000.0, 2)
-    risk_pct = round((risk_dlr / real_balance) * 100.0, 1)
+        calc_lot, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct_val, balance=real_balance)
+        risk_dlr = round(sl_pts * calc_lot * sym_mult, 2)
+        reward_dlr = round(tp_pts * calc_lot * sym_mult, 2)
+    risk_pct = round((risk_dlr / real_balance) * 100.0, 1) if real_balance > 0 else 1.0
+
+    window.active_signal_data = {
+        "sym": clean_sym,
+        "has_signal": True,
+        "signal_type": signal_type,
+        "entry": entry,
+        "sl": sl,
+        "tp": tp,
+        "lot": calc_lot,
+        "risk_dlr": risk_dlr,
+        "reward_dlr": reward_dlr,
+        "rr_ratio": rr_ratio,
+        "is_live_position": is_live_position,
+        "live_ticket": live_ticket,
+    }
 
     # Tên hành động hiển thị
     if is_live_position:
@@ -800,41 +842,14 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             w.setStyleSheet(f"color: {sub_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border: none; background: transparent;")
 
 
-def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 1.0, balance: float = None):
-    """Calculates dynamic institutional lot size adhering to capital preservation rules."""
-    if balance is None or balance <= 0:
-        acc = mt5.account_info() if mt5.terminal_info() is not None else None
-        balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
-
-    risk_dlr = balance * (risk_pct / 100.0)
-    if sl_points <= 0.00001:
-        return 0.01, risk_dlr
-
-    clean_sym = symbol.upper().split(".")[0].replace("/", "")
-    if "BTC" in clean_sym:
-        calc_lot = risk_dlr / sl_points
-        max_lot = 1.0
-    elif "XAU" in clean_sym or "GOLD" in clean_sym:
-        calc_lot = risk_dlr / (sl_points * 100.0)
-        max_lot = 5.0
-    elif any(c in clean_sym for c in ["US30", "NAS100", "SPX500"]):
-        calc_lot = risk_dlr / (sl_points * 10.0)
-        max_lot = 5.0
-    else:
-        calc_lot = risk_dlr / (sl_points * 100000.0)
-        max_lot = 10.0
-
-    lot = max(0.01, min(round(calc_lot, 2), max_lot))
-    return lot, risk_dlr
-
-
 def evaluate_manual_compliance(window, symbol=None):
     """
-    Evaluates institutional 4-point Pre-Trade Risk Gatekeeper:
+    Evaluates institutional Pre-Trade Risk Gatekeeper:
     1. Daily Drawdown Guard (< 4.0% or max daily loss limit)
     2. Event Risk Engine (High-impact news filter ±15m)
     3. Exposure Gate (Max open positions limit)
     4. Spread Normalization (Safe spread limit)
+    5. Stop-Loss & Take-Profit Orientation (Prevents MT5 Retcode 10016)
     
     Returns: (passed: bool, checks: dict, block_reason: str)
     """
@@ -844,6 +859,7 @@ def evaluate_manual_compliance(window, symbol=None):
         "news": {"passed": True, "msg": "News Filter: Clear", "val": "PASS"},
         "max_trades": {"passed": True, "msg": "Exposure: OK", "val": "PASS"},
         "spread": {"passed": True, "msg": "Spread: OK", "val": "PASS"},
+        "stops": {"passed": True, "msg": "Stops: Valid", "val": "PASS"},
     }
     block_reason = ""
 
@@ -919,6 +935,32 @@ def evaluate_manual_compliance(window, symbol=None):
         except Exception:
             pass
 
+    # 5. Stop-Loss & Take-Profit Orientation Check (Zero Invalid Stops)
+    if not block_reason and hasattr(window, "spinManualSL") and hasattr(window, "spinManualTP"):
+        try:
+            sl_w = window.spinManualSL
+            tp_w = window.spinManualTP
+            if hasattr(sl_w, "value") and hasattr(tp_w, "value"):
+                sl_val = float(sl_w.value())
+                tp_val = float(tp_w.value())
+                is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
+                entry_ref = getattr(window, "_last_manual_entry", 0.0)
+                if entry_ref > 0.0 and sl_val > 0.0:
+                    if is_buy and sl_val >= entry_ref:
+                        checks["stops"] = {"passed": False, "msg": f"SL {sl_val} >= Buy {entry_ref}", "val": "INVALID"}
+                        block_reason = "INVALID SL (MUST BE BELOW ENTRY)"
+                    elif not is_buy and sl_val <= entry_ref:
+                        checks["stops"] = {"passed": False, "msg": f"SL {sl_val} <= Sell {entry_ref}", "val": "INVALID"}
+                        block_reason = "INVALID SL (MUST BE ABOVE ENTRY)"
+                    elif tp_val > 0.0 and is_buy and tp_val <= entry_ref:
+                        checks["stops"] = {"passed": False, "msg": f"TP {tp_val} <= Buy {entry_ref}", "val": "INVALID"}
+                        block_reason = "INVALID TP (MUST BE ABOVE ENTRY)"
+                    elif tp_val > 0.0 and not is_buy and tp_val >= entry_ref:
+                        checks["stops"] = {"passed": False, "msg": f"TP {tp_val} >= Sell {entry_ref}", "val": "INVALID"}
+                        block_reason = "INVALID TP (MUST BE BELOW ENTRY)"
+        except Exception as e:
+            logger.debug(f"[TradingPlan] Stops check error: {e}")
+
     passed = (block_reason == "")
     return passed, checks, block_reason
 
@@ -938,7 +980,10 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # Entry line
     if hasattr(window, "line_order_entry") and window.line_order_entry:
-        window.line_order_entry.setPos(entry_p)
+        if abs(window.line_order_entry.value() - entry_p) > 1e-6:
+            window.line_order_entry.blockSignals(True)
+            window.line_order_entry.setPos(entry_p)
+            window.line_order_entry.blockSignals(False)
         window.line_order_entry.setMovable(False)
         dir_s = "BUY" if is_buy else "SELL"
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
@@ -949,7 +994,10 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # SL line
     if hasattr(window, "line_order_sl") and window.line_order_sl:
-        window.line_order_sl.setPos(sl)
+        if abs(window.line_order_sl.value() - sl) > 1e-6:
+            window.line_order_sl.blockSignals(True)
+            window.line_order_sl.setPos(sl)
+            window.line_order_sl.blockSignals(False)
         window.line_order_sl.setMovable(True)
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
             window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}")
@@ -959,7 +1007,10 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # TP line
     if hasattr(window, "line_order_tp") and window.line_order_tp:
-        window.line_order_tp.setPos(tp)
+        if abs(window.line_order_tp.value() - tp) > 1e-6:
+            window.line_order_tp.blockSignals(True)
+            window.line_order_tp.setPos(tp)
+            window.line_order_tp.blockSignals(False)
         window.line_order_tp.setMovable(True)
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
             window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}")
@@ -1010,16 +1061,8 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     acc = mt5.account_info() if mt5.terminal_info() is not None else None
     balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
 
-    sym_u = clean_sym.upper()
-    if "BTC" in sym_u:
-        multiplier = 1.0
-        pip_unit = 1.0
-    elif "XAU" in sym_u or "GOLD" in sym_u:
-        multiplier = 100.0
-        pip_unit = 0.10
-    else:
-        multiplier = 100000.0
-        pip_unit = point * 10 if digits in (3, 5) else point
+    multiplier = get_symbol_multiplier(clean_sym, info)
+    pip_unit = get_symbol_pip_unit(clean_sym, digits, point)
 
     if from_user_lot_change and hasattr(window, "spinManualLot") and window.spinManualLot:
         window._user_custom_lot = True
@@ -1117,15 +1160,30 @@ def sync_manual_copilot_quotes(window):
         bid = tick.bid
         spd = round((ask - bid) / point, 1)
     else:
-        ref = getattr(window, "_last_manual_entry", 2650.0)
-        ask = round(ref + 0.25, digits)
-        bid = round(ref, digits)
-        spd = 2.5
+        ask = None
+        bid = None
+        if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice and window.lblManualAskPrice.text() not in ("", "0.00", "--"):
+            try:
+                ask = float(window.lblManualAskPrice.text())
+            except ValueError:
+                pass
+        if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice and window.lblManualBidPrice.text() not in ("", "0.00", "--"):
+            try:
+                bid = float(window.lblManualBidPrice.text())
+            except ValueError:
+                pass
+        if ask is None:
+            ask = getattr(window, "_last_manual_ask", 2650.25)
+        if bid is None:
+            bid = getattr(window, "_last_manual_bid", 2650.00)
+        spd = round((ask - bid) / point, 1) if point > 0 else 2.5
 
     window._last_manual_ask = ask
     window._last_manual_bid = bid
     is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
-    window._last_manual_entry = ask if is_buy else bid
+    ref_p = ask if is_buy else bid
+    old_entry = getattr(window, "_last_manual_entry", ref_p)
+    window._last_manual_entry = ref_p
 
     if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice:
         window.lblManualAskPrice.setText(f"{ask:.{digits}f}")
@@ -1134,27 +1192,42 @@ def sync_manual_copilot_quotes(window):
     if hasattr(window, "lblManualSpread") and window.lblManualSpread:
         window.lblManualSpread.setText(f"SPREAD: {spd} PTS")
 
-    # Initialize spinboxes if at 0
+    # Initialize or symmetrically invert spinboxes if at 0 or invalid orientation
     if hasattr(window, "spinManualSL") and hasattr(window, "spinManualTP"):
-        is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
         cur_sl = window.spinManualSL.value()
         cur_tp = window.spinManualTP.value()
-        if cur_sl == 0.0 or cur_tp == 0.0:
-            window.spinManualSL.setDecimals(digits)
-            window.spinManualTP.setDecimals(digits)
-            window.spinManualSL.setRange(0.00001, 1000000.0)
-            window.spinManualTP.setRange(0.00001, 1000000.0)
 
-            if "XAU" in clean_sym.upper():
-                dist = 2.50
-            elif "BTC" in clean_sym.upper():
-                dist = 500.0
-            else:
-                dist = 0.0025
+        sym_u = clean_sym.upper()
+        if "XAU" in sym_u or "GOLD" in sym_u:
+            default_dist = 2.50
+        elif "BTC" in sym_u or "ETH" in sym_u:
+            default_dist = 500.0
+        elif any(c in sym_u for c in ["US30", "NAS100", "SPX500", "GER40"]):
+            default_dist = 50.0
+        elif "JPY" in sym_u:
+            default_dist = 0.35
+        else:
+            default_dist = 0.0025
 
-            ref_p = ask if is_buy else bid
-            new_sl = round(ref_p - dist if is_buy else ref_p + dist, digits)
-            new_tp = round(ref_p + (2.0 * dist) if is_buy else ref_p - (2.0 * dist), digits)
+        window.spinManualSL.setDecimals(digits)
+        window.spinManualTP.setDecimals(digits)
+        window.spinManualSL.setRange(0.00001, 1000000.0)
+        window.spinManualTP.setRange(0.00001, 1000000.0)
+
+        # Check if stops need re-alignment (uninitialized or wrong orientation for direction)
+        needs_realign = (cur_sl <= 0.0 or cur_tp <= 0.0)
+        if not needs_realign:
+            if is_buy and (cur_sl >= ref_p or cur_tp <= ref_p):
+                needs_realign = True
+            elif not is_buy and (cur_sl <= ref_p or cur_tp >= ref_p):
+                needs_realign = True
+
+        if needs_realign:
+            dist_sl = abs(old_entry - cur_sl) if cur_sl > 0.0 and abs(old_entry - cur_sl) > 0.00001 else default_dist
+            dist_tp = abs(cur_tp - old_entry) if cur_tp > 0.0 and abs(cur_tp - old_entry) > 0.00001 else (dist_sl * 2.0)
+
+            new_sl = round(ref_p - dist_sl if is_buy else ref_p + dist_sl, digits)
+            new_tp = round(ref_p + dist_tp if is_buy else ref_p - dist_tp, digits)
 
             window.spinManualSL.blockSignals(True)
             window.spinManualTP.blockSignals(True)
@@ -1193,6 +1266,16 @@ def execute_manual_quant_order(window):
         lot_size = round(window.spinManualLot.value(), 2)
     else:
         lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
+
+    # Orientation verification
+    if (is_buy and sl_p >= entry_p) or (not is_buy and sl_p <= entry_p):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(
+            window,
+            "Invalid Stop Loss",
+            f"Stop loss ({sl_p}) is on the illegal side of entry ({entry_p}) for a {('BUY' if is_buy else 'SELL')} order."
+        )
+        return
 
     exec_mgr = None
     if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
@@ -1916,6 +1999,12 @@ def setup_trading_plan_cards(window, is_dark=False):
         container_manual.setVisible(target_mode == "manual")
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
         if target_mode == "manual":
+            # PAUSE / STOP AI countdown timer so it doesn't wipe chart lines!
+            if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer is not None:
+                try:
+                    window._signal_expiry_timer.stop()
+                except Exception:
+                    pass
             sync_manual_copilot_quotes(window)
         else:
             if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
@@ -1923,8 +2012,19 @@ def setup_trading_plan_cards(window, is_dark=False):
                 update_order_proposal_html(
                     window, sym=sig.get("sym"), entry=sig.get("entry"),
                     sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
-                    signal_type=sig.get("signal_type", "BUY")
+                    signal_type=sig.get("signal_type", "BUY"),
+                    is_live_position=sig.get("is_live_position", False),
+                    live_ticket=sig.get("live_ticket", None)
                 )
+            else:
+                for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
+                    if hasattr(window, l_name):
+                        l_obj = getattr(window, l_name)
+                        if l_obj is not None:
+                            try:
+                                l_obj.setVisible(False)
+                            except Exception:
+                                pass
 
     btn_mode_ai.clicked.connect(lambda: _switch_mode("ai"))
     btn_mode_manual.clicked.connect(lambda: _switch_mode("manual"))
@@ -1960,7 +2060,17 @@ def setup_trading_plan_cards(window, is_dark=False):
         sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
         info = mt5.symbol_info(sym)
         dig = info.digits if info else 2
-        step = 1.0 if "XAU" in sym.upper() else (50.0 if "BTC" in sym.upper() else (0.0010 if dig in (3, 5) else 0.1))
+        sym_u = sym.upper()
+        if "XAU" in sym_u or "GOLD" in sym_u:
+            step = 1.0
+        elif "BTC" in sym_u or "ETH" in sym_u:
+            step = 50.0
+        elif any(c in sym_u for c in ["US30", "NAS100", "SPX500"]):
+            step = 10.0
+        elif "JPY" in sym_u:
+            step = 0.10
+        else:
+            step = 0.0010 if dig in (3, 5) else 0.1
         cur = spin.value()
         spin.setValue(round(cur + step if increment else cur - step, dig))
 
@@ -1985,7 +2095,17 @@ def setup_trading_plan_cards(window, is_dark=False):
             if trs:
                 atr_val = sum(trs) / len(trs)
         if atr_val <= 0:
-            atr_val = 2.0 if "XAU" in sym.upper() else (300.0 if "BTC" in sym.upper() else 0.0020)
+            sym_u = sym.upper()
+            if "XAU" in sym_u or "GOLD" in sym_u:
+                atr_val = 2.0
+            elif "BTC" in sym_u or "ETH" in sym_u:
+                atr_val = 300.0
+            elif any(c in sym_u for c in ["US30", "NAS100", "SPX500"]):
+                atr_val = 40.0
+            elif "JPY" in sym_u:
+                atr_val = 0.25
+            else:
+                atr_val = 0.0020
 
         sl_dist = round(1.5 * atr_val, dig)
         spin_sl.setValue(round(cur_p - sl_dist if is_b else cur_p + sl_dist, dig))
@@ -2001,21 +2121,28 @@ def setup_trading_plan_cards(window, is_dark=False):
         tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
         cur_p = (tick.ask if is_b else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
 
+        applied = False
         if hasattr(window, "chart_data_list") and len(window.chart_data_list) >= 10:
             candles = window.chart_data_list[-20:]
             if is_b:
                 lowest = min(c[3] for c in candles)
                 new_sl = round(lowest - buf, dig)
-                dist = abs(cur_p - new_sl)
-                new_tp = round(cur_p + 2.0 * dist, dig)
+                if new_sl < cur_p:
+                    dist = abs(cur_p - new_sl)
+                    new_tp = round(cur_p + 2.0 * dist, dig)
+                    spin_sl.setValue(new_sl)
+                    spin_tp.setValue(new_tp)
+                    applied = True
             else:
                 highest = max(c[4] for c in candles)
                 new_sl = round(highest + buf, dig)
-                dist = abs(new_sl - cur_p)
-                new_tp = round(cur_p - 2.0 * dist, dig)
-            spin_sl.setValue(new_sl)
-            spin_tp.setValue(new_tp)
-        else:
+                if new_sl > cur_p:
+                    dist = abs(new_sl - cur_p)
+                    new_tp = round(cur_p - 2.0 * dist, dig)
+                    spin_sl.setValue(new_sl)
+                    spin_tp.setValue(new_tp)
+                    applied = True
+        if not applied:
             _apply_atr_preset()
 
     def _apply_rr_preset(rr_mult):
@@ -2026,9 +2153,23 @@ def setup_trading_plan_cards(window, is_dark=False):
         tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
         cur_p = (tick.ask if is_b else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
         cur_sl = spin_sl.value()
-        sl_dist = abs(cur_p - cur_sl)
+
+        # Check if cur_sl is on the valid side of cur_p
+        sl_dist = abs(cur_p - cur_sl) if (cur_sl > 0 and ((is_b and cur_sl < cur_p) or (not is_b and cur_sl > cur_p))) else 0.0
         if sl_dist <= 0:
-            sl_dist = 2.0 if "XAU" in sym.upper() else 0.0020
+            sym_u = sym.upper()
+            if "XAU" in sym_u or "GOLD" in sym_u:
+                sl_dist = 2.50
+            elif "BTC" in sym_u or "ETH" in sym_u:
+                sl_dist = 500.0
+            elif any(c in sym_u for c in ["US30", "NAS100", "SPX500"]):
+                sl_dist = 50.0
+            elif "JPY" in sym_u:
+                sl_dist = 0.35
+            else:
+                sl_dist = 0.0025
+            spin_sl.setValue(round(cur_p - sl_dist if is_b else cur_p + sl_dist, dig))
+
         new_tp = round(cur_p + (rr_mult * sl_dist) if is_b else cur_p - (rr_mult * sl_dist), dig)
         spin_tp.setValue(new_tp)
 
@@ -2084,6 +2225,9 @@ def start_signal_expiry_countdown(window, duration_sec=None):
 
     def _tick():
         if not hasattr(window, "_signal_expiry_remaining"):
+            timer.stop()
+            return
+        if getattr(window, "_plan_mode", "ai") == "manual":
             timer.stop()
             return
         window._signal_expiry_remaining -= 1

@@ -6,6 +6,8 @@ from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout
 
 from frontend.controllers.chart.trading_plan_panel import (
     calculate_manual_quant_lot,
+    get_symbol_multiplier,
+    get_symbol_pip_unit,
     evaluate_manual_compliance,
     _recalculate_manual_lot_and_rr,
     sync_manual_copilot_quotes,
@@ -284,3 +286,133 @@ class TestManualCopilotUI:
         win.btnRisk20.click()
         assert win._user_custom_lot is False
         assert win._manual_risk_pct == 2.0
+
+
+class TestPlanScenarioAudits:
+    def test_direction_switch_inverts_sl_tp_symmetrically(self, qapp):
+        """Audit Scenario 1: Switching direction BUY <-> SELL must symmetrically flip SL & TP."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=False)
+
+        win.btnPlanModeManual.click()
+        win._manual_direction = "BUY"
+        win.lblManualAskPrice.setText("2650.50")
+        win.lblManualBidPrice.setText("2650.25")
+        win._last_manual_entry = 2650.50
+        win.spinManualSL.setValue(2645.00)  # Dist: 5.50 below ask
+        win.spinManualTP.setValue(2660.00)  # Dist: 9.50 above ask
+
+        # User clicks SELL button
+        win.btnManualSell.click()
+        assert win._manual_direction == "SELL"
+
+        # On SELL: entry is Bid (2650.25)
+        # SL must be ABOVE 2650.25 by 5.50 -> 2655.75
+        # TP must be BELOW 2650.25 by 9.50 -> 2640.75
+        assert win.spinManualSL.value() > win._last_manual_entry
+        assert win.spinManualTP.value() < win._last_manual_entry
+        assert win.spinManualSL.value() == 2655.75
+        assert win.spinManualTP.value() == 2640.75
+        assert "SELL" in win.btnManualExecute.text()
+        assert win.btnManualExecute.isEnabled() is True
+
+        # User clicks BUY button again
+        win.btnManualBuy.click()
+        assert win._manual_direction == "BUY"
+        # SL must be BELOW 2650.50 and TP must be ABOVE 2650.50
+        assert win.spinManualSL.value() < win._last_manual_entry
+        assert win.spinManualTP.value() > win._last_manual_entry
+        assert win.spinManualSL.value() == 2645.00
+        assert win.spinManualTP.value() == 2660.00
+        assert "BUY" in win.btnManualExecute.text()
+        assert win.btnManualExecute.isEnabled() is True
+
+    def test_invalid_stops_orientation_blocked_by_compliance(self, qapp):
+        """Audit Scenario 2: If user types invalid stops, compliance locks execution."""
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=False)
+
+        win.btnPlanModeManual.click()
+        win._manual_direction = "BUY"
+        win.lblManualAskPrice.setText("2650.50")
+        win._last_manual_entry = 2650.50
+
+        # Illegally set SL above entry for a BUY
+        win.spinManualSL.setValue(2655.00)
+        win.spinManualTP.setValue(2665.00)
+        _recalculate_manual_lot_and_rr(win)
+
+        passed, checks, reason = evaluate_manual_compliance(win, "XAUUSD")
+        assert passed is False
+        assert "INVALID SL" in reason
+        assert win.btnManualExecute.isEnabled() is False
+        assert "LOCKED: INVALID SL" in win.btnManualExecute.text()
+
+        # Fix SL back below entry -> auto unlocks
+        win.spinManualSL.setValue(2645.00)
+        _recalculate_manual_lot_and_rr(win)
+        assert win.btnManualExecute.isEnabled() is True
+        assert "BUY" in win.btnManualExecute.text()
+
+    def test_multi_asset_jpy_and_indices_lot_and_risk(self, qapp):
+        """Audit Scenario 3: JPY and Stock Indices calculate realistic lot & risk."""
+        # USDJPY
+        mult_jpy = get_symbol_multiplier("USDJPY")
+        assert mult_jpy == 667.0
+        pip_jpy = get_symbol_pip_unit("USDJPY", digits=3, point=0.001)
+        assert pip_jpy == 0.01
+
+        lot_jpy, risk_jpy = calculate_manual_quant_lot("USDJPY", sl_points=0.50, risk_pct=1.0, balance=10000.0)
+        assert risk_jpy == 100.0
+        assert lot_jpy == 0.30
+
+        # US30 Index
+        mult_us30 = get_symbol_multiplier("US30")
+        assert mult_us30 == 10.0
+        pip_us30 = get_symbol_pip_unit("US30", digits=1, point=0.1)
+        assert pip_us30 == 1.0
+
+        lot_us30, risk_us30 = calculate_manual_quant_lot("US30", sl_points=50.0, risk_pct=1.0, balance=10000.0)
+        assert risk_us30 == 100.0
+        assert lot_us30 == 0.20
+
+    def test_ai_expiry_timer_stopped_when_switching_to_manual(self, qapp):
+        """Audit Scenario 4: Switching to manual mode immediately stops AI expiry timer."""
+        from frontend.controllers.chart.trading_plan_panel import start_signal_expiry_countdown
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=False)
+
+        # Start timer in AI mode
+        start_signal_expiry_countdown(win, duration_sec=60)
+        assert hasattr(win, "_signal_expiry_timer")
+        assert win._signal_expiry_timer.isActive() is True
+
+        # Switch to manual mode
+        win.btnPlanModeManual.click()
+        assert win._plan_mode == "manual"
+        # Timer must be stopped immediately so it doesn't wipe chart lines
+        assert win._signal_expiry_timer.isActive() is False
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.order_send")
+    def test_cancel_pending_order_execution_manager(self, mock_order_send):
+        """Audit Scenario 5: ExecutionManager can cancel pending orders via TRADE_ACTION_REMOVE."""
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        from backend.infrastructure.brokers.mt5_safe import mt5
+
+        mock_res = MagicMock()
+        mock_res.retcode = mt5.TRADE_RETCODE_DONE
+        mock_order_send.return_value = mock_res
+
+        mgr = ExecutionManager()
+        res = mgr.cancel_pending_order(987654)
+        assert res["status"] == "success"
+        mock_order_send.assert_called_once()
+        req = mock_order_send.call_args[0][0]
+        assert req["action"] == mt5.TRADE_ACTION_REMOVE
+        assert req["order"] == 987654

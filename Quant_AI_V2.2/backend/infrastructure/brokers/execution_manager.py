@@ -396,3 +396,27 @@ class ExecutionManager:
             "msg": f"Loi sua vi the #{ticket}: {res.comment if res else 'Unknown'}",
             "latency_ms": round(total_latency_ms, 2),
         }
+
+    def cancel_pending_order(self, ticket: int) -> dict:
+        """
+        Huy mot lenh cho (Pending Order) tren MT5 bang TRADE_ACTION_REMOVE.
+        """
+        start_exec = time.perf_counter()
+        request = {
+            "action": mt5.TRADE_ACTION_REMOVE,
+            "order": ticket,
+        }
+        res = mt5.order_send(request)
+        total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
+
+        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+            return {
+                "status": "success",
+                "msg": f"Da huy lenh cho #{ticket} thanh cong (Do tre: {total_latency_ms:.1f} ms)",
+                "latency_ms": round(total_latency_ms, 2),
+            }
+        return {
+            "status": "error",
+            "msg": f"Loi huy lenh cho #{ticket}: {res.comment if res else 'Unknown'}",
+            "latency_ms": round(total_latency_ms, 2),
+        }

@@ -1400,26 +1400,35 @@ def setup_chart_ui(window):
         sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
         info = mt5.symbol_info(sym)
         dig = info.digits if info else (2 if entry_p > 10 else 5)
-        if "BTC" in sym:
-            risk_dlr = sl_pts * 0.50
-            reward_dlr = tp_pts * 0.50
-        elif "XAU" in sym:
-            risk_dlr = sl_pts * 50.0
-            reward_dlr = tp_pts * 50.0
-        elif "JPY" in sym:
-            risk_dlr = sl_pts * 1000 * 0.50 * 0.07
-            reward_dlr = tp_pts * 1000 * 0.50 * 0.07
-        else:
-            risk_dlr = sl_pts * 50000.0
-            reward_dlr = tp_pts * 50000.0
-        risk_pct = (risk_dlr / 100000.0) * 100.0
-        rr_ratio = (tp_pts / sl_pts) if sl_pts > 0.00001 else 1.0
 
-        window.line_order_sl.label.setFormat(f"STOP LOSS: {sl_p:.{dig}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
-        window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp_p:.{dig}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
+        from frontend.controllers.chart.trading_plan_panel import get_symbol_multiplier, calculate_manual_quant_lot
+        mult = get_symbol_multiplier(sym, info)
+
+        acc = mt5.account_info() if mt5.terminal_info() is not None else None
+        balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
+
+        is_live = getattr(window, "is_live_position", False)
+        is_pending = getattr(window, "is_pending_order", False)
+        calc_lot = getattr(window, "active_signal_data", {}).get("lot")
+        if not calc_lot or calc_lot <= 0:
+            if is_live or is_pending:
+                calc_lot = getattr(window, "live_volume", 0.10) or 0.10
+            else:
+                calc_lot, _ = calculate_manual_quant_lot(sym, sl_pts, balance=balance)
+
+        risk_dlr = round(sl_pts * calc_lot * mult, 2)
+        reward_dlr = round(tp_pts * calc_lot * mult, 2)
+        risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
+        rr_ratio = round(tp_pts / sl_pts, 1) if sl_pts > 0.00001 else 2.0
+
+        if is_live:
+            window.line_order_sl.label.setFormat(f"LIVE SL: {sl_p:.{dig}f}")
+            window.line_order_tp.label.setFormat(f"LIVE TP: {tp_p:.{dig}f}")
+        else:
+            window.line_order_sl.label.setFormat(f"STOP LOSS: {sl_p:.{dig}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+            window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp_p:.{dig}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
 
         is_waiting = hasattr(window, "btnApproveOrder") and window.btnApproveOrder.isEnabled()
-        is_live = getattr(window, "is_live_position", False)
         update_order_proposal_html(
             window,
             sym=sym,
@@ -1432,6 +1441,8 @@ def setup_chart_ui(window):
             digits=dig,
             is_live_position=is_live,
             live_ticket=getattr(window, "live_ticket", None),
+            is_pending_order=is_pending,
+            pending_ticket=getattr(window, "pending_ticket", None),
         )
         if is_live and hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
             window.btnApproveOrder.setText("UPDATE SL/TP IN MT5")
@@ -1474,20 +1485,12 @@ def setup_chart_ui(window):
         sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
         info = mt5.symbol_info(sym)
         dig = info.digits if info else (2 if entry_p > 10 else 5)
-        if "BTC" in sym:
-            risk_dlr = sl_pts * 0.50
-            reward_dlr = tp_pts * 0.50
-        elif "XAU" in sym:
-            risk_dlr = sl_pts * 50.0
-            reward_dlr = tp_pts * 50.0
-        elif "JPY" in sym:
-            risk_dlr = sl_pts * 1000 * 0.50 * 0.07
-            reward_dlr = tp_pts * 1000 * 0.50 * 0.07
-        else:
-            risk_dlr = sl_pts * 50000.0
-            reward_dlr = tp_pts * 50000.0
-        risk_pct = (risk_dlr / 100000.0) * 100.0
-        rr_ratio = (tp_pts / sl_pts) if sl_pts > 0.00001 else 1.0
+
+        from frontend.controllers.chart.trading_plan_panel import get_symbol_multiplier, calculate_manual_quant_lot
+        mult = get_symbol_multiplier(sym, info)
+
+        acc = mt5.account_info() if mt5.terminal_info() is not None else None
+        balance = float(acc.balance) if acc and acc.balance > 0 else 10000.0
 
         # Determine direction
         is_buy = True
@@ -1496,13 +1499,30 @@ def setup_chart_ui(window):
         elif tp_p < entry_p:
             is_buy = False
 
-        # Calculate lot size
-        lot_size = 0.05 if "BTC" in sym else (0.10 if "XAU" in sym else 0.50)
-        if hasattr(window, "lblSizeVal") and window.lblSizeVal:
-            try:
-                lot_size = float(window.lblSizeVal.text().split()[0])
-            except (ValueError, IndexError, AttributeError) as err:
-                logger.debug(f"[ChartCanvas] Lot size parsing fallback: {err}")
+        # Validate stop loss orientation before MT5 submission
+        if is_buy and sl_p >= entry_p:
+            from backend.core.event_bus import event_bus
+            event_bus.log_event.emit("", "ERROR", f"Cannot approve BUY order: Stop Loss ({sl_p:.{dig}f}) must be below Entry ({entry_p:.{dig}f}).", "#ef4444")
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(window, "Invalid Stop Loss", f"Stop Loss ({sl_p:.{dig}f}) must be below Entry price ({entry_p:.{dig}f}) for a BUY order.")
+            return
+        elif not is_buy and sl_p <= entry_p:
+            from backend.core.event_bus import event_bus
+            event_bus.log_event.emit("", "ERROR", f"Cannot approve SELL order: Stop Loss ({sl_p:.{dig}f}) must be above Entry ({entry_p:.{dig}f}).", "#ef4444")
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(window, "Invalid Stop Loss", f"Stop Loss ({sl_p:.{dig}f}) must be above Entry price ({entry_p:.{dig}f}) for a SELL order.")
+            return
+
+        # Calculate lot size from active_signal_data or dynamic risk math
+        lot_size = getattr(window, "active_signal_data", {}).get("lot")
+        if not lot_size or lot_size <= 0:
+            if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                try:
+                    lot_size = float(window.lblSizeVal.text().split()[0])
+                except Exception:
+                    pass
+        if not lot_size or lot_size <= 0:
+            lot_size, _ = calculate_manual_quant_lot(sym, sl_pts, balance=balance)
 
         # Execute on MT5 via ExecutionManager
         exec_mgr = None
@@ -1639,6 +1659,36 @@ def setup_chart_ui(window):
                     _run_analysis(window, clean_sym, force=True)
                 else:
                     event_bus.log_event.emit("", "ERROR", f"Failed to close #{ticket}: {res.get('msg', 'Error')}", "#ef4444")
+            return
+
+        if getattr(window, "is_pending_order", False) and getattr(window, "pending_ticket", None):
+            ticket = window.pending_ticket
+            from PySide6.QtWidgets import QMessageBox
+            reply = QMessageBox.question(
+                window,
+                "Cancel Pending Order",
+                f"Cancel pending MT5 order #{ticket} immediately?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                exec_mgr = None
+                if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                    exec_mgr = window.quant_terminal.exec_mgr
+                if not exec_mgr:
+                    from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                    exec_mgr = ExecutionManager(slippage=20)
+                res = exec_mgr.cancel_pending_order(ticket)
+                from backend.core.event_bus import event_bus
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Cancelled MT5 pending order #{ticket}", "#10b981")
+                    window.is_pending_order = False
+                    window.pending_ticket = None
+                    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+                    from frontend.controllers.chart.ai_panel_controller import _run_analysis
+                    _run_analysis(window, clean_sym, force=True)
+                else:
+                    event_bus.log_event.emit("", "ERROR", f"Failed to cancel #{ticket}: {res.get('msg', 'Error')}", "#ef4444")
             return
 
         window.order_proposal_active = False
