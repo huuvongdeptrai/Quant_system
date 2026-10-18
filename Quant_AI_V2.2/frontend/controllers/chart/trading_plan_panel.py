@@ -162,31 +162,25 @@ def clear_manual_chart_lines(window):
 
 
 def resolve_strategy_model_name(window, model_name: Optional[str] = None) -> str:
-    """Resolve human-readable model name based on active strategy selection."""
+    """Resolve human-readable model name based on active strategy contract."""
     if model_name and model_name.strip() and model_name.strip() not in ("Quantitative Strategy", "--"):
         return model_name.strip()
 
     try:
         import shiboken6
         if hasattr(window, "comboStrategy") and window.comboStrategy is not None and shiboken6.isValid(window.comboStrategy):
+            cur_data = window.comboStrategy.currentData()
             cur_text = window.comboStrategy.currentText()
-            if cur_text and cur_text.strip():
-                return cur_text.split("(")[0].strip()
+            from backend.core.strategies import get_strategy_instance
+            strat = get_strategy_instance(cur_data or cur_text)
+            return getattr(strat, "name", cur_text.split("(")[0].strip())
     except Exception:
         pass
 
     try:
-        from pathlib import Path
-        root_p = Path(__file__).resolve().parent.parent.parent.parent
-        cfg_p = root_p / "config" / "settings.json"
-        if cfg_p.exists():
-            with open(cfg_p, "r", encoding="utf-8") as f_cfg:
-                cfg_data = json.load(f_cfg)
-                strat = cfg_data.get("strategy", "builtin_ict_pro")
-                if "wyckoff" in strat.lower():
-                    return "Wyckoff Momentum Pro"
-                if "ema" in strat.lower():
-                    return "EMA Dual Cross"
+        from backend.core.strategies import get_strategy_instance
+        strat = get_strategy_instance()
+        return getattr(strat, "name", "ICT Zones Pro v4.2")
     except Exception:
         pass
 
@@ -195,48 +189,68 @@ def resolve_strategy_model_name(window, model_name: Optional[str] = None) -> str
 
 def update_strategy_checklist_ui(
     window,
-    model_name: str,
+    model_name: Optional[str] = None,
     chk1: Optional[str] = None,
     chk2: Optional[str] = None,
     chk3: Optional[str] = None,
     is_active: bool = False,
+    checklist: Optional[List[Any]] = None,
 ):
-    """Dynamically updates Card 1 checklist keys and values based on the active quantitative strategy."""
-    m_low = (model_name or "").lower()
-    is_wyckoff = "wyckoff" in m_low
-    is_ema = "ema" in m_low
+    """
+    Polymorphic checklist renderer complying with Open-Closed Principle (OCP).
+    Dynamically renders checklist items supplied by the active BaseStrategy instance.
+    """
+    from backend.core.strategies import get_strategy_instance, ChecklistItem, ChecklistStatus
 
-    if is_wyckoff:
-        k1, k2, k3 = "Trend Structure", "Pullback Retest", "Volume Expansion"
-        default_chk1 = "Mark-up/Mark-down Phase" if is_active else "Awaiting Clear Trend"
-        default_chk2 = "EMA20 Retest Confirmed" if is_active else "Awaiting EMA Retest"
-        default_chk3 = "Volume Expansion Confirmed" if is_active else "Awaiting Volume Surge"
-    elif is_ema:
-        k1, k2, k3 = "Trend Structure", "EMA Crossover", "Risk / Reward"
-        default_chk1 = "Trend Confirmed" if is_active else "Awaiting Trend Direction"
-        default_chk2 = "EMA Cross Confirmed" if is_active else "Awaiting EMA Crossover"
-        default_chk3 = "Target RR Active" if is_active else "Monitoring Volatility"
-    else:
-        k1, k2, k3 = "Trend Structure", "Liquidity Sweep", "Order Blocks & FVG"
-        default_chk1 = "Confirmed" if is_active else "Awaiting Clear Trend"
-        default_chk2 = "Asian Range Swept" if is_active else "Awaiting Asian Sweep"
-        default_chk3 = "FVG Mitigated" if is_active else "Awaiting Mitigation"
+    items: List[ChecklistItem] = []
 
-    # Update row keys dynamically
-    if hasattr(window, "lblKey_lblChk1Val") and window.lblKey_lblChk1Val:
-        window.lblKey_lblChk1Val.setText(k1)
-    if hasattr(window, "lblKey_lblChk2Val") and window.lblKey_lblChk2Val:
-        window.lblKey_lblChk2Val.setText(k2)
-    if hasattr(window, "lblKey_lblChk3Val") and window.lblKey_lblChk3Val:
-        window.lblKey_lblChk3Val.setText(k3)
+    # 1. If explicit structured checklist items were passed, use them directly
+    if checklist and isinstance(checklist, (list, tuple)) and len(checklist) > 0:
+        for it in checklist:
+            if isinstance(it, ChecklistItem):
+                items.append(it)
+            elif isinstance(it, dict):
+                s_raw = it.get("status", "PENDING")
+                s_val = ChecklistStatus(s_raw) if s_raw in ChecklistStatus.__members__ else ChecklistStatus.PENDING
+                items.append(ChecklistItem(
+                    key=it.get("key", "Condition"),
+                    value=it.get("value", "--"),
+                    status=s_val
+                ))
+            elif isinstance(it, str):
+                items.append(ChecklistItem(key="Condition", value=it, status=ChecklistStatus.PENDING))
 
-    # Update row values
-    if hasattr(window, "lblChk1Val") and window.lblChk1Val:
-        window.lblChk1Val.setText(chk1 or default_chk1)
-    if hasattr(window, "lblChk2Val") and window.lblChk2Val:
-        window.lblChk2Val.setText(chk2 or default_chk2)
-    if hasattr(window, "lblChk3Val") and window.lblChk3Val:
-        window.lblChk3Val.setText(chk3 or default_chk3)
+    # 2. If no structured checklist passed, query the strategy instance polymorphic contract
+    if not items or len(items) < 3:
+        strat = get_strategy_instance(model_name)
+        if is_active and hasattr(strat, "get_active_checklist"):
+            defaults = strat.get_active_checklist()
+        else:
+            defaults = strat.get_default_checklist()
+
+        # If individual string overrides were passed (e.g. from existing unit tests), apply them
+        override_vals = [chk1, chk2, chk3]
+        items = []
+        for idx, def_item in enumerate(defaults[:3]):
+            val = override_vals[idx] if (idx < len(override_vals) and override_vals[idx] is not None) else def_item.value
+            items.append(ChecklistItem(
+                key=def_item.key,
+                value=val,
+                status=ChecklistStatus.PASSED if is_active else def_item.status
+            ))
+
+    # 3. Dynamic UI Render into Card 1 generic rows
+    for i in range(1, 4):
+        idx = i - 1
+        item = items[idx] if idx < len(items) else ChecklistItem(key=f"Rule {i}", value="--", status=ChecklistStatus.PENDING)
+
+        k_lbl = getattr(window, f"lblKey_lblChk{i}Val", None)
+        v_lbl = getattr(window, f"lblChk{i}Val", None)
+
+        if k_lbl is not None:
+            k_lbl.setText(item.key)
+        if v_lbl is not None:
+            v_lbl.setText(item.value)
 
 
 def update_order_proposal_html(
@@ -270,6 +284,7 @@ def update_order_proposal_html(
     pending_ticket=None,
     exec_mode="MANUAL",
     is_bot_active=False,
+    checklist=None,
 ):
     """Render institutional Radar Matrix and Order Proposal Ticket with WCAG AAA contrast matching theme."""
     raw_sym = sym or getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
@@ -326,7 +341,7 @@ def update_order_proposal_html(
                 "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; "
                 "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
             )
-        update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=False)
+        update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=False, checklist=checklist)
 
         # Card 2: Lệnh và Quản trị rủi ro (Chưa có lệnh)
         if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -529,7 +544,7 @@ def update_order_proposal_html(
         badge_border = "#272d3b" if is_dark else "#cbd5e1"
         badge_text = "#16a34a" if is_dark else "#15803d"
         window.lblModelGrade.setStyleSheet(f"background-color: {badge_bg}; color: {badge_text}; border: 1px solid {badge_border}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;")
-    update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=True)
+    update_strategy_checklist_ui(window, resolved_model, chk1, chk2, chk3, is_active=True, checklist=checklist)
 
     # Card 2: Lệnh và Quản trị rủi ro (Active)
     if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:

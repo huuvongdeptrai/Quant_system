@@ -10,9 +10,10 @@ Centralized directory containing all quantitative trading strategies:
 - strategy_loader.py: Auto-discovery and dynamic registry
 """
 
+from .base_strategy import BaseStrategy, StrategySignal, ChecklistItem, ChecklistStatus
 from .ict_strategy import ICTZonesProStrategy
 from .ema_stress_test import EMAStressTestStrategy
-from .wyckoff_vectorized import VectorizedBacktester
+from .wyckoff_vectorized import VectorizedBacktester, WyckoffMomentumStrategy
 from .custom_ict_fvg import CustomICTFVGStrategy
 from .strategy_loader import (
     discover_strategies,
@@ -21,10 +22,16 @@ from .strategy_loader import (
     validate_strategy_file,
     import_strategy_file,
     load_strategy_instance,
+    get_strategy_instance,
 )
 
 __all__ = [
+    "BaseStrategy",
+    "StrategySignal",
+    "ChecklistItem",
+    "ChecklistStatus",
     "ICTZonesProStrategy",
+    "WyckoffMomentumStrategy",
     "EMAStressTestStrategy",
     "VectorizedBacktester",
     "CustomICTFVGStrategy",
@@ -34,4 +41,5 @@ __all__ = [
     "validate_strategy_file",
     "import_strategy_file",
     "load_strategy_instance",
+    "get_strategy_instance",
 ]

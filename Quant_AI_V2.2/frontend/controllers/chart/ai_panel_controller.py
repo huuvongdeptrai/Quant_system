@@ -200,40 +200,9 @@ class AIAnalyzerThread(QtCore.QThread):
                     )
 
                     strat_id = getattr(self, "strategy_id", None)
-                    if not strat_id:
-                        try:
-                            from pathlib import Path
-                            proj_root = Path(__file__).resolve().parent.parent.parent.parent
-                            cfg_p = proj_root / "config" / "settings.json"
-                            if cfg_p.exists():
-                                with open(cfg_p, "r", encoding="utf-8") as f_cfg:
-                                    cfg_data = json.load(f_cfg)
-                                    strat_id = cfg_data.get("strategy", "builtin_ict_pro")
-                        except Exception:
-                            strat_id = "builtin_ict_pro"
-
-                    strat_inst = None
-                    strat_display = "ICT Zones Pro v4.2"
-                    all_strats = discover_strategies()
-                    for s in all_strats:
-                        if s["id"] == strat_id or (s["id"] == "builtin_wyckoff" and "wyckoff" in str(strat_id).lower()):
-                            strat_display = s["name"].split("(")[0].strip()
-                            strat_inst = load_strategy_instance(s["file_path"], s["class_name"])
-                            break
-
-                    if strat_inst is None:
-                        if "wyckoff" in str(strat_id).lower():
-                            from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
-                            strat_inst = WyckoffMomentumStrategy()
-                            strat_display = "Wyckoff Momentum Pro"
-                        elif "ema" in str(strat_id).lower():
-                            from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
-                            strat_inst = EMAStressTestStrategy()
-                            strat_display = "EMA Dual Cross"
-                        else:
-                            strat_inst = ICTZonesProStrategy()
-                            strat_display = "ICT Zones Pro v4.2"
-
+                    from backend.core.strategies import get_strategy_instance
+                    strat_inst = get_strategy_instance(strat_id)
+                    strat_display = getattr(strat_inst, "name", "Quantitative Strategy")
                     res_strat = strat_inst.analyze(df, macro_ctx)
                     result["_strategy_res"] = res_strat
                     result["_strategy_name"] = strat_display
@@ -622,9 +591,7 @@ def _update_panel_with_result(window, result):
     )
 
     user_chk = strat_res.get("checklist") or strat_meta.get("checklist") or []
-    is_ict = "ict" in strat_name.lower()
-    is_ema = "ema" in strat_name.lower()
-    is_wyckoff = "wyckoff" in strat_name.lower()
+    strat_checklist = user_chk
 
     if has_valid_signal:
         entry_val = float(raw_entry)
@@ -640,20 +607,11 @@ def _update_panel_with_result(window, result):
 
         sig_key = f"{clean_sym}_{candle_time}_{strat_sig}_{round(entry_val, 2)}"
 
-        if isinstance(user_chk, list) and len(user_chk) >= 3:
-            chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
-        elif is_ict:
-            chk1 = f"{strat_sig} Structure Confirmed"
-            chk2 = f"Asian {'High' if strat_sig == 'SELL' else 'Low'} Swept"
-            chk3 = "FVG Mitigated"
-        elif is_wyckoff:
-            chk1 = f"Wyckoff {strat_sig} Structure"
-            chk2 = f"EMA20 {'Pullback' if strat_sig == 'BUY' else 'Retest'} Confirmed"
-            chk3 = "Volume Expansion Confirmed"
-        elif is_ema:
-            chk1 = "Trend Confirmed"
-            chk2 = "EMA Crossover Confirmed"
-            chk3 = f"Risk / Reward: {abs(tp_val - entry_val) / max(0.001, abs(entry_val - sl_val)):.1f}R"
+        chk1, chk2, chk3 = None, None, None
+        if isinstance(strat_checklist, (list, tuple)) and len(strat_checklist) >= 3:
+            chk1 = strat_checklist[0].value if hasattr(strat_checklist[0], "value") else (strat_checklist[0].get("value") if isinstance(strat_checklist[0], dict) else str(strat_checklist[0]))
+            chk2 = strat_checklist[1].value if hasattr(strat_checklist[1], "value") else (strat_checklist[1].get("value") if isinstance(strat_checklist[1], dict) else str(strat_checklist[1]))
+            chk3 = strat_checklist[2].value if hasattr(strat_checklist[2], "value") else (strat_checklist[2].get("value") if isinstance(strat_checklist[2], dict) else str(strat_checklist[2]))
         else:
             chk1 = f"{strat_sig} Setup Confirmed"
             chk2 = f"Strategy Signal: {strat_sig}"
@@ -779,6 +737,7 @@ def _update_panel_with_result(window, result):
                 "chk1": chk1,
                 "chk2": chk2,
                 "chk3": chk3,
+                "checklist": strat_checklist,
                 "entry": entry_val,
                 "sl": sl_val,
                 "tp": tp_val,
@@ -806,6 +765,7 @@ def _update_panel_with_result(window, result):
                 "chk1": chk1,
                 "chk2": chk2,
                 "chk3": chk3,
+                "checklist": strat_checklist,
                 "entry": entry_val,
                 "sl": sl_val,
                 "tp": tp_val,
@@ -822,36 +782,17 @@ def _update_panel_with_result(window, result):
                 update_order_proposal_html(window, **kwargs_order)
             return
     else:
-        htf_raw = str(result.get("_htf_bias", "--")).upper()
-        if htf_raw in ("NEUTRAL", "SIDEWAYS", "--") or "đi ngang" in str(htf_text).lower() or bias_val == 0:
-            chk1_ict = "Awaiting Clear Trend"
-        elif htf_raw == "BULLISH" and bias_val >= 0:
-            chk1_ict = "Bullish Bias Confirmed"
-        elif htf_raw == "BEARISH" and bias_val <= 0:
-            chk1_ict = "Bearish Bias Confirmed"
-        else:
-            chk1_ict = "Awaiting Trend Confirmation"
-
         ai_model = f"{strat_name}"
+        strat_checklist = user_chk
+        if not strat_checklist:
+            from backend.core.strategies import get_strategy_instance
+            strat_checklist = get_strategy_instance(strat_name).get_default_checklist()
 
-        if isinstance(user_chk, list) and len(user_chk) >= 3:
-            chk1, chk2, chk3 = str(user_chk[0]), str(user_chk[1]), str(user_chk[2])
-        elif is_ict:
-            chk1 = chk1_ict
-            chk2 = "Awaiting Asian Sweep"
-            chk3 = "Awaiting Mitigation"
-        elif is_wyckoff:
-            chk1 = "Mark-up Phase (EMA20 > EMA50)" if bias_val > 0 else ("Mark-down Phase (EMA20 < EMA50)" if bias_val < 0 else "Awaiting Clear Trend")
-            chk2 = "Awaiting EMA Pullback" if bias_val > 0 else ("Awaiting EMA Retest" if bias_val < 0 else "Awaiting Retest")
-            chk3 = "Awaiting Volume Surge"
-        elif is_ema:
-            chk1 = f"{htf_raw} Trend" if htf_raw in ("BULLISH", "BEARISH") else "Awaiting Trend Direction"
-            chk2 = "Awaiting EMA Crossover"
-            chk3 = "Monitoring Volatility"
-        else:
-            chk1 = f"{htf_raw} Structure" if htf_raw in ("BULLISH", "BEARISH") else "Awaiting Market Bias"
-            chk2 = "Awaiting Setup Trigger"
-            chk3 = "Scanning Key Levels"
+        chk1, chk2, chk3 = None, None, None
+        if isinstance(strat_checklist, (list, tuple)) and len(strat_checklist) >= 3:
+            chk1 = strat_checklist[0].value if hasattr(strat_checklist[0], "value") else (strat_checklist[0].get("value") if isinstance(strat_checklist[0], dict) else str(strat_checklist[0]))
+            chk2 = strat_checklist[1].value if hasattr(strat_checklist[1], "value") else (strat_checklist[1].get("value") if isinstance(strat_checklist[1], dict) else str(strat_checklist[1]))
+            chk3 = strat_checklist[2].value if hasattr(strat_checklist[2], "value") else (strat_checklist[2].get("value") if isinstance(strat_checklist[2], dict) else str(strat_checklist[2]))
 
         kwargs_order = {
             "sym": clean_sym,
@@ -862,6 +803,7 @@ def _update_panel_with_result(window, result):
             "chk1": chk1,
             "chk2": chk2,
             "chk3": chk3,
+            "checklist": strat_checklist,
             "status": "SCANNING_STANDBY",
             "digits": digits,
             "is_live_position": False,

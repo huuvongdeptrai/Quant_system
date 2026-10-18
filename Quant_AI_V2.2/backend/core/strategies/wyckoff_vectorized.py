@@ -12,6 +12,13 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass
 
+from backend.core.strategies.base_strategy import (
+    BaseStrategy,
+    StrategySignal,
+    ChecklistItem,
+    ChecklistStatus,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -58,7 +65,7 @@ def get_symbol_multiplier(symbol: str) -> float:
     return 100000.0
 
 
-class WyckoffMomentumStrategy:
+class WyckoffMomentumStrategy(BaseStrategy):
     """
     Chiến lược Wyckoff Trend Momentum & Volume Expansion (Real-time Matrix Engine).
     Hội tụ 3 điều kiện định lượng:
@@ -68,11 +75,33 @@ class WyckoffMomentumStrategy:
     """
 
     def __init__(self, config: Dict[str, Any] = None):
-        self.config = config or {}
-        self.name = "Wyckoff_Momentum_Pro"
+        super().__init__(config)
+        self.strategy_id = "builtin_wyckoff"
+        self.name = "Wyckoff Momentum Pro"
         self.target_rr = float(self.config.get("target_rr", 2.5))
         self.atr_mult = float(self.config.get("atr_mult", 1.5))
         self.vol_mult = float(self.config.get("vol_mult", 1.1))
+
+    def get_metadata(self) -> Dict[str, Any]:
+        return {
+            "id": self.strategy_id,
+            "name": "Wyckoff Momentum Pro (Vectorized)",
+            "description": "Vectorized NumPy ATR envelope and Volume expansion momentum model.",
+            "author": "Quant AI Core",
+            "version": "2.2",
+            "checklist_schema": [
+                {"key": "Trend Structure", "description": "Mark-up or Mark-down phase based on EMA20 vs EMA50"},
+                {"key": "Pullback Retest", "description": "Dynamic retest or pullback to EMA20 support/resistance"},
+                {"key": "Volume Expansion", "description": "Volume absorption and expansion relative to MA20"},
+            ],
+        }
+
+    def get_default_checklist(self) -> List[ChecklistItem]:
+        return [
+            ChecklistItem(key="Trend Structure", value="Awaiting Clear Trend", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Pullback Retest", value="Awaiting EMA Retest", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Volume Expansion", value="Awaiting Volume Surge", status=ChecklistStatus.PENDING),
+        ]
 
     def _calc_ema(self, arr: np.ndarray, period: int) -> np.ndarray:
         res = np.zeros(len(arr))
@@ -84,22 +113,25 @@ class WyckoffMomentumStrategy:
 
     def analyze(
         self, df: pd.DataFrame, macro_context: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
+    ) -> StrategySignal:
         macro_context = macro_context or {}
         if df is None or len(df) < 55:
-            return {
-                "strategy": self.name,
-                "action": "HOLD",
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "checklist": ["Awaiting Data", "Awaiting Data", "Awaiting Data"],
-                "metadata": {
+            default_chk = self.get_default_checklist()
+            return StrategySignal(
+                strategy_id=self.strategy_id,
+                strategy_name=self.name,
+                action="HOLD",
+                signal="HOLD",
+                confidence=0.0,
+                checklist=default_chk,
+                metadata={
+                    "strategy": "Wyckoff_Momentum_Pro",
                     "bias": 0,
                     "active_obs": 0,
                     "active_fvgs": 0,
-                    "checklist": ["Awaiting Data", "Awaiting Data", "Awaiting Data"],
+                    "checklist": [c.value for c in default_chk],
                 },
-            }
+            )
 
         closes = df["close"].to_numpy(dtype=np.float64)
         highs = df["high"].to_numpy(dtype=np.float64)
@@ -212,20 +244,37 @@ class WyckoffMomentumStrategy:
             else:
                 chk3 = f"Normal Volume ({vol_ratio:.1f}x MA)"
 
-        checklist = [chk1, chk2, chk3]
+        # Construct dynamic self-describing checklist
+        chk1_status = (
+            ChecklistStatus.PASSED if action in ("BUY", "SELL")
+            else (ChecklistStatus.PASSED if is_bull_trend or is_bear_trend else ChecklistStatus.PENDING)
+        )
+        chk2_status = ChecklistStatus.PASSED if action in ("BUY", "SELL") else ChecklistStatus.PENDING
+        chk3_status = (
+            ChecklistStatus.PASSED if (action in ("BUY", "SELL") or vol_ratio >= self.vol_mult)
+            else ChecklistStatus.PENDING
+        )
 
-        return {
-            "strategy": self.name,
-            "action": action,
-            "signal": action,
-            "entry_price": entry_price if action != "HOLD" else None,
-            "sl": sl,
-            "tp1": tp1,
-            "tp2": tp2,
-            "confidence": confidence,
-            "score": 85.0 if action != "HOLD" else 45.0,
-            "checklist": checklist,
-            "metadata": {
+        checklist_items = [
+            ChecklistItem(key="Trend Structure", value=chk1, status=chk1_status),
+            ChecklistItem(key="Pullback Retest", value=chk2, status=chk2_status),
+            ChecklistItem(key="Volume Expansion", value=chk3, status=chk3_status),
+        ]
+
+        return StrategySignal(
+            strategy_id=self.strategy_id,
+            strategy_name=self.name,
+            action=action,
+            signal=action,
+            entry_price=entry_price if action != "HOLD" else None,
+            sl=sl,
+            tp1=tp1,
+            tp2=tp2,
+            confidence=confidence,
+            score=85.0 if action != "HOLD" else 45.0,
+            checklist=checklist_items,
+            metadata={
+                "strategy": "Wyckoff_Momentum_Pro",
                 "trend": chk1,
                 "pullback": chk2,
                 "volume": chk3,
@@ -233,9 +282,9 @@ class WyckoffMomentumStrategy:
                 "bias": bias,
                 "active_obs": 0,
                 "active_fvgs": 0,
-                "checklist": checklist,
+                "checklist": [c.value for c in checklist_items],
             },
-        }
+        )
 
 
 class VectorizedBacktester:

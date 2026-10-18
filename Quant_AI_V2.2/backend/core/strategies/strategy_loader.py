@@ -225,3 +225,57 @@ def load_strategy_instance(file_path: str, class_name: str, config: Optional[Dic
     except Exception as e:
         logger.error(f"Failed to load strategy instance from {file_path}: {e}")
         return None
+
+
+def get_strategy_instance(identifier: Optional[str] = None, config: Optional[Dict[str, Any]] = None) -> Any:
+    """
+    Polymorphic factory resolving any strategy by ID, name, or system config.
+    Returns a typed BaseStrategy instance. Guarantees non-null return via ICTZonesProStrategy fallback.
+    """
+    from backend.core.strategies.ict_strategy import ICTZonesProStrategy
+    from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+    from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
+
+    cfg_id = identifier
+    if not cfg_id:
+        try:
+            import json
+            from pathlib import Path
+            proj_root = Path(__file__).resolve().parent.parent.parent.parent
+            cfg_p = proj_root / "config" / "settings.json"
+            if cfg_p.exists():
+                with open(cfg_p, "r", encoding="utf-8") as f_cfg:
+                    cfg_data = json.load(f_cfg)
+                    cfg_id = cfg_data.get("strategy", "builtin_ict_pro")
+        except Exception:
+            cfg_id = "builtin_ict_pro"
+
+    id_str = str(cfg_id or "builtin_ict_pro").strip()
+    id_lower = id_str.lower()
+
+    # 1. Check known built-ins first for optimal zero-overhead speed
+    if "wyckoff" in id_lower:
+        return WyckoffMomentumStrategy(config)
+    if "ema" in id_lower:
+        return EMAStressTestStrategy(config)
+    if "ict" in id_lower:
+        return ICTZonesProStrategy(config)
+
+    # 2. Check dynamic discovery
+    for s in discover_strategies():
+        s_id = s.get("id", "").lower()
+        s_name = s.get("name", "").lower()
+        s_class = s.get("class_name", "").lower()
+        if (
+            id_lower == s_id
+            or id_lower == s_name
+            or id_lower == s_name.split("(")[0].strip()
+            or id_lower == s_class
+        ):
+            inst = load_strategy_instance(s["file_path"], s["class_name"], config)
+            if inst is not None:
+                return inst
+
+    # Fallback to ICT default
+    return ICTZonesProStrategy(config)
+

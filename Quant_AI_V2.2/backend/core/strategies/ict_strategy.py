@@ -4,6 +4,12 @@ from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import pandas as pd
 from loguru import logger
+from backend.core.strategies.base_strategy import (
+    BaseStrategy,
+    StrategySignal,
+    ChecklistItem,
+    ChecklistStatus,
+)
 
 PROJECT_ROOT = Path(__file__).resolve()
 while (
@@ -53,7 +59,7 @@ class OrderBlock:
         return self.current_score() >= threshold
 
 
-class ICTZonesProStrategy:
+class ICTZonesProStrategy(BaseStrategy):
     """
     Chiến lược giao dịch ICT Trading Zones Pro (Bản chuẩn hóa hội tụ OB + FVG & Structural SL).
     Đã khắc phục hoàn toàn các điểm nghẽn:
@@ -65,7 +71,9 @@ class ICTZonesProStrategy:
     """
 
     def __init__(self, config: Dict[str, Any] = None):
-        self.config = config or {}
+        super().__init__(config)
+        self.strategy_id = "builtin_ict_pro"
+        self.name = "ICT Zones Pro v4.2"
         self.ob_length = self.config.get("ob_length", 5)
         self.hpz_threshold = self.config.get("hpz_threshold", 70.0)
         self.momentum_period = self.config.get("momentum_period", 50)
@@ -77,6 +85,27 @@ class ICTZonesProStrategy:
         self.sweep_memory = self.config.get("sweep_memory", 12)
         self.persist_state = self.config.get("persist_state", False)
         self.save_state = self.config.get("save_state", False)
+
+    def get_metadata(self) -> Dict[str, Any]:
+        return {
+            "id": self.strategy_id,
+            "name": "ICT Zones Pro v4.2 (Asian + FVG)",
+            "description": "Asian High/Low sweep, Judas swing, Fair Value Gap and Killzone filter.",
+            "author": "Quant AI Core",
+            "version": "4.2",
+            "checklist_schema": [
+                {"key": "Trend Structure", "description": "Higher Timeframe market bias"},
+                {"key": "Liquidity Sweep", "description": "Asian session range sweep"},
+                {"key": "Order Blocks & FVG", "description": "Unmitigated institutional imbalance"},
+            ],
+        }
+
+    def get_default_checklist(self) -> List[ChecklistItem]:
+        return [
+            ChecklistItem(key="Trend Structure", value="Awaiting Clear Trend", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Liquidity Sweep", value="Awaiting Asian Sweep", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Order Blocks & FVG", value="Awaiting Mitigation", status=ChecklistStatus.PENDING),
+        ]
 
     def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
@@ -125,10 +154,18 @@ class ICTZonesProStrategy:
 
     def analyze(
         self, df: pd.DataFrame, macro_context: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
+    ) -> StrategySignal:
         macro_context = macro_context or {}
         if len(df) < max(self.momentum_period, 100) + 10:
-            return {"action": "HOLD", "signal": "HOLD", "confidence": 0.0}
+            return StrategySignal(
+                strategy_id=self.strategy_id,
+                strategy_name=self.name,
+                action="HOLD",
+                signal="HOLD",
+                confidence=0.0,
+                checklist=self.get_default_checklist(),
+                metadata={"strategy": "ICT_Zones_Pro", "bias": 0, "active_fvgs": 0, "active_obs": 0},
+            )
 
         df = self._calculate_indicators(df)
 
@@ -529,19 +566,55 @@ class ICTZonesProStrategy:
                     tp1 = entry - risk * rr
                     tp2 = entry - risk * (rr * 2.0)
 
-        return {
-            "strategy": "ICT_Zones_Pro",
-            "action": action,
-            "signal": action,
-            "entry_price": entry,
-            "sl": sl,
-            "tp1": tp1,
-            "tp2": tp2,
-            "confidence": confidence,
-            "score": max(l_score, s_score),
-            "metadata": {
+        # Construct dynamic self-describing checklist
+        chk1_val = (
+            "Bullish Structure Confirmed" if action == "BUY"
+            else ("Bearish Structure Confirmed" if action == "SELL"
+            else ("Bullish Bias Confirmed" if curr["bias"] > 0
+            else ("Bearish Bias Confirmed" if curr["bias"] < 0
+            else "Awaiting Clear Trend")))
+        )
+        chk1_status = (
+            ChecklistStatus.PASSED if action in ("BUY", "SELL")
+            else (ChecklistStatus.NEUTRAL if curr["bias"] != 0 else ChecklistStatus.PENDING)
+        )
+
+        chk2_val = (
+            "Asian Low Swept & Absorbed" if action == "BUY"
+            else ("Asian High Swept & Absorbed" if action == "SELL"
+            else "Awaiting Asian Sweep")
+        )
+        chk2_status = ChecklistStatus.PASSED if action in ("BUY", "SELL") else ChecklistStatus.PENDING
+
+        chk3_val = (
+            "OB Retest + FVG Confluence" if action in ("BUY", "SELL")
+            else "Awaiting Mitigation"
+        )
+        chk3_status = ChecklistStatus.PASSED if action in ("BUY", "SELL") else ChecklistStatus.PENDING
+
+        checklist = [
+            ChecklistItem(key="Trend Structure", value=chk1_val, status=chk1_status),
+            ChecklistItem(key="Liquidity Sweep", value=chk2_val, status=chk2_status),
+            ChecklistItem(key="Order Blocks & FVG", value=chk3_val, status=chk3_status),
+        ]
+
+        return StrategySignal(
+            strategy_id=self.strategy_id,
+            strategy_name=self.name,
+            action=action,
+            signal=action,
+            entry_price=entry if action != "HOLD" else None,
+            sl=sl,
+            tp1=tp1,
+            tp2=tp2,
+            confidence=confidence,
+            score=float(max(l_score, s_score)),
+            checklist=checklist,
+            metadata={
+                "strategy": "ICT_Zones_Pro",
                 "active_fvgs": len(active_fvgs),
                 "active_obs": len(active_obs),
                 "bias": int(curr["bias"]),
+                "checklist": [c.value for c in checklist],
             },
-        }
+        )
