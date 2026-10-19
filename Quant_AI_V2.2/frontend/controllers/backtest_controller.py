@@ -107,7 +107,7 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "comboBtTf"):
             combo_tf = self.window.comboBtTf
             combo_tf.setFixedHeight(32)
-            combo_tf.setFixedWidth(68)
+            combo_tf.setFixedWidth(58)
             combo_tf.setMaxVisibleItems(16)
             curr_tf = combo_tf.currentText().strip() if combo_tf.currentText() else "M15"
             combo_tf.blockSignals(True)
@@ -121,11 +121,13 @@ class BacktestWorkbenchController:
             idx = combo_tf.findText(curr_tf)
             combo_tf.setCurrentIndex(idx if idx >= 0 else tf_list.index("M15"))
             combo_tf.blockSignals(False)
+            combo_tf.currentTextChanged.connect(self._on_tf_changed)
 
         if hasattr(self.window, "comboBtEngine"):
             self.window.comboBtEngine.setFixedHeight(32)
-            self.window.comboBtEngine.setFixedWidth(210)
+            self.window.comboBtEngine.setFixedWidth(185)
             self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            self.window.comboBtEngine.currentIndexChanged.connect(self._on_strategy_changed)
 
         # 2b. Engine Mode Selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
         if hasattr(self.window, "comboBtMode"):
@@ -136,7 +138,7 @@ class BacktestWorkbenchController:
             setattr(self.window, "comboBtMode", self.comboBtMode)
 
         self.comboBtMode.setFixedHeight(32)
-        self.comboBtMode.setFixedWidth(225)
+        self.comboBtMode.setFixedWidth(190)
         self.comboBtMode.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.comboBtMode.blockSignals(True)
         self.comboBtMode.clear()
@@ -777,15 +779,31 @@ class BacktestWorkbenchController:
     def _on_symbol_changed(self, sym: str):
         self.current_symbol = sym.strip()
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._log(f"[{now_str}] [SYMBOL] Backtest target asset set to: {self.current_symbol}")
+        self._log(f"[{now_str}] [SYMBOL] Cặp tiền kiểm thử: {self.current_symbol}")
+        self._run_simulation_internal(is_initial=False)
+
+    def _on_tf_changed(self, tf: str):
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log(f"[{now_str}] [TIMEFRAME] Khung thời gian kiểm thử: {tf}")
+        self._run_simulation_internal(is_initial=False)
+
+    def _on_strategy_changed(self, idx):
+        if not hasattr(self.window, "comboBtEngine"):
+            return
+        strat_data = self.window.comboBtEngine.itemData(idx)
+        strat_name = strat_data.get("name") if strat_data else self.window.comboBtEngine.currentText()
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log(f"[{now_str}] [STRATEGY] Chuyển đổi chiến lược kiểm thử sang: {strat_name}")
+        self._run_simulation_internal(is_initial=False)
 
     def _on_mode_changed(self, idx):
         mode_data = self.comboBtMode.itemData(idx) if hasattr(self, "comboBtMode") else "vectorized"
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if mode_data == "event_driven":
-            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 2: Event-Driven Engine (Bar-by-Bar Fidelity). Bơm từng nến qua hàm analyze(), mô phỏng sát 100% thị trường thực tế.")
+            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 2: Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py). Bơm từng nến qua đúng hàm analyze() của Strategy kế thừa BaseStrategy (Mô phỏng 100% chuẩn Live).")
         else:
-            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 1: Vectorized Engine (Fast Matrix). Quét ma trận NumPy siêu tốc nhiều năm, tối ưu hóa tìm siêu tham số.")
+            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 1: Vectorized Engine (engine_vectorized.py). Quét nhanh nhiều năm dữ liệu bằng ma trận để tìm tham số tối ưu (Hyperparameter Optimization).")
+        self._run_simulation_internal(is_initial=False)
 
     def set_symbol(self, sym: str):
         if not sym or not hasattr(self, "comboBtSymbol"):
@@ -806,13 +824,18 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(False)
             self.window.btnRunBacktest.setText("SIMULATING...")
-        self._run_stress_test_network()
-        self._run_stress_test_schema()
-        self._run_stress_test_news()
-        self._run_simulation_internal(is_initial=False)
-        if hasattr(self.window, "btnRunBacktest"):
-            self.window.btnRunBacktest.setEnabled(True)
-            self.window.btnRunBacktest.setText("▶ RUN")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.processEvents()
+        try:
+            self._run_stress_test_network()
+            self._run_stress_test_schema()
+            self._run_stress_test_news()
+            self._run_simulation_internal(is_initial=False)
+        finally:
+            QApplication.restoreOverrideCursor()
+            if hasattr(self.window, "btnRunBacktest"):
+                self.window.btnRunBacktest.setEnabled(True)
+                self.window.btnRunBacktest.setText("▶ RUN")
 
     def _run_simulation_internal(self, is_initial: bool = False):
         from frontend.controllers.backtest.simulation_runner import run_simulation_internal

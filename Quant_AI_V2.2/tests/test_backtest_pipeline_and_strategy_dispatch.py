@@ -303,3 +303,43 @@ def generate_signals(df):
         assert rep2.sample_size == n
         assert isinstance(rep2.trade_records, list)
 
+    def test_backtest_controller_interactive_switching(self):
+        """Verify that UI controller triggers execution and logs upon strategy or mode change."""
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtUiTools import QUiLoader
+        from PySide6.QtCore import QFile
+        from frontend.controllers.backtest_controller import BacktestWorkbenchController
+
+        app = QApplication.instance() or QApplication([])
+        ui_file = QFile("frontend/quant_ai.ui")
+        ui_file.open(QFile.ReadOnly)
+        loader = QUiLoader()
+        win = loader.load(ui_file)
+        ui_file.close()
+
+        ctrl = BacktestWorkbenchController(win)
+        assert hasattr(win, "comboBtEngine")
+        assert hasattr(win, "comboBtMode")
+
+        # Verify strategy discovery populates rich metadata
+        assert win.comboBtEngine.count() >= 3
+        wyckoff_idx = -1
+        for i in range(win.comboBtEngine.count()):
+            data = win.comboBtEngine.itemData(i)
+            if data and "wyckoff" in data.get("id", "").lower():
+                wyckoff_idx = i
+                break
+        assert wyckoff_idx >= 0
+
+        # Test strategy switch
+        win.comboBtEngine.setCurrentIndex(wyckoff_idx)
+        console_text = win.txtBtConsole.toPlainText()
+        assert "[STRATEGY]" in console_text
+
+        # Test mode switch
+        win.comboBtMode.setCurrentIndex(1) # Mode 2 Event-Driven
+        console_text = win.txtBtConsole.toPlainText()
+        assert "[ENGINE MODE]" in console_text
+        assert "Chế độ 2" in console_text
+
+

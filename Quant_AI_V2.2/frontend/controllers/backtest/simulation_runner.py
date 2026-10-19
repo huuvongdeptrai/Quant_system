@@ -20,9 +20,10 @@ from backend.infrastructure.brokers.mt5_safe import mt5
 def run_simulation_internal(ctrl, is_initial: bool = False):
     """Executes vectorized simulation and updates UI equity curves and metrics matrix."""
     self = ctrl
-    if not is_initial:
-        if hasattr(self.window, "txtBtConsole"):
-            self.window.txtBtConsole.clear()
+    if hasattr(self.window, "txtBtConsole"):
+        doc = self.window.txtBtConsole.document()
+        if doc and doc.maximumBlockCount() != 500:
+            doc.setMaximumBlockCount(500)
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -160,7 +161,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         elif hasattr(self.window, "comboBtMode") and self.window.comboBtMode:
             bt_mode = self.window.comboBtMode.currentData() or ("event_driven" if "event" in self.window.comboBtMode.currentText().lower() else "vectorized")
 
-        is_event_driven = (not is_initial and bt_mode == "event_driven")
+        is_event_driven = (bt_mode == "event_driven")
 
         if is_event_driven:
             self._log(f"[{now_str}] [BACKTEST] ĐỘNG CƠ: Chế độ 2 - Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py)")
@@ -177,6 +178,11 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                     except Exception:
                         strat_inst_or_key = strat_name
 
+            df_event = df
+            if len(df) > 1000:
+                df_event = df.iloc[-1000:].copy().reset_index(drop=True)
+                self._log(f"[{now_str}] [EVENT-DRIVEN] Giới hạn mẫu kiểm thử nến gần nhất: 1,000 nến (High Fidelity Bar-by-Bar Sample)")
+
             bt_event = EventDrivenBacktester(
                 strategy=strat_inst_or_key,
                 initial_balance=init_cap,
@@ -184,7 +190,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                 commission_per_lot=comm_val,
                 slippage_pts=float(slippage_pts),
             )
-            report = bt_event.run(df, symbol=self.current_symbol)
+            report = bt_event.run(df_event, symbol=self.current_symbol)
             if report is None:
                 self._log(f"[{now_str}] [BACKTEST] Cần tối thiểu 150 nến để chạy Event-Driven bar-by-bar, chuyển sang Vectorized...")
                 bt_vec = VectorizedBacktester(
@@ -430,12 +436,20 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             f"Total Trades: {report.total_trades} (Win Rate: {report.win_rate_pct:.1f}%)"
         )
         if hasattr(report, "trade_records") and report.trade_records:
-            for idx, t in enumerate(report.trade_records, 1):
+            total_tr = len(report.trade_records)
+            display_records = report.trade_records[-25:] if total_tr > 30 else report.trade_records
+            if total_tr > 30:
+                self._log(f"[{now_str}] [TRADES] Hiển thị {len(display_records)}/{total_tr} giao dịch gần nhất:")
+            for idx, t in enumerate(display_records, start=max(1, total_tr - len(display_records) + 1)):
                 pnl_str = f"+${t['pnl']:,.2f}" if t['pnl'] >= 0 else f"-${abs(t['pnl']):,.2f}"
                 vol = t.get("volume", 1.0)
                 self._log(f"[{now_str}] [TRADE #{idx:02d}] {t['side']} {self.current_symbol} {vol:.2f} lots @ {t['entry']:.2f} -> {t['outcome']} {t['exit']:.2f} | PnL: {pnl_str}")
         elif report.trades:
-            for idx, pnl in enumerate(report.trades, 1):
+            total_tr = len(report.trades)
+            display_trades = report.trades[-25:] if total_tr > 30 else report.trades
+            if total_tr > 30:
+                self._log(f"[{now_str}] [TRADES] Hiển thị {len(display_trades)}/{total_tr} giao dịch gần nhất:")
+            for idx, pnl in enumerate(display_trades, start=max(1, total_tr - len(display_trades) + 1)):
                 side = "BUY" if idx % 2 == 1 else "SELL"
                 pnl_str = f"+${pnl:,.2f}" if pnl >= 0 else f"-${abs(pnl):,.2f}"
                 outcome = "TP" if pnl > 0 else "SL"

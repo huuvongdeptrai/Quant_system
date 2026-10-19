@@ -85,7 +85,7 @@ class WyckoffMomentumStrategy(BaseStrategy):
     def get_metadata(self) -> Dict[str, Any]:
         return {
             "id": self.strategy_id,
-            "name": "Wyckoff Momentum Pro (Vectorized)",
+            "name": "Wyckoff Momentum Pro",
             "description": "Vectorized NumPy ATR envelope and Volume expansion momentum model.",
             "author": "Quant AI Core",
             "version": "2.2",

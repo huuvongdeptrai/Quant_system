@@ -181,14 +181,14 @@ class ICTZonesProStrategy(BaseStrategy):
                 time_s = df["time"]
                 if not pd.api.types.is_datetime64_any_dtype(time_s):
                     time_s = pd.to_datetime(time_s)
-                asia_bars = df[(time_s.dt.hour >= 1) & (time_s.dt.hour < 7)]
+                asia_mask = (time_s.dt.hour >= 1) & (time_s.dt.hour < 7)
+                asia_bars = df[asia_mask]
                 if not asia_bars.empty:
-                    last_asia_date = time_s.iloc[asia_bars.index].dt.date.iloc[-1]
-                    current_asia = df.iloc[asia_bars.index][
-                        time_s.iloc[asia_bars.index].dt.date == last_asia_date
-                    ]
-                    asian_high = current_asia["high"].max()
-                    asian_low = current_asia["low"].min()
+                    asia_dates = time_s[asia_mask].dt.date
+                    last_asia_date = asia_dates.iloc[-1]
+                    current_asia = asia_bars[asia_dates == last_asia_date]
+                    asian_high = float(current_asia["high"].max())
+                    asian_low = float(current_asia["low"].min())
         except Exception as err:
             logger.debug(f"[ICTStrategy] Asian range calculation skipped: {err}")
 

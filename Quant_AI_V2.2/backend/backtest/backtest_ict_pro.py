@@ -60,7 +60,10 @@ class EventDrivenBacktester:
 
     def _resolve_strategy(self, strategy_config: Optional[Dict[str, Any]] = None):
         if self.strategy is not None and not isinstance(self.strategy, str):
-            return self.strategy
+            strat = self.strategy
+            if hasattr(strat, "save_state"):
+                strat.save_state = False
+            return strat
         strat_key = (self.strategy or "ict").lower() if isinstance(self.strategy, str) else "ict"
         cfg = {"lookback_bars": 150, "save_state": False}
         if strategy_config:
@@ -210,7 +213,7 @@ class EventDrivenBacktester:
 
             # B. Quét tín hiệu mới từ chiến lược (Chỉ quét khi chưa có vị thế)
             if not in_pos and i < n - 3:
-                window_df = df.iloc[max(0, i - 250) : i + 1]
+                window_df = df.iloc[max(0, i - 250) : i + 1].reset_index(drop=True)
                 res = strat.analyze(window_df, macro_context={})
                 sig = res.get("signal") if hasattr(res, "get") else getattr(res, "signal", "HOLD")
 

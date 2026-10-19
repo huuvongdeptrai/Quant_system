@@ -1085,7 +1085,7 @@
       <item>
        <widget class="QComboBox" name="comboBtEngine">
         <item><property name="text"><string>ICT Zones Pro v4.2 (Asian + FVG)</string></property></item>
-        <item><property name="text"><string>Wyckoff Momentum Pro (Vectorized)</string></property></item>
+        <item><property name="text"><string>Wyckoff Momentum Pro</string></property></item>
         <item><property name="text"><string>EMA Dual Cross (Resilience Benchmark)</string></property></item>
        </widget>
       </item>
