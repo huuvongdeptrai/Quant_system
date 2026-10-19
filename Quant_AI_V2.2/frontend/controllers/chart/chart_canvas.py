@@ -2407,6 +2407,8 @@ def setup_chart_ui(window):
                     except Exception as err:
                         logger.debug(f"[ChartCanvas] Re-render removeItem error: {err}")
         window.order_proposal_active = False
+        window.is_live_position = False
+        window.live_ticket = None
 
         strat_display_name = "ICT Zones Pro v4.2"
         try:

@@ -653,9 +653,8 @@ class QuantTerminal(QObject):
                 event_bus.market_tick.emit(sym, tick.bid, tick.ask)
 
         if hasattr(self, "bot_worker") and self.bot_worker:
-            orch = getattr(self.bot_worker, "orchestrator", None)
-            if orch and hasattr(orch, "wake_up"):
-                orch.wake_up()
+            if hasattr(self.bot_worker, "wake_up"):
+                self.bot_worker.wake_up()
 
     def _handle_remote_command(self, cmd):
 
@@ -987,6 +986,7 @@ class QuantTerminal(QObject):
                 news_defense_be_r=news_defense_be_r,
                 allowed_sessions=allowed_sessions,
             )
+            self.bot_worker.symbols_provider = lambda: self.watchlist.get_all_symbols() if self.watchlist else []
 
             self.bot_worker.signals.log_msg.connect(event_bus.log_event.emit)
 

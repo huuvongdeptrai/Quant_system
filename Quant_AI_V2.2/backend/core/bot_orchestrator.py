@@ -274,8 +274,18 @@ class BotOrchestrator(QtCore.QObject):
             if getattr(self, "close_friday", True):
                 self._manage_friday_eod()
 
-            # 5. Cycle Watchlist Symbols
-            for sym in self.symbols:
+            # 5. Dynamic Watchlist Refresh & Multi-Asset Execution
+            active_symbols = list(self.symbols)
+            if hasattr(self, "symbols_provider") and callable(self.symbols_provider):
+                try:
+                    dyn_syms = self.symbols_provider()
+                    if dyn_syms:
+                        active_symbols = dyn_syms
+                        self.symbols = dyn_syms
+                except Exception as e_sym:
+                    logger.debug(f"[BotOrchestrator] Dynamic symbols refresh: {e_sym}")
+
+            for sym in active_symbols:
                 if not self.is_running:
                     break
                 self.pipeline_execute(sym)
@@ -309,10 +319,10 @@ class BotOrchestrator(QtCore.QObject):
         self.session_filter.close_friday = self.close_friday
         self.session_filter.manage_friday_eod(self.symbols, self.exec_mgr)
 
-    def _check_session_allowed(self) -> tuple[bool, str]:
+    def _check_session_allowed(self, symbol: Optional[str] = None) -> tuple[bool, str]:
         self.session_filter.allowed_sessions = self.allowed_sessions
         self.session_filter.close_friday = self.close_friday
-        return self.session_filter.is_session_allowed()
+        return self.session_filter.is_session_allowed(symbol=symbol)
 
     def _check_losing_streak(self) -> tuple[bool, int]:
         self.circuit_guard.max_losing_streak = self.max_losing_streak
@@ -366,8 +376,8 @@ class BotOrchestrator(QtCore.QObject):
         if self.circuit_guard.circuit_breaker_active:
             return
 
-        # 1. Session Filter
-        session_allowed, _ = self._check_session_allowed()
+        # 1. Session Filter (Asset-Aware)
+        session_allowed, _ = self._check_session_allowed(sym)
         if not session_allowed:
             return
 
@@ -392,13 +402,15 @@ class BotOrchestrator(QtCore.QObject):
                 return
 
         # 3. Capacity & Position Gating
-        if getattr(self, "max_open_trades", 0) > 0:
-            all_positions = mt5.positions_get()
-            if all_positions and len(all_positions) >= self.max_open_trades:
-                return
-
+        # 3a. Per-asset isolation: Single position per distinct symbol
         positions = mt5.positions_get(symbol=sym)
-        if positions:
+        if positions and len(positions) > 0:
+            return
+
+        # 3b. Portfolio capacity: Max concurrent open trades across universe
+        max_open = max(int(getattr(self, "max_open_trades", 3) or 3), 3)
+        all_positions = mt5.positions_get()
+        if all_positions and len(all_positions) >= max_open:
             return
 
         rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
@@ -408,21 +420,11 @@ class BotOrchestrator(QtCore.QObject):
         if not refined:
             return
 
-        # Strategy Evaluation
+        # 4. Strategy Evaluation (Polymorphic Quantitative Execution)
         sample_id = None
-        if self.strategy_name == "ICT":
-            df = pd.DataFrame(rates)
-            df["time"] = pd.to_datetime(df["time"], unit="s")
-            ict_res = self.ict.analyze(df, macro_context={})
-            signal = ict_res.get("signal", "HOLD")
-            if signal in ["HOLD", "WAIT"]:
-                return
-            sl_price = ict_res["sl"]
-            tp_price = ict_res["tp1"]
-            entry_price = ict_res["entry_price"]
-            confidence_str = f"Confidence: {ict_res['confidence']*100:.1f}%"
+        current = float(rates[-1]["close"])
 
-        elif self.strategy_name == "AI":
+        if self.strategy_name == "AI":
             if not self.ai_engine:
                 from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
 
@@ -450,13 +452,48 @@ class BotOrchestrator(QtCore.QObject):
                 return
 
             rates_df = pd.DataFrame(rates)
-            current = rates_df["close"].iloc[-1]
-            sup = rates_df["low"].min()
-            res = rates_df["high"].max()
+            sup = float(rates_df["low"].min())
+            res = float(rates_df["high"].max())
             sl_price, tp_price = self._calculate_sl_tp(signal, current, sup, res)
             entry_price = current
             confidence_str = "Confidence: Local AI"
             sample_id = ai_res.get("_sample_id")
+
+        elif hasattr(self.ict, "analyze"):
+            df = pd.DataFrame(rates)
+            df["time"] = pd.to_datetime(df["time"], unit="s")
+
+            from backend.infrastructure.data_providers.asset_registry import AssetRegistry
+            try:
+                adapter = AssetRegistry.get_adapter(sym)
+                macro_ctx = {"macro_bias": adapter.get_macro_bias(sym) if hasattr(adapter, "get_macro_bias") else "NEUTRAL"}
+            except Exception:
+                macro_ctx = {}
+
+            try:
+                strat_res = self.ict.analyze(df, macro_context=macro_ctx)
+            except TypeError:
+                strat_res = self.ict.analyze(df)
+
+            signal = strat_res.get("signal", "HOLD")
+            if signal in ["HOLD", "WAIT"]:
+                return
+
+            entry_price = float(strat_res.get("entry_price", current))
+            sl_price = float(strat_res.get("sl", 0.0))
+            tp_price = float(strat_res.get("tp1", strat_res.get("tp", 0.0)))
+
+            if sl_price <= 0 or tp_price <= 0:
+                sup = float(df["low"].tail(50).min())
+                res_lvl = float(df["high"].tail(50).max())
+                calc_sl, calc_tp = self._calculate_sl_tp(signal, entry_price, sup, res_lvl)
+                if sl_price <= 0:
+                    sl_price = calc_sl
+                if tp_price <= 0:
+                    tp_price = calc_tp
+
+            conf_val = strat_res.get("confidence", 0.85)
+            confidence_str = f"Confidence: {conf_val*100:.1f}%"
 
         else:
             return

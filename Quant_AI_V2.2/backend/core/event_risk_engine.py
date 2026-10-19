@@ -278,7 +278,8 @@ class EventRiskEngine:
         path = getattr(info, "path", "").lower() if info else ""
         sym_upper = symbol.upper().split(".")[0].replace("/", "")
 
-        if "crypto" in path or any(c in sym_upper for c in ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB"]):
+        is_crypto = "crypto" in path or any(c in sym_upper for c in ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB"])
+        if is_crypto:
             base_safe_spread = 6000
         elif any(idx in path for idx in ["index", "indic"]) or any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX", "GER40", "DAX"]):
             base_safe_spread = 80
@@ -289,10 +290,15 @@ class EventRiskEngine:
         else:
             base_safe_spread = 25
 
-        if getattr(self, "user_max_spread", 0) > 0:
-            max_allowed = self.user_max_spread
+        user_lim = getattr(self, "user_max_spread", 0) or 0
+        if user_lim > 0:
+            if is_crypto:
+                max_allowed = max(base_safe_spread, user_lim * 100)
+            else:
+                max_allowed = user_lim
         else:
             max_allowed = int(base_safe_spread * self.max_spread_multiplier)
+
         if curr_spread > max_allowed:
             return False, curr_spread, max_allowed
 

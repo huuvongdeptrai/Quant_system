@@ -92,15 +92,21 @@ class StateRecoveryManager:
         """
         Kiểm tra an toàn: Tuyệt đối không mở lệnh mới nếu mã này đã có vị thế đang chạy.
         """
+        clean = symbol.split(".")[0].replace("/", "").upper()
         # Kiểm tra đồng thời cả trên MT5 lẫn Database
         positions = mt5.positions_get(symbol=symbol)
         if positions and len(positions) > 0:
-            if any(getattr(p, "symbol", "") == symbol for p in positions):
+            if any(getattr(p, "symbol", "").split(".")[0].replace("/", "").upper() == clean for p in positions):
                 return False
+        else:
+            all_pos = mt5.positions_get()
+            if all_pos:
+                if any(getattr(p, "symbol", "").split(".")[0].replace("/", "").upper() == clean for p in all_pos):
+                    return False
 
         db_trades = self.db.get_open_trades(symbol=symbol)
         if db_trades and len(db_trades) > 0:
-            if any(t.get("symbol", "") == symbol for t in db_trades):
+            if any(t.get("symbol", "").split(".")[0].replace("/", "").upper() == clean for t in db_trades):
                 return False
 
         return True

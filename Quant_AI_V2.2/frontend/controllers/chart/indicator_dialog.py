@@ -212,7 +212,16 @@ class IndicatorDialog(QDialog):
 
         header_layout.addStretch()
 
-        self.btn_close = QPushButton("✕")
+        assets_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets"
+        )
+        self.btn_close = QPushButton()
+        close_svg = os.path.join(assets_dir, "win_close.svg")
+        if os.path.exists(close_svg):
+            self.btn_close.setIcon(QIcon(close_svg))
+            self.btn_close.setIconSize(QSize(10, 10))
+        else:
+            self.btn_close.setText("✕")
         self.btn_close.setObjectName("dlgBtnClose")
         self.btn_close.setFixedSize(28, 28)
         self.btn_close.setCursor(Qt.PointingHandCursor)

@@ -361,6 +361,14 @@ class WorkspaceHeaderController:
         act_title = menu.addAction("QUANTITATIVE STRATEGY")
         act_title.setEnabled(False)
 
+        assets_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
+        )
+        icon_check = QIcon(os.path.join(assets_dir, "check_vector_emerald.svg" if not is_dark else "check_vector_light.svg"))
+        icon_import = QIcon(os.path.join(assets_dir, "icon_import.svg"))
+        icon_folder = QIcon(os.path.join(assets_dir, "icon_folder.svg"))
+        icon_gear = QIcon(os.path.join(assets_dir, "tool_gear.svg"))
+
         from backend.core.strategies.strategy_loader import discover_strategies
         strats = discover_strategies()
         curr_strat = getattr(self.window, "active_strategy_id", "builtin_ict_pro").lower()
@@ -369,8 +377,10 @@ class WorkspaceHeaderController:
             s_id = s["id"]
             s_name = s["name"]
             is_active = (s_id.lower() == curr_strat) or (s_name.lower() in curr_strat) or (curr_strat in s_id.lower())
-            prefix = "✓  " if is_active else "    "
-            action = menu.addAction(f"{prefix}{s_name}")
+            if is_active:
+                action = menu.addAction(icon_check, s_name)
+            else:
+                action = menu.addAction(s_name)
 
             def make_handler(target_id=s_id, target_name=s_name):
                 return lambda: self._apply_strategy_switch(target_id, target_name)
@@ -378,17 +388,17 @@ class WorkspaceHeaderController:
             action.triggered.connect(make_handler())
 
         menu.addSeparator()
-        act_import = menu.addAction("➕  Import Strategy Script (.py)...")
+        act_import = menu.addAction(icon_import, "Import Strategy Script (.py)...")
         act_import.triggered.connect(self._open_import_strategy_file)
 
-        act_folder = menu.addAction("📂  Open Strategies Folder...")
+        act_folder = menu.addAction(icon_folder, "Open Strategies Folder...")
         act_folder.triggered.connect(self._open_strategies_folder)
 
-        act_mgr = menu.addAction("⚙  Strategy Registry & Manager...")
+        act_mgr = menu.addAction(icon_gear, "Strategy Manager...")
         act_mgr.triggered.connect(self._open_strategy_manager_dialog)
 
         menu.addSeparator()
-        act_ind = menu.addAction("⚙  Indicator Settings (Market Profile, Oscillators)...")
+        act_ind = menu.addAction(icon_gear, "Indicator Settings (Market Profile, Oscillators)...")
         if hasattr(self.window, "open_indicators"):
             act_ind.triggered.connect(self.window.open_indicators)
 

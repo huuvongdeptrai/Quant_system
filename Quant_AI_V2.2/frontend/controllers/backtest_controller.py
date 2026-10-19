@@ -131,7 +131,12 @@ class BacktestWorkbenchController:
             combo.currentIndexChanged.connect(self._on_strategy_changed)
 
         # Strategy Manager Micro-button (Placed adjacent to Strategy combobox)
-        self.btnBtManageStrat = QPushButton("⚙")
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+        self.btnBtManageStrat = QPushButton()
+        gear_svg = os.path.join(assets_dir, "tool_gear.svg")
+        if os.path.exists(gear_svg):
+            self.btnBtManageStrat.setIcon(QIcon(gear_svg))
+            self.btnBtManageStrat.setIconSize(QSize(13, 13))
         self.btnBtManageStrat.setObjectName("btnBtManageStrat")
         self.btnBtManageStrat.setFixedHeight(30)
         self.btnBtManageStrat.setFixedWidth(26)
@@ -139,10 +144,10 @@ class BacktestWorkbenchController:
         self.btnBtManageStrat.setStyleSheet(
             "QPushButton#btnBtManageStrat {"
             " background-color: #ffffff; border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 2px;"
-            " color: #475569; font-size: 12px; padding: 0px;"
+            " padding: 0px;"
             "}"
             "QPushButton#btnBtManageStrat:hover {"
-            " background-color: #f1f5f9; color: #0f172a; border-color: #0f172a;"
+            " background-color: #f1f5f9; border-color: #0f172a;"
             "}"
         )
         self.btnBtManageStrat.clicked.connect(self._open_strategy_manager)

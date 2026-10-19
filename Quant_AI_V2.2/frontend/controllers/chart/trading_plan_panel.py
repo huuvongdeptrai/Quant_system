@@ -404,23 +404,41 @@ def update_order_proposal_html(
                 p_list = None
                 if live_ticket:
                     try:
-                        p_list = mt5.positions_get(ticket=int(live_ticket))
+                        p_cand = mt5.positions_get(ticket=int(live_ticket))
+                        if p_cand and len(p_cand) > 0:
+                            # CRITICAL: Verify ticket actually belongs to clean_sym
+                            sym_cand = getattr(p_cand[0], "symbol", "").split(".")[0].upper()
+                            if sym_cand == clean_sym.split(".")[0].upper():
+                                p_list = p_cand
+                            else:
+                                live_ticket = None
+                                is_live_position = False
                     except Exception:
                         p_list = None
                 if not p_list:
                     p_list = mt5.positions_get(symbol=clean_sym)
                 if p_list and len(p_list) > 0:
                     pos = p_list[0]
-                    live_ticket = pos.ticket
-                    if live_volume is None or live_volume <= 0:
-                        live_volume = float(pos.volume)
-                    live_profit = float(pos.profit)
-                    if entry is None or entry == 0.0:
-                        entry = float(pos.price_open)
-                    if (sl is None or sl == 0.0) and pos.sl > 0:
-                        sl = float(pos.sl)
-                    if (tp is None or tp == 0.0) and pos.tp > 0:
-                        tp = float(pos.tp)
+                    # Verify symbol match
+                    if getattr(pos, "symbol", "").split(".")[0].upper() != clean_sym.split(".")[0].upper():
+                        pos = None
+                        p_list = None
+                        is_live_position = False
+                        live_ticket = None
+                    else:
+                        live_ticket = pos.ticket
+                        if live_volume is None or live_volume <= 0:
+                            live_volume = float(pos.volume)
+                        live_profit = float(pos.profit)
+                        if entry is None or entry == 0.0:
+                            entry = float(pos.price_open)
+                        if (sl is None or sl == 0.0) and pos.sl > 0:
+                            sl = float(pos.sl)
+                        if (tp is None or tp == 0.0) and pos.tp > 0:
+                            tp = float(pos.tp)
+                else:
+                    is_live_position = False
+                    live_ticket = None
         except Exception:
             pass
 
@@ -1495,13 +1513,23 @@ def sync_live_position_to_ai_plan(window):
             try:
                 positions = mt5.positions_get(ticket=int(ticket))
                 if positions and len(positions) > 0:
-                    pos = positions[0]
+                    pos_sym = getattr(positions[0], "symbol", "").split(".")[0].upper()
+                    if pos_sym == clean_sym.split(".")[0].upper():
+                        pos = positions[0]
+                    else:
+                        window.live_ticket = None
+                        window.is_live_position = False
             except Exception:
                 pos = None
         if pos is None:
             positions = mt5.positions_get(symbol=clean_sym)
             if positions and len(positions) > 0:
                 pos = positions[0]
+
+        if pos is None:
+            window.is_live_position = False
+            window.live_ticket = None
+            return
 
         if pos is not None:
             ticket = pos.ticket

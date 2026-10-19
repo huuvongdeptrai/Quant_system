@@ -46,12 +46,21 @@ class SessionFilter:
             elif level == "ERROR":
                 logger.error(msg)
 
-    def is_session_allowed(self) -> Tuple[bool, str]:
+    def is_session_allowed(self, symbol: Optional[str] = None) -> Tuple[bool, str]:
         """Determines if current UTC time falls within an authorized trading session.
+        Crypto assets operate 24/7 and are unconditionally exempt from Forex session windows.
 
         Returns:
             Tuple[bool, str]: (is_allowed, session_name_or_block_reason)
         """
+        if symbol:
+            try:
+                from backend.infrastructure.data_providers.asset_registry import AssetRegistry, AssetClass
+                if AssetRegistry.identify(symbol) == AssetClass.CRYPTO:
+                    return True, "CRYPTO_24_7"
+            except Exception:
+                pass
+
         now = datetime.now(timezone.utc)
         if self.close_friday and now.weekday() == 4 and now.hour >= 21:
             return False, "FRIDAY_EOD"
@@ -74,6 +83,7 @@ class SessionFilter:
 
     def manage_friday_eod(self, symbols: List[str], execution_manager) -> List[int]:
         """Liquidates open positions on Friday EOD (>= 21:00 UTC) to hedge weekend gap risk.
+        Exempts Crypto assets since cryptocurrency markets trade continuously 24/7.
 
         Args:
             symbols: List of traded symbols to audit and close.
@@ -89,6 +99,12 @@ class SessionFilter:
         closed_tickets = []
         if now.weekday() == 4 and now.hour >= 21:
             for sym in symbols:
+                try:
+                    from backend.infrastructure.data_providers.asset_registry import AssetRegistry, AssetClass
+                    if AssetRegistry.identify(sym) == AssetClass.CRYPTO:
+                        continue
+                except Exception:
+                    pass
                 positions = mt5.positions_get(symbol=sym)
                 if positions:
                     for pos in positions:
