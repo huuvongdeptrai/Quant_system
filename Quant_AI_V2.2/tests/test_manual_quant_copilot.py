@@ -980,3 +980,257 @@ class TestStrategyAdaptiveTradingPlan:
 
 
 
+
+
+class TestPendingOrderExecution:
+    """Tests for pending order (Limit/Stop) dispatch in ExecutionManager."""
+
+    def test_execute_pending_order_buy_limit_success(self):
+        """execute_pending_order with BUY_LIMIT returns success dict when MT5 confirms."""
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        from unittest.mock import patch, MagicMock
+        import MetaTrader5 as mt5
+
+        mgr = ExecutionManager(slippage=20, magic_number=12345)
+
+        fake_result = MagicMock()
+        fake_result.retcode = mt5.TRADE_RETCODE_DONE
+        fake_result.order = 77001
+        fake_result.comment = "Done"
+
+        fake_sym = MagicMock()
+        fake_sym.digits = 2
+        fake_sym.point = 0.01
+        fake_sym.trade_stops_level = 0
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=True)), \
+             patch.object(mt5, "symbol_select", return_value=True), \
+             patch.object(mt5, "symbol_info", return_value=fake_sym), \
+             patch.object(mt5, "symbol_info_tick", return_value=None), \
+             patch.object(mt5, "order_send", return_value=fake_result):
+            res = mgr.execute_pending_order(
+                symbol="XAUUSD",
+                order_type="BUY_LIMIT",
+                price=2640.0,
+                volume=0.10,
+                sl_price=2620.0,
+                tp_price=2680.0,
+            )
+
+        assert res["status"] == "success", f"Expected success, got: {res}"
+        assert res["ticket"] == 77001
+        assert "latency_ms" in res
+
+    def test_execute_pending_order_invalid_type_returns_error(self):
+        """execute_pending_order with unknown type string returns error immediately."""
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        from unittest.mock import patch, MagicMock
+        import MetaTrader5 as mt5
+
+        mgr = ExecutionManager(slippage=20, magic_number=12345)
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=True)):
+            res = mgr.execute_pending_order(
+                symbol="XAUUSD",
+                order_type="BUY_FOO",
+                price=2640.0,
+                volume=0.10,
+                sl_price=2620.0,
+                tp_price=2680.0,
+            )
+
+        assert res["status"] == "error"
+        assert "BUY_FOO" in res["msg"] or "hop le" in res["msg"]
+
+    def test_execute_pending_order_sell_stop_uses_correct_mt5_type(self):
+        """execute_pending_order with SELL_STOP sends TRADE_ACTION_PENDING + ORDER_TYPE_SELL_STOP."""
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        from unittest.mock import patch, MagicMock
+        import MetaTrader5 as mt5
+
+        mgr = ExecutionManager(slippage=20, magic_number=12345)
+
+        fake_result = MagicMock()
+        fake_result.retcode = mt5.TRADE_RETCODE_DONE
+        fake_result.order = 77002
+
+        fake_sym = MagicMock()
+        fake_sym.digits = 2
+        fake_sym.point = 0.01
+        fake_sym.trade_stops_level = 0
+
+        captured_requests = []
+
+        def fake_order_send(req):
+            captured_requests.append(req)
+            return fake_result
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=True)), \
+             patch.object(mt5, "symbol_select", return_value=True), \
+             patch.object(mt5, "symbol_info", return_value=fake_sym), \
+             patch.object(mt5, "symbol_info_tick", return_value=None), \
+             patch.object(mt5, "order_send", side_effect=fake_order_send):
+            res = mgr.execute_pending_order(
+                symbol="XAUUSD",
+                order_type="SELL_STOP",
+                price=2620.0,
+                volume=0.05,
+                sl_price=2640.0,
+                tp_price=2580.0,
+            )
+
+        assert res["status"] == "success"
+        assert len(captured_requests) == 1
+        req = captured_requests[0]
+        assert req["type"] == mt5.ORDER_TYPE_SELL_STOP
+        assert req["action"] == mt5.TRADE_ACTION_PENDING
+        assert req["price"] == 2620.0
+
+    def test_execute_pending_order_blocked_when_algo_trading_disabled(self):
+        """execute_pending_order blocked when MT5 trade_allowed is False."""
+        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+        from unittest.mock import patch, MagicMock
+        import MetaTrader5 as mt5
+
+        mgr = ExecutionManager(slippage=20, magic_number=12345)
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=False)):
+            res = mgr.execute_pending_order(
+                symbol="XAUUSD",
+                order_type="BUY_LIMIT",
+                price=2640.0,
+                volume=0.10,
+                sl_price=2620.0,
+                tp_price=2680.0,
+            )
+
+        assert res["status"] == "error"
+        assert res["retcode"] == 10027
+
+    def test_order_type_selector_widget_exists_after_setup(self, qapp):
+        """setup_trading_plan_cards adds comboManualOrderType and spinManualPendingPrice to window."""
+        from PySide6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QDoubleSpinBox
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.is_dark_theme = True
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=True)
+        win.show()
+
+        assert hasattr(win, "comboManualOrderType"), "comboManualOrderType not found on window"
+        assert hasattr(win, "spinManualPendingPrice"), "spinManualPendingPrice not found on window"
+        assert isinstance(win.comboManualOrderType, QComboBox)
+        assert isinstance(win.spinManualPendingPrice, QDoubleSpinBox)
+
+        # 5 items: MARKET, BUY LIMIT, SELL LIMIT, BUY STOP, SELL STOP
+        count = win.comboManualOrderType.count()
+        assert count == 5, f"Expected 5 order type items, got {count}"
+
+        # spinManualPendingPrice should be hidden by default (MARKET mode)
+        assert win.spinManualPendingPrice.isHidden(), "Pending price spin should be hidden for MARKET"
+        win.close()
+
+    def test_order_type_change_shows_and_hides_pending_price_spin(self, qapp):
+        """Switching order type from MARKET to BUY LIMIT shows spinManualPendingPrice."""
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.is_dark_theme = True
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win, is_dark=True)
+        win.show()
+        win.btnPlanModeManual.click()
+
+        combo = win.comboManualOrderType
+        spin_p = win.spinManualPendingPrice
+
+        # Initially MARKET => spin hidden
+        assert spin_p.isHidden()
+
+        # Switch to BUY LIMIT
+        idx_buy_limit = combo.findText("BUY LIMIT")
+        assert idx_buy_limit >= 0, "BUY LIMIT not found in comboManualOrderType"
+        combo.setCurrentIndex(idx_buy_limit)
+
+        assert not spin_p.isHidden(), "Pending price should not be hidden for BUY LIMIT"
+        assert spin_p.isVisible(), "Pending price should be visible for BUY LIMIT when in manual mode"
+        assert win._manual_order_type == "BUY LIMIT"
+
+        # Switch back to MARKET
+        combo.setCurrentIndex(0)
+        assert spin_p.isHidden(), "Pending price should be hidden again for MARKET"
+        assert win._manual_order_type == "MARKET"
+        win.close()
+
+    def test_pending_order_compliance_orientation_validation(self, qapp):
+        """Pre-trade compliance intercepts invalid pending order prices (e.g. Buy Limit >= Ask)."""
+        from frontend.controllers.chart import trading_plan_panel
+        from unittest.mock import MagicMock, patch
+
+        win = MagicMock()
+        win.current_sym = "XAUUSD"
+        win._manual_direction = "BUY"
+        win._manual_order_type = "BUY LIMIT"
+        win._event_risk_engine = MagicMock()
+        win._event_risk_engine.check_news_impact_for_symbol.return_value = (False, "None")
+        win.spinManualPendingPrice = MagicMock()
+        win.spinManualPendingPrice.value.return_value = 2660.0  # Above ask (illegal for BUY LIMIT)
+        win.spinManualSL = MagicMock()
+        win.spinManualSL.value.return_value = 2640.0
+        win.spinManualTP = MagicMock()
+        win.spinManualTP.value.return_value = 2680.0
+
+        fake_tick = MagicMock()
+        fake_tick.ask = 2650.0
+        fake_tick.bid = 2649.5
+
+        with patch.object(trading_plan_panel.mt5, "terminal_info", return_value=MagicMock(trade_allowed=True)), \
+             patch.object(trading_plan_panel.mt5, "symbol_info_tick", return_value=fake_tick), \
+             patch.object(trading_plan_panel.mt5, "account_info", return_value=None), \
+             patch.object(trading_plan_panel.mt5, "positions_get", return_value=[]), \
+             patch.object(trading_plan_panel.mt5, "symbol_info", return_value=None):
+            passed, checks, reason = trading_plan_panel.evaluate_manual_compliance(win, "XAUUSD")
+
+        assert not passed, "Buy Limit above ask should be blocked by compliance"
+        assert "BELOW MARKET ASK" in reason
+
+    def test_pending_order_chart_line_movable_style(self, qapp):
+        """For pending orders, line_order_entry is movable (SolidLine); for market, fixed (DashLine)."""
+        import pyqtgraph as pg
+        from PySide6.QtCore import Qt
+        from frontend.controllers.chart import trading_plan_panel
+        from unittest.mock import MagicMock, patch
+
+        win = MagicMock()
+        win._plan_mode = "manual"
+        win._show_manual_preview = True
+        win._last_manual_entry = 2650.0
+        win.frameAIArea = MagicMock()
+        win.frameAIArea.isVisible.return_value = True
+        win.plot_widget = MagicMock()
+        win.plot_widget.items.return_value = []
+        win.is_dark_theme = True
+
+        entry_line = pg.InfiniteLine(angle=0, movable=False)
+        sl_line = pg.InfiniteLine(angle=0, movable=True)
+        tp_line = pg.InfiniteLine(angle=0, movable=True)
+        win.line_order_entry = entry_line
+        win.line_order_sl = sl_line
+        win.line_order_tp = tp_line
+        win.spinManualPendingPrice = MagicMock()
+        win.spinManualPendingPrice.value.return_value = 2630.0
+
+        with patch.object(trading_plan_panel.mt5, "terminal_info", return_value=None), \
+             patch.object(trading_plan_panel.mt5, "symbol_info", return_value=None):
+            # 1. MARKET order: entry is NOT movable
+            win._manual_order_type = "MARKET"
+            trading_plan_panel._setup_chart_manual_lines(win, "XAUUSD", is_buy=True, lot=0.10, sl=2620.0, tp=2680.0)
+            assert not entry_line.movable, "Market entry line should not be movable"
+
+            # 2. BUY LIMIT order: entry IS movable
+            win._manual_order_type = "BUY LIMIT"
+            trading_plan_panel._setup_chart_manual_lines(win, "XAUUSD", is_buy=True, lot=0.10, sl=2620.0, tp=2680.0)
+            assert entry_line.movable, "Pending entry line should be movable for drag-and-drop on chart"
+            assert abs(entry_line.value() - 2630.0) < 1e-4, "Pending entry line should be placed at pending price"

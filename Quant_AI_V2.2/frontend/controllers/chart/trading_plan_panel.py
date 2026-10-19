@@ -14,7 +14,7 @@ from PySide6.QtGui import QColor, QFont, QIcon
 from PySide6.QtWidgets import (
     QFrame, QLabel, QHBoxLayout, QVBoxLayout, QGridLayout, QPushButton,
     QWidget, QProgressBar, QSizePolicy, QDoubleSpinBox, QLineEdit,
-    QMessageBox
+    QMessageBox, QComboBox
 )
 from loguru import logger
 import pyqtgraph as pg
@@ -1295,13 +1295,36 @@ def evaluate_manual_compliance(window, symbol=None):
                 sl_val = float(sl_w.value())
                 tp_val = float(tp_w.value())
                 is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
-                entry_ref = getattr(window, "_last_manual_entry", 0.0)
-                if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
-                    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
-                    if tick and hasattr(tick, "ask") and hasattr(tick, "bid") and isinstance(tick.ask, (int, float)) and tick.ask > 0 and tick.bid > 0:
-                        entry_ref = float(tick.ask if is_buy else tick.bid)
-                    else:
-                        entry_ref = 0.0
+                order_type_str = getattr(window, "_manual_order_type", "MARKET")
+                
+                # For pending orders, entry_ref is the pending trigger price
+                if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0:
+                    entry_ref = float(window.spinManualPendingPrice.value())
+                else:
+                    entry_ref = getattr(window, "_last_manual_entry", 0.0)
+                    if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
+                        tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+                        if tick and hasattr(tick, "ask") and hasattr(tick, "bid") and isinstance(tick.ask, (int, float)) and tick.ask > 0 and tick.bid > 0:
+                            entry_ref = float(tick.ask if is_buy else tick.bid)
+                        else:
+                            entry_ref = 0.0
+
+                # Validate Pending Order Price relative to current market price
+                tick_curr = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+                c_ask = float(tick_curr.ask) if tick_curr and tick_curr.ask > 0 else 0.0
+                c_bid = float(tick_curr.bid) if tick_curr and tick_curr.bid > 0 else 0.0
+                if order_type_str == "BUY LIMIT" and c_ask > 0 and entry_ref >= c_ask:
+                    checks["stops"] = {"passed": False, "msg": f"Buy Limit {entry_ref} >= Ask {c_ask}", "val": "INVALID"}
+                    block_reason = "BUY LIMIT MUST BE BELOW MARKET ASK"
+                elif order_type_str == "SELL LIMIT" and c_bid > 0 and entry_ref <= c_bid:
+                    checks["stops"] = {"passed": False, "msg": f"Sell Limit {entry_ref} <= Bid {c_bid}", "val": "INVALID"}
+                    block_reason = "SELL LIMIT MUST BE ABOVE MARKET BID"
+                elif order_type_str == "BUY STOP" and c_ask > 0 and entry_ref <= c_ask:
+                    checks["stops"] = {"passed": False, "msg": f"Buy Stop {entry_ref} <= Ask {c_ask}", "val": "INVALID"}
+                    block_reason = "BUY STOP MUST BE ABOVE MARKET ASK"
+                elif order_type_str == "SELL STOP" and c_bid > 0 and entry_ref >= c_bid:
+                    checks["stops"] = {"passed": False, "msg": f"Sell Stop {entry_ref} >= Bid {c_bid}", "val": "INVALID"}
+                    block_reason = "SELL STOP MUST BE BELOW MARKET BID"
                 if entry_ref > 0.0 and sl_val > 0.0:
                     if is_buy and sl_val >= entry_ref:
                         checks["stops"] = {"passed": False, "msg": f"SL {sl_val} >= Buy {entry_ref}", "val": "INVALID"}
@@ -1338,23 +1361,30 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     info = mt5.symbol_info(sym)
     dig = info.digits if info else 2
 
-    tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
-    entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
+    order_type_str = getattr(window, "_manual_order_type", "MARKET")
+    is_pending = (order_type_str != "MARKET")
+
+    if is_pending and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0:
+        entry_p = float(window.spinManualPendingPrice.value())
+    else:
+        tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+        entry_p = (tick.ask if is_buy else tick.bid) if tick else getattr(window, "_last_manual_entry", 2650.0)
 
     is_d = getattr(window, "is_dark_theme", False)
     bull_c = "#22c55e" if is_d else "#15803D"
     bear_c = "#ef4444" if is_d else "#B91C1C"
     dir_c = bull_c if is_buy else bear_c
 
-    # Entry line (Draft Preview: Qt.DashLine)
+    # Entry line: Solid + Movable for Pending Orders; Dashed + Fixed for Market Orders
     if hasattr(window, "line_order_entry") and window.line_order_entry:
         if abs(window.line_order_entry.value() - entry_p) > 1e-6:
             window.line_order_entry.blockSignals(True)
             window.line_order_entry.setPos(entry_p)
             window.line_order_entry.blockSignals(False)
-        window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=1.5, style=Qt.DashLine))
-        window.line_order_entry.setMovable(False)
-        dir_s = "BUY" if is_buy else "SELL"
+        pen_style = Qt.SolidLine if is_pending else Qt.DashLine
+        window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=1.5, style=pen_style))
+        window.line_order_entry.setMovable(is_pending)
+        dir_s = order_type_str if is_pending else ("BUY" if is_buy else "SELL")
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
             window.line_order_entry.label.setFormat(f"MANUAL {dir_s}: {entry_p:.{dig}f} ({lot:.2f} Lots)  [×]")
         window.line_order_entry.setVisible(True)
@@ -1422,27 +1452,31 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     digits = info.digits if info else 2
     point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
 
-    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
-    if tick and hasattr(tick, "ask") and isinstance(getattr(tick, "ask", None), (int, float)):
-        entry_p = float(tick.ask if is_buy else tick.bid)
+    order_type_str = getattr(window, "_manual_order_type", "MARKET")
+    if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0:
+        entry_p = float(window.spinManualPendingPrice.value())
     else:
-        fallback_p = getattr(window, "_last_manual_entry", 2650.50 if is_buy else 2650.25)
-        if is_buy:
-            if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice and window.lblManualAskPrice.text() not in ("", "0.00", "--"):
-                try:
-                    entry_p = float(window.lblManualAskPrice.text())
-                except ValueError:
+        tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+        if tick and hasattr(tick, "ask") and isinstance(getattr(tick, "ask", None), (int, float)):
+            entry_p = float(tick.ask if is_buy else tick.bid)
+        else:
+            fallback_p = getattr(window, "_last_manual_entry", 2650.50 if is_buy else 2650.25)
+            if is_buy:
+                if hasattr(window, "lblManualAskPrice") and window.lblManualAskPrice and window.lblManualAskPrice.text() not in ("", "0.00", "--"):
+                    try:
+                        entry_p = float(window.lblManualAskPrice.text())
+                    except ValueError:
+                        entry_p = getattr(window, "_last_manual_ask", fallback_p)
+                else:
                     entry_p = getattr(window, "_last_manual_ask", fallback_p)
             else:
-                entry_p = getattr(window, "_last_manual_ask", fallback_p)
-        else:
-            if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice and window.lblManualBidPrice.text() not in ("", "0.00", "--"):
-                try:
-                    entry_p = float(window.lblManualBidPrice.text())
-                except ValueError:
+                if hasattr(window, "lblManualBidPrice") and window.lblManualBidPrice and window.lblManualBidPrice.text() not in ("", "0.00", "--"):
+                    try:
+                        entry_p = float(window.lblManualBidPrice.text())
+                    except ValueError:
+                        entry_p = getattr(window, "_last_manual_bid", fallback_p)
+                else:
                     entry_p = getattr(window, "_last_manual_bid", fallback_p)
-            else:
-                entry_p = getattr(window, "_last_manual_bid", fallback_p)
 
     window._last_manual_entry = entry_p
 
@@ -1523,11 +1557,13 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
 
     # Update execute button with exact price: BUY 0.19 LOTS @ 2650.50
     dir_str = getattr(window, "_manual_direction", "BUY")
+    order_type_str = getattr(window, "_manual_order_type", "MARKET")
+    action_label = order_type_str if order_type_str != "MARKET" else dir_str
     if hasattr(window, "btnManualExecute") and window.btnManualExecute:
         if passed:
             window.btnManualExecute.setEnabled(True)
-            window.btnManualExecute.setText(f"{dir_str} {lot:.2f} LOTS @ {entry_p:.{digits}f}")
-            window.btnManualExecute.setToolTip(f"Send institutional market {dir_str} order with {risk_pct}% risk")
+            window.btnManualExecute.setText(f"{action_label} {lot:.2f} LOTS @ {entry_p:.{digits}f}")
+            window.btnManualExecute.setToolTip(f"Send institutional {action_label} order with {risk_pct}% risk")
         else:
             window.btnManualExecute.setEnabled(False)
             window.btnManualExecute.setText(f"LOCKED: {block_reason}")
@@ -1850,15 +1886,42 @@ def execute_manual_quant_order(window):
     dir_str = "BUY" if is_buy else "SELL"
 
     order_res = None
+    _order_type_str = getattr(window, "_manual_order_type", "MARKET")
+
     if mt5.terminal_info() is not None:
-        order_res = exec_mgr.execute_market_order(
-            symbol=clean_sym,
-            is_buy=is_buy,
-            volume=lot_size,
-            sl_price=sl_p,
-            tp_price=tp_p,
-            comment="VECTRA_Manual"
-        )
+        if _order_type_str == "MARKET":
+            order_res = exec_mgr.execute_market_order(
+                symbol=clean_sym,
+                is_buy=is_buy,
+                volume=lot_size,
+                sl_price=sl_p,
+                tp_price=tp_p,
+                comment="VECTRA_Manual"
+            )
+        else:
+            # Pending order: BUY_LIMIT / SELL_LIMIT / BUY_STOP / SELL_STOP
+            pending_price = 0.0
+            if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+                pending_price = window.spinManualPendingPrice.value()
+            if pending_price <= 0:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    window,
+                    "Missing Entry Price",
+                    f"Please enter a valid pending entry price for {_order_type_str} order."
+                )
+                return
+            # Convert "BUY LIMIT" -> "BUY_LIMIT" for ExecutionManager
+            mt5_order_type_key = _order_type_str.replace(" ", "_")
+            order_res = exec_mgr.execute_pending_order(
+                symbol=clean_sym,
+                order_type=mt5_order_type_key,
+                price=pending_price,
+                volume=lot_size,
+                sl_price=sl_p,
+                tp_price=tp_p,
+                comment="VECTRA_Manual_Pending"
+            )
     else:
         order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_p}
 
@@ -1868,7 +1931,7 @@ def execute_manual_quant_order(window):
             window.btnManualExecute.setText(f"FILLED #{ticket}")
             window.btnManualExecute.setEnabled(False)
             QTimer.singleShot(4000, lambda: _recalculate_manual_lot_and_rr(window))
-        event_bus.log_event.emit("", "SUCCESS", f"VECTRA Manual Order Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+        event_bus.log_event.emit("", "SUCCESS", f"VECTRA Manual {_order_type_str} Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
 
         try:
             from backend.database.db_manager import DatabaseManager
@@ -2256,6 +2319,109 @@ def setup_trading_plan_cards(window, is_dark=False):
     row_spd.addWidget(lbl_spd)
     row_spd.addStretch()
     layout_m_dir.addLayout(row_spd)
+
+    # --- ORDER TYPE SELECTOR (Institutional: Market / Pending) ---
+    row_order_type = QHBoxLayout()
+    row_order_type.setContentsMargins(0, 0, 0, 0)
+    row_order_type.setSpacing(4)
+    lbl_order_type = QLabel("ORDER TYPE")
+    lbl_order_type.setObjectName("lblManualOrderTypeLabel")
+    lbl_order_type.setFixedWidth(78)
+    combo_order_type = QComboBox()
+    combo_order_type.setObjectName("comboManualOrderType")
+    combo_order_type.addItems(["MARKET", "BUY LIMIT", "SELL LIMIT", "BUY STOP", "SELL STOP"])
+    combo_order_type.setCursor(Qt.PointingHandCursor)
+    combo_order_type.setFixedHeight(22)
+    row_order_type.addWidget(lbl_order_type)
+    row_order_type.addWidget(combo_order_type, 1)
+    layout_m_dir.addLayout(row_order_type)
+
+    # --- PENDING ENTRY PRICE (hidden for MARKET orders) ---
+    row_pending_price = QHBoxLayout()
+    row_pending_price.setContentsMargins(0, 0, 0, 0)
+    row_pending_price.setSpacing(4)
+    lbl_pending_price = QLabel("ENTRY PRICE")
+    lbl_pending_price.setObjectName("lblManualPendingPriceLabel")
+    lbl_pending_price.setFixedWidth(78)
+    spin_pending_price = QDoubleSpinBox()
+    spin_pending_price.setObjectName("spinManualPendingPrice")
+    spin_pending_price.setDecimals(2)
+    spin_pending_price.setRange(0.01, 999999.0)
+    spin_pending_price.setValue(0.0)
+    spin_pending_price.setSingleStep(0.5)
+    spin_pending_price.setFixedHeight(22)
+    spin_pending_price.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    row_pending_price.addWidget(lbl_pending_price)
+    row_pending_price.addWidget(spin_pending_price, 1)
+    layout_m_dir.addLayout(row_pending_price)
+
+    # Store references on window
+    window.comboManualOrderType = combo_order_type
+    window.spinManualPendingPrice = spin_pending_price
+    window._manual_order_type = "MARKET"
+
+    # Recalculate and redraw lines when pending price changes
+    spin_pending_price.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
+
+    # -- Initially hide pending price row
+    lbl_pending_price.setVisible(False)
+    spin_pending_price.setVisible(False)
+    lbl_pending_price_ref = lbl_pending_price  # local ref for closure
+
+    def _on_order_type_changed(idx):
+        order_str = combo_order_type.currentText()  # e.g. "BUY LIMIT"
+        window._manual_order_type = order_str
+        is_pending = (order_str != "MARKET")
+        lbl_pending_price_ref.setVisible(is_pending)
+        spin_pending_price.setVisible(is_pending)
+
+        # Smart default pending price based on current market & order type
+        if is_pending:
+            sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+            info = mt5.symbol_info(sym)
+            dig = info.digits if info else 2
+            pt = info.point if info and info.point > 0 else 0.01
+            tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+            curr_ask = tick.ask if tick else getattr(window, "_last_manual_entry", 2650.0)
+            curr_bid = tick.bid if tick else getattr(window, "_last_manual_entry", 2650.0)
+            step_dist = 50 * pt
+
+            if spin_pending_price.value() <= 0:
+                if order_str == "BUY LIMIT":
+                    spin_pending_price.setValue(round(curr_bid - step_dist, dig))
+                elif order_str == "SELL LIMIT":
+                    spin_pending_price.setValue(round(curr_ask + step_dist, dig))
+                elif order_str == "BUY STOP":
+                    spin_pending_price.setValue(round(curr_ask + step_dist, dig))
+                elif order_str == "SELL STOP":
+                    spin_pending_price.setValue(round(curr_bid - step_dist, dig))
+        # Update BUY/SELL button labels
+        if order_str == "MARKET":
+            lbl_buy_t.setText("BUY MARKET")
+            lbl_sell_t.setText("SELL MARKET")
+        elif order_str == "BUY LIMIT":
+            lbl_buy_t.setText("BUY LIMIT")
+            lbl_sell_t.setText("BUY LIMIT")
+        elif order_str == "SELL LIMIT":
+            lbl_buy_t.setText("SELL LIMIT")
+            lbl_sell_t.setText("SELL LIMIT")
+        elif order_str == "BUY STOP":
+            lbl_buy_t.setText("BUY STOP")
+            lbl_sell_t.setText("BUY STOP")
+        elif order_str == "SELL STOP":
+            lbl_buy_t.setText("SELL STOP")
+            lbl_sell_t.setText("SELL STOP")
+        # Auto-set _manual_direction based on order type
+        if "BUY" in order_str or order_str == "MARKET":
+            window._manual_direction = "BUY"
+            btn_buy.setEnabled(True)
+            btn_sell.setEnabled(order_str == "MARKET")
+        else:
+            window._manual_direction = "SELL"
+            btn_buy.setEnabled(False)
+            btn_sell.setEnabled(True)
+
+    combo_order_type.currentIndexChanged.connect(_on_order_type_changed)
 
     sep_m1 = QFrame()
     sep_m1.setFrameShape(QFrame.HLine)

@@ -1852,3 +1852,75 @@ QPushButton#btnManualClearPreview:hover, QPushButton#btnManualReset:hover {
 
 
 
+
+
+/* ─── Manual Copilot: Order Type Selector ───────────────────────────── */
+QLabel#lblManualOrderTypeLabel,
+QLabel#lblManualPendingPriceLabel {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+QComboBox#comboManualOrderType {
+    background-color: #101524;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 2px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: "Consolas", monospace;
+    padding: 1px 6px;
+    min-height: 20px;
+}
+
+QComboBox#comboManualOrderType:hover {
+    border-color: rgba(56, 189, 248, 0.35);
+    color: #f1f5f9;
+}
+
+QComboBox#comboManualOrderType:focus {
+    border-color: #0284c7;
+}
+
+QComboBox#comboManualOrderType::drop-down {
+    border: none;
+    width: 14px;
+}
+
+QComboBox#comboManualOrderType QAbstractItemView {
+    background-color: #0d1526;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 2px;
+    color: #94a3b8;
+    font-family: "Consolas", monospace;
+    font-size: 10px;
+    selection-background-color: #1e3a5f;
+    selection-color: #f1f5f9;
+}
+
+QDoubleSpinBox#spinManualPendingPrice {
+    background-color: #101524;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 2px;
+    color: #f1f5f9;
+    font-family: "Consolas", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 4px;
+    min-height: 20px;
+    text-align: right;
+}
+
+QDoubleSpinBox#spinManualPendingPrice:focus {
+    border-color: #f59e0b;
+    color: #fde68a;
+}
+
+QDoubleSpinBox#spinManualPendingPrice::up-button,
+QDoubleSpinBox#spinManualPendingPrice::down-button {
+    width: 14px;
+    background-color: #1e293b;
+    border: none;
+}

@@ -198,6 +198,160 @@ class ExecutionManager:
                     "retcode": result.retcode,
                 }
 
+    def execute_pending_order(
+        self,
+        symbol: str,
+        order_type: str,  # "BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"
+        price: float,
+        volume: float,
+        sl_price: float,
+        tp_price: float,
+        comment: str = "VECTRA_Pending",
+        max_retries: int = 3,
+    ) -> dict:
+        """
+        Bắn lệnh chờ vào thị trường (Pending Order: Limit / Stop) kèm:
+        - Mapping chuẩn MT5 API (ORDER_TYPE_BUY_LIMIT, SELL_LIMIT, BUY_STOP, SELL_STOP).
+        - Latency Logging: Đo đạc thời gian gửi lệnh qua time.perf_counter.
+        - Kiểm tra Stops Level chống sàn từ chối.
+        - TRADE_ACTION_PENDING.
+        """
+        start_exec = time.perf_counter()
+
+        terminal_info = mt5.terminal_info()
+        if terminal_info and not terminal_info.trade_allowed:
+            err_msg = "Chưa bật 'Algo Trading' trên phần mềm MT5 (Bấm Ctrl+E trên MT5 để kích hoạt)"
+            logger.error(f"[ExecutionManager] {err_msg} (Ma loi: 10027)")
+            return {
+                "status": "error",
+                "msg": err_msg,
+                "latency_ms": 0.0,
+                "retries": 0,
+                "retcode": 10027,
+            }
+
+        type_map = {
+            "BUY_LIMIT": mt5.ORDER_TYPE_BUY_LIMIT,
+            "SELL_LIMIT": mt5.ORDER_TYPE_SELL_LIMIT,
+            "BUY_STOP": mt5.ORDER_TYPE_BUY_STOP,
+            "SELL_STOP": mt5.ORDER_TYPE_SELL_STOP,
+        }
+        clean_type_str = order_type.upper().strip()
+        if clean_type_str not in type_map:
+            return {
+                "status": "error",
+                "msg": f"Loai lenh cho khong hop le: {order_type}. Chi ho tro BUY_LIMIT, SELL_LIMIT, BUY_STOP, SELL_STOP",
+                "latency_ms": 0.0,
+                "retries": 0,
+            }
+
+        mt5_order_type = type_map[clean_type_str]
+
+        for attempt in range(1, max_retries + 1):
+            if not mt5.symbol_select(symbol, True):
+                return {
+                    "status": "error",
+                    "msg": f"Khong the lay du lieu ma {symbol}",
+                    "latency_ms": 0.0,
+                    "retries": 0,
+                }
+
+            info = mt5.symbol_info(symbol)
+            digits = info.digits if info else 2
+            point = info.point if info and info.point > 0 else 0.01
+
+            target_price = round(float(price), digits)
+            sl_val = round(float(sl_price), digits) if sl_price > 0 else 0.0
+            tp_val = round(float(tp_price), digits) if tp_price > 0 else 0.0
+
+            # Kiểm tra Stops Level
+            if info and info.trade_stops_level > 0:
+                min_dist = info.trade_stops_level * point
+                tick = mt5.symbol_info_tick(symbol)
+                if tick:
+                    curr_p = tick.ask if "BUY" in clean_type_str else tick.bid
+                    if abs(target_price - curr_p) < min_dist:
+                        logger.warning(
+                            f"[ExecutionManager] Gia dat cho {target_price} qua sat gia hien tai {curr_p} (StopsLevel: {min_dist})"
+                        )
+
+            request = {
+                "action": mt5.TRADE_ACTION_PENDING,
+                "symbol": symbol,
+                "volume": float(volume),
+                "type": mt5_order_type,
+                "price": target_price,
+                "sl": sl_val,
+                "tp": tp_val,
+                "deviation": self.slippage,
+                "magic": self.magic,
+                "comment": comment,
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": self._get_fill_policy(symbol),
+            }
+
+            req_start = time.perf_counter()
+            result = mt5.order_send(request)
+            req_end = time.perf_counter()
+            round_latency_ms = (req_end - req_start) * 1000.0
+
+            if result is None:
+                err_code = mt5.last_error()
+                logger.error(
+                    f"[ExecutionManager] MT5 order_send returned None. Error: {err_code}"
+                )
+                if attempt < max_retries:
+                    time.sleep(0.1)
+                    continue
+                return {
+                    "status": "error",
+                    "msg": f"Lenh bi sap. Loi he thong: {err_code}",
+                    "latency_ms": round_latency_ms,
+                    "retries": attempt - 1,
+                }
+
+            total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
+
+            if result.retcode in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED):
+                logger.info(
+                    f"[ExecutionManager] Dat lenh cho {clean_type_str} {volume} {symbol} @ {target_price} thanh cong #{result.order} sau {total_latency_ms:.2f} ms."
+                )
+                return {
+                    "status": "success",
+                    "msg": f"Da dat lenh cho {clean_type_str} {volume} {symbol} tai gia {target_price} (Ticket #{result.order})",
+                    "ticket": result.order,
+                    "price": target_price,
+                    "latency_ms": round(total_latency_ms, 2),
+                    "retries": attempt - 1,
+                    "retcode": result.retcode,
+                }
+
+            RETRYABLE_RETCODES = [
+                mt5.TRADE_RETCODE_TIMEOUT,
+                mt5.TRADE_RETCODE_CONNECTION,
+            ]
+
+            if result.retcode in RETRYABLE_RETCODES and attempt < max_retries:
+                logger.warning(
+                    f"[ExecutionManager] Gap ma loi san #{result.retcode} ({result.comment}). Thu lai {attempt+1}/{max_retries}..."
+                )
+                time.sleep(0.15)
+                continue
+            else:
+                comment_text = result.comment
+                if result.retcode == 10027:
+                    comment_text = "Chưa bật 'Algo Trading' trên MT5 (Nhấn Ctrl+E)"
+                logger.error(
+                    f"[ExecutionManager] San tu choi lenh cho: {comment_text} (Ma loi: {result.retcode})"
+                )
+                return {
+                    "status": "error",
+                    "msg": f"San tu choi lenh cho: {comment_text} (Ma loi: {result.retcode})",
+                    "latency_ms": round(total_latency_ms, 2),
+                    "retries": attempt - 1,
+                    "retcode": result.retcode,
+                }
+
     def close_position(self, ticket: int, volume: float = None) -> dict:
         """
         Đóng một vị thế cụ thể theo số Ticket kèm đo lường độ trễ.

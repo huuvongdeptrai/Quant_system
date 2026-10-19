@@ -1429,6 +1429,13 @@ def setup_chart_ui(window):
             dig = info.digits if info else 2
             sl_p = window.line_order_sl.value()
             tp_p = window.line_order_tp.value()
+            order_type_str = getattr(window, "_manual_order_type", "MARKET")
+            if order_type_str != "MARKET" and hasattr(window, "line_order_entry") and window.line_order_entry:
+                entry_line_p = window.line_order_entry.value()
+                if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+                    window.spinManualPendingPrice.blockSignals(True)
+                    window.spinManualPendingPrice.setValue(round(entry_line_p, dig))
+                    window.spinManualPendingPrice.blockSignals(False)
             if hasattr(window, "spinManualSL") and window.spinManualSL:
                 window.spinManualSL.blockSignals(True)
                 window.spinManualSL.setValue(round(sl_p, dig))
@@ -1499,6 +1506,7 @@ def setup_chart_ui(window):
             window.btnApproveOrder.setText("UPDATE SL/TP IN MT5")
             window.btnApproveOrder.setEnabled(True)
 
+    window.line_order_entry.sigPositionChanged.connect(lambda: _sync_order_metrics())
     window.line_order_sl.sigPositionChanged.connect(lambda: _sync_order_metrics())
     window.line_order_tp.sigPositionChanged.connect(lambda: _sync_order_metrics())
 
