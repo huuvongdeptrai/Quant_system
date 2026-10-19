@@ -267,6 +267,173 @@ class WorkspaceHeaderController:
         if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
             self.lbl_bot_status.setText(self._format_bottom_telemetry(getattr(self, "is_dark_theme", False)))
 
+    def update_strategy_badge(self, strat_id_or_name=None):
+        """
+        Dynamically updates btnTopIndicator text and tooltip to match active quantitative strategy.
+        Complies with polymorphic BaseStrategy contract (ICT, Wyckoff, EMA, or Custom).
+        """
+        if not hasattr(self, "btn_top_ind") or not self.btn_top_ind:
+            return
+
+        strat_id = strat_id_or_name
+        if not strat_id:
+            strat_id = getattr(self.window, "active_strategy_id", None)
+        if not strat_id and hasattr(self.window, "comboStrategy") and self.window.comboStrategy:
+            try:
+                import shiboken6
+                if shiboken6.isValid(self.window.comboStrategy):
+                    strat_id = self.window.comboStrategy.currentData()
+            except Exception:
+                pass
+        if not strat_id:
+            try:
+                import json
+                with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
+                    cfg_d = json.load(f_cfg)
+                    strat_id = cfg_d.get("strategy", "builtin_ict_pro")
+            except Exception:
+                strat_id = "builtin_ict_pro"
+
+        strat_id_str = str(strat_id or "builtin_ict_pro").strip()
+        strat_lower = strat_id_str.lower()
+
+        if "wyckoff" in strat_lower:
+            badge_text = "Wyckoff · Momentum Pro v2.2"
+        elif "ema" in strat_lower:
+            badge_text = "EMA · Dual Cross Benchmark"
+        elif "ict" in strat_lower:
+            badge_text = "ICT / SMC · Confluence Pro v4.2"
+        else:
+            try:
+                from backend.core.strategies.strategy_loader import discover_strategies
+                for s in discover_strategies():
+                    if s["id"] == strat_id_str or s["name"].lower() == strat_lower:
+                        badge_text = s["name"]
+                        break
+                else:
+                    badge_text = strat_id_str
+            except Exception:
+                badge_text = strat_id_str
+
+        self.btn_top_ind.setText(badge_text)
+        self.btn_top_ind.setToolTip(f"Active Strategy: {badge_text}\nClick to switch strategy or configure indicators")
+        self.window.active_strategy_id = strat_id_str
+        self.window.current_strategy_name = badge_text
+
+    def _show_strategy_and_indicators_menu(self):
+        """Pops up a clean context menu on btnTopIndicator allowing one-click strategy switching."""
+        if not hasattr(self, "btn_top_ind") or not self.btn_top_ind:
+            return
+        menu = QMenu(self.window)
+        is_dark = getattr(self, "is_dark_theme", False)
+
+        menu_bg = "#0d121f" if is_dark else "#ffffff"
+        menu_border = "#1e293b" if is_dark else "#cbd5e1"
+        menu_text = "#e2e8f0" if is_dark else "#0f172a"
+        menu_hover = "#1e293b" if is_dark else "#f1f5f9"
+
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {menu_bg};
+                color: {menu_text};
+                border: 1px solid {menu_border};
+                border-radius: 4px;
+                padding: 4px 0px;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+                font-size: 11px;
+            }}
+            QMenu::item {{
+                padding: 6px 20px 6px 12px;
+                margin: 1px 4px;
+                border-radius: 3px;
+            }}
+            QMenu::item:selected {{
+                background-color: {menu_hover};
+                color: {menu_text};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {menu_border};
+                margin: 4px 0px;
+            }}
+        """)
+
+        act_title = menu.addAction("QUANTITATIVE STRATEGY")
+        act_title.setEnabled(False)
+
+        from backend.core.strategies.strategy_loader import discover_strategies
+        strats = discover_strategies()
+        curr_strat = getattr(self.window, "active_strategy_id", "builtin_ict_pro").lower()
+
+        for s in strats:
+            s_id = s["id"]
+            s_name = s["name"]
+            is_active = (s_id.lower() == curr_strat) or (s_name.lower() in curr_strat) or (curr_strat in s_id.lower())
+            prefix = "✓  " if is_active else "    "
+            action = menu.addAction(f"{prefix}{s_name}")
+
+            def make_handler(target_id=s_id, target_name=s_name):
+                return lambda: self._apply_strategy_switch(target_id, target_name)
+
+            action.triggered.connect(make_handler())
+
+        menu.addSeparator()
+        act_ind = menu.addAction("⚙  Indicator Settings (Market Profile, Oscillators)...")
+        if hasattr(self.window, "open_indicators"):
+            act_ind.triggered.connect(self.window.open_indicators)
+
+        menu.exec(self.btn_top_ind.mapToGlobal(QPoint(0, self.btn_top_ind.height() + 2)))
+
+    def _apply_strategy_switch(self, strat_id, strat_name):
+        """Centralized switch of active trading strategy."""
+        self.window.active_strategy_id = strat_id
+        self.update_strategy_badge(strat_id)
+
+        # 1. Persist to settings.json
+        try:
+            import json, os
+            cfg_p = "config/settings.json"
+            cfg = {}
+            if os.path.exists(cfg_p):
+                with open(cfg_p, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            cfg["strategy"] = strat_id
+            with open(cfg_p, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=4)
+        except Exception as e:
+            logger.debug(f"[HeaderController] Failed to save strategy: {e}")
+
+        # 2. Sync Settings Tab comboStrategy if present
+        if hasattr(self.window, "comboStrategy") and self.window.comboStrategy:
+            try:
+                import shiboken6
+                if shiboken6.isValid(self.window.comboStrategy):
+                    for i in range(self.window.comboStrategy.count()):
+                        if self.window.comboStrategy.itemData(i) == strat_id:
+                            self.window.comboStrategy.blockSignals(True)
+                            self.window.comboStrategy.setCurrentIndex(i)
+                            self.window.comboStrategy.blockSignals(False)
+                            break
+            except Exception:
+                pass
+
+        # 3. Hot-reload into live BotWorker if running
+        try:
+            qt = getattr(self.window, "quant_terminal", None)
+            bot = getattr(qt, "bot_worker", None) if qt else None
+            if bot:
+                from backend.core.strategies import get_strategy_instance
+                bot.ict = get_strategy_instance(strat_id)
+                bot.strategy_name = strat_name
+        except Exception as e:
+            logger.debug(f"[HeaderController] Hot reload bot error: {e}")
+
+        # 4. Trigger immediate chart canvas and AI Trading Plan re-analysis
+        if hasattr(self.window, "draw_and_analyze") and hasattr(self.window, "current_sym") and self.window.current_sym:
+            self.window.draw_and_analyze(self.window.current_sym)
+
+        logger.info(f"[HeaderController] Active strategy switched to: {strat_name} ({strat_id})")
+
     def set_execution_mode(self, mode):
         """Set algorithm dispatch mode (configured in Settings tab) and update telemetry."""
         self.execution_mode = mode
@@ -559,19 +726,17 @@ class WorkspaceHeaderController:
         sep2.setStyleSheet(f"background-color: {sep_col};")
         ctx_layout.addWidget(sep2)
 
-        # 3. Indicator Badge (ICT / SMC · Confluence Pro v4.2)
+        # 3. Dynamic Strategy & Indicator Badge
         btn_ind = QPushButton()
         btn_ind.setObjectName("btnTopIndicator")
-        btn_ind.setFixedHeight(20)
+        btn_ind.setFixedHeight(24)
         btn_ind.setCursor(Qt.PointingHandCursor)
-        btn_ind.setToolTip("Configure Algorithmic Indicator Stack")
-        btn_ind.setText("ICT / SMC · Confluence Pro v4.2")
+        btn_ind.setToolTip("Configure Quantitative Strategy or Indicator Stack")
         ind_bg = "transparent"
         ind_col = "#94a3b8" if is_dark else "#334155"
         hover_bg = "#1e293b" if is_dark else "#ffffff"
         hover_col = "#f8fafc" if is_dark else "#0f172a"
         hover_border = "#475569" if is_dark else "#cbd5e1"
-        btn_ind.setFixedHeight(24)
         btn_ind.setStyleSheet(
             f"QPushButton#btnTopIndicator {{ background-color: {ind_bg}; color: {ind_col}; border: 1px solid transparent; "
             f"border-radius: 3px; padding: 0 8px; font-family: Consolas, monospace; font-size: 9px; font-weight: bold; "
@@ -579,8 +744,11 @@ class WorkspaceHeaderController:
             f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
             f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0f172a' if is_dark else '#e2e8f0'}; }}"
         )
-        if hasattr(self.window, "open_indicators"):
-            btn_ind.clicked.connect(self.window.open_indicators)
+        self.btn_top_ind = btn_ind
+        self.window.btn_top_ind = btn_ind
+        self.window.update_strategy_badge = self.update_strategy_badge
+        self.update_strategy_badge()
+        btn_ind.clicked.connect(self._show_strategy_and_indicators_menu)
         ctx_layout.addWidget(btn_ind)
 
         # Separator 3: Between Indicator Badge and ALGO Control Pill

@@ -844,6 +844,9 @@ class QuantTerminal(QObject):
                     active_strat = EMAStressTestStrategy(
                         config={"fast_period": 10, "slow_period": 50}
                     )
+                elif "wyckoff" in strat_str:
+                    from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+                    active_strat = WyckoffMomentumStrategy()
                 else:
                     active_strat = ICTZonesProStrategy(
                         config={"lookback_bars": DEFAULT_LOOKBACK_BARS}

@@ -166,6 +166,15 @@ def resolve_strategy_model_name(window, model_name: Optional[str] = None) -> str
     if model_name and model_name.strip() and model_name.strip() not in ("Quantitative Strategy", "--"):
         return model_name.strip()
 
+    active_id = getattr(window, "active_strategy_id", None)
+    if active_id:
+        try:
+            from backend.core.strategies import get_strategy_instance
+            strat = get_strategy_instance(active_id)
+            return getattr(strat, "name", "ICT Zones Pro v4.2")
+        except Exception:
+            pass
+
     try:
         import shiboken6
         if hasattr(window, "comboStrategy") and window.comboStrategy is not None and shiboken6.isValid(window.comboStrategy):

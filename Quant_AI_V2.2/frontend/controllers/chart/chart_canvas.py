@@ -2408,23 +2408,26 @@ def setup_chart_ui(window):
                         logger.debug(f"[ChartCanvas] Re-render removeItem error: {err}")
         window.order_proposal_active = False
 
-        strat_display_name = "Quant Strategy"
+        strat_display_name = "ICT Zones Pro v4.2"
         try:
-            from backend.core.strategies.strategy_loader import discover_strategies
-            with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
-                cfg_s = json.load(f_cfg)
-                strat_saved = cfg_s.get("strategy", "builtin_ict_pro")
-                for s in discover_strategies():
-                    if s["id"] == strat_saved or s["name"].lower() == str(strat_saved).lower():
-                        strat_display_name = s["name"].split("(")[0].strip()
-                        break
-                else:
-                    if "ema" in strat_saved.lower():
-                        strat_display_name = "EMA Dual Cross"
-                    elif "wyckoff" in strat_saved.lower():
-                        strat_display_name = "Wyckoff Momentum Pro"
-                    else:
-                        strat_display_name = "ICT Zones Pro v4.2"
+            strat_saved = getattr(window, "active_strategy_id", None)
+            if not strat_saved and hasattr(window, "comboStrategy") and window.comboStrategy:
+                try:
+                    import shiboken6
+                    if shiboken6.isValid(window.comboStrategy):
+                        strat_saved = window.comboStrategy.currentData()
+                except Exception:
+                    pass
+            if not strat_saved:
+                with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
+                    cfg_s = json.load(f_cfg)
+                    strat_saved = cfg_s.get("strategy", "builtin_ict_pro")
+
+            from backend.core.strategies import get_strategy_instance
+            strat_inst = get_strategy_instance(strat_saved)
+            strat_display_name = getattr(strat_inst, "name", "Quant Strategy")
+            if hasattr(window, "update_strategy_badge"):
+                window.update_strategy_badge(strat_saved)
         except Exception:
             strat_display_name = "ICT Zones Pro v4.2"
 

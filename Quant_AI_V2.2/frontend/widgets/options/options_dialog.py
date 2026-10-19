@@ -265,6 +265,16 @@ class OptionsDialog(QDialog):
         if success:
             if self.manager and hasattr(self.manager, "load_settings"):
                 self.manager.load_settings()
+
+            parent_win = self.parent() or getattr(self.manager, "window", None)
+            strat_val = merged_data.get("strategy")
+            if parent_win and strat_val:
+                parent_win.active_strategy_id = strat_val
+                if hasattr(parent_win, "update_strategy_badge"):
+                    parent_win.update_strategy_badge(strat_val)
+                if hasattr(parent_win, "draw_and_analyze") and hasattr(parent_win, "current_sym") and parent_win.current_sym:
+                    parent_win.draw_and_analyze(parent_win.current_sym)
+
             self.lblDialogStatus.setText("Configuration applied")
             self.lblDialogStatus.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 10.5px; color: #15803d;")
             return True

@@ -301,11 +301,26 @@ class SettingsManager:
             try:
                 from backend.core.strategies.strategy_loader import discover_strategies
                 strats = discover_strategies()
+                win.comboStrategy.blockSignals(True)
                 win.comboStrategy.clear()
                 for s in strats:
                     win.comboStrategy.addItem(s["name"], s["id"])
+                win.comboStrategy.blockSignals(False)
             except Exception as err:
                 logger.debug(f"[SettingsController] Strategy discovery error: {err}")
+
+            def _on_strategy_changed(idx):
+                strat_id = win.comboStrategy.itemData(idx)
+                if not strat_id:
+                    return
+                win.active_strategy_id = strat_id
+                if hasattr(win, "update_strategy_badge"):
+                    win.update_strategy_badge(strat_id)
+                if hasattr(win, "draw_and_analyze") and hasattr(win, "current_sym") and win.current_sym:
+                    win.draw_and_analyze(win.current_sym)
+
+            win.comboStrategy.currentIndexChanged.connect(_on_strategy_changed)
+
             rw_s = QWidget()
             rl_s = QHBoxLayout(rw_s)
             rl_s.setContentsMargins(0, 0, 0, 0)
@@ -725,6 +740,11 @@ class SettingsManager:
                     logger.debug(f"[SettingsController] AI config read/write error: {err}")
 
             self._hot_reload_live_bot(data)
+
+            if hasattr(win, "update_strategy_badge"):
+                win.update_strategy_badge(data.get("strategy"))
+            if hasattr(win, "draw_and_analyze") and hasattr(win, "current_sym") and win.current_sym:
+                win.draw_and_analyze(win.current_sym)
 
             self._set_status("Configuration saved successfully to settings.json", "#15803d")
         except Exception as e:

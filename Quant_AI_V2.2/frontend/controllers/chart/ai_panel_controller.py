@@ -865,18 +865,19 @@ def _run_analysis(window, sym, force=False):
     except Exception:
         active_id = None
 
-    active_strat_id = None
-    try:
-        import shiboken6
-        if (
-            hasattr(window, "comboStrategy")
-            and window.comboStrategy is not None
-            and shiboken6.isValid(window.comboStrategy)
-            and window.comboStrategy.count() > 0
-        ):
-            active_strat_id = window.comboStrategy.currentData()
-    except Exception:
-        active_strat_id = None
+    active_strat_id = getattr(window, "active_strategy_id", None)
+    if not active_strat_id:
+        try:
+            import shiboken6
+            if (
+                hasattr(window, "comboStrategy")
+                and window.comboStrategy is not None
+                and shiboken6.isValid(window.comboStrategy)
+                and window.comboStrategy.count() > 0
+            ):
+                active_strat_id = window.comboStrategy.currentData()
+        except Exception:
+            active_strat_id = None
 
     rates = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 5000)
 
