@@ -298,6 +298,43 @@ def update_order_proposal_html(
     """Render institutional Radar Matrix and Order Proposal Ticket with WCAG AAA contrast matching theme."""
     raw_sym = sym or getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
     clean_sym = raw_sym.split("\n")[0].strip()
+    active_chart_sym = getattr(window, "current_sym", "").split("\n")[0].strip()
+
+    if not hasattr(window, "active_signals_by_symbol"):
+        window.active_signals_by_symbol = {}
+
+    # If the call is for a different symbol than currently displayed on the chart canvas,
+    # isolate it into active_signals_by_symbol dictionary without contaminating the current chart UI
+    if active_chart_sym and clean_sym.upper() != active_chart_sym.upper():
+        window.active_signals_by_symbol[clean_sym] = {
+            "sym": clean_sym,
+            "has_signal": has_signal,
+            "signal_type": signal_type,
+            "entry": entry,
+            "sl": sl,
+            "tp": tp,
+            "risk_dlr": risk_dlr,
+            "reward_dlr": reward_dlr,
+            "risk_pct": risk_pct,
+            "rr_ratio": rr_ratio,
+            "is_live_position": is_live_position,
+            "live_ticket": live_ticket,
+            "live_volume": live_volume,
+            "live_profit": live_profit,
+            "is_pending_order": is_pending_order,
+            "pending_ticket": pending_ticket,
+            "model_name": model_name,
+            "grade": grade,
+            "confidence": confidence,
+            "exec_mode": exec_mode,
+            "status": status,
+            "chk1": chk1,
+            "chk2": chk2,
+            "chk3": chk3,
+            "checklist": checklist,
+            "digits": digits,
+        }
+        return
 
     info = mt5.symbol_info(clean_sym)
     if digits is None:
@@ -308,7 +345,7 @@ def update_order_proposal_html(
 
     # 0. CHẾ ĐỘ THỦ CÔNG: KHÔNG CHO PHÉP TÍN HIỆU AI NỀN GHI ĐÈ GIAO DIỆN MANUAL COPILOT
     if getattr(window, "_plan_mode", "ai") == "manual":
-        window.active_signal_data = {
+        sig_manual = {
             "sym": clean_sym,
             "has_signal": has_signal,
             "signal_type": signal_type,
@@ -325,6 +362,8 @@ def update_order_proposal_html(
             "exec_mode": exec_mode,
             "status": status,
         }
+        window.active_signal_data = sig_manual
+        window.active_signals_by_symbol[clean_sym] = sig_manual
         return
 
     # 1. TRƯỜNG HỢP: KHÔNG CÓ TÍN HIỆU THỰC TẾ (HOLD / CHỜ SETUP)
@@ -334,6 +373,8 @@ def update_order_proposal_html(
         window.live_ticket = None
         window.is_pending_order = False
         window.pending_ticket = None
+        window.active_signal_data = {"sym": clean_sym, "has_signal": False}
+        window.active_signals_by_symbol[clean_sym] = {"sym": clean_sym, "has_signal": False}
 
         # Gỡ bỏ toàn bộ đường lệnh ảo khỏi biểu đồ
         clear_manual_chart_lines(window)
@@ -472,7 +513,7 @@ def update_order_proposal_html(
         reward_dlr = round(tp_pts * calc_lot * sym_mult, 2)
     risk_pct = round((risk_dlr / real_balance) * 100.0, 1) if real_balance > 0 else 1.0
 
-    window.active_signal_data = {
+    sig_payload = {
         "sym": clean_sym,
         "has_signal": True,
         "signal_type": signal_type,
@@ -492,6 +533,8 @@ def update_order_proposal_html(
         "confidence": confidence,
         "status": status,
     }
+    window.active_signal_data = sig_payload
+    window.active_signals_by_symbol[clean_sym] = sig_payload
 
     # Tên hành động hiển thị
     if is_live_position:
@@ -1532,9 +1575,71 @@ def sync_live_position_to_ai_plan(window):
             if positions and len(positions) > 0:
                 pos = positions[0]
 
+        if not hasattr(window, "active_signals_by_symbol"):
+            window.active_signals_by_symbol = {}
+
         if pos is None:
             window.is_live_position = False
             window.live_ticket = None
+
+            # Check if there is an active proposal waiting for operator approval for clean_sym
+            curr_sig = window.active_signals_by_symbol.get(clean_sym, {})
+            if curr_sig.get("has_signal") and not curr_sig.get("is_live_position"):
+                return
+
+            window.order_proposal_active = False
+            clear_manual_chart_lines(window)
+
+            raw_model = resolve_strategy_model_name(window, getattr(window, "active_strategy_id", None))
+            strat_display = str(raw_model) if raw_model else "Quantitative Strategy"
+            is_dark = getattr(window, "is_dark_theme", False)
+
+            if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
+                window.lblModelSubtitle.setText("SETUP MODEL")
+            if hasattr(window, "lblModelName") and window.lblModelName:
+                window.lblModelName.setText(strat_display)
+            if hasattr(window, "lblModelGrade") and window.lblModelGrade:
+                window.lblModelGrade.setText("AWAITING SETUP")
+                window.lblModelGrade.setStyleSheet(
+                    "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+                )
+            update_strategy_checklist_ui(window, strat_display, None, None, None, is_active=False)
+
+            if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
+                window.lblOrderBudgetTitle.setText("ORDER & RISK BUDGET")
+            if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
+                window.lblOrderTypeBadge.setText("NO ORDER")
+                window.lblOrderTypeBadge.setStyleSheet(
+                    "background-color: #1e293b; color: #64748b; border: 1px solid #334155; "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
+                )
+            if hasattr(window, "lblEntryVal") and window.lblEntryVal:
+                window.lblEntryVal.setText("--")
+            if hasattr(window, "lblSLVal") and window.lblSLVal:
+                window.lblSLVal.setText("--")
+            if hasattr(window, "lblTPVal") and window.lblTPVal:
+                window.lblTPVal.setText("--")
+            if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                window.lblSizeVal.setText("--")
+
+            if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
+                window.lblGateExpiryTitle.setText("EXPIRATION")
+            if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+                window.lblGateExpiryTime.setText("--")
+            if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
+                window.barSignalExpiry.setValue(0)
+            if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+                window.btnApproveOrder.setText("AWAITING STRATEGY SIGNAL")
+                window.btnApproveOrder.setEnabled(False)
+                window.btnApproveOrder.setCursor(Qt.ArrowCursor)
+            if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
+                window.btnModifyOrder.setEnabled(False)
+            if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
+                window.btnDiscardOrder.setText("DISCARD")
+                window.btnDiscardOrder.setEnabled(False)
+            if hasattr(window, "cardSetupModel"):
+                apply_playbook_cards_theme(window, is_dark)
             return
 
         if pos is not None:
@@ -1577,7 +1682,7 @@ def sync_live_position_to_ai_plan(window):
             # Store active signal data for future tab switches or reopenings
             if not hasattr(window, "active_signal_data") or not isinstance(window.active_signal_data, dict):
                 window.active_signal_data = {}
-            window.active_signal_data.update({
+            live_payload = {
                 "sym": clean_sym,
                 "has_signal": True,
                 "signal_type": pos_type,
@@ -1588,16 +1693,9 @@ def sync_live_position_to_ai_plan(window):
                 "live_ticket": ticket,
                 "live_profit": pnl,
                 "live_volume": vol,
-            })
-        else:
-            if getattr(window, "is_live_position", False):
-                window.is_live_position = False
-                window.live_ticket = None
-                clear_manual_chart_lines(window)
-                if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
-                    window.lblModelSubtitle.setText("SETUP MODEL")
-                if hasattr(window, "lblSizeVal") and window.lblSizeVal:
-                    window.lblSizeVal.setText("--")
+            }
+            window.active_signal_data.update(live_payload)
+            window.active_signals_by_symbol[clean_sym] = window.active_signal_data
     except Exception as e:
         logger.debug(f"[sync_live_position_to_ai_plan] Error: {e}")
 
@@ -2526,10 +2624,14 @@ def setup_trading_plan_cards(window, is_dark=False):
             sync_manual_copilot_quotes(window)
         else:
             sync_live_position_to_ai_plan(window)
-            if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
-                sig = window.active_signal_data
+            clean_curr = getattr(window, "current_sym", "").split("\n")[0].strip()
+            sig = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
+            if not sig and hasattr(window, "active_signal_data") and isinstance(window.active_signal_data, dict):
+                if window.active_signal_data.get("sym", "").upper() == clean_curr.upper():
+                    sig = window.active_signal_data
+            if sig and sig.get("has_signal"):
                 update_order_proposal_html(
-                    window, sym=sig.get("sym"), entry=sig.get("entry"),
+                    window, sym=clean_curr, entry=sig.get("entry"),
                     sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
                     signal_type=sig.get("signal_type", "BUY"),
                     is_live_position=sig.get("is_live_position", False),

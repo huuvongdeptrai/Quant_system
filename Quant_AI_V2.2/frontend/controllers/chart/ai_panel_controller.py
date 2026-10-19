@@ -104,6 +104,7 @@ class AIAnalyzerThread(QtCore.QThread):
                 return
 
             result = engine.analyze(self.sym, force_refresh=self.force_refresh)
+            result["_sym"] = self.sym
 
             if self.is_cancelled:
                 return
@@ -115,6 +116,7 @@ class AIAnalyzerThread(QtCore.QThread):
                     pass
                 # Fallback to local quant model instantly so plan is never blank
                 result = {
+                    "_sym": self.sym,
                     "_price": self.tech_data.get("current_price", 0) if self.tech_data else 0,
                     "_resistance": self.tech_data.get("resistance", 0) if self.tech_data else 0,
                     "_support": self.tech_data.get("support", 0) if self.tech_data else 0,
@@ -287,6 +289,11 @@ def _force_reanalyze(window):
 
 def _update_panel_with_result(window, result):
     """Cap nhat tat ca cac QLabel tren panel tu dict ket qua AI."""
+    res_sym = result.get("_sym", "").split("\n")[0].strip()
+    curr_sym = getattr(window, "current_sym", "").split("\n")[0].strip()
+    if res_sym and curr_sym and res_sym.upper() != curr_sym.upper():
+        logger.debug(f"[_update_panel_with_result] Ignoring stale result for {res_sym} (chart is on {curr_sym})")
+        return
 
     now_str = datetime.now().strftime("%H:%M %d/%m/%Y")
 

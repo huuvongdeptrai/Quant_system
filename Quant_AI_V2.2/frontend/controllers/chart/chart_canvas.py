@@ -308,11 +308,15 @@ def setup_chart_ui(window):
                     sync_live_position_to_ai_plan(window)
                 except Exception:
                     pass
-                if hasattr(window, "active_signal_data") and window.active_signal_data.get("has_signal"):
-                    sig = window.active_signal_data
+                clean_curr = getattr(window, "current_sym", "").split("\n")[0].strip()
+                sig = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
+                if not sig and hasattr(window, "active_signal_data") and isinstance(window.active_signal_data, dict):
+                    if window.active_signal_data.get("sym", "").upper() == clean_curr.upper():
+                        sig = window.active_signal_data
+                if sig and sig.get("has_signal"):
                     from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
                     update_order_proposal_html(
-                        window, sym=sig.get("sym"), entry=sig.get("entry"),
+                        window, sym=clean_curr, entry=sig.get("entry"),
                         sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
                         signal_type=sig.get("signal_type", "BUY"),
                         is_live_position=sig.get("is_live_position", False),
@@ -2105,6 +2109,13 @@ def setup_chart_ui(window):
         clean_sym = sym.split("\n")[0].strip()
         sym = clean_sym
         window.current_sym = sym
+
+        # Reset active live ticket and re-anchor signal data strictly to target symbol
+        window.is_live_position = False
+        window.live_ticket = None
+        if not hasattr(window, "active_signals_by_symbol"):
+            window.active_signals_by_symbol = {}
+        window.active_signal_data = window.active_signals_by_symbol.get(clean_sym, {})
 
         rates = None
         if mt5.terminal_info() is None:

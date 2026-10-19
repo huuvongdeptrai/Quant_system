@@ -241,3 +241,115 @@ class TestMultiAssetWatchlistAndIcons:
             assert mock_dispatch.call_count == 1
             assert mock_dispatch.call_args[1]["symbol"] == "BTCUSD"
             assert mock_dispatch.call_args[1]["signal"] == "BUY"
+
+    def test_trading_plan_symbol_isolation_and_standby_reset(self, qapp):
+        """Verifies that Trading Plan isolates signals per symbol and resets UI to Standby when switching to asset without positions."""
+        from PySide6.QtWidgets import QLabel, QPushButton, QProgressBar, QFrame
+        from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html, sync_live_position_to_ai_plan
+
+        window = MagicMock()
+        window.active_signals_by_symbol = {}
+        window.active_signal_data = {}
+        window.active_strategy_id = "builtin_ict_pro"
+        window._plan_mode = "ai"
+        window.is_dark_theme = True
+        window.current_sym = "XAUUSD"
+        window.plot_widget = MagicMock()
+        window.plot_widget.items.return_value = []
+
+        window.lblModelSubtitle = QLabel()
+        window.lblModelName = QLabel()
+        window.lblModelGrade = QLabel()
+        window.lblOrderBudgetTitle = QLabel()
+        window.lblOrderTypeBadge = QLabel()
+        window.lblEntryVal = QLabel()
+        window.lblSLVal = QLabel()
+        window.lblTPVal = QLabel()
+        window.lblSizeVal = QLabel()
+        window.lblGateExpiryTitle = QLabel()
+        window.lblGateExpiryTime = QLabel()
+        window.barSignalExpiry = QProgressBar()
+        window.btnApproveOrder = QPushButton()
+        window.btnModifyOrder = QPushButton()
+        window.btnDiscardOrder = QPushButton()
+
+        # Step 1: Render active live position for XAUUSD
+        pos_gold = MagicMock()
+        pos_gold.symbol = "XAUUSD"
+        pos_gold.ticket = 283087717
+        pos_gold.volume = 0.28
+        pos_gold.profit = -612.44
+        pos_gold.price_open = 4184.093
+        pos_gold.sl = 4148.531
+        pos_gold.tp = 4255.447
+        pos_gold.type = 0
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+             patch.object(mt5, "positions_get", return_value=[pos_gold]), \
+             patch.object(mt5, "symbol_info", return_value=MagicMock(digits=3)):
+            update_order_proposal_html(
+                window,
+                sym="XAUUSD",
+                entry=4184.093,
+                sl=4148.531,
+                tp=4255.447,
+                has_signal=True,
+                signal_type="BUY",
+                is_live_position=True,
+                live_ticket=283087717,
+                live_volume=0.28,
+                live_profit=-612.44,
+            )
+
+        assert window.lblOrderBudgetTitle.text() == "LIVE POSITION & RISK"
+        assert "283087717" in window.lblOrderTypeBadge.text()
+        assert window.lblEntryVal.text() == "4184.093"
+        assert window.active_signals_by_symbol["XAUUSD"]["live_ticket"] == 283087717
+
+        # Step 2: Switch active chart to BTCUSD
+        window.current_sym = "BTCUSD"
+
+        # Background update for XAUUSD must NOT contaminate BTCUSD UI
+        update_order_proposal_html(
+            window,
+            sym="XAUUSD",
+            entry=4184.093,
+            sl=4148.531,
+            tp=4255.447,
+            has_signal=True,
+            signal_type="BUY",
+            is_live_position=True,
+            live_ticket=283087717,
+        )
+
+        # Step 3: Run sync_live_position_to_ai_plan for BTCUSD (no open position in MT5)
+        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+             patch.object(mt5, "positions_get", return_value=()):
+            sync_live_position_to_ai_plan(window)
+
+        # UI MUST be cleanly reset to Standby
+        assert window.is_live_position is False
+        assert window.live_ticket is None
+        assert window.lblModelSubtitle.text() == "SETUP MODEL"
+        assert window.lblOrderBudgetTitle.text() == "ORDER & RISK BUDGET"
+        assert window.lblOrderTypeBadge.text() == "NO ORDER"
+        assert window.lblEntryVal.text() == "--"
+        assert window.lblSLVal.text() == "--"
+        assert window.lblTPVal.text() == "--"
+        assert window.lblSizeVal.text() == "--"
+        assert window.btnApproveOrder.text() == "AWAITING STRATEGY SIGNAL"
+        assert window.btnApproveOrder.isEnabled() is False
+
+        # Step 4: Switch back to XAUUSD
+        window.current_sym = "XAUUSD"
+        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+             patch.object(mt5, "positions_get", return_value=[pos_gold]), \
+             patch.object(mt5, "symbol_info", return_value=MagicMock(digits=3)):
+            sync_live_position_to_ai_plan(window)
+
+        # XAUUSD live position is restored properly
+        assert window.is_live_position is True
+        assert window.live_ticket == 283087717
+        assert window.lblOrderBudgetTitle.text() == "LIVE POSITION & RISK"
+        assert window.lblEntryVal.text() == "4184.093"
+
