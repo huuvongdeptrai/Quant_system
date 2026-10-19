@@ -137,10 +137,10 @@ class ICTZonesProStrategy(BaseStrategy):
         # Xếp hạng phần trăm Volume
         vol_col = "tick_volume" if "tick_volume" in df.columns else ("volume" if "volume" in df.columns else None)
         if vol_col:
-            def rolling_pct_rank(x):
-                return pd.Series(x).rank(pct=True).iloc[-1] * 100 if len(x) > 0 else 0
+            def fast_pct_rank(x):
+                return (np.count_nonzero(x <= x[-1]) / len(x)) * 100.0 if len(x) > 0 else 50.0
 
-            df["vol_pct_rank"] = df[vol_col].rolling(100).apply(rolling_pct_rank, raw=True)
+            df["vol_pct_rank"] = df[vol_col].rolling(100).apply(fast_pct_rank, raw=True)
         else:
             df["vol_pct_rank"] = 50.0
 

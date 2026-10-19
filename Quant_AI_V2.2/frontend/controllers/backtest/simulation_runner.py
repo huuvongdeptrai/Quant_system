@@ -179,9 +179,16 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                         strat_inst_or_key = strat_name
 
             df_event = df
-            if len(df) > 1000:
-                df_event = df.iloc[-1000:].copy().reset_index(drop=True)
-                self._log(f"[{now_str}] [EVENT-DRIVEN] Giới hạn mẫu kiểm thử nến gần nhất: 1,000 nến (High Fidelity Bar-by-Bar Sample)")
+            if len(df) > 350:
+                df_event = df.iloc[-350:].copy().reset_index(drop=True)
+                self._log(f"[{now_str}] [EVENT-DRIVEN] Giới hạn mẫu kiểm thử tương tác: 350 nến gần nhất (Interactive Bar-by-Bar Sample)")
+
+            def _on_event_prog(cur, tot):
+                from PySide6.QtWidgets import QApplication
+                QApplication.processEvents()
+                if hasattr(self.window, "btnRunBacktest"):
+                    pct = int((cur / max(1, tot)) * 100)
+                    self.window.btnRunBacktest.setText(f"{pct}%")
 
             bt_event = EventDrivenBacktester(
                 strategy=strat_inst_or_key,
@@ -190,7 +197,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                 commission_per_lot=comm_val,
                 slippage_pts=float(slippage_pts),
             )
-            report = bt_event.run(df_event, symbol=self.current_symbol)
+            report = bt_event.run(df_event, symbol=self.current_symbol, progress_callback=_on_event_prog)
             if report is None:
                 self._log(f"[{now_str}] [BACKTEST] Cần tối thiểu 150 nến để chạy Event-Driven bar-by-bar, chuyển sang Vectorized...")
                 bt_vec = VectorizedBacktester(

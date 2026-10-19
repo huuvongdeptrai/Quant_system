@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget
+    QApplication, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget
 )
 from PySide6.QtCore import Qt, QUrl, QSize, QDate
 from PySide6.QtGui import QColor, QFont, QIcon, QDesktopServices
@@ -796,19 +796,25 @@ class BacktestWorkbenchController:
         self.current_symbol = clean_sym
 
     def _on_run_clicked(self):
-        if hasattr(self.window, "btnRunBacktest"):
-            self.window.btnRunBacktest.setEnabled(False)
-            self.window.btnRunBacktest.setText("RUNNING...")
-            self.window.btnRunBacktest.setFixedWidth(86)
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        QApplication.processEvents()
         try:
+            if hasattr(self.window, "btnRunBacktest"):
+                self.window.btnRunBacktest.setEnabled(False)
+                self.window.btnRunBacktest.setText("RUNNING...")
+                self.window.btnRunBacktest.setFixedWidth(86)
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.processEvents()
             self._run_stress_test_network()
             self._run_stress_test_schema()
             self._run_stress_test_news()
             self._run_simulation_internal(is_initial=False)
+        except Exception as e:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._log(f"[{now_str}] [ERROR] Simulation execution failed: {e}")
         finally:
-            QApplication.restoreOverrideCursor()
+            try:
+                QApplication.restoreOverrideCursor()
+            except Exception:
+                pass
             if hasattr(self.window, "btnRunBacktest"):
                 self.window.btnRunBacktest.setEnabled(True)
                 self.window.btnRunBacktest.setText("▶ RUN")

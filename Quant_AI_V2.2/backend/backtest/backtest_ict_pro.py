@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 import numpy as np
 import pandas as pd
 
@@ -89,6 +89,7 @@ class EventDrivenBacktester:
         df: pd.DataFrame,
         symbol: str = "XAUUSD",
         strategy_config: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> BacktestReport:
         start_time = time.perf_counter()
 
@@ -126,6 +127,8 @@ class EventDrivenBacktester:
         start_scan = max(100, min(200, n // 3))
 
         for i in range(start_scan, n):
+            if progress_callback and (i % 10 == 0 or i == n - 1):
+                progress_callback(i - start_scan + 1, n - start_scan)
             row = df.iloc[i]
             c = float(row["close"])
             h = float(row["high"])
