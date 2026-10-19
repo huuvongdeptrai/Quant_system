@@ -254,7 +254,7 @@ def setup_chart_ui(window):
         x = max(10, c_w - w - 10)
         ribbon_h = window.frameChartRibbon.height() if hasattr(window, "frameChartRibbon") and window.frameChartRibbon else 24
         y = ribbon_h + 8
-        h = min(460, max(200, c_h - y - 10))
+        h = min(505, max(200, c_h - y - 10))
         window.frameAIArea.setGeometry(x, y, w, h)
         window.frameAIArea.raise_()
 

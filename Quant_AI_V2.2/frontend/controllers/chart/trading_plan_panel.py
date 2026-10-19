@@ -12,7 +12,7 @@ from PySide6 import QtCore, QtGui
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtGui import QColor, QFont, QIcon
 from PySide6.QtWidgets import (
-    QFrame, QLabel, QHBoxLayout, QVBoxLayout, QPushButton,
+    QFrame, QLabel, QHBoxLayout, QVBoxLayout, QGridLayout, QPushButton,
     QWidget, QProgressBar, QSizePolicy, QDoubleSpinBox, QLineEdit,
     QMessageBox
 )
@@ -1079,14 +1079,16 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         )
     if hasattr(window, "lblManualSLPips") and window.lblManualSLPips:
         window.lblManualSLPips.setStyleSheet(
-            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding-bottom: 1px; border: none; background: transparent;"
+            f"color: {risk_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding: 0px; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualTPPips") and window.lblManualTPPips:
         window.lblManualTPPips.setStyleSheet(
-            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding-bottom: 1px; border: none; background: transparent;"
+            f"color: {reward_color}; font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; min-height: 14px; padding: 0px; border: none; background: transparent;"
         )
     if hasattr(window, "lblManualLotSummaryTitle") and window.lblManualLotSummaryTitle:
-        window.lblManualLotSummaryTitle.setStyleSheet(sub_style)
+        window.lblManualLotSummaryTitle.setStyleSheet(
+            f"{sub_style} min-height: 14px;"
+        )
 
     if hasattr(window, "lblManualRiskPart") and window.lblManualRiskPart:
         window.lblManualRiskPart.setStyleSheet(
@@ -1572,12 +1574,14 @@ def sync_manual_copilot_quotes(window):
     info = mt5.symbol_info(clean_sym)
     digits = info.digits if info else 2
     point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
+    pip_unit = get_symbol_pip_unit(clean_sym, digits, point)
+    pt_unit = (pip_unit / 10.0) if pip_unit > 0 else (point if point > 0 else 0.01)
 
     tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
     if tick:
         ask = tick.ask
         bid = tick.bid
-        spd = round((ask - bid) / point, 1)
+        spd = round((ask - bid) / pt_unit, 1)
     else:
         ask = None
         bid = None
@@ -1595,7 +1599,7 @@ def sync_manual_copilot_quotes(window):
             ask = getattr(window, "_last_manual_ask", 2650.25)
         if bid is None:
             bid = getattr(window, "_last_manual_bid", 2650.00)
-        spd = round((ask - bid) / point, 1) if point > 0 else 2.5
+        spd = round((ask - bid) / pt_unit, 1) if pt_unit > 0 else 25.0
 
     window._last_manual_ask = ask
     window._last_manual_bid = bid
@@ -2077,7 +2081,7 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     row_spd = QHBoxLayout()
     row_spd.setContentsMargins(0, 0, 0, 0)
-    lbl_spd = QLabel("SPREAD: 2.5 PTS")
+    lbl_spd = QLabel("SPREAD: 14.0 PTS")
     lbl_spd.setObjectName("lblManualSpread")
     row_spd.addWidget(lbl_spd)
     row_spd.addStretch()
@@ -2088,17 +2092,17 @@ def setup_trading_plan_cards(window, is_dark=False):
     sep_m1.setObjectName("sepManual1")
     sep_m1.setFixedHeight(1)
 
-    # Card M2: Risk Model & Editable SL / TP
+    # Card M2: Risk Model & Editable SL / TP (Clean Grid Layout with generous spacing)
     card_m_risk = QFrame()
     card_m_risk.setObjectName("cardManualRisk")
-    layout_m_risk = QVBoxLayout(card_m_risk)
+    layout_m_risk = QGridLayout(card_m_risk)
     layout_m_risk.setContentsMargins(4, 5, 4, 5)
-    layout_m_risk.setSpacing(7)
+    layout_m_risk.setVerticalSpacing(8)
+    layout_m_risk.setHorizontalSpacing(6)
 
-    row_mr_top = QHBoxLayout()
-    row_mr_top.setContentsMargins(0, 0, 0, 0)
     lbl_mr_title = QLabel("RISK & VOLUME")
     lbl_mr_title.setObjectName("lblManualRiskTitle")
+    lbl_mr_title.setMinimumHeight(14)
     spin_lot = QDoubleSpinBox()
     spin_lot.setObjectName("spinManualLot")
     spin_lot.setDecimals(2)
@@ -2110,19 +2114,18 @@ def setup_trading_plan_cards(window, is_dark=False):
     spin_lot.setFixedHeight(20)
     spin_lot.setAlignment(Qt.AlignRight)
     spin_lot.setButtonSymbols(QDoubleSpinBox.NoButtons)
-    row_mr_top.addWidget(lbl_mr_title)
-    row_mr_top.addStretch()
-    row_mr_top.addWidget(spin_lot)
-    layout_m_risk.addLayout(row_mr_top)
+    layout_m_risk.addWidget(lbl_mr_title, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    layout_m_risk.addWidget(spin_lot, 0, 1, 1, 2, Qt.AlignRight | Qt.AlignVCenter)
 
     # Quick Risk Selectors
-    row_risk_btns = QHBoxLayout()
-    row_risk_btns.setContentsMargins(0, 0, 0, 0)
-    row_risk_btns.setSpacing(4)
     lbl_risk_lbl = QLabel("% RISK")
     lbl_risk_lbl.setObjectName("lblManualRiskLabel")
-    row_risk_btns.addWidget(lbl_risk_lbl)
-    row_risk_btns.addStretch()
+    lbl_risk_lbl.setMinimumHeight(14)
+    box_risk_btns = QWidget()
+    layout_risk_btns = QHBoxLayout(box_risk_btns)
+    layout_risk_btns.setContentsMargins(0, 0, 0, 0)
+    layout_risk_btns.setSpacing(4)
+    layout_risk_btns.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
     btn_r05 = QPushButton("0.5%")
     btn_r05.setObjectName("btnRisk05")
     btn_r05.setProperty("class", "risk_pct_btn")
@@ -2137,27 +2140,23 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_r20.setProperty("class", "risk_pct_btn")
     for b in [btn_r05, btn_r10, btn_r15, btn_r20]:
         b.setCursor(Qt.PointingHandCursor)
-        row_risk_btns.addWidget(b)
-    layout_m_risk.addLayout(row_risk_btns)
+        layout_risk_btns.addWidget(b)
+    layout_m_risk.addWidget(lbl_risk_lbl, 1, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    layout_m_risk.addWidget(box_risk_btns, 1, 1, 1, 2, Qt.AlignRight | Qt.AlignVCenter)
 
     # Stop Loss Row (2-column layout)
-    row_sl = QHBoxLayout()
-    row_sl.setContentsMargins(0, 0, 0, 0)
-    row_sl.setSpacing(6)
-    row_sl.setAlignment(Qt.AlignVCenter)
-
     col_sl_info = QVBoxLayout()
+    col_sl_info.setContentsMargins(0, 0, 0, 0)
     col_sl_info.setSpacing(2)
     lbl_sl_lbl = QLabel("STOP LOSS")
     lbl_sl_lbl.setObjectName("lblManualSLLabel")
+    lbl_sl_lbl.setMinimumHeight(14)
     lbl_sl_pips = QLabel("-25.0 pips / -$100.00")
     lbl_sl_pips.setObjectName("lblManualSLPips")
-    lbl_sl_pips.setMinimumHeight(15)
+    lbl_sl_pips.setMinimumHeight(14)
     col_sl_info.addWidget(lbl_sl_lbl)
     col_sl_info.addWidget(lbl_sl_pips)
-    row_sl.addLayout(col_sl_info)
-
-    row_sl.addStretch()
+    layout_m_risk.addLayout(col_sl_info, 2, 0, Qt.AlignLeft | Qt.AlignVCenter)
 
     spin_sl = QDoubleSpinBox()
     spin_sl.setObjectName("spinManualSL")
@@ -2189,29 +2188,22 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_sl_pre.addWidget(btn_pre_atr)
     layout_sl_pre.addWidget(btn_pre_swing)
 
-    row_sl.addWidget(spin_sl)
-    row_sl.addWidget(box_sl_pre)
-    layout_m_risk.addLayout(row_sl)
-    layout_m_risk.addSpacing(6)
+    layout_m_risk.addWidget(spin_sl, 2, 1, Qt.AlignVCenter)
+    layout_m_risk.addWidget(box_sl_pre, 2, 2, Qt.AlignVCenter)
 
     # Take Profit Row (2-column layout)
-    row_tp = QHBoxLayout()
-    row_tp.setContentsMargins(0, 0, 0, 0)
-    row_tp.setSpacing(6)
-    row_tp.setAlignment(Qt.AlignVCenter)
-
     col_tp_info = QVBoxLayout()
+    col_tp_info.setContentsMargins(0, 0, 0, 0)
     col_tp_info.setSpacing(2)
     lbl_tp_lbl = QLabel("TAKE PROFIT")
     lbl_tp_lbl.setObjectName("lblManualTPLabel")
+    lbl_tp_lbl.setMinimumHeight(14)
     lbl_tp_pips = QLabel("+50.0 pips / +$200.00")
     lbl_tp_pips.setObjectName("lblManualTPPips")
-    lbl_tp_pips.setMinimumHeight(15)
+    lbl_tp_pips.setMinimumHeight(14)
     col_tp_info.addWidget(lbl_tp_lbl)
     col_tp_info.addWidget(lbl_tp_pips)
-    row_tp.addLayout(col_tp_info)
-
-    row_tp.addStretch()
+    layout_m_risk.addLayout(col_tp_info, 3, 0, Qt.AlignLeft | Qt.AlignVCenter)
 
     spin_tp = QDoubleSpinBox()
     spin_tp.setObjectName("spinManualTP")
@@ -2250,9 +2242,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_tp_pre.addWidget(btn_pre_rr20)
     layout_tp_pre.addWidget(btn_pre_rr30)
 
-    row_tp.addWidget(spin_tp)
-    row_tp.addWidget(box_tp_pre)
-    layout_m_risk.addLayout(row_tp)
+    layout_m_risk.addWidget(spin_tp, 3, 1, Qt.AlignVCenter)
+    layout_m_risk.addWidget(box_tp_pre, 3, 2, Qt.AlignVCenter)
 
     # Stepper helpers (kept for backward compatibility and testing)
     btn_sl_minus = QPushButton()
@@ -2261,33 +2252,39 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_tp_plus = QPushButton()
 
     # Summary Box (Risk Red / Reward Green)
+    lbl_lot_sum_title = QLabel("RISK / REWARD")
+    lbl_lot_sum_title.setObjectName("lblManualLotSummaryTitle")
+    lbl_lot_sum_title.setMinimumHeight(14)
+
     box_summary = QFrame()
     box_summary.setObjectName("boxManualLotSummary")
     layout_summary = QHBoxLayout(box_summary)
-    layout_summary.setContentsMargins(0, 2, 0, 2)
+    layout_summary.setContentsMargins(0, 0, 0, 0)
     layout_summary.setSpacing(2)
-    lbl_lot_sum_title = QLabel("RISK / REWARD")
-    lbl_lot_sum_title.setObjectName("lblManualLotSummaryTitle")
+    layout_summary.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
     lbl_risk_part = QLabel("-$100.00 (1.0%)")
     lbl_risk_part.setObjectName("lblManualRiskPart")
+    lbl_risk_part.setMinimumHeight(14)
     lbl_slash = QLabel(" / ")
     lbl_slash.setObjectName("lblManualSlash")
+    lbl_slash.setMinimumHeight(14)
     lbl_reward_part = QLabel("+$200.00 (2.0R)")
     lbl_reward_part.setObjectName("lblManualRewardPart")
+    lbl_reward_part.setMinimumHeight(14)
 
     # Hidden compatibility label for existing tests
     lbl_lot_sum = QLabel("-$100.00 (1.0%) / +$200.00 (2.0R)")
     lbl_lot_sum.setObjectName("lblManualLotSummary")
     lbl_lot_sum.setVisible(False)
 
-    layout_summary.addWidget(lbl_lot_sum_title)
-    layout_summary.addStretch()
     layout_summary.addWidget(lbl_risk_part)
     layout_summary.addWidget(lbl_slash)
     layout_summary.addWidget(lbl_reward_part)
     layout_summary.addWidget(lbl_lot_sum)
-    layout_m_risk.addWidget(box_summary)
+
+    layout_m_risk.addWidget(lbl_lot_sum_title, 4, 0, Qt.AlignLeft | Qt.AlignVCenter)
+    layout_m_risk.addWidget(box_summary, 4, 1, 1, 2, Qt.AlignRight | Qt.AlignVCenter)
 
     sep_m2 = QFrame()
     sep_m2.setFrameShape(QFrame.HLine)

@@ -1752,7 +1752,7 @@ QLabel#lblManualSLPips, QLabel#lblManualTPPips {
     font-size: 8.5px;
     font-weight: 600;
     min-height: 14px;
-    padding-bottom: 1px;
+    padding: 0px;
     background: transparent;
 }
 

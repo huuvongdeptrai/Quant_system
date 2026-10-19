@@ -741,8 +741,41 @@ class TestPlanScenarioAudits:
         assert win.lblManualSLPips.minimumHeight() >= 14
         assert win.lblManualTPPips.minimumHeight() >= 14
 
-        # Card manual risk should have layouts with spacing
+        # Card manual risk should have QGridLayout with verticalSpacing(8) and horizontalSpacing(6)
         assert hasattr(win, "cardManualRisk")
+        risk_layout = win.cardManualRisk.layout()
+        assert risk_layout is not None
+        assert risk_layout.verticalSpacing() == 8
+        assert risk_layout.horizontalSpacing() == 6
+        assert win.lblManualTPLabel.minimumHeight() >= 14
+        assert win.lblManualLotSummaryTitle.minimumHeight() >= 14
+
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick")
+    @patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info")
+    def test_manual_quant_copilot_spread_pts_3digit_gold(self, mock_sym, mock_tick, mock_term, qapp):
+        """Verifies 3-digit Gold (ask 4181.080 - bid 4180.940 = 0.14) displays SPREAD: 14.0 PTS instead of 140.0 PTS."""
+        mock_term.return_value = MagicMock()
+        sym_info = MagicMock()
+        sym_info.digits = 3
+        sym_info.point = 0.001
+        sym_info.trade_tick_value = 1.0
+        sym_info.trade_tick_size = 0.01
+        mock_sym.return_value = sym_info
+
+        tick_info = MagicMock()
+        tick_info.ask = 4181.080
+        tick_info.bid = 4180.940
+        mock_tick.return_value = tick_info
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.layoutAIArea = QVBoxLayout(win)
+        setup_trading_plan_cards(win)
+        sync_manual_copilot_quotes(win)
+
+        assert hasattr(win, "lblManualSpread")
+        assert win.lblManualSpread.text() == "SPREAD: 14.0 PTS"
 
     @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
     @patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get")
