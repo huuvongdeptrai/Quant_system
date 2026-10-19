@@ -62,6 +62,7 @@ INDICATOR_METADATA = {
         "citation": "Brock, Lakonishok, & LeBaron (1992), Journal of Finance, 47(5), 1731-1764",
         "formula": "EMA_t = alpha * P_t + (1 - alpha) * EMA_{t-1}, alpha = 2 / (N + 1)",
         "badge": "Trend",
+        "pane": "main",
     },
     "ma200": {
         "title": "Moving Average (SMA 200)",
@@ -72,6 +73,7 @@ INDICATOR_METADATA = {
         "citation": "Siegel (2002); Neely, Rapach, Tu, & Zhou (2014), Management Science, 60(7)",
         "formula": "SMA_200 = (1 / 200) * sum_{i=0}^{199} P_{t-i}",
         "badge": "Trend",
+        "pane": "main",
     },
     "donchian": {
         "title": "Donchian Channels (100)",
@@ -82,6 +84,7 @@ INDICATOR_METADATA = {
         "citation": "Donchian (1960); Park & Irwin (2007), Journal of Economic Surveys, 21(4)",
         "formula": "Upper = max(High_{t-100..t}), Lower = min(Low_{t-100..t})",
         "badge": "Trend",
+        "pane": "main",
     },
     "pivot": {
         "title": "Floor Pivots (P, R1/S1, R2/S2)",
@@ -92,6 +95,7 @@ INDICATOR_METADATA = {
         "citation": "Harris (2003), Oxford University Press; Floor Trading Liquidity Axioms",
         "formula": "P = (H + L + C) / 3; R1 = 2P - L; S1 = 2P - H; R2 = P + (H - L); S2 = P - (H - L)",
         "badge": "Price Structure",
+        "pane": "main",
     },
     "fvg": {
         "title": "Fair Value Gaps (FVG)",
@@ -102,6 +106,7 @@ INDICATOR_METADATA = {
         "citation": "Harris (2003), Oxford Univ. Press; Biais, Hillion, & Spatt (1995), Journal of Finance",
         "formula": "Bullish: Low_t > High_{t-2}; Bearish: High_t < Low_{t-2}",
         "badge": "Price Structure",
+        "pane": "main",
     },
     "rsi": {
         "title": "Relative Strength Index (RSI 14)",
@@ -112,6 +117,7 @@ INDICATOR_METADATA = {
         "citation": "Wilder (1978); Lo, Mamaysky, & Wang (2000), Journal of Finance, 55(4)",
         "formula": "RSI = 100 - (100 / (1 + RS)), RS = EMA(Gain, 14) / EMA(Loss, 14)",
         "badge": "Oscillator",
+        "pane": "sub",
     },
     "macd": {
         "title": "MACD (12, 26, 9)",
@@ -122,6 +128,7 @@ INDICATOR_METADATA = {
         "citation": "Appel (1979); Neely, Rapach, Tu, & Zhou (2014), Management Science",
         "formula": "MACD = EMA(12) - EMA(26); Signal = EMA(MACD, 9); Hist = MACD - Signal",
         "badge": "Oscillator",
+        "pane": "sub",
     },
     "bollinger": {
         "title": "Bollinger Bands (20, 2σ)",
@@ -132,6 +139,7 @@ INDICATOR_METADATA = {
         "citation": "Bollinger (1992); Lo, Mamaysky, & Wang (2000), Journal of Finance, 55(4)",
         "formula": "Upper = SMA(20) + 2.0 * sigma; Lower = SMA(20) - 2.0 * sigma",
         "badge": "Oscillator",
+        "pane": "main",
     },
     "vwap": {
         "title": "Session VWAP & Bands",
@@ -142,6 +150,7 @@ INDICATOR_METADATA = {
         "citation": "Berkowitz, Logue, & Noser (1988), Journal of Finance; Madhavan (2002)",
         "formula": "VWAP = sum(P_typ * Vol) / sum(Vol); Bands = VWAP +/- 1.5 * sigma_vwap",
         "badge": "Order Flow",
+        "pane": "main",
     },
     "cvd": {
         "title": "Cumulative Volume Delta (CVD)",
@@ -152,6 +161,7 @@ INDICATOR_METADATA = {
         "citation": "Kyle (1985), Econometrica, 53(6); Cartea & Jaimungal (2014), Risk Metrics",
         "formula": "Delta_t = Vol_t * ((Close_t - Open_t) / (High_t - Low_t)); CVD = cumsum(Delta)",
         "badge": "Order Flow",
+        "pane": "sub",
     },
 }
 
@@ -400,7 +410,7 @@ class IndicatorDialog(QDialog):
         row.setFixedHeight(38)
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(14, 0, 16, 0)
-        row_layout.setSpacing(12)
+        row_layout.setSpacing(10)
         row_layout.setAlignment(Qt.AlignVCenter)
 
         # Left: Checkbox + Indicator Name
@@ -423,18 +433,52 @@ class IndicatorDialog(QDialog):
         lbl_desc.setFont(QFont("Segoe UI", 8))
         row_layout.addWidget(lbl_desc)
 
+        # Target Pane Badge: OVERLAY vs SUB-PANE
+        pane_type = meta.get("pane", "main")
+        is_sub = (pane_type == "sub")
+        badge_pane_text = "SUB-PANE" if is_sub else "OVERLAY"
+        lbl_pane = QLabel(badge_pane_text)
+        lbl_pane.setObjectName("dlgRowPaneBadge")
+        lbl_pane.setFont(QFont("Consolas", 7, QFont.Bold))
+        lbl_pane.setFixedSize(58, 16)
+        lbl_pane.setAlignment(Qt.AlignCenter)
+        if self.is_dark:
+            p_bg = "rgba(139, 92, 246, 0.15)" if is_sub else "rgba(56, 189, 248, 0.12)"
+            p_fg = "#c084fc" if is_sub else "#38bdf8"
+            p_border = "rgba(139, 92, 246, 0.3)" if is_sub else "rgba(56, 189, 248, 0.25)"
+        else:
+            p_bg = "#f5f3ff" if is_sub else "#f0f9ff"
+            p_fg = "#7e22ce" if is_sub else "#0284c7"
+            p_border = "#ddd6fe" if is_sub else "#bae6fd"
+        lbl_pane.setStyleSheet(f"background-color: {p_bg}; color: {p_fg}; border: 1px solid {p_border}; border-radius: 2px;")
+        row_layout.addWidget(lbl_pane)
+
         # Right: Category tag in muted gray text
         badge_text = meta.get("badge", meta["category"])
         lbl_cat = QLabel(badge_text)
         lbl_cat.setObjectName("dlgRowCat")
         lbl_cat.setFont(QFont("Segoe UI", 8))
-        lbl_cat.setFixedWidth(85)
+        lbl_cat.setFixedWidth(80)
         lbl_cat.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         row_layout.addWidget(lbl_cat)
 
         return row
 
     def _toggle(self, ind_id, checked):
+        if checked:
+            meta = INDICATOR_METADATA.get(ind_id, {})
+            # Sub-pane exclusive scale management: When activating a sub-pane study,
+            # switch off other sub-pane studies to prevent scale collisions in single-pane oscillator widget.
+            if meta.get("pane") == "sub":
+                sub_ids = [k for k, v in INDICATOR_METADATA.items() if v.get("pane") == "sub" and k != ind_id]
+                for s_id in sub_ids:
+                    if self.active_indicators.get(s_id, False):
+                        self.active_indicators[s_id] = False
+                        if s_id in self._checkboxes:
+                            self._checkboxes[s_id].blockSignals(True)
+                            self._checkboxes[s_id].setChecked(False)
+                            self._checkboxes[s_id].blockSignals(False)
+
         self.active_indicators[ind_id] = checked
         self._update_active_count()
         if self.on_change:
@@ -460,7 +504,7 @@ class IndicatorDialog(QDialog):
                 QDialog {
                     background-color: #0C0E14;
                     border: 1px solid #1E293B;
-                    border-radius: 6px;
+                    border-radius: 2px;
                 }
                 QLabel#dlgTitle {
                     color: #F8FAFC;
@@ -470,7 +514,7 @@ class IndicatorDialog(QDialog):
                     background: transparent;
                     color: #94A3B8;
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI', Arial, sans-serif;
                     font-size: 13px;
                     font-weight: bold;
@@ -484,7 +528,7 @@ class IndicatorDialog(QDialog):
                     background-color: #141721;
                     color: #F8FAFC;
                     border: 1px solid #272D3B;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     padding: 0 10px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
@@ -506,7 +550,7 @@ class IndicatorDialog(QDialog):
                 }
                 QListWidget#dlgSidebar::item {
                     padding: 7px 12px;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     margin: 1px 0;
                 }
                 QListWidget#dlgSidebar::item:hover {
@@ -540,7 +584,7 @@ class IndicatorDialog(QDialog):
                 QCheckBox#dlgRowCheckbox::indicator {
                     width: 15px;
                     height: 15px;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     border: 1px solid #334155;
                     background-color: #161B26;
                 }
@@ -562,7 +606,7 @@ class IndicatorDialog(QDialog):
                     background-color: #18181B;
                     color: #A1A1AA;
                     border: 1px solid #27272A;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     padding: 0 12px;
@@ -578,7 +622,7 @@ class IndicatorDialog(QDialog):
                     background-color: #0284C7;
                     color: #FFFFFF;
                     border: 1px solid #0284C7;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     font-weight: bold;
@@ -597,7 +641,7 @@ class IndicatorDialog(QDialog):
                 QDialog {
                     background-color: #FFFFFF;
                     border: 1px solid #CBD5E1;
-                    border-radius: 6px;
+                    border-radius: 2px;
                 }
                 QLabel#dlgTitle {
                     color: #0F172A;
@@ -607,7 +651,7 @@ class IndicatorDialog(QDialog):
                     background: transparent;
                     color: #64748B;
                     border: none;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI', Arial, sans-serif;
                     font-size: 13px;
                     font-weight: bold;
@@ -621,7 +665,7 @@ class IndicatorDialog(QDialog):
                     background-color: #F8FAFC;
                     color: #0F172A;
                     border: 1px solid #CBD5E1;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     padding: 0 10px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
@@ -643,7 +687,7 @@ class IndicatorDialog(QDialog):
                 }
                 QListWidget#dlgSidebar::item {
                     padding: 7px 12px;
-                    border-radius: 4px;
+                    border-radius: 2px;
                     margin: 1px 0;
                 }
                 QListWidget#dlgSidebar::item:hover {
@@ -677,7 +721,7 @@ class IndicatorDialog(QDialog):
                 QCheckBox#dlgRowCheckbox::indicator {
                     width: 15px;
                     height: 15px;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     border: 1px solid #CBD5E1;
                     background-color: #F8FAFC;
                 }
@@ -699,7 +743,7 @@ class IndicatorDialog(QDialog):
                     background-color: #FFFFFF;
                     color: #475569;
                     border: 1px solid #CBD5E1;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     padding: 0 12px;
@@ -715,7 +759,7 @@ class IndicatorDialog(QDialog):
                     background-color: #0F172A;
                     color: #FFFFFF;
                     border: 1px solid #0F172A;
-                    border-radius: 3px;
+                    border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     font-weight: bold;
@@ -753,17 +797,16 @@ def _compute_indicators(df, active):
 
     # 2. SMA 200 Macro Regime - Siegel (2002); Neely et al. (2014), Management Science
     if active.get("ma200", False):
-        result["MA_200"] = df["close"].rolling(window=200, min_periods=1).mean().tolist()
+        result["MA_200"] = df["close"].rolling(window=200, min_periods=min(50, n)).mean().tolist()
 
     # 3. Donchian Channels (Dynamic Rolling Envelopes) - Donchian (1960); Park & Irwin (2007)
     if active.get("donchian", False) and n >= 5:
-        lookback = min(100, n)
-        span = min(20, n)
+        span = min(100, n)
         d_high = df["high"].rolling(window=span, min_periods=1).max()
         d_low = df["low"].rolling(window=span, min_periods=1).min()
         d_mid = (d_high + d_low) / 2.0
-        result["DONCHIAN_HIGH"] = float(df["high"].iloc[-lookback:].max())
-        result["DONCHIAN_LOW"] = float(df["low"].iloc[-lookback:].min())
+        result["DONCHIAN_HIGH"] = float(df["high"].iloc[-span:].max())
+        result["DONCHIAN_LOW"] = float(df["low"].iloc[-span:].min())
         result["DONCHIAN_SERIES_HIGH"] = d_high.tolist()
         result["DONCHIAN_SERIES_LOW"] = d_low.tolist()
         result["DONCHIAN_SERIES_MID"] = d_mid.tolist()
@@ -834,8 +877,10 @@ def _compute_indicators(df, active):
         ema26 = df["close"].ewm(span=26, adjust=False).mean()
         macd_line = ema12 - ema26
         signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist = macd_line - signal_line
         result["MACD_LINE"] = macd_line.tolist()
         result["MACD_SIGNAL"] = signal_line.tolist()
+        result["MACD_HIST"] = macd_hist.tolist()
 
     # 9. Order Flow CVD Proxy - Kyle (1985), Econometrica; Cartea & Jaimungal (2014)
     if active.get("cvd", False):
@@ -918,6 +963,25 @@ def _hide_osc_curve(window, key):
         window._ind_osc_curves[key].setVisible(False)
 
 
+def _get_or_create_osc_bargraph(window, key, brush):
+    """Retrieves or creates BarGraphItem attached to window.osc_plot_widget."""
+    target = getattr(window, "osc_plot_widget", None) or getattr(window, "plot_widget", None)
+    if not hasattr(window, "_ind_osc_bars"):
+        window._ind_osc_bars = {}
+    if key not in window._ind_osc_bars:
+        bargraph = pg.BarGraphItem(x=[0], height=[0], width=0.6, brush=brush, pen=None)
+        if target:
+            target.addItem(bargraph)
+        window._ind_osc_bars[key] = bargraph
+    return window._ind_osc_bars[key]
+
+
+def _hide_osc_bargraph(window, key):
+    """Hides oscillator BarGraphItem safely without destroying the graphical object."""
+    if hasattr(window, "_ind_osc_bars") and key in window._ind_osc_bars:
+        window._ind_osc_bars[key].setVisible(False)
+
+
 def _refresh_indicators(window, df):
     """
     Main Indicator Coordinator: High-performance setData pattern.
@@ -996,7 +1060,16 @@ def _refresh_indicators(window, df):
                 R2 = P + (H - L)
                 S2 = P - (H - L)
 
-                x_start = max(0, n - 30)
+                # Floor Pivots session anchor: Anchor across current day session (Sierra Chart / TradingView standard)
+                x_start = max(0, n - 40)
+                if "time" in df.columns and len(df) > 1:
+                    try:
+                        times = pd.to_datetime(df["time"], unit="s") if np.issubdtype(df["time"].dtype, np.number) else pd.to_datetime(df["time"])
+                        day_diffs = np.where(times.dt.day.diff() != 0)[0]
+                        if len(day_diffs) > 0:
+                            x_start = int(day_diffs[-1])
+                    except Exception:
+                        pass
                 x_end = max(0, n - 1)
 
                 pivot_cfg = [
@@ -1113,7 +1186,27 @@ def _refresh_indicators(window, df):
     if active.get("macd", False) and "MACD_LINE" in computed and n > 0:
         macd_raw = np.array(computed["MACD_LINE"])
         sig_raw = np.array(computed["MACD_SIGNAL"])
+        hist_raw = np.array(computed.get("MACD_HIST", macd_raw - sig_raw))
         if has_osc:
+            # Positive and Negative Histogram bars (Appel 1979 / Institutional TradingView style)
+            pos_mask = (hist_raw >= 0)
+            neg_mask = (hist_raw < 0)
+            x_arr = np.array(x)
+
+            bar_pos = _get_or_create_osc_bargraph(window, "OSC_MACD_BAR_POS", pg.mkBrush("#22C55E"))
+            if np.any(pos_mask):
+                bar_pos.setOpts(x=x_arr[pos_mask], height=hist_raw[pos_mask], width=0.6, brush=pg.mkBrush("#22C55E"), pen=None)
+                bar_pos.setVisible(True)
+            else:
+                bar_pos.setVisible(False)
+
+            bar_neg = _get_or_create_osc_bargraph(window, "OSC_MACD_BAR_NEG", pg.mkBrush("#EF4444"))
+            if np.any(neg_mask):
+                bar_neg.setOpts(x=x_arr[neg_mask], height=hist_raw[neg_mask], width=0.6, brush=pg.mkBrush("#EF4444"), pen=None)
+                bar_neg.setVisible(True)
+            else:
+                bar_neg.setVisible(False)
+
             c_macd = _get_or_create_osc_curve(window, "OSC_MACD_LINE", pg.mkPen("#0284C7", width=1.4))
             c_macd.setData(x, macd_raw.tolist())
             c_macd.setVisible(True)
@@ -1126,7 +1219,7 @@ def _refresh_indicators(window, df):
             c_zero.setData([0, n - 1], [0.0, 0.0])
             c_zero.setVisible(True)
 
-            m_all = np.concatenate([macd_raw, sig_raw])
+            m_all = np.concatenate([macd_raw, sig_raw, hist_raw])
             m_min, m_max = float(np.min(m_all)), float(np.max(m_all))
             pad = max(abs(m_max - m_min) * 0.15, 1e-4)
             window.osc_plot_widget.setYRange(m_min - pad, m_max + pad)
@@ -1136,6 +1229,8 @@ def _refresh_indicators(window, df):
         else:
             _hide_curve(window, "MACD_CURVE")
     else:
+        _hide_osc_bargraph(window, "OSC_MACD_BAR_POS")
+        _hide_osc_bargraph(window, "OSC_MACD_BAR_NEG")
         _hide_osc_curve(window, "OSC_MACD_LINE")
         _hide_osc_curve(window, "OSC_MACD_SIG")
         _hide_osc_curve(window, "OSC_MACD_ZERO")
@@ -1167,6 +1262,47 @@ def _refresh_indicators(window, df):
         _hide_osc_curve(window, "OSC_CVD_ZERO")
         _hide_curve(window, "CVD_CURVE")
 
+    # Dynamic Study Legend on Ribbon (TradingView / Bloomberg Terminal standard)
+    if hasattr(window, "lbl_chart_studies") and window.lbl_chart_studies is not None:
+        legend_items = []
+        if active.get("ema", False) and "EMA_10" in computed and len(computed["EMA_10"]) > 0:
+            e10_val = computed["EMA_10"][-1]
+            e50_val = computed["EMA_50"][-1]
+            legend_items.append(f'<span style="color:#F59E0B;">● EMA10: <b>{e10_val:,.2f}</b></span> <span style="color:#3B82F6;">● EMA50: <b>{e50_val:,.2f}</b></span>')
+        if active.get("ma200", False) and "MA_200" in computed and len(computed["MA_200"]) > 0:
+            m200_val = computed["MA_200"][-1]
+            if not np.isnan(m200_val):
+                legend_items.append(f'<span style="color:#A78BFA;">● SMA200: <b>{m200_val:,.2f}</b></span>')
+        if active.get("donchian", False) and "DONCHIAN_SERIES_HIGH" in computed and len(computed["DONCHIAN_SERIES_HIGH"]) > 0:
+            dh = computed["DONCHIAN_SERIES_HIGH"][-1]
+            dl = computed["DONCHIAN_SERIES_LOW"][-1]
+            legend_items.append(f'<span style="color:#F43F5E;">● D-High: <b>{dh:,.1f}</b></span> <span style="color:#10B981;">● D-Low: <b>{dl:,.1f}</b></span>')
+        if active.get("bollinger", False) and "BB_UPPER" in computed and len(computed["BB_UPPER"]) > 0:
+            b_up = computed["BB_UPPER"][-1]
+            b_low = computed["BB_LOWER"][-1]
+            legend_items.append(f'<span style="color:#38BDF8;">● BB: <b>[{b_low:,.1f}-{b_up:,.1f}]</b></span>')
+        if active.get("vwap", False) and "VWAP_LINE" in computed and len(computed["VWAP_LINE"]) > 0:
+            vw = computed["VWAP_LINE"][-1]
+            legend_items.append(f'<span style="color:#EC4899;">● VWAP: <b>{vw:,.2f}</b></span>')
+        if active.get("rsi", False) and "RSI_14" in computed and len(computed["RSI_14"]) > 0:
+            rsi_val = computed["RSI_14"][-1]
+            legend_items.append(f'<span style="color:#10B981;">● RSI: <b>{rsi_val:.1f}</b></span>')
+        if active.get("macd", False) and "MACD_LINE" in computed and len(computed["MACD_LINE"]) > 0:
+            m_val = computed["MACD_LINE"][-1]
+            s_val = computed["MACD_SIGNAL"][-1]
+            legend_items.append(f'<span style="color:#0284C7;">● MACD: <b>{m_val:.2f}</b></span> <span style="color:#F43F5E;">Sig: <b>{s_val:.2f}</b></span>')
+        if active.get("cvd", False) and "CVD_LINE" in computed and len(computed["CVD_LINE"]) > 0:
+            cvd_val = computed["CVD_LINE"][-1]
+            legend_items.append(f'<span style="color:#8B5CF6;">● CVD: <b>{cvd_val:,.0f}</b></span>')
+
+        if legend_items:
+            html = '<span style="font-family:Consolas, monospace; font-size:9px; color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(legend_items) + "</span>"
+            window.lbl_chart_studies.setText(html)
+            window.lbl_chart_studies.setVisible(True)
+        else:
+            window.lbl_chart_studies.setText("")
+            window.lbl_chart_studies.setVisible(False)
+
 
 __all__ = [
     "INDICATOR_CATALOG",
@@ -1177,7 +1313,9 @@ __all__ = [
     "_refresh_indicators",
     "_get_or_create_curve",
     "_get_or_create_osc_curve",
+    "_get_or_create_osc_bargraph",
     "_get_or_create_hline",
     "_hide_curve",
     "_hide_osc_curve",
+    "_hide_osc_bargraph",
 ]

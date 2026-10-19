@@ -55,11 +55,12 @@ class TestIndicatorAcademicSpecifications:
         """Ensures all 10 indicators are mapped, documented, and have academic citations."""
         assert len(INDICATOR_METADATA) == 10
 
-        required_keys = ["title", "short_name", "category", "description", "citation", "formula", "badge"]
+        required_keys = ["title", "short_name", "category", "description", "citation", "formula", "badge", "pane"]
         for ind_id, meta in INDICATOR_METADATA.items():
             for key in required_keys:
                 assert key in meta, f"Indicator '{ind_id}' missing key '{key}'"
                 assert len(meta[key]) > 0, f"Indicator '{ind_id}' has empty '{key}'"
+            assert meta["pane"] in ["main", "sub"], f"Invalid pane type for '{ind_id}'"
 
     def test_peer_reviewed_citations_present(self):
         """Verifies peer-reviewed literature presence for key quantitative models."""
@@ -145,14 +146,19 @@ class TestIndicatorCalculationEngine:
         assert np.all(rsi_vals <= 100.0)
 
     def test_macd_computation(self, sample_market_df):
-        """Validates MACD line and signal line lengths and outputs."""
+        """Validates MACD line, signal line, and histogram (Appel 1979)."""
         active = {"macd": True}
         computed = _compute_indicators(sample_market_df, active)
 
         assert "MACD_LINE" in computed
         assert "MACD_SIGNAL" in computed
+        assert "MACD_HIST" in computed
         assert len(computed["MACD_LINE"]) == len(sample_market_df)
         assert len(computed["MACD_SIGNAL"]) == len(sample_market_df)
+        assert len(computed["MACD_HIST"]) == len(sample_market_df)
+
+        diff = np.array(computed["MACD_LINE"]) - np.array(computed["MACD_SIGNAL"])
+        assert np.allclose(np.array(computed["MACD_HIST"]), diff)
 
     def test_donchian_channels_rolling_envelopes(self, sample_market_df):
         """Verifies Donchian channels compute full rolling envelopes and invariant LOW <= MID <= HIGH."""
@@ -180,7 +186,7 @@ class TestIndicatorCalculationEngine:
             "x", "EMA_10", "EMA_50", "MA_200", "DONCHIAN_HIGH", "DONCHIAN_LOW",
             "_pivot_raw", "BB_MID", "BB_UPPER", "BB_LOWER", "VWAP_LINE",
             "VWAP_UPPER", "VWAP_LOWER", "RSI_14", "MACD_LINE", "MACD_SIGNAL",
-            "CVD_LINE", "FVG_ZONES"
+            "MACD_HIST", "CVD_LINE", "FVG_ZONES"
         ]
         for k in expected_keys:
             assert k in computed, f"Missing computed key: {k}"
@@ -260,3 +266,78 @@ class TestIndicatorDialogUI:
 
         _hide_osc_curve(win, "TEST_RSI")
         assert curve.isVisible() is False
+
+    def test_subpane_exclusive_switching(self, qapp):
+        """Verifies switching between sub-pane oscillators automatically disables previous sub-pane study."""
+        active = {}
+        dlg = IndicatorDialog(parent=None, active_indicators=active, is_dark=False)
+
+        # 1. Activate main overlay EMA -> should be active
+        dlg._toggle("ema", True)
+        assert active["ema"] is True
+
+        # 2. Activate sub-pane RSI -> both EMA and RSI should be active
+        dlg._toggle("rsi", True)
+        assert active["ema"] is True
+        assert active["rsi"] is True
+
+        # 3. Activate sub-pane MACD -> RSI must be automatically unchecked to prevent scale collision
+        dlg._toggle("macd", True)
+        assert active["ema"] is True
+        assert active["macd"] is True
+        assert active["rsi"] is False
+
+        # 4. Activate sub-pane CVD -> MACD must be automatically unchecked
+        dlg._toggle("cvd", True)
+        assert active["cvd"] is True
+        assert active["macd"] is False
+        assert active["rsi"] is False
+
+        dlg.close()
+
+    def test_oscillator_bargraph_lifecycle(self, qapp):
+        """Verifies oscillator BarGraphItem management attaches cleanly and toggles safely."""
+        import pyqtgraph as pg
+        from frontend.controllers.chart.indicator_dialog import _get_or_create_osc_bargraph, _hide_osc_bargraph
+
+        class MockWindow:
+            def __init__(self):
+                self.plot_widget = pg.PlotWidget()
+                self.osc_plot_widget = pg.PlotWidget()
+
+        win = MockWindow()
+        brush = pg.mkBrush("#22c55e")
+        bar = _get_or_create_osc_bargraph(win, "TEST_BAR", brush)
+        assert bar is not None
+        assert bar.isVisible() is True
+
+        _hide_osc_bargraph(win, "TEST_BAR")
+        assert bar.isVisible() is False
+
+    def test_refresh_indicators_with_ribbon_legend(self, qapp, sample_market_df):
+        """Verifies _refresh_indicators populates the ribbon study legend dynamically."""
+        import pyqtgraph as pg
+        from PySide6.QtWidgets import QLabel
+        from frontend.controllers.chart.indicator_dialog import _refresh_indicators
+
+        class MockWindow:
+            def __init__(self):
+                self.plot_widget = pg.PlotWidget()
+                self.osc_plot_widget = pg.PlotWidget()
+                self.lbl_chart_studies = QLabel()
+                self.active_indicators = {"ema": True, "rsi": True}
+
+        win = MockWindow()
+        _refresh_indicators(win, sample_market_df)
+
+        assert win.lbl_chart_studies.isVisible() is True
+        text = win.lbl_chart_studies.text()
+        assert "EMA10" in text
+        assert "EMA50" in text
+        assert "RSI" in text
+
+        # Turn all indicators off
+        win.active_indicators = {}
+        _refresh_indicators(win, sample_market_df)
+        assert win.lbl_chart_studies.isVisible() is False
+

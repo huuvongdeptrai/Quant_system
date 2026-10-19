@@ -463,6 +463,15 @@ def setup_chart_ui(window):
     lbl_chart_ohlc.setMinimumWidth(0)
     window.lbl_chart_ohlc = lbl_chart_ohlc
     ribbon_layout.addWidget(lbl_chart_ohlc)
+
+    lbl_chart_studies = CompactRibbonLabel("")
+    lbl_chart_studies.setObjectName("lblChartStudies")
+    lbl_chart_studies.setMinimumWidth(0)
+    lbl_chart_studies.setVisible(False)
+    lbl_chart_studies.setToolTip("Active Studies & Quantitative Indicators (TradingView / Bloomberg Terminal style)")
+    window.lbl_chart_studies = lbl_chart_studies
+    ribbon_layout.addWidget(lbl_chart_studies)
+
     ribbon_layout.addStretch()
 
     lbl_zoom = QLabel('<span style="color:#71717a; font-family:Consolas, monospace; font-size:8.5px;">100%</span>')
