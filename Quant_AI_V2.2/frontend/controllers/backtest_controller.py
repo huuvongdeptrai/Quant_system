@@ -125,7 +125,7 @@ class BacktestWorkbenchController:
 
         if hasattr(self.window, "comboBtEngine"):
             self.window.comboBtEngine.setFixedHeight(32)
-            self.window.comboBtEngine.setFixedWidth(185)
+            self.window.comboBtEngine.setFixedWidth(230)
             self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             self.window.comboBtEngine.currentIndexChanged.connect(self._on_strategy_changed)
 
@@ -138,12 +138,12 @@ class BacktestWorkbenchController:
             setattr(self.window, "comboBtMode", self.comboBtMode)
 
         self.comboBtMode.setFixedHeight(32)
-        self.comboBtMode.setFixedWidth(190)
+        self.comboBtMode.setFixedWidth(145)
         self.comboBtMode.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.comboBtMode.blockSignals(True)
         self.comboBtMode.clear()
-        self.comboBtMode.addItem("⚡ Mode 1: Vectorized (Fast Matrix)", "vectorized")
-        self.comboBtMode.addItem("🎯 Mode 2: Event-Driven (Bar-by-Bar)", "event_driven")
+        self.comboBtMode.addItem("Vectorized", "vectorized")
+        self.comboBtMode.addItem("Event-Driven", "event_driven")
         self.comboBtMode.setToolTip(
             "LỰA CHỌN ĐỘNG CƠ BACKTEST (ENGINE MODE):\n\n"
             "• Chế độ 1 - Vectorized Engine (engine_vectorized.py):\n"
@@ -203,18 +203,8 @@ class BacktestWorkbenchController:
             self.spinBtComm.setFixedHeight(32)
             self.spinBtComm.setFixedWidth(102)
 
-        # Subtle dividers between functional groups
-        def _make_divider():
-            div = QFrame()
-            div.setFrameShape(QFrame.VLine)
-            div.setFrameShadow(QFrame.Plain)
-            div.setFixedHeight(18)
-            div.setFixedWidth(1)
-            div.setStyleSheet("background-color: #cbd5e1; border: none; margin: 0px 4px;")
-            return div
-
         # Reorder layout to guarantee strict sequence:
-        # [Symbol ▾] [TF ▾] [Strategy ▾] | From: [Date] To: [Date] | Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
+        # [Symbol ▾] [TF ▾] [Strategy ▾] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
         if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
             layout = self.window.frameBtParams.layout()
             layout.insertWidget(0, self.comboBtSymbol)
@@ -224,21 +214,6 @@ class BacktestWorkbenchController:
                 layout.insertWidget(2, self.window.comboBtEngine)
             if hasattr(self, "comboBtMode"):
                 layout.insertWidget(3, self.comboBtMode)
-
-            # Insert divider 1 after comboBtMode
-            div1 = _make_divider()
-            layout.insertWidget(4, div1)
-
-            # Find dateBtTo index and insert divider 2 right after it
-            idx_to = -1
-            for k in range(layout.count()):
-                w = layout.itemAt(k).widget()
-                if w and w.objectName() == "dateBtTo":
-                    idx_to = k
-                    break
-            if idx_to >= 0:
-                div2 = _make_divider()
-                layout.insertWidget(idx_to + 1, div2)
 
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
@@ -292,9 +267,9 @@ class BacktestWorkbenchController:
                     scroll_bt.setWidgetResizable(True)
                     scroll_bt.setFixedHeight(42)
                     scroll_bt.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                    scroll_bt.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                    scroll_bt.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                     scroll_bt.setFrameShape(QFrame.NoFrame)
-                    scroll_bt.setStyleSheet("QScrollArea#scrollBtParams { border: none; background: transparent; }")
+                    scroll_bt.setStyleSheet("QScrollArea#scrollBtParams { border: none; background: transparent; } QScrollBar { height: 0px; }")
                     self.window.scrollBtParams = scroll_bt
                     vl_tab5.insertWidget(0, scroll_bt)
 
@@ -438,7 +413,7 @@ class BacktestWorkbenchController:
         # Chuẩn hóa nhãn các nút điều khiển
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setText("▶ RUN")
-            self.window.btnRunBacktest.setFixedWidth(78)
+            self.window.btnRunBacktest.setFixedWidth(86)
         if hasattr(self.window, "btnExportReport"):
             self.window.btnExportReport.setText("EXPORT")
             self.window.btnExportReport.setFixedWidth(74)
@@ -543,7 +518,7 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "btnRunBacktest"):
             self.btnRunBacktest = self.window.btnRunBacktest
             self.btnRunBacktest.setText("▶ RUN")
-            self.btnRunBacktest.setFixedSize(78, 32)
+            self.btnRunBacktest.setFixedSize(86, 32)
             self.btnRunBacktest.setCursor(Qt.PointingHandCursor)
 
         if hasattr(self.window, "btnOpenStratFolder"):
@@ -823,7 +798,8 @@ class BacktestWorkbenchController:
     def _on_run_clicked(self):
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(False)
-            self.window.btnRunBacktest.setText("SIMULATING...")
+            self.window.btnRunBacktest.setText("RUNNING...")
+            self.window.btnRunBacktest.setFixedWidth(86)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         QApplication.processEvents()
         try:
@@ -836,6 +812,7 @@ class BacktestWorkbenchController:
             if hasattr(self.window, "btnRunBacktest"):
                 self.window.btnRunBacktest.setEnabled(True)
                 self.window.btnRunBacktest.setText("▶ RUN")
+                self.window.btnRunBacktest.setFixedWidth(86)
 
     def _run_simulation_internal(self, is_initial: bool = False):
         from frontend.controllers.backtest.simulation_runner import run_simulation_internal

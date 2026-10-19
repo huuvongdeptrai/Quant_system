@@ -457,4 +457,9 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
 
     except Exception as e:
         self._log(f"[{now_str}] [ERROR] Simulation failed: {e}")
+    finally:
+        if hasattr(self.window, "btnRunBacktest"):
+            self.window.btnRunBacktest.setEnabled(True)
+            self.window.btnRunBacktest.setText("▶ RUN")
+            self.window.btnRunBacktest.setFixedWidth(86)
 

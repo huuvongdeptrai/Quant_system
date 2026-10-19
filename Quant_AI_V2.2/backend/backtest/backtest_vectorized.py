@@ -135,6 +135,9 @@ class VectorizedBacktester:
         lot_size = 0.1
         total_comm = 0.0
         mult = get_symbol_multiplier(symbol)
+        last_exit_bar = -999
+        last_exit_side = 0
+        last_exit_outcome = None
 
         balance = self.initial_balance
         equity_curve = [balance]
@@ -143,6 +146,8 @@ class VectorizedBacktester:
             c, h, l, a, v = closes[i], highs[i], lows[i], atr[i], volumes[i]
             if a <= 0:
                 continue
+
+            exit_occurred = False
 
             if in_pos:
                 friction = self.commission_per_trade + (
@@ -164,6 +169,10 @@ class VectorizedBacktester:
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
+                        exit_occurred = True
+                        last_exit_bar = i
+                        last_exit_side = 1
+                        last_exit_outcome = "SL"
                     elif h >= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
@@ -179,6 +188,10 @@ class VectorizedBacktester:
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
+                        exit_occurred = True
+                        last_exit_bar = i
+                        last_exit_side = 1
+                        last_exit_outcome = "TP"
                 elif pos_type == -1:
                     if h >= sl_price:
                         loss_pnl = -risk_amt - friction
@@ -195,6 +208,10 @@ class VectorizedBacktester:
                         balance += loss_pnl
                         total_comm += friction
                         in_pos = False
+                        exit_occurred = True
+                        last_exit_bar = i
+                        last_exit_side = -1
+                        last_exit_outcome = "SL"
                     elif l <= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
@@ -210,8 +227,13 @@ class VectorizedBacktester:
                         balance += win_pnl
                         total_comm += friction
                         in_pos = False
+                        exit_occurred = True
+                        last_exit_bar = i
+                        last_exit_side = -1
+                        last_exit_outcome = "TP"
 
-            if not in_pos and i < n - 5:
+            # Không mở vị thế trên cùng cây nến vừa đóng lệnh (Rule of Exclusivity on Exit Bar)
+            if not in_pos and not exit_occurred and i < n - 5:
                 risk_amt = balance * (self.risk_per_trade_pct / 100.0)
                 sl_dist = 1.5 * a
                 lot_size = max(0.01, min(round(risk_amt / (max(sl_dist, 0.0001) * mult), 2), 50.0))
@@ -242,6 +264,13 @@ class VectorizedBacktester:
                         and v >= 1.1 * vol_ma[i]
                     )
 
+                # Chốt chặn không nhồi lệnh cùng chiều khi vừa bị dính SL (Post-Stopout Cooldown)
+                if last_exit_outcome == "SL" and (i - last_exit_bar) < 5:
+                    if buy_cond and last_exit_side == 1:
+                        buy_cond = False
+                    if sell_cond and last_exit_side == -1:
+                        sell_cond = False
+
                 if buy_cond:
                     in_pos = True
                     pos_type = 1
@@ -254,6 +283,7 @@ class VectorizedBacktester:
                     entry_price = float(opens[i + 1]) if fill_on_next_open and "open" in df.columns and i + 1 < n else c
                     sl_price = entry_price + sl_dist
                     tp_price = entry_price - sl_dist * target_rr
+
 
             equity_curve.append(balance)
 

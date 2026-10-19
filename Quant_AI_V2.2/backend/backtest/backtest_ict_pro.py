@@ -118,6 +118,9 @@ class EventDrivenBacktester:
         tp_p = 0.0
         lot_size = 0.0
         entry_time = None
+        last_exit_bar = -999
+        last_exit_side = None
+        last_exit_outcome = None
 
         n = len(df)
         start_scan = max(100, min(200, n // 3))
@@ -130,15 +133,16 @@ class EventDrivenBacktester:
             o = float(row["open"]) if "open" in df.columns else c
             row_time = row["time"] if "time" in df.columns else i
 
+            exit_occurred = False
+            exit_outcome = ""
+            exit_price = 0.0
+            actual_pnl = 0.0
+
             # A. Quản lý lệnh đang mở (Khớp lệnh chuẩn nến và trừ phí ma sát thực tế)
             if in_pos:
                 friction = (self.commission_per_lot * lot_size) + (
                     slippage_cost_per_point * mult * lot_size
                 )
-                exit_occurred = False
-                exit_outcome = ""
-                exit_price = 0.0
-                actual_pnl = 0.0
 
                 if pos_type == 1:  # BUY POSITION
                     hit_sl = l <= sl_p
@@ -210,12 +214,19 @@ class EventDrivenBacktester:
                         "exit_time": str(row_time),
                     })
                     in_pos = False
+                    last_exit_bar = i
+                    last_exit_side = "BUY" if pos_type == 1 else "SELL"
+                    last_exit_outcome = exit_outcome
 
-            # B. Quét tín hiệu mới từ chiến lược (Chỉ quét khi chưa có vị thế)
-            if not in_pos and i < n - 3:
+            # B. Quét tín hiệu mới từ chiến lược (Chỉ quét khi chưa có vị thế và không mở trên cùng cây nến vừa đóng)
+            if not in_pos and not exit_occurred and i < n - 3:
                 window_df = df.iloc[max(0, i - 250) : i + 1].reset_index(drop=True)
                 res = strat.analyze(window_df, macro_context={})
                 sig = res.get("signal") if hasattr(res, "get") else getattr(res, "signal", "HOLD")
+
+                # Chốt chặn không nhồi lệnh cùng chiều khi vừa bị dính SL (Post-Stopout Cooldown)
+                if last_exit_outcome == "SL" and sig == last_exit_side and (i - last_exit_bar) < 5:
+                    sig = "HOLD"
 
                 cand_sl = res.get("sl") if hasattr(res, "get") else getattr(res, "sl", None)
                 cand_tp = res.get("tp1") if hasattr(res, "get") else getattr(res, "tp1", None)
