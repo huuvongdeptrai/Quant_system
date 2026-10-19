@@ -178,10 +178,8 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                     except Exception:
                         strat_inst_or_key = strat_name
 
-            df_event = df
-            if len(df) > 350:
-                df_event = df.iloc[-350:].copy().reset_index(drop=True)
-                self._log(f"[{now_str}] [EVENT-DRIVEN] Giới hạn mẫu kiểm thử tương tác: 350 nến gần nhất (Interactive Bar-by-Bar Sample)")
+            df_event = df.copy().reset_index(drop=True)
+            self._log(f"[{now_str}] [EVENT-DRIVEN] Bắt đầu kiểm thử Bar-by-Bar toàn bộ {len(df_event):,} nến từ {from_str} đến {to_str}...")
 
             def _on_event_prog(cur, tot):
                 from PySide6.QtWidgets import QApplication

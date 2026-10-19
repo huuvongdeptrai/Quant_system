@@ -87,7 +87,7 @@ class ICTZonesProStrategy(BaseStrategy):
         self.lookback_bars = self.config.get("lookback_bars", 300)  # Khôi phục trạng thái từ 300 nến
         self.sweep_len = self.config.get("sweep_len", 20)
         self.sweep_memory = self.config.get("sweep_memory", 10)
-        self.save_state = self.config.get("save_state", True)
+        self.save_state = self.config.get("save_state", False)
 
     def get_metadata(self) -> Dict[str, Any]:
         return {
@@ -208,46 +208,76 @@ class ICTZonesProStrategy(BaseStrategy):
                     .reset_index()
                 )
 
+                h1_len = len(df_h1)
+                h1_open = df_h1["open"].to_numpy(dtype=float)
+                h1_high = df_h1["high"].to_numpy(dtype=float)
+                h1_low = df_h1["low"].to_numpy(dtype=float)
+                h1_close = df_h1["close"].to_numpy(dtype=float)
+
                 h1_obs_temp = []
-                for j in range(5, len(df_h1) - 1):
-                    prev_c = df_h1.iloc[j - 5]
+                for j in range(5, h1_len - 1):
+                    p_idx = j - 5
+                    p_low = h1_low[p_idx]
+                    p_high = h1_high[p_idx]
+                    p_open = h1_open[p_idx]
+                    p_close = h1_close[p_idx]
+
                     is_sl = True
                     is_sh = True
                     for k in range(1, 6):
-                        if df_h1["low"].iloc[j - k] < prev_c["low"] and k != 5:
-                            is_sl = False
-                        if df_h1["high"].iloc[j - k] > prev_c["high"] and k != 5:
-                            is_sh = False
+                        if k != 5:
+                            if h1_low[j - k] < p_low:
+                                is_sl = False
+                            if h1_high[j - k] > p_high:
+                                is_sh = False
 
-                    if is_sl and prev_c["close"] < prev_c["open"]:
+                    if is_sl and p_close < p_open:
                         h1_obs_temp.append({
                             "type": "BULL",
-                            "top": prev_c["open"],
-                            "btm": prev_c["low"],
+                            "top": p_open,
+                            "btm": p_low,
                             "broken": False,
-                            "start_idx": j - 5,
+                            "start_idx": p_idx,
                         })
-                    if is_sh and prev_c["close"] > prev_c["open"]:
+                    if is_sh and p_close > p_open:
                         h1_obs_temp.append({
                             "type": "BEAR",
-                            "top": prev_c["high"],
-                            "btm": prev_c["open"],
+                            "top": p_high,
+                            "btm": p_open,
                             "broken": False,
-                            "start_idx": j - 5,
+                            "start_idx": p_idx,
                         })
 
                 for h_ob in h1_obs_temp:
-                    for j in range(h_ob["start_idx"] + 1, len(df_h1)):
-                        curr_c = df_h1.iloc[j]
-                        if h_ob["type"] == "BULL" and curr_c["close"] < h_ob["btm"]:
+                    s_idx = h_ob["start_idx"] + 1
+                    ob_type = h_ob["type"]
+                    ob_btm = h_ob["btm"]
+                    ob_top = h_ob["top"]
+                    for j in range(s_idx, h1_len):
+                        c_val = h1_close[j]
+                        if ob_type == "BULL" and c_val < ob_btm:
                             h_ob["broken"] = True
                             break
-                        if h_ob["type"] == "BEAR" and curr_c["close"] > h_ob["top"]:
+                        if ob_type == "BEAR" and c_val > ob_top:
                             h_ob["broken"] = True
                             break
                 active_h1_obs = [ob for ob in h1_obs_temp if not ob["broken"]]
         except Exception as err:
             logger.debug(f"[ICTStrategy] H1 MTFA calculation skipped: {err}")
+
+        n_bars = len(df)
+        c_arr = df["close"].to_numpy(dtype=float)
+        h_arr = df["high"].to_numpy(dtype=float)
+        l_arr = df["low"].to_numpy(dtype=float)
+        o_arr = df["open"].to_numpy(dtype=float) if "open" in df.columns else c_arr
+        atr_arr = df["atr"].to_numpy(dtype=float)
+        mZ_arr = df["momentum_z"].to_numpy(dtype=float)
+        vP_arr = df["vol_pct_rank"].to_numpy(dtype=float)
+        sw_low_arr = df["prev_sw_low"].to_numpy(dtype=float)
+        sw_high_arr = df["prev_sw_high"].to_numpy(dtype=float)
+
+        vol_col = "tick_volume" if "tick_volume" in df.columns else ("volume" if "volume" in df.columns else None)
+        vol_arr = df[vol_col].to_numpy(dtype=float) if vol_col else None
 
         active_fvgs: List[FVG] = []
         ifvg_boxes: List[FVG] = []
@@ -257,46 +287,49 @@ class ICTZonesProStrategy(BaseStrategy):
         last_bear_sweep_idx = -999
 
         os_state = 0
-        start_idx = max(0, len(df) - self.lookback_bars)
+        start_idx = max(0, n_bars - self.lookback_bars)
 
-        for i in range(start_idx, len(df)):
+        for i in range(start_idx, n_bars):
             if i < self.ob_length + 2:
                 continue
 
-            row = df.iloc[i]
-            prev_row = df.iloc[i - 1]
-            prev2_row = df.iloc[i - 2]
+            c_i = c_arr[i]
+            h_i = h_arr[i]
+            l_i = l_arr[i]
+            prev_c = c_arr[i - 1]
+            prev2_h = h_arr[i - 2]
+            prev2_l = l_arr[i - 2]
 
             # 1. Phát hiện quét thanh khoản
-            if row["low"] < row["prev_sw_low"] and row["close"] > row["prev_sw_low"]:
+            if l_i < sw_low_arr[i] and c_i > sw_low_arr[i]:
                 last_bull_sweep_idx = i
-            if row["high"] > row["prev_sw_high"] and row["close"] < row["prev_sw_high"]:
+            if h_i > sw_high_arr[i] and c_i < sw_high_arr[i]:
                 last_bear_sweep_idx = i
 
             # 2. Phát hiện vùng FVG
             thresh = self.fvg_threshold_per / 100
 
             is_bull_fvg = (
-                (row["low"] > prev2_row["high"])
-                and (prev_row["close"] > prev2_row["high"])
-                and ((row["low"] - prev2_row["high"]) / prev2_row["high"] > thresh)
+                (l_i > prev2_h)
+                and (prev_c > prev2_h)
+                and ((l_i - prev2_h) / prev2_h > thresh)
             )
 
             is_bear_fvg = (
-                (row["high"] < prev2_row["low"])
-                and (prev_row["close"] < prev2_row["low"])
-                and ((prev2_row["low"] - row["high"]) / row["high"] > thresh)
+                (h_i < prev2_l)
+                and (prev_c < prev2_l)
+                and ((prev2_l - h_i) / h_i > thresh)
             )
 
             if is_bull_fvg:
-                active_fvgs.insert(0, FVG(top=row["low"], btm=prev2_row["high"], is_bull=True, start_idx=i - 2))
+                active_fvgs.insert(0, FVG(top=l_i, btm=prev2_h, is_bull=True, start_idx=i - 2))
             if is_bear_fvg:
-                active_fvgs.insert(0, FVG(top=prev2_row["low"], btm=row["high"], is_bull=False, start_idx=i - 2))
+                active_fvgs.insert(0, FVG(top=prev2_l, btm=h_i, is_bull=False, start_idx=i - 2))
 
             # Cập nhật trạng thái FVG
             fvgs_to_keep = []
             for f in active_fvgs:
-                is_broken = (row["low"] < f.btm) if f.is_bull else (row["high"] > f.top)
+                is_broken = (l_i < f.btm) if f.is_bull else (h_i > f.top)
                 if is_broken:
                     ifvg_boxes.insert(0, f)
                     if len(ifvg_boxes) > 5:
@@ -306,10 +339,10 @@ class ICTZonesProStrategy(BaseStrategy):
             active_fvgs = fvgs_to_keep[:50]
 
             # 3. Phát hiện Order Block
-            high_oblen = df["high"].iloc[i - self.ob_length]
-            low_oblen = df["low"].iloc[i - self.ob_length]
-            upper = df["high"].iloc[i - self.ob_length + 1 : i + 1].max()
-            lower = df["low"].iloc[i - self.ob_length + 1 : i + 1].min()
+            high_oblen = h_arr[i - self.ob_length]
+            low_oblen = l_arr[i - self.ob_length]
+            upper = np.max(h_arr[i - self.ob_length + 1 : i + 1])
+            lower = np.min(l_arr[i - self.ob_length + 1 : i + 1])
 
             if high_oblen > upper:
                 os_state = 0
@@ -317,65 +350,62 @@ class ICTZonesProStrategy(BaseStrategy):
                 os_state = 1
 
             # Đỉnh Volume
-            vol_col = "tick_volume" if "tick_volume" in df.columns else ("volume" if "volume" in df.columns else None)
-            vol_window = df[vol_col].iloc[i - self.ob_length * 2 : i + 1].values if vol_col else []
-            if len(vol_window) == self.ob_length * 2 + 1:
-                mid_vol = vol_window[self.ob_length]
-                is_phv = True
-                for v in vol_window:
-                    if v > mid_vol:
-                        is_phv = False
-                        break
+            if vol_arr is not None:
+                vol_start = i - self.ob_length * 2
+                if vol_start >= 0:
+                    vol_window = vol_arr[vol_start : i + 1]
+                    if len(vol_window) == self.ob_length * 2 + 1:
+                        mid_vol = vol_window[self.ob_length]
+                        is_phv = True
+                        for v in vol_window:
+                            if v > mid_vol:
+                                is_phv = False
+                                break
 
-                if is_phv:
-                    mZ = df["momentum_z"].iloc[i - self.ob_length]
-                    vP = df["vol_pct_rank"].iloc[i - self.ob_length]
-                    base_score = min(70.0, abs(mZ) * 7.0 + vP * 0.35)
+                        if is_phv:
+                            mZ = mZ_arr[i - self.ob_length]
+                            vP = vP_arr[i - self.ob_length]
+                            base_score = min(70.0, abs(mZ) * 7.0 + vP * 0.35)
 
-                    if os_state == 1:  # Bull Order Block
-                        ob_top = df["high"].iloc[i - self.ob_length]
-                        ob_btm = df["low"].iloc[i - self.ob_length]
-                        active_obs.insert(0, OrderBlock(ob_top, ob_btm, True, base_score, i - self.ob_length))
-
-                    elif os_state == 0:  # Bear Order Block
-                        ob_top = df["high"].iloc[i - self.ob_length]
-                        ob_btm = df["low"].iloc[i - self.ob_length]
-                        active_obs.insert(0, OrderBlock(ob_top, ob_btm, False, base_score, i - self.ob_length))
+                            if os_state == 1:  # Bull Order Block
+                                active_obs.insert(0, OrderBlock(high_oblen, low_oblen, True, base_score, i - self.ob_length))
+                            elif os_state == 0:  # Bear Order Block
+                                active_obs.insert(0, OrderBlock(high_oblen, low_oblen, False, base_score, i - self.ob_length))
 
             # Dọn dẹp và cập nhật Order Block
             obs_to_keep = []
-            for ob in active_obs:
-                atr_val = row["atr"] if not pd.isna(row["atr"]) and row["atr"] > 0 else 1.0
-                clearance = atr_val * 0.5  # Giá phải rời khỏi OB ít nhất 0.5 ATR mới reset chạm
+            atr_val = atr_arr[i] if not np.isnan(atr_arr[i]) and atr_arr[i] > 0 else 1.0
+            clearance = atr_val * 0.5  # Giá phải rời khỏi OB ít nhất 0.5 ATR mới reset chạm
 
+            for ob in active_obs:
                 if ob.is_bull:
-                    mitigated = row["close"] < ob.btm
+                    mitigated = c_i < ob.btm
                     if not mitigated:
-                        in_zone = row["low"] <= ob.top and row["close"] >= ob.btm
+                        in_zone = l_i <= ob.top and c_i >= ob.btm
                         if in_zone:
                             if not ob.is_touching:
                                 ob.touch_count += 1
                                 ob.is_touching = True
                         else:
-                            if row["low"] > ob.top + clearance:
+                            if l_i > ob.top + clearance:
                                 ob.is_touching = False
 
-                        cur_disp = max(0.0, row["high"] - ob.top) / atr_val
+                        cur_disp = max(0.0, h_i - ob.top) / atr_val
                         ob.max_disp = max(ob.max_disp, cur_disp)
                         obs_to_keep.append(ob)
                 else:
-                    mitigated = row["close"] > ob.top
+                    mitigated = c_i > ob.top
                     if not mitigated:
-                        in_zone = row["high"] >= ob.btm and row["close"] <= ob.top
+                        in_zone = h_i >= ob.btm and c_i <= ob.top
                         if in_zone:
                             if not ob.is_touching:
                                 ob.touch_count += 1
                                 ob.is_touching = True
                         else:
-                            if row["high"] < ob.btm - clearance:
+                            if h_i < ob.btm - clearance:
                                 ob.is_touching = False
 
-                        cur_disp = max(0.0, ob.btm - row["low"]) / atr_val
+                        cur_disp = max(0.0, ob.btm - l_i) / atr_val
                         ob.max_disp = max(ob.max_disp, cur_disp)
                         obs_to_keep.append(ob)
 
