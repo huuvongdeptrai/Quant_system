@@ -342,4 +342,49 @@ def generate_signals(df):
         assert "[ENGINE MODE]" in console_text
         assert "Chế độ 2" in console_text
 
+    def test_backtest_no_autorun_on_selection_and_reentrancy_guard(self, monkeypatch):
+        """Verify combobox parameter changes DO NOT trigger backtest, and execution is guarded."""
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtUiTools import QUiLoader
+        from PySide6.QtCore import QFile
+        from frontend.controllers.backtest_controller import BacktestWorkbenchController
+
+        app = QApplication.instance() or QApplication([])
+        ui_file = QFile("frontend/quant_ai.ui")
+        ui_file.open(QFile.ReadOnly)
+        loader = QUiLoader()
+        win = loader.load(ui_file)
+        ui_file.close()
+
+        ctrl = BacktestWorkbenchController(win)
+
+        # Track calls to run_simulation_internal
+        sim_calls = []
+        original_sim = ctrl._run_simulation_internal
+        def mock_sim(is_initial=False):
+            sim_calls.append(is_initial)
+            return original_sim(is_initial=is_initial)
+        ctrl._run_simulation_internal = mock_sim
+
+        # 1. Changing Mode to Mode 2 Event-Driven should NOT auto-run simulation
+        sim_calls.clear()
+        win.comboBtMode.setCurrentIndex(1)
+        assert len(sim_calls) == 0, "Changing comboBtMode must NOT automatically run simulation"
+
+        # 2. Changing Strategy should NOT auto-run simulation
+        win.comboBtEngine.setCurrentIndex(0)
+        assert len(sim_calls) == 0, "Changing comboBtEngine must NOT automatically run simulation"
+
+        # 3. Changing Symbol should NOT auto-run simulation
+        if hasattr(win, "comboBtSymbol"):
+            win.comboBtSymbol.setCurrentIndex((win.comboBtSymbol.currentIndex() + 1) % max(1, win.comboBtSymbol.count()))
+            assert len(sim_calls) == 0, "Changing comboBtSymbol must NOT automatically run simulation"
+
+        # 4. Re-entrancy guard test: when _is_simulating is True, _on_run_clicked does nothing
+        ctrl._is_simulating = True
+        ctrl._on_run_clicked()
+        assert len(sim_calls) == 0, "_on_run_clicked must abort immediately when _is_simulating is True"
+        ctrl._is_simulating = False
+
+
 

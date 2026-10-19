@@ -66,6 +66,7 @@ class BacktestWorkbenchController:
         self.last_report = None
         self.daily_returns = None
         self.current_symbol = "XAUUSD"
+        self._is_simulating = False
         self._setup_controls()
         self._setup_charts()
         self._bind_events()
@@ -795,12 +796,10 @@ class BacktestWorkbenchController:
         self.current_symbol = sym.strip()
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [SYMBOL] Cặp tiền kiểm thử: {self.current_symbol}")
-        self._run_simulation_internal(is_initial=False)
 
     def _on_tf_changed(self, tf: str):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [TIMEFRAME] Khung thời gian kiểm thử: {tf}")
-        self._run_simulation_internal(is_initial=False)
 
     def _on_strategy_changed(self, idx):
         if not hasattr(self.window, "comboBtEngine"):
@@ -809,7 +808,6 @@ class BacktestWorkbenchController:
         strat_name = strat_data.get("name") if strat_data else self.window.comboBtEngine.currentText()
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [STRATEGY] Chuyển đổi chiến lược kiểm thử sang: {strat_name}")
-        self._run_simulation_internal(is_initial=False)
 
     def _reload_strategy_combobox(self):
         if not hasattr(self.window, "comboBtEngine"):
@@ -859,7 +857,6 @@ class BacktestWorkbenchController:
             self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 2: Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py). Bơm từng nến qua đúng hàm analyze() của Strategy kế thừa BaseStrategy (Mô phỏng 100% chuẩn Live).")
         else:
             self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 1: Vectorized Engine (engine_vectorized.py). Quét nhanh nhiều năm dữ liệu bằng ma trận để tìm tham số tối ưu (Hyperparameter Optimization).")
-        self._run_simulation_internal(is_initial=False)
 
     def set_symbol(self, sym: str):
         if not sym or not hasattr(self, "comboBtSymbol"):
@@ -877,6 +874,8 @@ class BacktestWorkbenchController:
         self.current_symbol = clean_sym
 
     def _on_run_clicked(self):
+        if getattr(self, "_is_simulating", False):
+            return
         try:
             if hasattr(self.window, "btnRunBacktest"):
                 self.window.btnRunBacktest.setEnabled(False)
@@ -902,8 +901,19 @@ class BacktestWorkbenchController:
                 self.window.btnRunBacktest.setFixedWidth(86)
 
     def _run_simulation_internal(self, is_initial: bool = False):
-        from frontend.controllers.backtest.simulation_runner import run_simulation_internal
-        return run_simulation_internal(self, is_initial)
+        if getattr(self, "_is_simulating", False):
+            return None
+        self._is_simulating = True
+        btn = getattr(self.window, "btnRunBacktest", None)
+        if btn and btn.isEnabled() and not is_initial:
+            btn.setEnabled(False)
+            btn.setText("RUNNING...")
+            btn.setFixedWidth(86)
+        try:
+            from frontend.controllers.backtest.simulation_runner import run_simulation_internal
+            return run_simulation_internal(self, is_initial)
+        finally:
+            self._is_simulating = False
 
     def _on_export_report_clicked(self):
         """Generates full QuantStats HTML Tear Sheet and launches it in default browser."""
