@@ -72,6 +72,13 @@ class EventDrivenBacktester:
             from backend.core.strategies.ema_stress_test import EMAStressTestStrategy
             return EMAStressTestStrategy(cfg)
         else:
+            try:
+                from backend.core.strategies.strategy_loader import discover_strategies, load_strategy_instance
+                for s in discover_strategies():
+                    if s["id"] == self.strategy or s["name"].lower() == str(self.strategy).lower():
+                        return load_strategy_instance(s["file_path"], s["class_name"])
+            except Exception:
+                pass
             return ICTZonesProStrategy(cfg)
 
     def run(

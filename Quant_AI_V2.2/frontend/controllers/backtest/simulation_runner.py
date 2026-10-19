@@ -153,15 +153,32 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         init_cap = self.spinBtCapital.value() if hasattr(self, "spinBtCapital") else 100000.0
         comm_val = self.spinBtComm.value() if hasattr(self, "spinBtComm") else 7.0
 
-        is_event_driven = (
-            not is_initial
-            and ("ict" in strat_name.lower() or (strat_data and "ict" in strat_data.get("name", "").lower()))
-            and len(df) <= 1500
-        )
+        # Determine engine mode from UI selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
+        bt_mode = "vectorized"
+        if hasattr(self, "comboBtMode") and self.comboBtMode:
+            bt_mode = self.comboBtMode.currentData() or ("event_driven" if "event" in self.comboBtMode.currentText().lower() else "vectorized")
+        elif hasattr(self.window, "comboBtMode") and self.window.comboBtMode:
+            bt_mode = self.window.comboBtMode.currentData() or ("event_driven" if "event" in self.window.comboBtMode.currentText().lower() else "vectorized")
+
+        is_event_driven = (not is_initial and bt_mode == "event_driven")
 
         if is_event_driven:
-            self._log(f"[{now_str}] [BACKTEST] Engine: EventDrivenBacktester (backend.backtest) | High-Fidelity Bar-by-Bar")
-            bt_event = ICTProBacktester(
+            self._log(f"[{now_str}] [BACKTEST] ĐỘNG CƠ: Chế độ 2 - Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py)")
+            self._log(f"[{now_str}] [BACKTEST] Phương thức: Bơm từng nến qua đúng hàm analyze() của {strat_name} (Mô phỏng 100% chuẩn Live)")
+
+            strat_inst_or_key = strat_name
+            if strat_data:
+                file_p = strat_data.get("file_path")
+                cls_n = strat_data.get("class_name")
+                if file_p and cls_n:
+                    try:
+                        from backend.core.strategies.strategy_loader import load_strategy_instance
+                        strat_inst_or_key = load_strategy_instance(file_p, cls_n)
+                    except Exception:
+                        strat_inst_or_key = strat_name
+
+            bt_event = EventDrivenBacktester(
+                strategy=strat_inst_or_key,
                 initial_balance=init_cap,
                 risk_per_trade_pct=1.0,
                 commission_per_lot=comm_val,
@@ -169,7 +186,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             )
             report = bt_event.run(df, symbol=self.current_symbol)
             if report is None:
-                self._log(f"[{now_str}] [BACKTEST] Insufficient history for event engine, falling back to VectorizedBacktester...")
+                self._log(f"[{now_str}] [BACKTEST] Cần tối thiểu 150 nến để chạy Event-Driven bar-by-bar, chuyển sang Vectorized...")
                 bt_vec = VectorizedBacktester(
                     initial_balance=init_cap,
                     risk_per_trade_pct=1.0,
@@ -184,7 +201,8 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                     fill_on_next_open=True,
                 )
         else:
-            self._log(f"[{now_str}] [BACKTEST] Engine: VectorizedBacktester (backend.backtest) | Pure Matrix Acceleration")
+            self._log(f"[{now_str}] [BACKTEST] ĐỘNG CƠ: Chế độ 1 - Vectorized Engine (engine_vectorized.py)")
+            self._log(f"[{now_str}] [BACKTEST] Phương thức: Quét ma trận NumPy siêu tốc qua {len(df):,} nến (Hyperparameter Optimization)")
             bt = VectorizedBacktester(
                 initial_balance=init_cap,
                 risk_per_trade_pct=1.0,

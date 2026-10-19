@@ -124,8 +124,35 @@ class BacktestWorkbenchController:
 
         if hasattr(self.window, "comboBtEngine"):
             self.window.comboBtEngine.setFixedHeight(32)
-            self.window.comboBtEngine.setFixedWidth(230)
+            self.window.comboBtEngine.setFixedWidth(210)
             self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # 2b. Engine Mode Selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
+        if hasattr(self.window, "comboBtMode"):
+            self.comboBtMode = self.window.comboBtMode
+        else:
+            self.comboBtMode = QComboBox()
+            self.comboBtMode.setObjectName("comboBtMode")
+            setattr(self.window, "comboBtMode", self.comboBtMode)
+
+        self.comboBtMode.setFixedHeight(32)
+        self.comboBtMode.setFixedWidth(225)
+        self.comboBtMode.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.comboBtMode.blockSignals(True)
+        self.comboBtMode.clear()
+        self.comboBtMode.addItem("⚡ Mode 1: Vectorized (Fast Matrix)", "vectorized")
+        self.comboBtMode.addItem("🎯 Mode 2: Event-Driven (Bar-by-Bar)", "event_driven")
+        self.comboBtMode.setToolTip(
+            "LỰA CHỌN ĐỘNG CƠ BACKTEST (ENGINE MODE):\n\n"
+            "• Chế độ 1 - Vectorized Engine (engine_vectorized.py):\n"
+            "  Quét ma trận siêu tốc qua nhiều năm dữ liệu bằng NumPy vectorization.\n"
+            "  Thích hợp nhất để tối ưu hóa tìm siêu tham số (Hyperparameter Optimization).\n\n"
+            "• Chế độ 2 - Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py):\n"
+            "  Bơm từng nến qua đúng hàm analyze() của Strategy kế thừa BaseStrategy.\n"
+            "  Mô phỏng sát 100% điều kiện thực tế (Slippage, Commission, Intrabar touch) trước khi live."
+        )
+        self.comboBtMode.blockSignals(False)
+        self.comboBtMode.currentIndexChanged.connect(self._on_mode_changed)
 
         # Hide self-explanatory labels (TF:, Strategy:, Symbol:, Sample:)
         for lbl_name in ["lblBtTf", "lblBtStrategy", "lblBtSymbol"]:
@@ -193,10 +220,12 @@ class BacktestWorkbenchController:
                 layout.insertWidget(1, self.window.comboBtTf)
             if hasattr(self.window, "comboBtEngine"):
                 layout.insertWidget(2, self.window.comboBtEngine)
+            if hasattr(self, "comboBtMode"):
+                layout.insertWidget(3, self.comboBtMode)
 
-            # Insert divider 1 after comboBtEngine
+            # Insert divider 1 after comboBtMode
             div1 = _make_divider()
-            layout.insertWidget(3, div1)
+            layout.insertWidget(4, div1)
 
             # Find dateBtTo index and insert divider 2 right after it
             idx_to = -1
@@ -749,6 +778,14 @@ class BacktestWorkbenchController:
         self.current_symbol = sym.strip()
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [SYMBOL] Backtest target asset set to: {self.current_symbol}")
+
+    def _on_mode_changed(self, idx):
+        mode_data = self.comboBtMode.itemData(idx) if hasattr(self, "comboBtMode") else "vectorized"
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if mode_data == "event_driven":
+            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 2: Event-Driven Engine (Bar-by-Bar Fidelity). Bơm từng nến qua hàm analyze(), mô phỏng sát 100% thị trường thực tế.")
+        else:
+            self._log(f"[{now_str}] [ENGINE MODE] Đã kích hoạt Chế độ 1: Vectorized Engine (Fast Matrix). Quét ma trận NumPy siêu tốc nhiều năm, tối ưu hóa tìm siêu tham số.")
 
     def set_symbol(self, sym: str):
         if not sym or not hasattr(self, "comboBtSymbol"):

@@ -1089,6 +1089,15 @@
         <item><property name="text"><string>EMA Dual Cross (Resilience Benchmark)</string></property></item>
        </widget>
       </item>
+      <item>
+       <widget class="QComboBox" name="comboBtMode">
+        <property name="toolTip">
+         <string>Lựa chọn động cơ kiểm thử (Engine Mode): Chế độ 1 - Vectorized (Quét ma trận tối ưu siêu tham số) hoặc Chế độ 2 - Event-Driven (Bơm từng nến qua hàm analyze mô phỏng sát 100% thị trường thực tế)</string>
+        </property>
+        <item><property name="text"><string>⚡ Mode 1: Vectorized Engine (Fast Matrix)</string></property></item>
+        <item><property name="text"><string>🎯 Mode 2: Event-Driven Engine (Bar-by-Bar)</string></property></item>
+       </widget>
+      </item>
 
       <item><widget class="QLabel" name="lblBtFrom"><property name="text"><string>From:</string></property><property name="class"><string>btParamLabel</string></property></widget></item>
       <item>

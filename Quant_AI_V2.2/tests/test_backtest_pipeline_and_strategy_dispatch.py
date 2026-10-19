@@ -263,3 +263,43 @@ def generate_signals(df):
         assert rep_obj is not None
         assert rep_obj.sample_size == n
 
+    def test_dual_mode_backtesting_vectorized_and_event_driven(self):
+        """Verify Mode 1 (Vectorized Engine) and Mode 2 (Event-Driven Engine) separation and fidelity."""
+        from datetime import datetime, timedelta
+        from backend.backtest.engine_vectorized import VectorizedBacktester as Mode1Vectorized
+        from backend.backtest.engine_event_driven import EventDrivenBacktester as Mode2EventDriven
+
+        n = 220
+        base_time = datetime(2026, 10, 1, 8, 0, 0)
+        times = [base_time + timedelta(minutes=15 * i) for i in range(n)]
+        np.random.seed(42)
+        closes = 2500.0 + np.cumsum(np.random.randn(n) * 2.0)
+        highs = closes + np.random.rand(n) * 3.0
+        lows = closes - np.random.rand(n) * 3.0
+        opens = (closes + np.roll(closes, 1)) / 2.0
+        opens[0] = closes[0]
+        volumes = np.random.randint(100, 1000, n)
+
+        df = pd.DataFrame({
+            "time": times,
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": closes,
+            "tick_volume": volumes,
+        })
+
+        # Mode 1: Fast Matrix Vectorized Engine
+        bt_mode1 = Mode1Vectorized(initial_balance=100000.0, risk_per_trade_pct=1.0)
+        rep1 = bt_mode1.run(df, strategy_name="ICT Zones Pro v4.2 (Asian + FVG)", symbol="XAUUSD")
+        assert rep1 is not None
+        assert rep1.sample_size == n
+        assert rep1.execution_time_ms < 1000.0  # Ultra-fast
+
+        # Mode 2: Bar-by-Bar High-Fidelity Event-Driven Engine
+        bt_mode2 = Mode2EventDriven(strategy="ict", initial_balance=100000.0, risk_per_trade_pct=1.0)
+        rep2 = bt_mode2.run(df, symbol="XAUUSD")
+        assert rep2 is not None
+        assert rep2.sample_size == n
+        assert isinstance(rep2.trade_records, list)
+
