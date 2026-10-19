@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Strategy Registry & Ingestion Manager Dialog (PySide6 / Qt6)
+Strategy Manager Dialog (PySide6 / Qt6)
 Conforms 100% to Institutional Design System (DESIGN.md):
-- Pitch-black flat architecture (0px - 2px radius, zero neon, zero drop shadow)
+- Clean flat architecture matching VECTRA Light Theme (0px - 2px radius, zero neon, zero drop shadow)
 - Real-time dynamic discovery & AST sandbox security verification
 - One-click .py file import, template generation, and safe archiving
-- Pure Financial English
+- Pure Financial English, Zero Emojis
 """
 
 import os
@@ -15,13 +15,12 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtCore import Qt, Signal, QPoint
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QFrame, QFileDialog, QMessageBox,
-    QScrollArea, QSplitter, QSizePolicy
+    QSizePolicy
 )
-from loguru import logger
 
 from backend.core.strategies.strategy_loader import (
     discover_strategies,
@@ -35,9 +34,9 @@ from backend.core.strategies.strategy_loader import (
 
 class StrategyManagerDialog(QDialog):
     """
-    Institutional Strategy Registry & Lifecycle Manager Modal Dialog.
+    Institutional Strategy Lifecycle Manager Modal Dialog.
     Allows quantitative researchers to inspect, import, template, archive,
-    and open strategies without modifying core terminal source code.
+    and activate strategies cleanly without modifying core terminal source code.
     """
 
     strategy_list_updated = Signal()
@@ -45,8 +44,8 @@ class StrategyManagerDialog(QDialog):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self.setWindowTitle("STRATEGY REGISTRY & INGESTION MANAGER")
-        self.setFixedSize(760, 520)
+        self.setWindowTitle("STRATEGY MANAGER")
+        self.setFixedSize(720, 480)
         self.setModal(True)
         self.strategies: List[Dict[str, Any]] = []
         self.selected_strategy: Optional[Dict[str, Any]] = None
@@ -58,35 +57,36 @@ class StrategyManagerDialog(QDialog):
     def _setup_styling(self):
         self.setStyleSheet("""
             QDialog {
-                background-color: #070a12;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                color: #f8fafc;
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
+                color: #0f172a;
             }
             QLabel {
-                color: #94a3b8;
+                color: #475569;
                 font-family: 'Segoe UI', -apple-system, sans-serif;
             }
             QListWidget {
-                background-color: #030407;
-                border: 1px solid rgba(255, 255, 255, 0.06);
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
                 border-radius: 2px;
-                color: #e2e8f0;
+                color: #0f172a;
                 font-family: 'Consolas', monospace;
                 font-size: 11px;
                 outline: none;
             }
             QListWidget::item {
-                padding: 8px 10px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+                padding: 7px 10px;
+                border-bottom: 1px solid #f1f5f9;
             }
             QListWidget::item:selected {
-                background-color: #111827;
-                color: #38bdf8;
-                border-left: 2px solid #38bdf8;
+                background-color: #f1f5f9;
+                color: #0f172a;
+                font-weight: 700;
+                border-left: 2px solid #0f172a;
             }
             QListWidget::item:hover:!selected {
-                background-color: #0c101d;
-                color: #f8fafc;
+                background-color: #f8fafc;
+                color: #0f172a;
             }
             QPushButton {
                 font-family: 'Segoe UI', sans-serif;
@@ -94,51 +94,40 @@ class StrategyManagerDialog(QDialog):
                 font-weight: 600;
                 border-radius: 2px;
                 padding: 5px 12px;
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
+                color: #0f172a;
             }
-            QPushButton#btnImport {
-                background-color: #0284c7;
-                border: 1px solid #38bdf8;
+            QPushButton:hover {
+                background-color: #f8fafc;
+                border-color: #0f172a;
+            }
+            QPushButton#btnActivate {
+                background-color: #0f172a;
+                border: 1px solid #0f172a;
                 color: #ffffff;
+                font-weight: 700;
             }
-            QPushButton#btnImport:hover {
-                background-color: #0369a1;
-            }
-            QPushButton#btnSecondary {
-                background-color: #101524;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                color: #cbd5e1;
-            }
-            QPushButton#btnSecondary:hover {
-                background-color: #161d31;
-                color: #ffffff;
-                border-color: rgba(255, 255, 255, 0.16);
+            QPushButton#btnActivate:hover {
+                background-color: #1e293b;
             }
             QPushButton#btnDelete {
-                background-color: rgba(239, 68, 68, 0.12);
-                border: 1px solid rgba(239, 68, 68, 0.4);
-                color: #f87171;
+                background-color: #ffffff;
+                border: 1px solid #fca5a5;
+                color: #dc2626;
             }
             QPushButton#btnDelete:hover {
-                background-color: rgba(239, 68, 68, 0.25);
-                color: #ffffff;
+                background-color: #fef2f2;
                 border-color: #ef4444;
             }
             QPushButton#btnDelete:disabled {
-                background-color: #0a0d16;
-                border: 1px solid rgba(255, 255, 255, 0.04);
-                color: #475569;
-            }
-            QPushButton#btnRunTest {
-                background-color: #15803d;
-                border: 1px solid #22c55e;
-                color: #ffffff;
-            }
-            QPushButton#btnRunTest:hover {
-                background-color: #166534;
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                color: #94a3b8;
             }
             QFrame#panelInspector {
-                background-color: #030407;
-                border: 1px solid rgba(255, 255, 255, 0.06);
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
                 border-radius: 2px;
             }
         """)
@@ -152,19 +141,14 @@ class StrategyManagerDialog(QDialog):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
         
-        lbl_title = QLabel("QUANTITATIVE STRATEGY REGISTRY")
-        lbl_title.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700; color: #f8fafc; letter-spacing: 0.5px;")
+        lbl_title = QLabel("STRATEGY MANAGER")
+        lbl_title.setStyleSheet("font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700; color: #0f172a; letter-spacing: 0.5px;")
         header.addWidget(lbl_title)
-
         header.addStretch()
-
-        self.badge_guard = QLabel("● AST SECURITY SANDBOX: ENFORCED")
-        self.badge_guard.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 600; color: #22c55e; background-color: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); padding: 2px 8px; border-radius: 2px;")
-        header.addWidget(self.badge_guard)
 
         main_layout.addLayout(header)
 
-        # 2. Main Body Splitter (Left: Strategy List, Right: Inspector)
+        # 2. Main Body (Left: Strategy List, Right: Inspector)
         body_layout = QHBoxLayout()
         body_layout.setSpacing(10)
 
@@ -177,7 +161,8 @@ class StrategyManagerDialog(QDialog):
         col_left.addWidget(self.lbl_list_count)
 
         self.list_strategies = QListWidget()
-        self.list_strategies.setFixedWidth(280)
+        self.list_strategies.setFixedWidth(285)
+        self.list_strategies.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list_strategies.currentRowChanged.connect(self._on_strategy_selected)
         col_left.addWidget(self.list_strategies)
 
@@ -187,7 +172,7 @@ class StrategyManagerDialog(QDialog):
         col_right = QVBoxLayout()
         col_right.setSpacing(6)
 
-        lbl_inspect_title = QLabel("STRATEGY INSPECTION & COMPLIANCE")
+        lbl_inspect_title = QLabel("STRATEGY DETAILS")
         lbl_inspect_title.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 0.5px;")
         col_right.addWidget(lbl_inspect_title)
 
@@ -203,24 +188,24 @@ class StrategyManagerDialog(QDialog):
         insp_info.setSpacing(2)
 
         self.lbl_strat_name = QLabel("Select a strategy")
-        self.lbl_strat_name.setStyleSheet("font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #f8fafc;")
+        self.lbl_strat_name.setStyleSheet("font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #0f172a;")
         insp_info.addWidget(self.lbl_strat_name)
 
         self.lbl_strat_class = QLabel("class Name(BaseStrategy)")
-        self.lbl_strat_class.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11px; color: #38bdf8;")
+        self.lbl_strat_class.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11px; color: #0284c7;")
         insp_info.addWidget(self.lbl_strat_class)
         insp_top.addLayout(insp_info)
         insp_top.addStretch()
 
         self.badge_type = QLabel("CORE")
-        self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #94a3b8; background-color: #111827; border: 1px solid rgba(255, 255, 255, 0.1);")
+        self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #475569; background-color: #e2e8f0; border: 1px solid #cbd5e1;")
         insp_top.addWidget(self.badge_type)
         panel_layout.addLayout(insp_top)
 
         # Line divider
         div = QFrame()
         div.setFixedHeight(1)
-        div.setStyleSheet("background-color: rgba(255, 255, 255, 0.06);")
+        div.setStyleSheet("background-color: #e2e8f0;")
         panel_layout.addWidget(div)
 
         # Details Key-Value
@@ -234,7 +219,7 @@ class StrategyManagerDialog(QDialog):
             k_lbl.setFixedWidth(120)
             k_lbl.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10.5px; color: #64748b; font-weight: 600;")
             v_lbl = QLabel("--")
-            v_lbl.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10.5px; color: #e2e8f0;")
+            v_lbl.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10.5px; color: #0f172a;")
             row.addWidget(k_lbl)
             row.addWidget(v_lbl, 1)
             grid_info.addLayout(row)
@@ -246,56 +231,43 @@ class StrategyManagerDialog(QDialog):
         self.val_execution_fill = make_kv("Execution Model:")
         panel_layout.addLayout(grid_info)
 
-        # Rule Checklist Box
+        # Compact Compliance Box
         self.box_checklist = QFrame()
-        self.box_checklist.setStyleSheet("background-color: #070a12; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 2px; padding: 6px;")
+        self.box_checklist.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 2px; padding: 6px;")
         chk_layout = QVBoxLayout(self.box_checklist)
         chk_layout.setContentsMargins(6, 6, 6, 6)
         chk_layout.setSpacing(4)
         
-        chk_title = QLabel("ARCHITECTURE COMPLIANCE CHECKLIST:")
+        chk_title = QLabel("ARCHITECTURE & SECURITY COMPLIANCE:")
         chk_title.setStyleSheet("font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; color: #64748b; letter-spacing: 0.5px;")
         chk_layout.addWidget(chk_title)
 
-        self.chk_base = QLabel("✓ Inherits BaseStrategy interface")
-        self.chk_base.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #22c55e;")
+        self.chk_base = QLabel("  Inherits BaseStrategy interface")
+        self.chk_base.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #15803d;")
         chk_layout.addWidget(self.chk_base)
 
-        self.chk_analyze = QLabel("✓ Implements analyze(df, macro_context) -> StrategySignal")
-        self.chk_analyze.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #22c55e;")
+        self.chk_analyze = QLabel("  Implements analyze(df, macro_context) -> StrategySignal")
+        self.chk_analyze.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #15803d;")
         chk_layout.addWidget(self.chk_analyze)
 
-        self.chk_sandbox = QLabel("✓ AST Sandbox Guard passed: 0 illegal calls")
-        self.chk_sandbox.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #22c55e;")
+        self.chk_sandbox = QLabel("  AST Sandbox Guard verified: 0 illegal calls")
+        self.chk_sandbox.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; color: #15803d;")
         chk_layout.addWidget(self.chk_sandbox)
 
         panel_layout.addWidget(self.box_checklist)
 
-        # Protection Notice
-        self.lbl_protection = QLabel("")
-        self.lbl_protection.setWordWrap(True)
-        self.lbl_protection.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 10.5px; color: #94a3b8;")
-        panel_layout.addWidget(self.lbl_protection)
-
         panel_layout.addStretch()
 
-        # Action Strip for Inspector
+        # Action Strip inside Inspector for Delete (when custom)
         insp_actions = QHBoxLayout()
         insp_actions.setSpacing(8)
 
-        self.btn_delete = QPushButton("🗑  Delete Strategy")
+        self.btn_delete = QPushButton("Delete Strategy")
         self.btn_delete.setObjectName("btnDelete")
         self.btn_delete.setFixedHeight(28)
         self.btn_delete.clicked.connect(self._on_delete_clicked)
         insp_actions.addWidget(self.btn_delete)
-
         insp_actions.addStretch()
-
-        self.btn_activate = QPushButton("▶  Set as Active Strategy")
-        self.btn_activate.setObjectName("btnRunTest")
-        self.btn_activate.setFixedHeight(28)
-        self.btn_activate.clicked.connect(self._on_activate_clicked)
-        insp_actions.addWidget(self.btn_activate)
 
         panel_layout.addLayout(insp_actions)
         col_right.addWidget(self.panel_inspect)
@@ -303,43 +275,44 @@ class StrategyManagerDialog(QDialog):
 
         main_layout.addLayout(body_layout, 1)
 
-        # 3. Bottom Operations Ribbon
+        # 3. Bottom Operations Ribbon (Clean flat layout: Import, Open Folder | Close, Set Active)
         bottom_bar = QHBoxLayout()
         bottom_bar.setContentsMargins(0, 4, 0, 0)
         bottom_bar.setSpacing(8)
 
-        self.btn_import = QPushButton("+  Import .py File...")
+        self.btn_import = QPushButton("Import .py")
         self.btn_import.setObjectName("btnImport")
         self.btn_import.setFixedHeight(30)
         self.btn_import.clicked.connect(self._on_import_clicked)
         bottom_bar.addWidget(self.btn_import)
 
-        self.btn_open_folder = QPushButton("📂  Open Folder (Explorer)")
-        self.btn_open_folder.setObjectName("btnSecondary")
+        self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_open_folder.setObjectName("btnOpenFolder")
         self.btn_open_folder.setFixedHeight(30)
         self.btn_open_folder.clicked.connect(self._on_open_folder_clicked)
         bottom_bar.addWidget(self.btn_open_folder)
 
-        self.btn_new_template = QPushButton("📄  New Template")
-        self.btn_new_template.setObjectName("btnSecondary")
+        self.btn_new_template = QPushButton("New Template")
+        self.btn_new_template.setObjectName("btnNewTemplate")
         self.btn_new_template.setFixedHeight(30)
         self.btn_new_template.clicked.connect(self._on_new_template_clicked)
         bottom_bar.addWidget(self.btn_new_template)
 
-        self.btn_refresh = QPushButton("🔄  Refresh")
-        self.btn_refresh.setObjectName("btnSecondary")
-        self.btn_refresh.setFixedHeight(30)
-        self.btn_refresh.clicked.connect(self.refresh_strategies)
-        bottom_bar.addWidget(self.btn_refresh)
-
         bottom_bar.addStretch()
 
         btn_close = QPushButton("Close")
-        btn_close.setObjectName("btnSecondary")
+        btn_close.setObjectName("btnClose")
         btn_close.setFixedHeight(30)
         btn_close.setFixedWidth(70)
         btn_close.clicked.connect(self.accept)
         bottom_bar.addWidget(btn_close)
+
+        self.btn_activate = QPushButton("Set Active")
+        self.btn_activate.setObjectName("btnActivate")
+        self.btn_activate.setFixedHeight(30)
+        self.btn_activate.setFixedWidth(100)
+        self.btn_activate.clicked.connect(self._on_activate_clicked)
+        bottom_bar.addWidget(self.btn_activate)
 
         main_layout.addLayout(bottom_bar)
 
@@ -390,22 +363,20 @@ class StrategyManagerDialog(QDialog):
         self.val_file_path.setToolTip(file_path)
 
         if is_builtin:
-            self.badge_type.setText("CORE BENCHMARK")
-            self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #38bdf8; background-color: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25);")
-            self.val_lifecycle.setText("Built-in System Core (Immutable)")
-            self.lbl_protection.setText("🔒 <b>Protected Core Benchmark:</b> This strategy serves as an institutional reference point and fallback baseline. It cannot be deleted.")
+            self.badge_type.setText("CORE")
+            self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #475569; background-color: #e2e8f0; border: 1px solid #cbd5e1;")
+            self.val_lifecycle.setText("Built-in Core (Protected)")
             self.btn_delete.setEnabled(False)
-            self.btn_delete.setText("🔒  Locked (Core)")
+            self.btn_delete.setText("Core (Protected)")
         else:
-            self.badge_type.setText("USER CUSTOM")
-            self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #fbbf24; background-color: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.25);")
-            self.val_lifecycle.setText("Custom User Algorithm (Extensible)")
-            self.lbl_protection.setText("🔓 <b>User Custom Strategy:</b> You can freely edit, run backtest, or delete this strategy when no longer required.")
+            self.badge_type.setText("CUSTOM")
+            self.badge_type.setStyleSheet("font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 2px; color: #b45309; background-color: #fef3c7; border: 1px solid #fde68a;")
+            self.val_lifecycle.setText("Custom User Strategy")
             self.btn_delete.setEnabled(True)
-            self.btn_delete.setText("🗑  Delete Strategy")
+            self.btn_delete.setText("Delete Strategy")
 
-        self.val_engine_mode.setText("Mode 1 (Vectorized) & Mode 2 (Event-Driven)")
-        self.val_execution_fill.setText("Next-Bar Open Fill (0 Lookahead)")
+        self.val_engine_mode.setText("Vectorized & Event-Driven")
+        self.val_execution_fill.setText("Next-Bar Open Fill")
 
     def _on_import_clicked(self):
         """Pops up file dialog to import a .py strategy file."""
@@ -426,10 +397,9 @@ class StrategyManagerDialog(QDialog):
                 f"Successfully imported and validated strategy:\n\n"
                 f"• Class: {strat_info.get('class_name')}\n"
                 f"• Target: {strat_info.get('file_name')}\n\n"
-                f"The strategy is now ready for Backtest and Live Execution."
+                f"The strategy is now ready for Backtest and Execution."
             )
             self.refresh_strategies()
-            # Select newly imported strategy
             for i, s in enumerate(self.strategies):
                 if s.get("file_name") == strat_info.get("file_name"):
                     self.list_strategies.setCurrentRow(i)

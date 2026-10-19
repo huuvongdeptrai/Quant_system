@@ -109,8 +109,6 @@ class BacktestWorkbenchController:
             combo_tf = self.window.comboBtTf
             combo_tf.setFixedHeight(32)
             combo_tf.setFixedWidth(58)
-            combo_tf.setMaxVisibleItems(16)
-            curr_tf = combo_tf.currentText().strip() if combo_tf.currentText() else "M15"
             combo_tf.blockSignals(True)
             combo_tf.clear()
             tf_list = [
@@ -119,8 +117,8 @@ class BacktestWorkbenchController:
                 "D1", "W1", "MN1"
             ]
             combo_tf.addItems(tf_list)
-            idx = combo_tf.findText(curr_tf)
-            combo_tf.setCurrentIndex(idx if idx >= 0 else tf_list.index("M15"))
+            idx = combo_tf.findText("M15")
+            combo_tf.setCurrentIndex(idx if idx >= 0 else 5)
             combo_tf.blockSignals(False)
             combo_tf.currentTextChanged.connect(self._on_tf_changed)
 
@@ -132,36 +130,19 @@ class BacktestWorkbenchController:
             self._reload_strategy_combobox()
             combo.currentIndexChanged.connect(self._on_strategy_changed)
 
-        # Strategy Ingestion & Lifecycle Micro-buttons
-        self.btnBtImportStrat = QPushButton("+")
-        self.btnBtImportStrat.setObjectName("btnBtImportStrat")
-        self.btnBtImportStrat.setFixedHeight(32)
-        self.btnBtImportStrat.setFixedWidth(24)
-        self.btnBtImportStrat.setToolTip("Import custom strategy script (.py)...")
-        self.btnBtImportStrat.setStyleSheet(
-            "QPushButton#btnBtImportStrat {"
-            " background-color: #0284c7; border: 1px solid #38bdf8; border-radius: 2px;"
-            " color: #ffffff; font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold;"
-            " padding: 0px;"
-            "}"
-            "QPushButton#btnBtImportStrat:hover {"
-            " background-color: #0369a1;"
-            "}"
-        )
-        self.btnBtImportStrat.clicked.connect(self._open_import_dialog)
-
+        # Strategy Manager Micro-button (Placed adjacent to Strategy combobox)
         self.btnBtManageStrat = QPushButton("⚙")
         self.btnBtManageStrat.setObjectName("btnBtManageStrat")
-        self.btnBtManageStrat.setFixedHeight(32)
+        self.btnBtManageStrat.setFixedHeight(30)
         self.btnBtManageStrat.setFixedWidth(26)
-        self.btnBtManageStrat.setToolTip("Open Strategy Registry & Lifecycle Manager...")
+        self.btnBtManageStrat.setToolTip("Open Strategy Manager...")
         self.btnBtManageStrat.setStyleSheet(
             "QPushButton#btnBtManageStrat {"
-            " background-color: #101524; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 2px;"
-            " color: #94a3b8; font-size: 12px; padding: 0px;"
+            " background-color: #ffffff; border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 2px;"
+            " color: #475569; font-size: 12px; padding: 0px;"
             "}"
             "QPushButton#btnBtManageStrat:hover {"
-            " background-color: #161d31; color: #ffffff; border-color: rgba(255, 255, 255, 0.16);"
+            " background-color: #f1f5f9; color: #0f172a; border-color: #0f172a;"
             "}"
         )
         self.btnBtManageStrat.clicked.connect(self._open_strategy_manager)
@@ -241,7 +222,7 @@ class BacktestWorkbenchController:
             self.spinBtComm.setFixedWidth(102)
 
         # Reorder layout to guarantee strict sequence:
-        # [Symbol ▾] [TF ▾] [Strategy ▾] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
+        # [Symbol ▾] [TF ▾] [Strategy ▾] [⚙] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
         if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
             layout = self.window.frameBtParams.layout()
             layout.insertWidget(0, self.comboBtSymbol)
@@ -249,12 +230,10 @@ class BacktestWorkbenchController:
                 layout.insertWidget(1, self.window.comboBtTf)
             if hasattr(self.window, "comboBtEngine"):
                 layout.insertWidget(2, self.window.comboBtEngine)
-            if hasattr(self, "btnBtImportStrat"):
-                layout.insertWidget(3, self.btnBtImportStrat)
             if hasattr(self, "btnBtManageStrat"):
-                layout.insertWidget(4, self.btnBtManageStrat)
+                layout.insertWidget(3, self.btnBtManageStrat)
             if hasattr(self, "comboBtMode"):
-                layout.insertWidget(5, self.comboBtMode)
+                layout.insertWidget(4, self.comboBtMode)
 
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
@@ -293,11 +272,20 @@ class BacktestWorkbenchController:
         # Chuẩn hóa frameBtParams thành thanh công cụ phẳng hiện đại (loại bỏ khoảng trống trên)
         if hasattr(self.window, "frameBtParams"):
             self.window.frameBtParams.setTitle("")
-            self.window.frameBtParams.setFixedHeight(38)
+            self.window.frameBtParams.setFixedHeight(36)
+            self.window.frameBtParams.setStyleSheet("""
+                QGroupBox#frameBtParams {
+                    background-color: #ffffff;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 2px;
+                    margin: 0px;
+                    padding: 0px;
+                }
+            """)
             if self.window.frameBtParams.layout():
                 self.window.frameBtParams.layout().setContentsMargins(6, 2, 6, 2)
                 self.window.frameBtParams.layout().setSpacing(4)
-            # Wrap frameBtParams in QScrollArea so its 25 controls never enforce a huge minimum window width
+            # Wrap frameBtParams in QScrollArea so its controls never enforce a huge minimum window width
             if hasattr(self.window, "tab_5") and not hasattr(self.window, "scrollBtParams"):
                 vl_tab5 = self.window.tab_5.layout()
                 if vl_tab5:
@@ -306,11 +294,28 @@ class BacktestWorkbenchController:
                     scroll_bt.setObjectName("scrollBtParams")
                     scroll_bt.setWidget(self.window.frameBtParams)
                     scroll_bt.setWidgetResizable(True)
-                    scroll_bt.setFixedHeight(42)
+                    scroll_bt.setFixedHeight(36)
                     scroll_bt.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                     scroll_bt.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                     scroll_bt.setFrameShape(QFrame.NoFrame)
-                    scroll_bt.setStyleSheet("QScrollArea#scrollBtParams { border: none; background: transparent; } QScrollBar { height: 0px; }")
+                    scroll_bt.setStyleSheet("""
+                        QScrollArea#scrollBtParams {
+                            border: none;
+                            background: transparent;
+                            margin: 0px;
+                            padding: 0px;
+                        }
+                        QScrollArea#scrollBtParams > QWidget > QWidget {
+                            background: transparent;
+                            border: none;
+                        }
+                        QScrollBar {
+                            height: 0px;
+                            width: 0px;
+                            background: transparent;
+                            border: none;
+                        }
+                    """)
                     self.window.scrollBtParams = scroll_bt
                     vl_tab5.insertWidget(0, scroll_bt)
 
@@ -665,6 +670,8 @@ class BacktestWorkbenchController:
             self.window.btnRunBacktest.clicked.connect(self._on_run_clicked)
         if hasattr(self.window, "btnExportReport"):
             self.window.btnExportReport.clicked.connect(self._on_export_report_clicked)
+        if hasattr(self.window, "btnImportStrat"):
+            self.window.btnImportStrat.clicked.connect(self._open_import_dialog)
 
         # Gán sự kiện kiểm thử độ bền hệ thống khi người dùng nhấn chuột
         if hasattr(self.window, "rowStress1"):
