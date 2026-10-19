@@ -378,11 +378,45 @@ class WorkspaceHeaderController:
             action.triggered.connect(make_handler())
 
         menu.addSeparator()
+        act_import = menu.addAction("➕  Import Strategy Script (.py)...")
+        act_import.triggered.connect(self._open_import_strategy_file)
+
+        act_folder = menu.addAction("📂  Open Strategies Folder...")
+        act_folder.triggered.connect(self._open_strategies_folder)
+
+        act_mgr = menu.addAction("⚙  Strategy Registry & Manager...")
+        act_mgr.triggered.connect(self._open_strategy_manager_dialog)
+
+        menu.addSeparator()
         act_ind = menu.addAction("⚙  Indicator Settings (Market Profile, Oscillators)...")
         if hasattr(self.window, "open_indicators"):
             act_ind.triggered.connect(self.window.open_indicators)
 
         menu.exec(self.btn_top_ind.mapToGlobal(QPoint(0, self.btn_top_ind.height() + 2)))
+
+    def _open_import_strategy_file(self):
+        from frontend.widgets.strategy_manager_dialog import StrategyManagerDialog
+        dlg = StrategyManagerDialog(self.window)
+        dlg.strategy_activated.connect(self._apply_strategy_switch)
+        dlg._on_import_clicked()
+
+    def _open_strategies_folder(self):
+        from backend.core.strategies.strategy_loader import get_strategies_dir
+        strat_dir = get_strategies_dir()
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(strat_dir))
+            else:
+                import subprocess
+                subprocess.Popen(["xdg-open", str(strat_dir)])
+        except Exception as e:
+            logger.warning(f"Failed to open strategies folder: {e}")
+
+    def _open_strategy_manager_dialog(self):
+        from frontend.widgets.strategy_manager_dialog import StrategyManagerDialog
+        dlg = StrategyManagerDialog(self.window)
+        dlg.strategy_activated.connect(self._apply_strategy_switch)
+        dlg.exec()
 
     def _apply_strategy_switch(self, strat_id, strat_name):
         """Centralized switch of active trading strategy."""

@@ -103,6 +103,200 @@ def import_strategy_file(source_path: str) -> Tuple[bool, str, Optional[Dict[str
         return False, f"Copy error: {e}", None
 
 
+def delete_strategy_file(strategy_id_or_file_path: str) -> Tuple[bool, str]:
+    """
+    Safely archives/removes a custom strategy file.
+    Protected built-in strategies (ict_strategy.py, wyckoff_vectorized.py, ema_stress_test.py) cannot be deleted.
+    Custom strategies are moved to 'backend/core/strategies/archive/' for safety.
+    """
+    strat_dir = get_strategies_dir()
+    protected_files = {
+        "ict_strategy.py",
+        "wyckoff_vectorized.py",
+        "ema_stress_test.py",
+        "__init__.py",
+        "strategy_loader.py",
+        "base_strategy.py",
+    }
+
+    # Resolve target file path
+    target_path = None
+    p_cand = Path(strategy_id_or_file_path)
+    if p_cand.exists() and p_cand.is_file():
+        target_path = p_cand
+    else:
+        # Search by id or stem
+        for py_file in strat_dir.glob("*.py"):
+            if (
+                py_file.stem == strategy_id_or_file_path
+                or f"strat_{py_file.stem}" == strategy_id_or_file_path
+                or py_file.name == strategy_id_or_file_path
+            ):
+                target_path = py_file
+                break
+
+    if not target_path or not target_path.exists():
+        return False, f"Strategy file not found: {strategy_id_or_file_path}"
+
+    if target_path.name in protected_files:
+        return False, f"Cannot delete protected core strategy: {target_path.name}"
+
+    archive_dir = strat_dir / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    dst_archive = archive_dir / target_path.name
+
+    if dst_archive.exists():
+        import time
+        dst_archive = archive_dir / f"{target_path.stem}_{int(time.time())}{target_path.suffix}"
+
+    try:
+        shutil.move(str(target_path), str(dst_archive))
+        return True, f"Strategy '{target_path.name}' archived to strategies/archive/"
+    except Exception as e:
+        return False, f"Failed to archive strategy file: {e}"
+
+
+def create_template_strategy(target_name: Optional[str] = None) -> Tuple[bool, str, Optional[str]]:
+    """
+    Generates a production-ready template strategy scaffold inheriting BaseStrategy.
+    Returns: (success, message, created_file_path)
+    """
+    strat_dir = get_strategies_dir()
+    name_clean = (target_name or "custom_strategy").lower().replace(" ", "_")
+    if not name_clean.endswith(".py"):
+        name_clean += ".py"
+
+    file_path = strat_dir / name_clean
+    if file_path.exists():
+        import time
+        name_clean = f"{Path(name_clean).stem}_{int(time.time())}.py"
+        file_path = strat_dir / name_clean
+
+    template_code = '''# -*- coding: utf-8 -*-
+"""
+Custom Quantitative Strategy Template for VECTRA Terminal.
+All custom strategies must inherit from BaseStrategy and implement analyze(df, macro_context).
+"""
+
+from typing import Dict, Any, List
+import pandas as pd
+import numpy as np
+from backend.core.strategies.base_strategy import BaseStrategy, StrategySignal, ChecklistItem, ChecklistStatus
+
+
+class CustomQuantitativeStrategy(BaseStrategy):
+    """
+    Custom Quantitative Strategy Implementation.
+    """
+
+    def __init__(self, config: Dict[str, Any] = None):
+        super().__init__(config)
+        self.strategy_id = "custom_quant_strategy"
+        self.name = "Custom Quant Strategy"
+        self.fast_ma_period = self.config.get("fast_period", 10)
+        self.slow_ma_period = self.config.get("slow_period", 30)
+
+    def get_metadata(self) -> Dict[str, Any]:
+        return {
+            "id": self.strategy_id,
+            "name": self.name,
+            "description": "Custom quantitative dual moving average breakout model.",
+            "author": "User Quantitative Researcher",
+            "version": "1.0",
+        }
+
+    def get_default_checklist(self) -> List[ChecklistItem]:
+        return [
+            ChecklistItem(key="Trend Alignment", value="Pending", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Volume Expansion", value="Pending", status=ChecklistStatus.PENDING),
+            ChecklistItem(key="Volatility Filter", value="Pending", status=ChecklistStatus.PENDING),
+        ]
+
+    def analyze(self, df: pd.DataFrame, macro_context: Dict[str, Any] = None) -> StrategySignal:
+        """
+        Bar-by-bar analysis function called by Backtest and Live Execution engines.
+        Must return StrategySignal with action, signal ('BUY'/'SELL'/'HOLD'), entry_price, sl, and tp1.
+        """
+        macro_context = macro_context or {}
+        if df is None or len(df) < max(self.slow_ma_period, 50):
+            return StrategySignal(
+                strategy_id=self.strategy_id,
+                strategy_name=self.name,
+                action="HOLD",
+                signal="HOLD",
+                entry_price=float(df["close"].iloc[-1]) if len(df) > 0 and "close" in df.columns else 0.0,
+                confidence=0.0,
+                checklist=self.get_default_checklist(),
+            )
+
+        # 1. Indicator calculations (NumPy arrays for maximum speed)
+        close_arr = df["close"].to_numpy(dtype=float)
+        high_arr = df["high"].to_numpy(dtype=float)
+        low_arr = df["low"].to_numpy(dtype=float)
+        last_price = float(close_arr[-1])
+
+        fast_ma = np.mean(close_arr[-self.fast_ma_period:])
+        slow_ma = np.mean(close_arr[-self.slow_ma_period:])
+
+        # 2. Signal evaluation logic
+        action = "HOLD"
+        sl = None
+        tp1 = None
+        confidence = 0.0
+
+        if fast_ma > slow_ma and close_arr[-1] > fast_ma:
+            action = "BUY"
+            sl = float(np.min(low_arr[-10:]))
+            risk = max(0.5, last_price - sl)
+            tp1 = float(last_price + risk * 2.0)
+            confidence = 0.80
+
+        elif fast_ma < slow_ma and close_arr[-1] < fast_ma:
+            action = "SELL"
+            sl = float(np.max(high_arr[-10:]))
+            risk = max(0.5, sl - last_price)
+            tp1 = float(last_price - risk * 2.0)
+            confidence = 0.80
+
+        checklist = [
+            ChecklistItem(
+                key="Trend Alignment",
+                value="Bullish Cross" if action == "BUY" else ("Bearish Cross" if action == "SELL" else "Neutral"),
+                status=ChecklistStatus.PASSED if action in ("BUY", "SELL") else ChecklistStatus.PENDING,
+            ),
+            ChecklistItem(
+                key="Volume Expansion",
+                value="Normal",
+                status=ChecklistStatus.PASSED,
+            ),
+            ChecklistItem(
+                key="Volatility Filter",
+                value="Active",
+                status=ChecklistStatus.PASSED,
+            ),
+        ]
+
+        return StrategySignal(
+            strategy_id=self.strategy_id,
+            strategy_name=self.name,
+            action=action,
+            signal=action,
+            entry_price=last_price,
+            sl=sl,
+            tp1=tp1,
+            confidence=confidence,
+            checklist=checklist,
+            metadata={"fast_ma": fast_ma, "slow_ma": slow_ma},
+        )
+'''
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(template_code)
+        return True, f"Created template at backend/core/strategies/{file_path.name}", str(file_path)
+    except Exception as e:
+        return False, f"Failed to create template: {e}", None
+
+
 def discover_strategies() -> List[Dict[str, Any]]:
     """
     Scans and returns all available strategies from the centralized 'strategies/' directory,
@@ -150,7 +344,7 @@ def discover_strategies() -> List[Dict[str, Any]]:
             seen_ids.add(b["file_name"])
 
     # 2. Scan all other .py files in strategies/ (including custom_ict_fvg.py and user files)
-    ignore_files = {"__init__.py", "strategy_loader.py"}
+    ignore_files = {"__init__.py", "strategy_loader.py", "base_strategy.py"}
     for py_file in sorted(strat_dir.glob("*.py")):
         if py_file.name in ignore_files or py_file.name in seen_ids:
             continue

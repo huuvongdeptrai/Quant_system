@@ -124,10 +124,46 @@ class BacktestWorkbenchController:
             combo_tf.currentTextChanged.connect(self._on_tf_changed)
 
         if hasattr(self.window, "comboBtEngine"):
-            self.window.comboBtEngine.setFixedHeight(32)
-            self.window.comboBtEngine.setFixedWidth(230)
-            self.window.comboBtEngine.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-            self.window.comboBtEngine.currentIndexChanged.connect(self._on_strategy_changed)
+            combo = self.window.comboBtEngine
+            combo.setFixedHeight(32)
+            combo.setFixedWidth(200)
+            combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            self._reload_strategy_combobox()
+            combo.currentIndexChanged.connect(self._on_strategy_changed)
+
+        # Strategy Ingestion & Lifecycle Micro-buttons
+        self.btnBtImportStrat = QPushButton("+")
+        self.btnBtImportStrat.setObjectName("btnBtImportStrat")
+        self.btnBtImportStrat.setFixedHeight(32)
+        self.btnBtImportStrat.setFixedWidth(24)
+        self.btnBtImportStrat.setToolTip("Import custom strategy script (.py)...")
+        self.btnBtImportStrat.setStyleSheet(
+            "QPushButton#btnBtImportStrat {"
+            " background-color: #0284c7; border: 1px solid #38bdf8; border-radius: 2px;"
+            " color: #ffffff; font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold;"
+            " padding: 0px;"
+            "}"
+            "QPushButton#btnBtImportStrat:hover {"
+            " background-color: #0369a1;"
+            "}"
+        )
+        self.btnBtImportStrat.clicked.connect(self._open_import_dialog)
+
+        self.btnBtManageStrat = QPushButton("⚙")
+        self.btnBtManageStrat.setObjectName("btnBtManageStrat")
+        self.btnBtManageStrat.setFixedHeight(32)
+        self.btnBtManageStrat.setFixedWidth(26)
+        self.btnBtManageStrat.setToolTip("Open Strategy Registry & Lifecycle Manager...")
+        self.btnBtManageStrat.setStyleSheet(
+            "QPushButton#btnBtManageStrat {"
+            " background-color: #101524; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 2px;"
+            " color: #94a3b8; font-size: 12px; padding: 0px;"
+            "}"
+            "QPushButton#btnBtManageStrat:hover {"
+            " background-color: #161d31; color: #ffffff; border-color: rgba(255, 255, 255, 0.16);"
+            "}"
+        )
+        self.btnBtManageStrat.clicked.connect(self._open_strategy_manager)
 
         # 2b. Engine Mode Selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
         if hasattr(self.window, "comboBtMode"):
@@ -212,8 +248,12 @@ class BacktestWorkbenchController:
                 layout.insertWidget(1, self.window.comboBtTf)
             if hasattr(self.window, "comboBtEngine"):
                 layout.insertWidget(2, self.window.comboBtEngine)
+            if hasattr(self, "btnBtImportStrat"):
+                layout.insertWidget(3, self.btnBtImportStrat)
+            if hasattr(self, "btnBtManageStrat"):
+                layout.insertWidget(4, self.btnBtManageStrat)
             if hasattr(self, "comboBtMode"):
-                layout.insertWidget(3, self.comboBtMode)
+                layout.insertWidget(5, self.comboBtMode)
 
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
@@ -770,6 +810,47 @@ class BacktestWorkbenchController:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [STRATEGY] Chuyển đổi chiến lược kiểm thử sang: {strat_name}")
         self._run_simulation_internal(is_initial=False)
+
+    def _reload_strategy_combobox(self):
+        if not hasattr(self.window, "comboBtEngine"):
+            return
+        combo = self.window.comboBtEngine
+        curr_text = combo.currentText()
+        combo.blockSignals(True)
+        combo.clear()
+        from backend.core.strategies.strategy_loader import discover_strategies
+        strats = discover_strategies()
+        selected_idx = 0
+        for i, s in enumerate(strats):
+            combo.addItem(s["name"], s)
+            if curr_text and (curr_text in s["name"] or s["name"] in curr_text):
+                selected_idx = i
+        combo.setCurrentIndex(selected_idx)
+        combo.blockSignals(False)
+
+    def _open_import_dialog(self):
+        from frontend.widgets.strategy_manager_dialog import StrategyManagerDialog
+        dlg = StrategyManagerDialog(self.window)
+        dlg.strategy_list_updated.connect(self._reload_strategy_combobox)
+        dlg.strategy_activated.connect(self._on_strategy_activated_from_dialog)
+        dlg._on_import_clicked()
+
+    def _open_strategy_manager(self):
+        from frontend.widgets.strategy_manager_dialog import StrategyManagerDialog
+        dlg = StrategyManagerDialog(self.window)
+        dlg.strategy_list_updated.connect(self._reload_strategy_combobox)
+        dlg.strategy_activated.connect(self._on_strategy_activated_from_dialog)
+        dlg.exec()
+
+    def _on_strategy_activated_from_dialog(self, strat_id, strat_name):
+        self._reload_strategy_combobox()
+        if hasattr(self.window, "comboBtEngine"):
+            combo = self.window.comboBtEngine
+            for i in range(combo.count()):
+                d = combo.itemData(i)
+                if d and (d.get("id") == strat_id or d.get("name") == strat_name):
+                    combo.setCurrentIndex(i)
+                    break
 
     def _on_mode_changed(self, idx):
         mode_data = self.comboBtMode.itemData(idx) if hasattr(self, "comboBtMode") else "vectorized"
