@@ -104,8 +104,8 @@ class StateRecoveryManager:
                 if any(getattr(p, "symbol", "").split(".")[0].replace("/", "").upper() == clean for p in all_pos):
                     return False
 
-        db_trades = self.db.get_open_trades(symbol=symbol)
-        if db_trades and len(db_trades) > 0:
+        db_trades = self.db.get_open_trades()
+        if db_trades:
             if any(t.get("symbol", "").split(".")[0].replace("/", "").upper() == clean for t in db_trades):
                 return False
 

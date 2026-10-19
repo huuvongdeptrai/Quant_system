@@ -681,6 +681,37 @@ def _update_panel_with_result(window, result):
             if order_res and order_res.get("status") == "success":
                 ticket = order_res.get("ticket", "OK")
                 event_bus.log_event.emit("", "SUCCESS", f"FULL-AUTO Autonomous Fill: {strat_sig} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+
+                try:
+                    from backend.database.db_manager import DatabaseManager
+                    db = DatabaseManager()
+                    if isinstance(ticket, int):
+                        db.record_open_trade(
+                            ticket=ticket,
+                            symbol=clean_sym,
+                            order_type=strat_sig,
+                            volume=lot_size,
+                            open_price=entry_val,
+                            sl=sl_val,
+                            tp=tp_val,
+                            comment=f"FULL_AUTO_{clean_sym}",
+                        )
+                except Exception as e_db:
+                    logger.debug(f"[AIPanel] DB record open trade error: {e_db}")
+
+                try:
+                    from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
+                    telegram_notifier.send_message(
+                        f"🚀 <b>ORDER FILLED: {strat_sig} {clean_sym}</b>\n"
+                        f"Ticket: <b>#{ticket}</b> | Mode: <b>FULL-AUTO</b>\n"
+                        f"Volume: <b>{lot_size:.2f} Lots</b> @ <b>{entry_val:.{digits}f}</b>\n"
+                        f"SL: <b>{sl_val:.{digits}f}</b> | TP: <b>{tp_val:.{digits}f}</b>\n"
+                        f"Model: <i>{ai_model}</i>",
+                        category="fill",
+                    )
+                except Exception as e_tg:
+                    logger.debug(f"[AIPanel] Telegram notification error: {e_tg}")
+
                 # Immediately transition UI to live position mode without any countdown timer
                 kwargs_order = {
                     "sym": clean_sym,

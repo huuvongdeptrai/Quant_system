@@ -164,5 +164,32 @@ class PositionGuard:
                         f"Trade #{tk} closed. PnL: ${pnl:+.2f}. Recorded to LoRA Dataset.",
                         "#3FB950" if pnl > 0 else "#DA3633",
                     )
+
+                    try:
+                        sym_c = trade.get("symbol", "")
+                        vol_c = float(trade.get("volume", 0.0))
+                        open_c = float(trade.get("open_price", 0.0))
+                        order_t = trade.get("order_type", "TRADE")
+                        deal_comment = str(reason).lower()
+
+                        if "tp" in deal_comment or (pnl > 0 and "sl" not in deal_comment):
+                            badge = "🎯 <b>[TAKE PROFIT HIT]</b>"
+                        elif "sl" in deal_comment or pnl < 0:
+                            badge = "🛑 <b>[STOP LOSS HIT]</b>"
+                        else:
+                            badge = "🏁 <b>[POSITION CLOSED]</b>"
+
+                        pnl_sign = "+" if pnl >= 0 else "-"
+                        telegram_notifier.send_message(
+                            f"{badge}\n"
+                            f"Ticket: <b>#{tk}</b> | Symbol: <b>{sym_c}</b>\n"
+                            f"Action: <b>{order_t}</b> {vol_c:.2f} Lots\n"
+                            f"Entry: <b>{open_c}</b> ➔ Exit: <b>{exit_price}</b>\n"
+                            f"PnL: <b>{pnl_sign}${abs(pnl):.2f}</b>\n"
+                            f"Reason: <i>{reason}</i>",
+                            category="sl_tp",
+                        )
+                    except Exception as e_tg:
+                        logger.debug(f"[PositionGuard] Telegram close notification error: {e_tg}")
         except (KeyError, ValueError, RuntimeError) as exc:
             logger.debug(f"[PositionGuard] Trade synchronization non-fatal exception: {exc}")

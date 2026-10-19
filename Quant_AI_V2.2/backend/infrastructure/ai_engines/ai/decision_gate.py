@@ -26,7 +26,8 @@ class DecisionGate:
         """Xac dinh vi tri gia hien tai so voi vung Ho tro / Khang cu xac thuc boi Volume (Volume-Validated Fractals)."""
 
         if rates is None:
-
+            if mt5.terminal_info() is not None:
+                mt5.symbol_select(symbol, True)
             rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 150)
 
         if rates is None or len(rates) == 0:
@@ -58,9 +59,13 @@ class DecisionGate:
         # 1. Lay 150 nen de EMA 50 hoi tu tot nhat
 
         if d1_rates is None:
+            if mt5.terminal_info() is not None:
+                mt5.symbol_select(symbol, True)
             d1_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, 150)
 
         if h4_rates is None:
+            if mt5.terminal_info() is not None:
+                mt5.symbol_select(symbol, True)
             h4_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 0, 150)
 
         # Tinh toan Bias tung khung

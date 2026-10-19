@@ -157,3 +157,87 @@ class TestMultiAssetWatchlistAndIcons:
         for icon_name in ["icon_import.svg", "icon_folder.svg", "tool_gear.svg", "check_vector_emerald.svg"]:
             p = os.path.join(assets_dir, icon_name)
             assert os.path.exists(p), f"Asset {icon_name} must exist"
+
+    def test_position_guard_sync_closed_trades_sends_telegram_on_tp_sl(self):
+        """Verifies that PositionGuard sends Telegram notification whenever a position hits TP or SL."""
+        from backend.core.position_guard import PositionGuard
+        from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
+
+        mock_exec = MagicMock()
+        mock_db = MagicMock()
+        mock_db.get_open_trades.return_value = [
+            {"ticket": 5001, "symbol": "BTCUSD", "volume": 0.5, "open_price": 65000.0, "order_type": "BUY"},
+            {"ticket": 5002, "symbol": "XAUUSD", "volume": 1.0, "open_price": 2650.0, "order_type": "BUY"},
+        ]
+
+        guard = PositionGuard(execution_manager=mock_exec, db_manager=mock_db)
+
+        # Live positions: Only XAUUSD is still open, BTCUSD (ticket 5001) has closed!
+        pos_xau = MagicMock(ticket=5002)
+        mock_deal = MagicMock(profit=750.0, price=66500.0, comment="tp hit")
+
+        with patch.object(mt5, "positions_get", return_value=[pos_xau]), \
+             patch.object(mt5, "history_deals_get", return_value=[mock_deal]), \
+             patch.object(telegram_notifier, "send_message") as mock_tg:
+
+            guard.sync_closed_trades()
+
+            # Verify DB closed record
+            mock_db.record_close_trade.assert_called_with(ticket=5001, close_price=66500.0, pnl=750.0)
+
+            # Verify Telegram notification was sent
+            assert mock_tg.call_count >= 1
+            call_args = mock_tg.call_args[0][0]
+            assert "TAKE PROFIT HIT" in call_args
+            assert "5001" in call_args
+            assert "BTCUSD" in call_args
+            assert "+$750.00" in call_args
+            assert mock_tg.call_args[1].get("category") == "sl_tp"
+
+    def test_parallel_multi_asset_pipeline_execution_isolated(self):
+        """Verifies that Gold open trade does not prevent BotOrchestrator from executing BTCUSD."""
+        mock_strategy = MagicMock()
+        mock_strategy.analyze.return_value = {
+            "signal": "BUY",
+            "entry_price": 65000.0,
+            "sl": 64500.0,
+            "tp1": 66000.0,
+            "confidence": 0.90,
+        }
+        mock_risk = MagicMock()
+        mock_risk.calculate_lot_size.return_value = 0.50
+        mock_exec = MagicMock()
+        mock_exec.execute_market_order.return_value = {"status": "success", "ticket": 7777}
+        mock_prep = MagicMock()
+        mock_prep.process_technical_data.return_value = {"trend": "UP"}
+        mock_gate = MagicMock()
+        mock_gate.evaluate.return_value = {"decision": "BUY", "reason": "Gate passed"}
+
+        bot = BotOrchestrator(
+            strategy=mock_strategy,
+            risk_manager=mock_risk,
+            execution_manager=mock_exec,
+            data_preprocessor=mock_prep,
+            decision_gate=mock_gate,
+            symbols=["XAUUSD", "BTCUSD"],
+            max_open_trades=5,
+        )
+
+        pos_gold = MagicMock()
+        pos_gold.symbol = "XAUUSD"
+        pos_gold.ticket = 1001
+
+        fake_rates = [{"close": 65000.0, "time": 1700000000}]
+
+        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+             patch.object(mt5, "positions_get", return_value=[pos_gold]), \
+             patch.object(mt5, "symbol_select", return_value=True), \
+             patch.object(mt5, "copy_rates_from_pos", return_value=fake_rates), \
+             patch.object(bot.trade_dispatcher, "dispatch_market_order") as mock_dispatch:
+
+            bot.pipeline_execute("BTCUSD")
+
+            # BTCUSD was evaluated and order dispatch was called despite Gold being active!
+            assert mock_dispatch.call_count == 1
+            assert mock_dispatch.call_args[1]["symbol"] == "BTCUSD"
+            assert mock_dispatch.call_args[1]["signal"] == "BUY"

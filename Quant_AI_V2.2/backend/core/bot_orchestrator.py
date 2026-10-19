@@ -402,16 +402,23 @@ class BotOrchestrator(QtCore.QObject):
                 return
 
         # 3. Capacity & Position Gating
-        # 3a. Per-asset isolation: Single position per distinct symbol
-        positions = mt5.positions_get(symbol=sym)
-        if positions and len(positions) > 0:
-            return
-
-        # 3b. Portfolio capacity: Max concurrent open trades across universe
-        max_open = max(int(getattr(self, "max_open_trades", 3) or 3), 3)
+        clean_target = sym.split(".")[0].replace("/", "").upper()
         all_positions = mt5.positions_get()
-        if all_positions and len(all_positions) >= max_open:
-            return
+        if all_positions:
+            # 3a. Per-asset isolation: Single position per distinct symbol (Gold never blocks BTC)
+            if any(getattr(p, "symbol", "").split(".")[0].replace("/", "").upper() == clean_target for p in all_positions):
+                return
+
+            # 3b. Portfolio capacity: Max concurrent open trades across universe
+            max_open = int(getattr(self, "max_open_trades", 5) or 5)
+            if len(all_positions) >= max_open:
+                return
+
+        # Ensure market data subscription in Market Watch for background scanning
+        try:
+            mt5.symbol_select(sym, True)
+        except Exception:
+            pass
 
         rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
         if rates is None or len(rates) == 0:

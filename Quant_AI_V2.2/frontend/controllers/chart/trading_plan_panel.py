@@ -1253,6 +1253,12 @@ def evaluate_manual_compliance(window, symbol=None):
                 tp_val = float(tp_w.value())
                 is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
                 entry_ref = getattr(window, "_last_manual_entry", 0.0)
+                if not isinstance(entry_ref, (int, float)) or entry_ref <= 0.0:
+                    tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+                    if tick and hasattr(tick, "ask") and hasattr(tick, "bid") and isinstance(tick.ask, (int, float)) and tick.ask > 0 and tick.bid > 0:
+                        entry_ref = float(tick.ask if is_buy else tick.bid)
+                    else:
+                        entry_ref = 0.0
                 if entry_ref > 0.0 and sl_val > 0.0:
                     if is_buy and sl_val >= entry_ref:
                         checks["stops"] = {"passed": False, "msg": f"SL {sl_val} >= Buy {entry_ref}", "val": "INVALID"}
@@ -1665,8 +1671,11 @@ def sync_manual_copilot_quotes(window):
         window.spinManualSL.setRange(0.00001, 1000000.0)
         window.spinManualTP.setRange(0.00001, 1000000.0)
 
-        # Check if stops need re-alignment (uninitialized or wrong orientation for direction)
-        needs_realign = (cur_sl <= 0.0 or cur_tp <= 0.0)
+        # Check if stops need re-alignment (uninitialized or wrong orientation for direction or symbol changed)
+        sym_changed = (clean_sym != getattr(window, "_last_reseed_sym", None))
+        window._last_reseed_sym = clean_sym
+
+        needs_realign = sym_changed or (cur_sl <= 0.0 or cur_tp <= 0.0)
         if not needs_realign:
             if is_buy and (cur_sl >= ref_p or cur_tp <= ref_p):
                 needs_realign = True
@@ -1674,8 +1683,12 @@ def sync_manual_copilot_quotes(window):
                 needs_realign = True
 
         if needs_realign:
-            dist_sl = abs(old_entry - cur_sl) if cur_sl > 0.0 and abs(old_entry - cur_sl) > 0.00001 else default_dist
-            dist_tp = abs(cur_tp - old_entry) if cur_tp > 0.0 and abs(cur_tp - old_entry) > 0.00001 else (dist_sl * 2.0)
+            if sym_changed:
+                dist_sl = default_dist
+                dist_tp = default_dist * 2.0
+            else:
+                dist_sl = abs(old_entry - cur_sl) if cur_sl > 0.0 and abs(old_entry - cur_sl) > 0.00001 else default_dist
+                dist_tp = abs(cur_tp - old_entry) if cur_tp > 0.0 and abs(cur_tp - old_entry) > 0.00001 else (dist_sl * 2.0)
 
             new_sl = round(ref_p - dist_sl if is_buy else ref_p + dist_sl, digits)
             new_tp = round(ref_p + dist_tp if is_buy else ref_p - dist_tp, digits)
@@ -1758,6 +1771,37 @@ def execute_manual_quant_order(window):
             window.btnManualExecute.setEnabled(False)
             QTimer.singleShot(4000, lambda: _recalculate_manual_lot_and_rr(window))
         event_bus.log_event.emit("", "SUCCESS", f"VECTRA Manual Order Filled: {dir_str} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
+
+        try:
+            from backend.database.db_manager import DatabaseManager
+            db = DatabaseManager()
+            if isinstance(ticket, int):
+                db.record_open_trade(
+                    ticket=ticket,
+                    symbol=clean_sym,
+                    order_type=dir_str,
+                    volume=lot_size,
+                    open_price=entry_p,
+                    sl=sl_p,
+                    tp=tp_p,
+                    comment="VECTRA_Manual",
+                )
+        except Exception as e_db:
+            logger.debug(f"[TradingPlan] DB record manual order error: {e_db}")
+
+        try:
+            from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
+            dig = digits if "digits" in locals() else (2 if entry_p > 10 else 5)
+            telegram_notifier.send_message(
+                f"🚀 <b>MANUAL ORDER FILLED: {dir_str} {clean_sym}</b>\n"
+                f"Ticket: <b>#{ticket}</b>\n"
+                f"Volume: <b>{lot_size:.2f} Lots</b> @ <b>{entry_p:.{dig}f}</b>\n"
+                f"SL: <b>{sl_p:.{dig}f}</b> | TP: <b>{tp_p:.{dig}f}</b>",
+                category="fill",
+            )
+        except Exception as e_tg:
+            logger.debug(f"[TradingPlan] Telegram manual notification error: {e_tg}")
+
         if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "blotter_buttons"):
             qt = window.quant_terminal
             if "active" in qt.blotter_buttons:
