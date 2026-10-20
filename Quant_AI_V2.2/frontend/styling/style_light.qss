@@ -1920,7 +1920,7 @@ QDoubleSpinBox#spinManualPendingPrice:focus {
 
 QDoubleSpinBox#spinManualPendingPrice::up-button,
 QDoubleSpinBox#spinManualPendingPrice::down-button {
-    width: 14px;
-    background-color: #f1f5f9;
-    border: 1px solid #e2e8f0;
+    width: 0px;
+    height: 0px;
+    border: none;
 }
