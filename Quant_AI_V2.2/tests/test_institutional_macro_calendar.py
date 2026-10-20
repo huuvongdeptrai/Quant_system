@@ -39,7 +39,7 @@ def test_calendar_manager_ui_initialization_70_30(qapp):
     table = win.tableEconomicCalendar
     assert table is not None
     assert table.columnCount() == 8
-    assert table.horizontalHeaderItem(0).text() == "TIME (UTC+7)"
+    assert table.horizontalHeaderItem(0).text() == "TIME (VN)"
     assert table.horizontalHeaderItem(1).text() == "CURR"
     assert table.horizontalHeaderItem(2).text() == "IMPACT"
     assert table.horizontalHeaderItem(3).text() == "EVENT RELEASE"

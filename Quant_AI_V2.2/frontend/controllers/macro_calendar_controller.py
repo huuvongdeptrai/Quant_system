@@ -6,9 +6,11 @@ Conforms strictly to DESIGN.md:
 - Pitch-Black / Institutional Flat UI (border-radius: 0px to 3px)
 - Strict Monospace & Tabular figures (Consolas, text-align: right)
 - 4-Pillar Macro Matrix: Market Risk, Monetary Policy, Growth Cycle, Target Asset Macro Confluence
-- 70:30 Golden Ratio Splitter: High-Density Calendar (Left) + Semi-Auto Defense Desk (Right)
-- Real-time 1s Countdown Timer to upcoming tier-2 news release
-- Pure Financial English terminology (Zero verbose fluff, zero emojis)
+- 70:30 Golden Ratio Splitter: High-Density Calendar (Left) + Compact Semi-Auto Defense Desk (Right)
+- Accurate UTC Epoch Countdown (Zero timezone drift)
+- IMPACT column preserves HIGH/MED/LOW with muted alpha for past events
+- Prioritizes Target Asset (XAUUSD) for upcoming event defense
+- Guaranteed viewport containment (Bottom navigation tab bar remains permanently pinned)
 """
 
 import os
@@ -34,7 +36,7 @@ from PySide6.QtGui import QColor, QFont, QCursor
 
 from backend.infrastructure.data_providers.macro.calendar_engine import CalendarEngine
 from backend.infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
-from backend.core.event_risk_engine import COUNTRY_CURRENCY_MAP, USD_DEPENDENT_ASSETS
+from backend.core.event_risk_engine import EventRiskEngine, COUNTRY_CURRENCY_MAP, USD_DEPENDENT_ASSETS
 
 # Flat Country Color Badges (No Emoji flags, pure institutional text badges)
 COUNTRY_COLORS = {
@@ -68,6 +70,7 @@ class CalendarManager:
         self.window = window
         self.engine = CalendarEngine()
         self.regime_engine = MacroRegimeEngine()
+        self.risk_engine = EventRiskEngine()
         self._raw_events = []
         self._current_filter = "ALL"
         self._current_symbol = getattr(window, "current_sym", "XAUUSD")
@@ -102,6 +105,7 @@ class CalendarManager:
         tab_bg = "#070a12" if is_d else "#f8fafc"
         tab.setAutoFillBackground(True)
         tab.setStyleSheet(f"QWidget#tabCalendar {{ background-color: {tab_bg}; }}")
+        tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         existing_layout = tab.layout()
         if existing_layout:
@@ -114,8 +118,8 @@ class CalendarManager:
         else:
             self.root_layout = QVBoxLayout(tab)
 
-        self.root_layout.setContentsMargins(8, 6, 8, 6)
-        self.root_layout.setSpacing(6)
+        self.root_layout.setContentsMargins(6, 4, 6, 4)
+        self.root_layout.setSpacing(4)
 
         # 1. ROW 1: 4-Pillar Macro Matrix (Clean, no verbose description fluff)
         self._setup_macro_matrix_row()
@@ -134,33 +138,34 @@ class CalendarManager:
         fg_muted = "#94a3b8" if is_d else "#64748b"
 
         self.cards_frame = QFrame()
-        self.cards_frame.setFixedHeight(54)
+        self.cards_frame.setFixedHeight(48)
+        self.cards_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         h_lay = QHBoxLayout(self.cards_frame)
         h_lay.setContentsMargins(0, 0, 0, 0)
-        h_lay.setSpacing(6)
+        h_lay.setSpacing(5)
 
         # Helper to create compact card
         def _make_card(title_text):
             card = QFrame()
             card.setStyleSheet(
-                f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 8px; }}"
+                f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 2px 6px; }}"
             )
             lay = QVBoxLayout(card)
             lay.setContentsMargins(2, 2, 2, 2)
-            lay.setSpacing(2)
+            lay.setSpacing(1)
 
             top = QHBoxLayout()
             lbl_title = QLabel(title_text)
-            lbl_title.setStyleSheet(f"color: {fg_muted}; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+            lbl_title.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
             badge = QLabel("CALCULATING")
-            badge.setStyleSheet("font-family: Consolas; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; border: none;")
+            badge.setStyleSheet("font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; border: none;")
             top.addWidget(lbl_title)
             top.addStretch()
             top.addWidget(badge)
             lay.addLayout(top)
 
             lbl_metrics = QLabel("--")
-            lbl_metrics.setStyleSheet("font-family: Consolas; font-size: 11px; font-weight: bold; border: none;")
+            lbl_metrics.setStyleSheet("font-family: Consolas; font-size: 10.5px; font-weight: bold; border: none;")
             lay.addWidget(lbl_metrics)
             return card, badge, lbl_metrics
 
@@ -176,7 +181,7 @@ class CalendarManager:
         self.card_economic, self.badge_economic_state, self.lbl_economic_metrics = _make_card("3. ECONOMIC GROWTH")
         h_lay.addWidget(self.card_economic)
 
-        # Card 4: Target Asset Macro Confluence (Synthesizes net bias for main trading asset)
+        # Card 4: Target Asset Macro Confluence
         self.card_confluence, self.badge_confluence_state, self.lbl_confluence_metrics = _make_card(f"4. TARGET BIAS ({self._current_symbol})")
         h_lay.addWidget(self.card_confluence)
 
@@ -190,17 +195,18 @@ class CalendarManager:
         fg_muted = "#94a3b8" if is_d else "#64748b"
 
         self.frame_ctrl = QFrame()
-        self.frame_ctrl.setFixedHeight(28)
+        self.frame_ctrl.setFixedHeight(26)
+        self.frame_ctrl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.frame_ctrl.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 2px 6px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 1px 6px; }}"
         )
         c_lay = QHBoxLayout(self.frame_ctrl)
         c_lay.setContentsMargins(4, 0, 4, 0)
-        c_lay.setSpacing(6)
+        c_lay.setSpacing(5)
 
         # Filter buttons
         lbl_flt = QLabel("FILTER:")
-        lbl_flt.setStyleSheet(f"color: {fg_muted}; font-size: 9.5px; font-weight: bold; border: none;")
+        lbl_flt.setStyleSheet(f"color: {fg_muted}; font-size: 9px; font-weight: bold; border: none;")
         c_lay.addWidget(lbl_flt)
 
         self.filter_buttons = {}
@@ -212,7 +218,7 @@ class CalendarManager:
 
         for key, text in filters_spec:
             btn = QPushButton(text)
-            btn.setFixedHeight(20)
+            btn.setFixedHeight(18)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setCheckable(True)
             def _make_flt_handler(k):
@@ -225,30 +231,30 @@ class CalendarManager:
 
         sep1 = QFrame()
         sep1.setFixedWidth(1)
-        sep1.setFixedHeight(14)
+        sep1.setFixedHeight(12)
         sep1.setStyleSheet(f"background-color: {border}; border: none;")
         c_lay.addWidget(sep1)
 
         # Wire Alert Status (Compact, non-intrusive)
         self.lbl_wire_tag = QLabel("WIRE:")
-        self.lbl_wire_tag.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+        self.lbl_wire_tag.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9px; font-weight: bold; border: none;")
         c_lay.addWidget(self.lbl_wire_tag)
 
         self.lbl_wire_text = QLabel("NORMAL · NO BREAKING INTEL")
-        self.lbl_wire_text.setStyleSheet(f"color: {fg_muted}; font-size: 10px; font-family: 'Segoe UI', sans-serif; border: none;")
+        self.lbl_wire_text.setStyleSheet(f"color: {fg_muted}; font-size: 9.5px; font-family: 'Segoe UI', sans-serif; border: none;")
         c_lay.addWidget(self.lbl_wire_text, stretch=1)
 
         # Sync indicator & subtle refresh
         self.lbl_sync_status = QLabel("SYNCED: LIVE")
-        self.lbl_sync_status.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9.5px; border: none;")
+        self.lbl_sync_status.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9px; border: none;")
         c_lay.addWidget(self.lbl_sync_status)
 
         self.btn_refresh = QPushButton("↻")
-        self.btn_refresh.setFixedSize(20, 20)
+        self.btn_refresh.setFixedSize(18, 18)
         self.btn_refresh.setCursor(Qt.PointingHandCursor)
         self.btn_refresh.setToolTip("Refresh Economic Calendar & Intermarket Feed")
         self.btn_refresh.setStyleSheet(
-            "QPushButton { background-color: transparent; color: #0284c7; font-family: Consolas; font-size: 13px; font-weight: bold; border: none; } "
+            "QPushButton { background-color: transparent; color: #0284c7; font-family: Consolas; font-size: 12px; font-weight: bold; border: none; } "
             "QPushButton:hover { background-color: rgba(2, 132, 199, 0.15); border-radius: 2px; }"
         )
         self.btn_refresh.clicked.connect(self.refresh_calendar)
@@ -257,13 +263,15 @@ class CalendarManager:
         self.root_layout.addWidget(self.frame_ctrl)
 
     def _setup_main_splitter(self):
-        """Constructs 70:30 horizontal split: Economic Calendar on Left + Defense Desk on Right."""
+        """Constructs 70:30 horizontal split: Economic Calendar on Left + Compact Defense Desk on Right."""
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setObjectName("calendarSplitter")
         self.main_splitter.setHandleWidth(4)
+        self.main_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # --- LEFT PANE (70%): High-Density Calendar Table ---
         self.left_container = QWidget()
+        self.left_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         l_lay = QVBoxLayout(self.left_container)
         l_lay.setContentsMargins(0, 0, 0, 0)
         l_lay.setSpacing(0)
@@ -272,7 +280,7 @@ class CalendarManager:
         self.table.setObjectName("tableEconomicCalendar")
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels([
-            "TIME (UTC+7)",
+            "TIME (VN)",
             "CURR",
             "IMPACT",
             "EVENT RELEASE",
@@ -288,6 +296,7 @@ class CalendarManager:
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(False)
+        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         hdr = self.table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Fixed)
@@ -299,9 +308,9 @@ class CalendarManager:
         hdr.setSectionResizeMode(6, QHeaderView.Fixed)
         hdr.setSectionResizeMode(7, QHeaderView.Fixed)
 
-        self.table.setColumnWidth(0, 78)
-        self.table.setColumnWidth(1, 55)
-        self.table.setColumnWidth(2, 72)
+        self.table.setColumnWidth(0, 80)
+        self.table.setColumnWidth(1, 52)
+        self.table.setColumnWidth(2, 70)
         self.table.setColumnWidth(4, 75)
         self.table.setColumnWidth(5, 75)
         self.table.setColumnWidth(6, 75)
@@ -311,8 +320,9 @@ class CalendarManager:
         l_lay.addWidget(self.table)
         self.main_splitter.addWidget(self.left_container)
 
-        # --- RIGHT PANE (30%): Event Risk & Semi-Auto Defense Desk ---
+        # --- RIGHT PANE (30%): Compact Event Risk & Semi-Auto Defense Desk ---
         self.right_container = QWidget()
+        self.right_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._setup_defense_desk_ui()
         self.main_splitter.addWidget(self.right_container)
 
@@ -324,7 +334,7 @@ class CalendarManager:
         self.root_layout.addWidget(self.main_splitter, stretch=1)
 
     def _setup_defense_desk_ui(self):
-        """Constructs right-hand semi-auto defense desk and countdown monitor."""
+        """Constructs right-hand semi-auto defense desk and countdown monitor with strict vertical budget."""
         is_d = getattr(self.window, "is_dark_theme", False)
         bg = "#101524" if is_d else "#ffffff"
         border = "rgba(255, 255, 255, 0.08)" if is_d else "#e2e8f0"
@@ -332,122 +342,129 @@ class CalendarManager:
 
         r_lay = QVBoxLayout(self.right_container)
         r_lay.setContentsMargins(0, 0, 0, 0)
-        r_lay.setSpacing(6)
+        r_lay.setSpacing(4)
 
-        # Section 1: Upcoming Event Countdown Card
+        # Section 1: Upcoming Event Countdown Card (~105px)
         self.frame_countdown = QFrame()
         self.frame_countdown.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
         )
         c_lay = QVBoxLayout(self.frame_countdown)
-        c_lay.setContentsMargins(6, 6, 6, 6)
-        c_lay.setSpacing(4)
+        c_lay.setContentsMargins(4, 4, 4, 4)
+        c_lay.setSpacing(2)
 
+        top_c_row = QHBoxLayout()
         lbl_c_tag = QLabel("NEXT HIGH-IMPACT RELEASE")
-        lbl_c_tag.setStyleSheet("color: #0284c7; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
-        c_lay.addWidget(lbl_c_tag)
+        lbl_c_tag.setStyleSheet("color: #0284c7; font-family: Consolas; font-size: 9px; font-weight: bold; border: none;")
+        self.badge_target_relevance = QLabel("TARGET: DIRECT (XAUUSD)")
+        self.badge_target_relevance.setStyleSheet(
+            "background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); "
+            "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+        )
+        top_c_row.addWidget(lbl_c_tag)
+        top_c_row.addStretch()
+        top_c_row.addWidget(self.badge_target_relevance)
+        c_lay.addLayout(top_c_row)
 
         self.lbl_next_event_title = QLabel("US · CORE CPI MOM")
-        self.lbl_next_event_title.setStyleSheet("font-size: 12px; font-weight: bold; border: none;")
+        self.lbl_next_event_title.setStyleSheet("font-size: 11.5px; font-weight: bold; border: none;")
         c_lay.addWidget(self.lbl_next_event_title)
 
         self.lbl_next_event_time = QLabel("SCHEDULED: 19:30 VN (UTC+7)")
-        self.lbl_next_event_time.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 10px; border: none;")
+        self.lbl_next_event_time.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9.5px; border: none;")
         c_lay.addWidget(self.lbl_next_event_time)
 
         # Huge Monospace Countdown
         self.lbl_countdown_val = QLabel("T - 00:00:00")
         self.lbl_countdown_val.setStyleSheet(
-            "color: #ef4444; font-family: 'Consolas', monospace; font-size: 22px; font-weight: 900; letter-spacing: 1px; border: none; margin: 4px 0;"
+            "color: #ef4444; font-family: 'Consolas', monospace; font-size: 20px; font-weight: 900; letter-spacing: 1px; border: none; margin: 2px 0;"
         )
         c_lay.addWidget(self.lbl_countdown_val)
 
         self.lbl_lockout_status = QLabel("STATUS: MONITORING · WINDOW CLEAR")
         self.lbl_lockout_status.setStyleSheet(
-            "color: #22c55e; font-family: Consolas; font-size: 10.5px; font-weight: bold; border: none;"
+            "color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;"
         )
         c_lay.addWidget(self.lbl_lockout_status)
         r_lay.addWidget(self.frame_countdown)
 
-        # Section 2: Quantitative Defense Protocol (T-15m Execution Rules)
+        # Section 2: Quantitative Defense Protocol (~110px)
         self.frame_protocol = QFrame()
         self.frame_protocol.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
         )
         p_lay = QVBoxLayout(self.frame_protocol)
-        p_lay.setContentsMargins(6, 6, 6, 6)
-        p_lay.setSpacing(4)
+        p_lay.setContentsMargins(4, 4, 4, 4)
+        p_lay.setSpacing(2)
 
-        lbl_p_tag = QLabel("QUANTITATIVE DEFENSE PROTOCOL")
-        lbl_p_tag.setStyleSheet(f"color: {fg_muted}; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+        lbl_p_tag = QLabel("DEFENSE PROTOCOL (T-15M SHIELD)")
+        lbl_p_tag.setStyleSheet(f"color: {fg_muted}; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; border: none;")
         p_lay.addWidget(lbl_p_tag)
 
-        lbl_assets_hdr = QLabel("AFFECTED ASSETS:")
-        lbl_assets_hdr.setStyleSheet(f"color: {fg_muted}; font-size: 9px; font-weight: bold; border: none;")
-        self.lbl_desk_assets = QLabel("USD PAIRS, XAUUSD (GOLD), US30, NAS100")
-        self.lbl_desk_assets.setStyleSheet("font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
-        p_lay.addWidget(lbl_assets_hdr)
+        self.lbl_desk_assets = QLabel("AFFECTED ASSETS: USD PAIRS, XAUUSD, US30")
+        self.lbl_desk_assets.setStyleSheet("font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         p_lay.addWidget(self.lbl_desk_assets)
 
-        lbl_rules_hdr = QLabel("PRE-NEWS POSITION ACTIONS (T-15M):")
-        lbl_rules_hdr.setStyleSheet(f"color: {fg_muted}; font-size: 9px; font-weight: bold; border: none; margin-top: 4px;")
-        p_lay.addWidget(lbl_rules_hdr)
-
-        self.lbl_desk_rule1 = QLabel("• Profit >= 1.5R: Auto-Trailed SL to Breakeven (+buffer)")
-        self.lbl_desk_rule1.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: 600; border: none;")
-        self.lbl_desk_rule2 = QLabel("• Profit 0.5R - 1.5R: Partial Close 50% & Lock BE")
-        self.lbl_desk_rule2.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: 600; border: none;")
+        self.lbl_desk_rule1 = QLabel("• PnL >= +1.5R: Auto-Trail SL to Breakeven (+buffer)")
+        self.lbl_desk_rule1.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
+        self.lbl_desk_rule2 = QLabel("• PnL +0.5R to +1.5R: Partial Close 50% & Lock BE")
+        self.lbl_desk_rule2.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
         self.lbl_desk_rule3 = QLabel("• Negative PnL: Maintain original SL discipline")
-        self.lbl_desk_rule3.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9.5px; border: none;")
+        self.lbl_desk_rule3.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9px; border: none;")
         p_lay.addWidget(self.lbl_desk_rule1)
         p_lay.addWidget(self.lbl_desk_rule2)
         p_lay.addWidget(self.lbl_desk_rule3)
 
         r_lay.addWidget(self.frame_protocol)
 
-        # Section 3: Semi-Auto Execution Controls (Human Override)
+        # Section 3: Semi-Auto Execution Controls (~75px)
         self.frame_actions = QFrame()
         self.frame_actions.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
         )
         a_lay = QVBoxLayout(self.frame_actions)
-        a_lay.setContentsMargins(6, 6, 6, 6)
-        a_lay.setSpacing(6)
+        a_lay.setContentsMargins(4, 4, 4, 4)
+        a_lay.setSpacing(4)
 
-        lbl_a_tag = QLabel("SEMI-AUTO RISK CONTROLS")
-        lbl_a_tag.setStyleSheet(f"color: {fg_muted}; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+        lbl_a_tag = QLabel("SEMI-AUTO RISK OVERRIDE")
+        lbl_a_tag.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
         a_lay.addWidget(lbl_a_tag)
 
+        # 2 Buttons arranged side-by-side to save height
+        btns_row = QHBoxLayout()
+        btns_row.setSpacing(4)
+
         # Button 1: Force Defense Now
-        self.btn_force_defense = QPushButton("FORCE ARM DEFENSE NOW")
-        self.btn_force_defense.setFixedHeight(26)
+        self.btn_force_defense = QPushButton("FORCE DEFENSE")
+        self.btn_force_defense.setFixedHeight(24)
         self.btn_force_defense.setCursor(Qt.PointingHandCursor)
         self.btn_force_defense.setToolTip("Immediately trail profitable orders to Breakeven and lock 50% volume ahead of schedule.")
         self.btn_force_defense.setStyleSheet(
             "QPushButton { background-color: transparent; color: #f59e0b; border: 1px solid #f59e0b; "
-            "font-family: Consolas; font-size: 10px; font-weight: bold; border-radius: 2px; } "
+            "font-family: Consolas; font-size: 9.5px; font-weight: bold; border-radius: 2px; padding: 0 4px; } "
             "QPushButton:hover { background-color: rgba(245, 158, 11, 0.15); }"
         )
         self.btn_force_defense.clicked.connect(self._handle_force_defense)
-        a_lay.addWidget(self.btn_force_defense)
+        btns_row.addWidget(self.btn_force_defense)
 
         # Button 2: Override Lock
-        self.btn_override_lock = QPushButton("OVERRIDE LOCK (ALLOW TRADING)")
-        self.btn_override_lock.setFixedHeight(26)
+        self.btn_override_lock = QPushButton("OVERRIDE LOCK")
+        self.btn_override_lock.setFixedHeight(24)
         self.btn_override_lock.setCursor(Qt.PointingHandCursor)
         self.btn_override_lock.setCheckable(True)
         self.btn_override_lock.setToolTip("Override automated news blackout lockout if manual entry is strictly required.")
         self.btn_override_lock.setStyleSheet(
             "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); "
-            "font-family: Consolas; font-size: 10px; font-weight: bold; border-radius: 2px; } "
+            "font-family: Consolas; font-size: 9.5px; font-weight: bold; border-radius: 2px; padding: 0 4px; } "
             "QPushButton:checked { background-color: #ef4444; color: #ffffff; border-color: #ef4444; } "
             "QPushButton:hover:!checked { background-color: rgba(148, 163, 184, 0.1); }"
         )
         self.btn_override_lock.clicked.connect(self._handle_override_toggle)
-        a_lay.addWidget(self.btn_override_lock)
+        btns_row.addWidget(self.btn_override_lock)
+        a_lay.addLayout(btns_row)
 
         self.lbl_override_note = QLabel("RULE: ±15M BLACKOUT ENFORCED BY DEFAULT")
-        self.lbl_override_note.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9px; border: none; text-align: center;")
+        self.lbl_override_note.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 8.5px; border: none; text-align: center;")
         self.lbl_override_note.setAlignment(Qt.AlignCenter)
         a_lay.addWidget(self.lbl_override_note)
 
@@ -473,6 +490,7 @@ class CalendarManager:
         if self._current_filter == "TARGET":
             self.load_calendar()
         self._calculate_target_asset_bias()
+        self._auto_select_next_event()
 
     def _update_filter_button_styles(self, is_dark):
         """Styles filter buttons according to active state and theme."""
@@ -488,12 +506,12 @@ class CalendarManager:
             if is_active:
                 btn.setStyleSheet(
                     f"QPushButton {{ background-color: {act_bg}; color: {act_fg}; font-family: Consolas; "
-                    "font-size: 9.5px; font-weight: bold; border-radius: 2px; padding: 0 8px; border: none; }}"
+                    "font-size: 9px; font-weight: bold; border-radius: 2px; padding: 0 6px; border: none; }}"
                 )
             else:
                 btn.setStyleSheet(
                     f"QPushButton {{ background-color: {inact_bg}; color: {inact_fg}; font-family: Consolas; "
-                    f"font-size: 9.5px; font-weight: 500; border-radius: 2px; padding: 0 8px; border: 1px solid {border_col}; }} "
+                    f"font-size: 9px; font-weight: 500; border-radius: 2px; padding: 0 6px; border: 1px solid {border_col}; }} "
                     f"QPushButton:hover {{ background-color: {'#161d31' if is_dark else '#e2e8f0'}; color: {'#f8fafc' if is_dark else '#0f172a'}; }}"
                 )
 
@@ -528,7 +546,7 @@ class CalendarManager:
         market_badge = "RISK-OFF" if is_risk_off else "RISK-ON"
         self.badge_market_state.setText(market_badge)
         self.badge_market_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
             f"background-color: {'#ef4444' if is_risk_off else '#22c55e'}; color: #ffffff;"
         )
         self.lbl_market_metrics.setText(f"VIX: {vix:.2f}  ·  DXY: {dxy:.2f} {dxy_trend}")
@@ -552,7 +570,7 @@ class CalendarManager:
 
         self.badge_monetary_state.setText(mon_badge)
         self.badge_monetary_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
             f"background-color: {mon_bg}; color: #ffffff;"
         )
         self.lbl_monetary_metrics.setText(f"US10Y: {us10y:.3f}%  ·  5D: {sign}{d5:.3f}%")
@@ -572,7 +590,7 @@ class CalendarManager:
 
         self.badge_economic_state.setText(eco_badge)
         self.badge_economic_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
             f"background-color: {eco_bg}; color: #ffffff;"
         )
         score_part = eco_state.get('reason', '')
@@ -585,17 +603,17 @@ class CalendarManager:
 
         # Telegram Wire Intel Strip
         wire_msg = str(report.get("Telegram_News", ""))
-        if wire_msg and "không có" not in wire_msg.lower() and "no data" not in wire_msg.lower():
+        if wire_msg and "không có" not in wire_msg.lower() and "no data" not in wire_msg.lower() and "no emergency" not in wire_msg.lower():
             self.lbl_wire_tag.setText("WIRE ALERT:")
-            self.lbl_wire_tag.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+            self.lbl_wire_tag.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9px; font-weight: bold; border: none;")
             self.lbl_wire_text.setText(wire_msg)
-            self.lbl_wire_text.setStyleSheet("color: #f59e0b; font-size: 10px; font-weight: bold; border: none;")
+            self.lbl_wire_text.setStyleSheet("color: #f59e0b; font-size: 9.5px; font-weight: bold; border: none;")
         else:
             self.lbl_wire_tag.setText("WIRE:")
-            self.lbl_wire_tag.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+            self.lbl_wire_tag.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9px; font-weight: bold; border: none;")
             self.lbl_wire_text.setText("NORMAL · NO BREAKING INTEL")
             is_d = getattr(self.window, "is_dark_theme", False)
-            self.lbl_wire_text.setStyleSheet(f"color: {'#94a3b8' if is_d else '#64748b'}; font-size: 10px; border: none;")
+            self.lbl_wire_text.setStyleSheet(f"color: {'#94a3b8' if is_d else '#64748b'}; font-size: 9.5px; border: none;")
 
     def _calculate_target_asset_bias(self, is_risk_off=None, mon_badge="NEUTRAL", eco_badge="RECOVERY", dxy_trend="DOWN"):
         """Synthesizes net macro bias for target symbol (e.g. XAUUSD)."""
@@ -640,13 +658,13 @@ class CalendarManager:
         if hasattr(self, "badge_confluence_state"):
             self.badge_confluence_state.setText(bias_text)
             self.badge_confluence_state.setStyleSheet(
-                f"font-family: Consolas; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; "
+                f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
                 f"background-color: {bias_bg}; color: #ffffff;"
             )
             self.lbl_confluence_metrics.setText(desc_text)
 
     def load_calendar(self):
-        """Populates the 70% left table with past events dimmed and surprise delta."""
+        """Populates the 70% left table with accurate epoch comparison and preserved IMPACT badges."""
         t = self.table
         t.setRowCount(0)
         events = list(self._raw_events)
@@ -659,17 +677,13 @@ class CalendarManager:
             filtered = []
             for e in events:
                 cntry = e.get("country", "").upper()
-                mapped_cur = COUNTRY_CURRENCY_MAP.get(cntry, cntry)
-                if mapped_cur and mapped_cur in curr:
+                title = e.get("title", "")
+                if self.risk_engine.is_symbol_impacted_by_event(curr, cntry, title):
                     filtered.append(e)
-                elif cntry == "US":
-                    for dep in USD_DEPENDENT_ASSETS:
-                        if curr.startswith(dep) or dep in curr:
-                            filtered.append(e)
-                            break
             events = filtered
 
-        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        # Standard UTC epoch timestamp in seconds
+        now_utc_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
         current_date = None
         today = datetime.date.today()
         today_row = -1
@@ -679,7 +693,9 @@ class CalendarManager:
         for e in events:
             sort_key = e.get("sort_key", 0.0)
             try:
-                event_date = datetime.date.fromtimestamp(sort_key)
+                # Convert UTC epoch to local date for section headers
+                dt_local = datetime.datetime.fromtimestamp(sort_key, tz=datetime.timezone.utc).astimezone()
+                event_date = dt_local.date()
             except Exception:
                 event_date = today
 
@@ -691,29 +707,26 @@ class CalendarManager:
 
             row = t.rowCount()
             t.insertRow(row)
-            t.setRowHeight(row, 26)
+            t.setRowHeight(row, 24)
 
-            # Check if event has already passed (past release)
-            # sort_key was converted with +7h in calendar_engine
-            # Compare with UTC+7 timestamp
-            now_vn_ts = now_ts + (7 * 3600)
-            is_past = (sort_key < (now_vn_ts - 300))
+            # ACCURATE PAST CHECK: Event is in the past if sort_key was > 60 seconds ago in UTC epoch
+            is_past = (sort_key < (now_utc_ts - 60))
 
             text_alpha = "#64748b" if is_past else ("#f8fafc" if is_d else "#0f172a")
 
-            # Col 0: TIME (UTC+7)
+            # Col 0: TIME (VN)
             time_str = e.get("time", "").split(" ")[-1]
             t.setCellWidget(row, 0, self._cell(time_str, color=text_alpha, bold=True, font="Consolas"))
 
-            # Col 1: CURRENCY
+            # Col 1: CURR
             t.setCellWidget(row, 1, self._country_badge(e.get("country", "US"), is_past=is_past))
 
-            # Col 2: IMPACT
+            # Col 2: IMPACT (PRESERVES HIGH / MED / LOW with dimmed colors for past)
             t.setCellWidget(row, 2, self._impact_badge(e.get("impact", 0), is_past=is_past))
 
             # Col 3: EVENT RELEASE
             lbl_title = QLabel(f" {e.get('title', '')}")
-            lbl_title.setStyleSheet(f"font-size: 11px; font-weight: {'400' if is_past else '500'}; color: {text_alpha};")
+            lbl_title.setStyleSheet(f"font-size: 10.5px; font-weight: {'400' if is_past else '500'}; color: {text_alpha};")
             lbl_title.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             t.setCellWidget(row, 3, lbl_title)
 
@@ -734,12 +747,12 @@ class CalendarManager:
                     diff = act_num - fc_num
                     sign = "+" if diff > 0 else ""
                     if diff > 0.0001:
-                        act_col = "#22c55e"
-                        surprise_col = "#22c55e"
+                        act_col = "#22c55e" if not is_past else "#15803d"
+                        surprise_col = "#22c55e" if not is_past else "#15803d"
                         surprise_text = f"{sign}{diff:.1f} ▲"
                     elif diff < -0.0001:
-                        act_col = "#ef4444"
-                        surprise_col = "#ef4444"
+                        act_col = "#ef4444" if not is_past else "#b91c1c"
+                        surprise_col = "#ef4444" if not is_past else "#b91c1c"
                         surprise_text = f"{diff:.1f} ▼"
                     else:
                         surprise_text = "0.0 ="
@@ -762,12 +775,15 @@ class CalendarManager:
                 t.scrollToItem(item, QAbstractItemView.PositionAtTop)
 
     def _auto_select_next_event(self):
-        """Automatically selects the next upcoming high-impact event by default."""
+        """Prioritizes the next upcoming Tier-2 event for the active target asset (XAUUSD)."""
         t = self.table
-        now_vn_ts = datetime.datetime.now(datetime.timezone.utc).timestamp() + (7 * 3600)
+        now_utc_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        curr_sym = self._current_symbol.upper()
 
-        best_row = -1
-        min_future_gap = float("inf")
+        best_target_row = -1
+        min_target_gap = float("inf")
+        best_any_row = -1
+        min_any_gap = float("inf")
 
         for r in range(t.rowCount()):
             item = t.item(r, 0)
@@ -779,16 +795,26 @@ class CalendarManager:
 
             sort_key = e.get("sort_key", 0.0)
             impact = e.get("impact", 0)
+            cntry = e.get("country", "")
+            title = e.get("title", "")
 
-            # Prioritize future high impact events
-            if sort_key >= (now_vn_ts - 60):
-                gap = sort_key - now_vn_ts
-                if impact == 2 and gap < min_future_gap:
-                    min_future_gap = gap
-                    best_row = r
+            # Future events only
+            if sort_key >= (now_utc_ts - 60):
+                gap = sort_key - now_utc_ts
+                if impact == 2:
+                    # Check if event impacts target asset directly (e.g. US -> XAUUSD)
+                    if self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title):
+                        if gap < min_target_gap:
+                            min_target_gap = gap
+                            best_target_row = r
+                    if gap < min_any_gap:
+                        min_any_gap = gap
+                        best_any_row = r
 
-        if best_row != -1:
-            t.selectRow(best_row)
+        if best_target_row != -1:
+            t.selectRow(best_target_row)
+        elif best_any_row != -1:
+            t.selectRow(best_any_row)
         elif t.rowCount() > 1:
             t.selectRow(1)
 
@@ -811,7 +837,7 @@ class CalendarManager:
         self._update_defense_desk_display(event)
 
     def _update_defense_desk_display(self, event: dict):
-        """Refreshes the right desk with selected event details."""
+        """Refreshes the right desk with selected event details and target asset relevance."""
         cntry = event.get("country", "US")
         title = event.get("title", "")
         time_str = event.get("time", "")
@@ -820,21 +846,37 @@ class CalendarManager:
         self.lbl_next_event_title.setText(f"{cntry} · {title.upper()}")
         self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} VN (UTC+7)")
 
+        # Target relevance badge
+        curr_sym = self._current_symbol.upper()
+        is_direct = self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title)
+        if is_direct:
+            self.badge_target_relevance.setText(f"TARGET: DIRECT ({curr_sym})")
+            self.badge_target_relevance.setStyleSheet(
+                "background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); "
+                "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+            )
+        else:
+            self.badge_target_relevance.setText(f"TARGET: INDIRECT ({cntry})")
+            self.badge_target_relevance.setStyleSheet(
+                "background-color: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); "
+                "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+            )
+
         # Affected Assets mapping
         affected = []
         cur = COUNTRY_CURRENCY_MAP.get(cntry, cntry)
         if cur:
-            affected.append(f"{cur} FX PAIRS")
+            affected.append(f"{cur} PAIRS")
         if cntry.upper() == "US":
             affected.extend(["XAUUSD (GOLD)", "US30", "NAS100", "BTCUSD"])
 
-        self.lbl_desk_assets.setText(", ".join(affected) if affected else f"{cntry} DOMESTIC ASSETS")
+        self.lbl_desk_assets.setText("AFFECTED ASSETS: " + (", ".join(affected) if affected else f"{cntry} DOMESTIC"))
 
         # Update countdown immediately
         self._on_clock_tick()
 
     def _on_clock_tick(self):
-        """1-second timer tick for countdown and active defense monitoring."""
+        """1-second timer tick for countdown and active defense monitoring (Pure UTC epoch)."""
         if not hasattr(self, "lbl_countdown_val"):
             return
 
@@ -843,8 +885,9 @@ class CalendarManager:
             return
 
         sort_key = event.get("sort_key", 0.0)
-        now_vn_ts = datetime.datetime.now(datetime.timezone.utc).timestamp() + (7 * 3600)
-        diff_sec = int(sort_key - now_vn_ts)
+        # Standard UTC timestamp
+        now_utc_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        diff_sec = int(sort_key - now_utc_ts)
 
         impact = event.get("impact", 0)
 
@@ -857,28 +900,28 @@ class CalendarManager:
             # Within T-15m defense window
             if diff_sec <= 900 and impact == 2:
                 if self._override_active:
-                    self.lbl_countdown_val.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 22px; font-weight: 900; border: none;")
+                    self.lbl_countdown_val.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
                     self.lbl_lockout_status.setText("STATUS: OVERRIDE ACTIVE (TRADING ALLOWED)")
-                    self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+                    self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
                 else:
-                    self.lbl_countdown_val.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 22px; font-weight: 900; border: none;")
+                    self.lbl_countdown_val.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
                     self.lbl_lockout_status.setText("STATUS: T-15M DEFENSE ARMED (ORDERS LOCKED)")
-                    self.lbl_lockout_status.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+                    self.lbl_lockout_status.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
             else:
-                self.lbl_countdown_val.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 22px; font-weight: 900; border: none;")
+                self.lbl_countdown_val.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
                 self.lbl_lockout_status.setText("STATUS: MONITORING · WINDOW CLEAR")
-                self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+                self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         else:
             abs_past = abs(diff_sec)
             mins_past = abs_past // 60
             self.lbl_countdown_val.setText(f"T + {mins_past:02d}M AGO")
-            self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 22px; font-weight: 900; border: none;")
+            self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
             if abs_past <= 900 and impact == 2 and not self._override_active:
                 self.lbl_lockout_status.setText("STATUS: POST-NEWS SPREAD RECOVERY")
-                self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+                self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
             else:
                 self.lbl_lockout_status.setText("STATUS: RELEASED · SPREAD NORMALIZED")
-                self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+                self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
 
     def _handle_force_defense(self):
         """Immediately triggers pre-news active position defense via EventRiskEngine."""
@@ -887,7 +930,7 @@ class CalendarManager:
             ere = getattr(self.window, "_event_risk_engine", None) or EventRiskEngine()
             results = ere.evaluate_pre_news_defense()
             self.lbl_lockout_status.setText(f"DEFENSE TRIGGERED: {len(results)} POSITIONS SECURED")
-            self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 10px; font-weight: bold; border: none;")
+            self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         except Exception as e:
             logger.warning(f"[MacroCalendar] Force defense trigger error: {e}")
 
@@ -896,11 +939,11 @@ class CalendarManager:
         self._override_active = checked
         if checked:
             self.lbl_override_note.setText("OVERRIDE ACTIVE: MANUAL TRADING UNLOCKED")
-            self.lbl_override_note.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 9px; font-weight: bold; border: none;")
+            self.lbl_override_note.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8.5px; font-weight: bold; border: none;")
         else:
             self.lbl_override_note.setText("RULE: ±15M BLACKOUT ENFORCED BY DEFAULT")
             is_d = getattr(self.window, "is_dark_theme", False)
-            self.lbl_override_note.setStyleSheet(f"color: {'#94a3b8' if is_d else '#64748b'}; font-family: Consolas; font-size: 9px; border: none;")
+            self.lbl_override_note.setStyleSheet(f"color: {'#94a3b8' if is_d else '#64748b'}; font-family: Consolas; font-size: 8.5px; border: none;")
         self._on_clock_tick()
 
     def _insert_date_separator(self, row, date_obj):
@@ -914,26 +957,26 @@ class CalendarManager:
 
         w = QWidget()
         lay = QHBoxLayout(w)
-        lay.setContentsMargins(8, 0, 8, 0)
-        lay.setSpacing(6)
+        lay.setContentsMargins(6, 0, 6, 0)
+        lay.setSpacing(4)
         lay.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         thu = WEEKDAYS_EN[date_obj.weekday()]
         date_str = date_obj.strftime("%d/%m/%Y")
         lbl_date = QLabel(f"{thu}  ·  {date_str}")
-        lbl_date.setStyleSheet("font-family: Consolas; font-size: 10.5px; font-weight: bold; color: #38bdf8;")
+        lbl_date.setStyleSheet("font-family: Consolas; font-size: 10px; font-weight: bold; color: #38bdf8;")
         lay.addWidget(lbl_date)
 
         if is_today:
             lbl_badge = QLabel("TODAY")
             lbl_badge.setStyleSheet(
-                "background-color: #22c55e; color: #ffffff; border-radius: 2px; padding: 1px 5px; "
-                "font-family: Consolas; font-size: 9px; font-weight: bold;"
+                "background-color: #22c55e; color: #ffffff; border-radius: 2px; padding: 1px 4px; "
+                "font-family: Consolas; font-size: 8.5px; font-weight: bold;"
             )
             lay.addWidget(lbl_badge)
 
         t.setCellWidget(row, 0, w)
-        t.setRowHeight(row, 24)
+        t.setRowHeight(row, 22)
 
         is_d = getattr(self.window, "is_dark_theme", False)
         bg = "#161d31" if is_d else "#e2e8f0"
@@ -946,37 +989,43 @@ class CalendarManager:
     def _country_badge(self, country: str, is_past: bool = False):
         col = COUNTRY_COLORS.get(country.upper(), "#334155")
         if is_past:
-            col = "#475569"
+            col = "#334155"
         w = QWidget()
         lay = QHBoxLayout(w)
-        lay.setContentsMargins(2, 2, 2, 2)
+        lay.setContentsMargins(1, 1, 1, 1)
         lbl = QLabel(country.upper())
+        opacity = "color: #94a3b8;" if is_past else "color: #ffffff;"
         lbl.setStyleSheet(
-            f"background-color: {col}; color: #ffffff; font-family: Consolas; font-size: 9.5px; "
-            "font-weight: bold; border-radius: 2px; padding: 1px 4px;"
+            f"background-color: {col}; {opacity} font-family: Consolas; font-size: 9px; "
+            "font-weight: bold; border-radius: 2px; padding: 1px 3px;"
         )
         lbl.setAlignment(Qt.AlignCenter)
         lay.addWidget(lbl, alignment=Qt.AlignCenter)
         return w
 
     def _impact_badge(self, impact: int, is_past: bool = False):
+        """Preserves HIGH/MED/LOW impact rating, only changes alpha/color intensity for past events."""
         w = QWidget()
         lay = QHBoxLayout(w)
-        lay.setContentsMargins(2, 2, 2, 2)
+        lay.setContentsMargins(1, 1, 1, 1)
 
-        if is_past:
-            lbl = QLabel("PAST")
-            lbl.setStyleSheet("background-color: #334155; color: #64748b; font-family: Consolas; font-size: 9px; font-weight: 500; border-radius: 2px; padding: 1px 4px;")
-        elif impact == 2:
-            lbl = QLabel("HIGH")
-            lbl.setStyleSheet("background-color: #ef4444; color: #ffffff; font-family: Consolas; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 4px;")
+        if impact == 2:
+            lbl_text = "HIGH"
+            bg_col = "#7f1d1d" if is_past else "#ef4444"
+            fg_col = "#fca5a5" if is_past else "#ffffff"
         elif impact == 1:
-            lbl = QLabel("MED")
-            lbl.setStyleSheet("background-color: #f59e0b; color: #000000; font-family: Consolas; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 4px;")
+            lbl_text = "MED"
+            bg_col = "#78350f" if is_past else "#f59e0b"
+            fg_col = "#fcd34d" if is_past else "#000000"
         else:
-            lbl = QLabel("LOW")
-            lbl.setStyleSheet("background-color: #334155; color: #94a3b8; font-family: Consolas; font-size: 9px; font-weight: 500; border-radius: 2px; padding: 1px 4px;")
+            lbl_text = "LOW"
+            bg_col = "#1e293b" if is_past else "#334155"
+            fg_col = "#64748b" if is_past else "#94a3b8"
 
+        lbl = QLabel(lbl_text)
+        lbl.setStyleSheet(
+            f"background-color: {bg_col}; color: {fg_col}; font-family: Consolas; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
+        )
         lbl.setAlignment(Qt.AlignCenter)
         lay.addWidget(lbl, alignment=Qt.AlignCenter)
         return w
@@ -985,7 +1034,7 @@ class CalendarManager:
         val = str(text) if text not in ("None", "none", "", None) else "-"
         w = QWidget()
         lay = QHBoxLayout(w)
-        lay.setContentsMargins(4, 0, 4, 0)
+        lay.setContentsMargins(3, 0, 3, 0)
         lbl = QLabel(val)
 
         is_d = getattr(self.window, "is_dark_theme", False)
@@ -993,13 +1042,13 @@ class CalendarManager:
             color = "#f8fafc" if is_d else "#0f172a"
 
         weight = "bold" if bold else "normal"
-        lbl.setStyleSheet(f"color: {color}; font-family: '{font}', monospace; font-size: 10.5px; font-weight: {weight}; border: none;")
+        lbl.setStyleSheet(f"color: {color}; font-family: '{font}', monospace; font-size: 10px; font-weight: {weight}; border: none;")
         lbl.setAlignment(align | Qt.AlignVCenter)
         lay.addWidget(lbl)
         return w
 
     def update_theme(self, is_dark: bool):
-        """Applies theme colors to the entire workspace."""
+        """Applies theme colors to the entire workspace without breaking layout containment."""
         if hasattr(self.window, "tabCalendar") and self.window.tabCalendar:
             tab_bg = "#070a12" if is_dark else "#f8fafc"
             self.window.tabCalendar.setAutoFillBackground(True)
@@ -1012,15 +1061,15 @@ class CalendarManager:
         for card in [self.card_market, self.card_monetary, self.card_economic, self.card_confluence]:
             if card:
                 card.setStyleSheet(
-                    f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 8px; }}"
+                    f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 2px 6px; }}"
                 )
 
         if hasattr(self, "frame_countdown") and self.frame_countdown:
-            self.frame_countdown.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}")
+            self.frame_countdown.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
         if hasattr(self, "frame_protocol") and self.frame_protocol:
-            self.frame_protocol.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}")
+            self.frame_protocol.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
         if hasattr(self, "frame_actions") and self.frame_actions:
-            self.frame_actions.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 8px; }}")
+            self.frame_actions.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
 
 
 # Backward compatibility alias
