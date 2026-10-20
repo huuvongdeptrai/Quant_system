@@ -77,7 +77,7 @@ class MacroRegimeEngine:
                 "vix": round(vix_current, 2),
                 "dxy": round(dxy_current, 2),
                 "dxy_trend": dxy_trend,
-                "reason": f"VIX = {vix_current:.2f}. DXY xu huong {dxy_trend}.",
+                "reason": f"VIX = {vix_current:.2f}. DXY trend is {dxy_trend}.",
             }
         except Exception as e:
             return {"state": "UNKNOWN", "vix": 0, "dxy": 0, "reason": str(e)}
@@ -93,11 +93,11 @@ class MacroRegimeEngine:
             delta = tnx_current - tnx_prev
 
             if delta > 0.1:
-                state = "Hawkish (That chat)"
+                state = "Hawkish"
             elif delta < -0.1:
-                state = "Dovish (Noi long)"
+                state = "Dovish"
             else:
-                state = "Neutral (Di ngang)"
+                state = "Neutral"
 
             return {
                 "state": state,
@@ -137,11 +137,11 @@ class MacroRegimeEngine:
         total = nfp_score + pmi_score + unemp_score
 
         if total >= 1:
-            state = "Growth (Tang truong)"
+            state = "Growth"
         elif total <= -1:
-            state = "Recession (Suy thoai)"
+            state = "Recession"
         else:
-            state = "Recovery (Phuc hoi/Di ngang)"
+            state = "Recovery"
 
         return {
             "state": state,
@@ -149,7 +149,7 @@ class MacroRegimeEngine:
         }
 
     def generate_macro_report(self):
-        tele_news = "Không có tin tức khẩn cấp nào từ Telegram trong 4h qua."
+        tele_news = "No emergency breaking macro alerts reported in the last 4 hours."
         import json
         import os
         import time

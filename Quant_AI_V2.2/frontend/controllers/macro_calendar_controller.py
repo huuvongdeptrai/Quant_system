@@ -88,6 +88,11 @@ class CalendarManager:
                 self.window.tabWidget.addTab(self.window.tabCalendar, "CALENDAR")
 
         tab = self.window.tabCalendar
+        is_d = getattr(self.window, "is_dark_theme", False)
+        tab_bg = "#070a12" if is_d else "#f8fafc"
+        tab.setAutoFillBackground(True)
+        tab.setStyleSheet(f"QWidget#tabCalendar {{ background-color: {tab_bg}; }}")
+
         existing_layout = tab.layout()
         if existing_layout:
             while existing_layout.count():
@@ -463,54 +468,86 @@ class CalendarManager:
         self.load_calendar()
 
     def _apply_macro_report(self, report: dict):
-        """Renders the tri-pillar macro report onto KPI cards."""
+        """Renders the tri-pillar macro report onto KPI cards in pure financial English."""
+        # 1. Market Risk Regime
         m_state = report.get("Market", {})
-        m_name = m_state.get("state", "UNKNOWN").upper()
-        vix = m_state.get("vix", 0)
-        dxy = m_state.get("dxy", 0)
-        dxy_trend = m_state.get("dxy_trend", "--")
+        raw_m = str(m_state.get("state", "UNKNOWN")).upper()
+        vix = float(m_state.get("vix", 0))
+        dxy = float(m_state.get("dxy", 0))
+        dxy_trend = str(m_state.get("dxy_trend", "--")).upper()
         
-        is_risk_off = ("OFF" in m_name)
-        self.badge_market_state.setText(m_name)
+        is_risk_off = ("OFF" in raw_m or vix >= 20.0)
+        market_badge = "RISK-OFF" if is_risk_off else "RISK-ON"
+        self.badge_market_state.setText(market_badge)
         self.badge_market_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
             f"background-color: {'#ef4444' if is_risk_off else '#22c55e'}; color: #ffffff;"
         )
         self.lbl_market_metrics.setText(f"VIX: {vix:.2f}  ·  DXY: {dxy:.2f} {dxy_trend}")
-        self.lbl_market_desc.setText(m_state.get("reason", "Intermarket liquidity posture"))
+        dxy_dir = "appreciating" if "UP" in dxy_trend else "depreciating"
+        self.lbl_market_desc.setText(
+            f"VIX at {vix:.2f}. DXY {dxy_dir}. Capital flows favor {'safe-haven assets' if is_risk_off else 'growth assets'}."
+        )
 
-        # Monetary
+        # 2. Monetary Policy Stance
         mon_state = report.get("Monetary", {})
-        mon_name = mon_state.get("state", "UNKNOWN")
-        us10y = mon_state.get("us10y", 0)
-        d5 = mon_state.get("delta_5d", 0)
+        raw_mon = str(mon_state.get("state", "UNKNOWN"))
+        us10y = float(mon_state.get("us10y", 0))
+        d5 = float(mon_state.get("delta_5d", 0))
         sign = "+" if d5 >= 0 else ""
 
-        is_hawk = ("Hawkish" in mon_name)
-        self.badge_monetary_state.setText(mon_name[:15].upper())
+        if "HAWK" in raw_mon.upper():
+            mon_badge = "HAWKISH"
+            mon_bg = "#ef4444"
+        elif "DOV" in raw_mon.upper():
+            mon_badge = "DOVISH"
+            mon_bg = "#22c55e"
+        else:
+            mon_badge = "NEUTRAL"
+            mon_bg = "#0284c7"
+
+        self.badge_monetary_state.setText(mon_badge)
         self.badge_monetary_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
-            f"background-color: {'#ef4444' if is_hawk else '#0284c7'}; color: #ffffff;"
+            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
+            f"background-color: {mon_bg}; color: #ffffff;"
         )
         self.lbl_monetary_metrics.setText(f"US10Y: {us10y:.3f}%  ·  5D: {sign}{d5:.3f}%")
-        self.lbl_monetary_desc.setText(mon_state.get("reason", "Bond yields and discount rates"))
-
-        # Economic
-        eco_state = report.get("Economic", {})
-        eco_name = eco_state.get("state", "UNKNOWN")
-        is_rec = ("Recession" in eco_name)
-        self.badge_economic_state.setText(eco_name[:15].upper())
-        self.badge_economic_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
-            f"background-color: {'#ef4444' if is_rec else '#22c55e'}; color: #ffffff;"
+        self.lbl_monetary_desc.setText(
+            f"Benchmark 10Y yield at {us10y:.3f}%. Central bank monetary posture: {mon_badge.lower()} bias."
         )
-        self.lbl_economic_metrics.setText(f"CYCLE: {eco_name.split(' ')[0]}  ·  {eco_state.get('reason', '')}")
-        self.lbl_economic_desc.setText("Scoring across NFP, PMI, and unemployment indices")
 
-        # Telegram
-        wire_msg = report.get("Telegram_News", "")
-        if wire_msg:
+        # 3. Economic Growth Cycle
+        eco_state = report.get("Economic", {})
+        raw_eco = str(eco_state.get("state", "UNKNOWN")).upper()
+        if "GROWTH" in raw_eco:
+            eco_badge = "GROWTH"
+            eco_bg = "#22c55e"
+        elif "RECESSION" in raw_eco:
+            eco_badge = "RECESSION"
+            eco_bg = "#ef4444"
+        else:
+            eco_badge = "RECOVERY"
+            eco_bg = "#0284c7"
+
+        self.badge_economic_state.setText(eco_badge)
+        self.badge_economic_state.setStyleSheet(
+            f"font-family: Consolas; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
+            f"background-color: {eco_bg}; color: #ffffff;"
+        )
+        score_part = eco_state.get('reason', '')
+        if ' - ' in score_part:
+            score_part = score_part.split(' - ')[-1]
+        self.lbl_economic_metrics.setText(f"CYCLE: {eco_badge}  ·  SCORE: {score_part}")
+        self.lbl_economic_desc.setText(
+            f"Composite macro index indicates {eco_badge.lower()} regime across NFP, PMI, and unemployment."
+        )
+
+        # 4. Telegram Wire Intel
+        wire_msg = str(report.get("Telegram_News", ""))
+        if wire_msg and "không có" not in wire_msg.lower() and "no data" not in wire_msg.lower():
             self.lbl_wire_text.setText(wire_msg)
+        else:
+            self.lbl_wire_text.setText("Wire Intel: No emergency breaking macro alerts reported in the last 4 hours.")
 
     def load_calendar(self):
         """Filters and populates the table."""
