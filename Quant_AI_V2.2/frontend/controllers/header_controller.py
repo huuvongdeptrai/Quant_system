@@ -229,6 +229,8 @@ class WorkspaceHeaderController:
                 f'<b style="color:{sym_color}; font-family:Consolas, monospace; font-size:11.5px; font-weight:700;">{clean_sym}</b>&nbsp;&nbsp;'
                 f'<span style="color:{sub_color}; font-size:9.5px; font-family:\'Segoe UI\', sans-serif; font-weight:500;">{sub_title}</span>'
             )
+            if hasattr(self, "_update_event_risk_badge"):
+                self._update_event_risk_badge(clean_sym)
         is_running = False
         if hasattr(self.terminal, "bot_thread") and self.terminal.bot_thread and self.terminal.bot_thread.isRunning():
             is_running = True
@@ -677,20 +679,26 @@ class WorkspaceHeaderController:
             self.lbl_bot_status.setFixedHeight(30)
             self.lbl_bot_status.setText(self._format_bottom_telemetry(is_dark))
 
-        # 12. Bottom Audit Log Button (Ctrl+L trigger)
+        # 12. Bottom Audit Log Button (Ctrl+L trigger) - Flat Typography (No Box Outline)
         if hasattr(self, "btn_bottom_audit") and self.btn_bottom_audit:
             if is_dark:
                 self.btn_bottom_audit.setStyleSheet(
-                    "QPushButton#btnBottomAudit { background-color: #0d121f; color: #94a3b8; border: 1px solid #1e293b; "
-                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; border-radius: 2px; padding: 0 8px; min-height: 22px; max-height: 22px; } "
-                    "QPushButton#btnBottomAudit:hover { background-color: #1e293b; color: #38bdf8; border-color: #38bdf8; }"
+                    "QPushButton#btnBottomAudit { background: transparent; color: #94a3b8; border: none; "
+                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; padding: 0 4px; min-height: 22px; max-height: 22px; } "
+                    "QPushButton#btnBottomAudit:hover { background: transparent; color: #38bdf8; }"
                 )
             else:
                 self.btn_bottom_audit.setStyleSheet(
-                    "QPushButton#btnBottomAudit { background-color: #ffffff; color: #475569; border: 1px solid #cbd5e1; "
-                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; border-radius: 2px; padding: 0 8px; min-height: 22px; max-height: 22px; } "
-                    "QPushButton#btnBottomAudit:hover { background-color: #f1f5f9; color: #0284c7; border-color: #0284c7; }"
+                    "QPushButton#btnBottomAudit { background: transparent; color: #64748b; border: none; "
+                    "font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; padding: 0 4px; min-height: 22px; max-height: 22px; } "
+                    "QPushButton#btnBottomAudit:hover { background: transparent; color: #0284c7; }"
                 )
+        if hasattr(self, "sep_bottom_audit") and self.sep_bottom_audit:
+            self.sep_bottom_audit.setStyleSheet(f"background-color: {'#334155' if is_dark else '#cbd5e1'};")
+
+        # Sync Event Risk Badge to theme
+        if hasattr(self, "_update_event_risk_badge"):
+            self._update_event_risk_badge()
 
         # 13. Sync Bottom Navigation Tab Buttons Styling
         if hasattr(self, "_update_nav_buttons_style"):
@@ -1047,15 +1055,17 @@ class WorkspaceHeaderController:
         sep_event.setStyleSheet(f"background-color: {sep_col};")
         ctx_layout.addWidget(sep_event)
 
-        # 5. Live Event Risk Badge (Shows blackout warning or clear status for active asset)
+        # 5. Live Event Risk Badge (Flat Color Contrast - No Box Border)
         btn_event_risk = QPushButton("EVENT: CLEAR")
         btn_event_risk.setObjectName("btnEventRiskBadge")
         btn_event_risk.setFixedHeight(22)
         btn_event_risk.setCursor(Qt.PointingHandCursor)
+        event_col = "#22c55e" if is_dark else "#15803d"
+        event_h_col = "#4ade80" if is_dark else "#16a34a"
         btn_event_risk.setStyleSheet(
-            "QPushButton#btnEventRiskBadge { background-color: transparent; color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); "
-            "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
-            "QPushButton#btnEventRiskBadge:hover { background-color: rgba(34, 197, 94, 0.1); }"
+            f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {event_col}; border: none; "
+            f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 700; }} "
+            f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {event_h_col}; }}"
         )
         def _jump_to_calendar(chk=False):
             if hasattr(self.terminal, "nav") and hasattr(self.window, "tabCalendar"):
@@ -1300,12 +1310,19 @@ class WorkspaceHeaderController:
         # Spacer pushes all telemetry to the far right
         b_layout.addStretch()
 
-        # Clickable Journal Pill (Ctrl+L)
+        # Flat Journal text trigger (Ctrl+L) - No Box Border
         btn_audit = QPushButton("JOURNAL")
         btn_audit.setObjectName("btnBottomAudit")
         btn_audit.setFixedHeight(22)
         btn_audit.setCursor(Qt.PointingHandCursor)
         btn_audit.setToolTip("System Journal (Ctrl+L)")
+        audit_col = "#94a3b8" if is_dark else "#64748b"
+        audit_h_col = "#38bdf8" if is_dark else "#0284c7"
+        btn_audit.setStyleSheet(
+            f"QPushButton#btnBottomAudit {{ background: transparent; color: {audit_col}; border: none; "
+            f"font-family: 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; padding: 0 4px; min-height: 22px; max-height: 22px; }} "
+            f"QPushButton#btnBottomAudit:hover {{ background: transparent; color: {audit_h_col}; }}"
+        )
         def _open_audit_journal(checked=False):
             logs_mgr = (
                 getattr(self, "logs", None)
@@ -1332,6 +1349,15 @@ class WorkspaceHeaderController:
         btn_audit.clicked.connect(_open_audit_journal)
         self.btn_bottom_audit = btn_audit
         b_layout.addWidget(btn_audit)
+
+        b_layout.addSpacing(4)
+        sep_bot_audit = QFrame()
+        sep_bot_audit.setFixedWidth(1)
+        sep_bot_audit.setFixedHeight(12)
+        sep_bot_audit.setStyleSheet(f"background-color: {'#334155' if is_dark else '#cbd5e1'};")
+        self.sep_bottom_audit = sep_bot_audit
+        b_layout.addWidget(sep_bot_audit)
+        b_layout.addSpacing(4)
 
         # Right: Consolidated status strip: FULL-ALGO | ● MT5: 1.2ms | 0% LOSS
         lbl_bot_status = QLabel()
@@ -1369,9 +1395,11 @@ class WorkspaceHeaderController:
 
 
     def _update_event_risk_badge(self, symbol=None):
-        """Updates live event risk ticker badge for active asset."""
+        """Updates live event risk ticker badge for active asset using flat color contrast (no box border)."""
         if not hasattr(self, "btn_event_risk") or not self.btn_event_risk:
             return
+
+        is_dark = getattr(self, "is_dark_theme", False)
 
         if not symbol:
             symbol = getattr(self.window, "current_sym", "XAUUSD")
@@ -1390,18 +1418,22 @@ class WorkspaceHeaderController:
             is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
             if is_impacted:
                 self.btn_event_risk.setText(f"EVENT: 🔴 {news_title[:12].upper()}")
+                text_col = "#ef4444" if is_dark else "#dc2626"
+                hover_col = "#f87171" if is_dark else "#b91c1c"
                 self.btn_event_risk.setStyleSheet(
-                    "QPushButton#btnEventRiskBadge { background-color: #ef4444; color: #ffffff; border: 1px solid #ef4444; "
-                    "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
-                    "QPushButton#btnEventRiskBadge:hover { background-color: #dc2626; }"
+                    f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {text_col}; border: none; "
+                    f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 800; }} "
+                    f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {hover_col}; }}"
                 )
                 self.btn_event_risk.setToolTip(f"High-impact news event active: {news_title}\nTrading pause active. Click to view Macro Calendar.")
             else:
                 self.btn_event_risk.setText("EVENT: CLEAR")
+                text_col = "#22c55e" if is_dark else "#15803d"
+                hover_col = "#4ade80" if is_dark else "#16a34a"
                 self.btn_event_risk.setStyleSheet(
-                    "QPushButton#btnEventRiskBadge { background-color: transparent; color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); "
-                    "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
-                    "QPushButton#btnEventRiskBadge:hover { background-color: rgba(34, 197, 94, 0.1); }"
+                    f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {text_col}; border: none; "
+                    f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 700; }} "
+                    f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {hover_col}; }}"
                 )
                 self.btn_event_risk.setToolTip(f"No active news blackout for {clean_sym}.\nClick to view Macro Calendar.")
         except Exception:
