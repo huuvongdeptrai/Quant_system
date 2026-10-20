@@ -41,6 +41,8 @@ class MT5SafeController:
                         res = _mt5.initialize(path=custom_path)
                         if res:
                             break
+            if res:
+                self._check_headless_mt5()
             return res
 
     def login(self, *args, **kwargs):
@@ -133,5 +135,75 @@ class MT5SafeController:
                 action, symbol, volume, price_open, price_close
             )
 
+
+
+    def _check_headless_mt5(self):
+        try:
+            import json, sys
+            if sys.platform != "win32":
+                return
+            root_d = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            cfg_p = os.path.join(root_d, "config", "settings.json")
+            if not os.path.exists(cfg_p):
+                return
+            with open(cfg_p, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            if not cfg.get("headless_mt5", False):
+                return
+            self.hide_mt5_window()
+        except Exception as e:
+            logger.debug(f"[MT5Safe] Headless check error: {e}")
+
+    def hide_mt5_window(self):
+        """Hides the MT5 desktop window using Win32 API SW_HIDE."""
+        try:
+            import ctypes, sys
+            if sys.platform != "win32":
+                return False
+            user32 = ctypes.windll.user32
+            hidden = []
+            def enum_proc(hwnd, lParam):
+                if user32.IsWindowVisible(hwnd):
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buff = ctypes.create_unicode_buffer(length + 1)
+                        user32.GetWindowTextW(hwnd, buff, length + 1)
+                        title = buff.value
+                        if "MetaTrader" in title or "terminal64" in title.lower():
+                            user32.ShowWindow(hwnd, 0) # SW_HIDE = 0
+                            hidden.append(hwnd)
+                return True
+            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+            user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
+            if hidden:
+                logger.info(f"[MT5Safe] Silent background mode active: hidden {len(hidden)} MT5 window(s).")
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"[MT5Safe] Failed to hide MT5 window: {e}")
+            return False
+
+    def show_mt5_window(self):
+        """Restores the MT5 desktop window using Win32 API SW_SHOW."""
+        try:
+            import ctypes, sys
+            if sys.platform != "win32":
+                return False
+            user32 = ctypes.windll.user32
+            def enum_proc(hwnd, lParam):
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buff = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buff, length + 1)
+                    title = buff.value
+                    if "MetaTrader" in title:
+                        user32.ShowWindow(hwnd, 5) # SW_SHOW = 5
+                return True
+            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+            user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
+            return True
+        except Exception as e:
+            logger.warning(f"[MT5Safe] Failed to show MT5 window: {e}")
+            return False
 
 mt5 = MT5SafeController()

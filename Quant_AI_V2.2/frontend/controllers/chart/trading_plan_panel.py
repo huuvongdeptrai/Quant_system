@@ -1658,6 +1658,23 @@ def sync_live_position_to_ai_plan(window):
 
             # If an active position in MT5 just closed, re-evaluate quantitative strategy immediately
             if was_live:
+                if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
+                    window.lblModelSubtitle.setText("SETUP MODEL")
+                if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
+                    window.lblOrderBudgetTitle.setText("ORDER & RISK BUDGET")
+                if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
+                    window.lblOrderTypeBadge.setText("NO ORDER")
+                if hasattr(window, "lblEntryVal") and window.lblEntryVal:
+                    window.lblEntryVal.setText("--")
+                if hasattr(window, "lblSLVal") and window.lblSLVal:
+                    window.lblSLVal.setText("--")
+                if hasattr(window, "lblTPVal") and window.lblTPVal:
+                    window.lblTPVal.setText("--")
+                if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                    window.lblSizeVal.setText("--")
+                if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+                    window.btnApproveOrder.setText("AWAITING STRATEGY SIGNAL")
+                    window.btnApproveOrder.setEnabled(False)
                 from frontend.controllers.chart.ai_panel_controller import _run_analysis
                 _run_analysis(window, clean_sym, force=True)
                 return

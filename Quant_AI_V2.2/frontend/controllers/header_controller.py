@@ -555,17 +555,34 @@ class WorkspaceHeaderController:
         """Dynamic Light & Dark Theme synchronization for Top Title Bar and Bottom Toolbox Bar."""
         # 1. Top Header Container
         if hasattr(self, "header_container") and self.header_container:
-            bg = "#0a0c10" if is_dark else "#f1f5f9"
+            bg = "#0a0c10" if is_dark else "#ffffff"
             border = "#1e222d" if is_dark else "#cbd5e1"
             self.header_container.setStyleSheet(
                 f"QFrame#topHeaderContainer {{ background-color: {bg}; border-bottom: 1px solid {border}; }}"
             )
 
-        # 2. Bottom Tab Bar (Height: 30px)
+        # 1b. Top Menu Bar (Height: 26px)
+        if hasattr(self, "menu_bar") and self.menu_bar:
+            bg_menu = "#060910" if is_dark else "#f8fafc"
+            border_menu = "#1e222d" if is_dark else "#cbd5e1"
+            self.menu_bar.setStyleSheet(
+                f"QFrame#topMenuBar {{ background-color: {bg_menu}; border-bottom: 1px solid {border_menu}; }}"
+            )
+            btn_col = "#94a3b8" if is_dark else "#334155"
+            btn_h_bg = "#1e293b" if is_dark else "#e2e8f0"
+            btn_h_col = "#ffffff" if is_dark else "#0f172a"
+            for mb in getattr(self, "mt5_menu_buttons", []):
+                mb.setStyleSheet(
+                    f"QPushButton {{ background: transparent; color: {btn_col}; font-size: 11px; font-weight: 500; "
+                    f"padding: 2px 8px; border: none; border-radius: 2px; }} "
+                    f"QPushButton:hover {{ background-color: {btn_h_bg}; color: {btn_h_col}; }}"
+                )
+
+        # 2. Bottom Status Bar (Height: 22px)
         if hasattr(self, "bottom_bar") and self.bottom_bar:
-            bg = "#090d16" if is_dark else "#ffffff"
-            border = "#1e222d" if is_dark else "#cbd5e1"
-            self.bottom_bar.setFixedHeight(30)
+            bg = "#090d16" if is_dark else "#f8fafc"
+            border = "#1e222d" if is_dark else "#e2e8f0"
+            self.bottom_bar.setFixedHeight(22)
             self.bottom_bar.setStyleSheet(
                 f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}"
             )
@@ -681,6 +698,174 @@ class WorkspaceHeaderController:
 
 
 
+    def _create_mt5_menu_style(self, is_dark):
+        menu_bg = "#0d121f" if is_dark else "#ffffff"
+        menu_border = "#1e293b" if is_dark else "#cbd5e1"
+        menu_text = "#e2e8f0" if is_dark else "#0f172a"
+        menu_hover = "#1e293b" if is_dark else "#f1f5f9"
+        return f"""
+            QMenu {{
+                background-color: {menu_bg};
+                color: {menu_text};
+                border: 1px solid {menu_border};
+                border-radius: 2px;
+                padding: 4px 0px;
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+                font-size: 11px;
+            }}
+            QMenu::item {{
+                padding: 5px 24px 5px 12px;
+                margin: 1px 4px;
+                border-radius: 2px;
+            }}
+            QMenu::item:selected {{
+                background-color: {menu_hover};
+                color: {menu_text};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {menu_border};
+                margin: 4px 0px;
+            }}
+        """
+
+    def _show_file_menu(self):
+        if not hasattr(self, "btn_menu_file") or not self.btn_menu_file:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+        act_exit = menu.addAction("Exit VECTRA")
+        act_exit.setShortcut(QKeySequence("Alt+F4"))
+        act_exit.triggered.connect(self.window.close)
+        menu.exec(self.btn_menu_file.mapToGlobal(QPoint(0, self.btn_menu_file.height())))
+
+    def _show_view_menu(self):
+        if not hasattr(self, "btn_menu_view") or not self.btn_menu_view:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        curr_w = self.window.tabWidget.currentWidget() if hasattr(self.window, "tabWidget") else None
+
+        act_term = menu.addAction("✓ Terminal" if curr_w == self.window.tab2 else "Terminal")
+        act_term.setShortcut(QKeySequence("F1"))
+        act_term.triggered.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
+
+        act_stats = menu.addAction("✓ Performance" if curr_w == self.window.tab3 else "Performance")
+        act_stats.setShortcut(QKeySequence("F2"))
+        act_stats.triggered.connect(lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"))
+
+        act_bt = menu.addAction("✓ Strategy Tester" if curr_w == self.window.tab_5 else "Strategy Tester")
+        act_bt.setShortcut(QKeySequence("Ctrl+R"))
+        act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
+
+        cal_tab = getattr(self.window, "tabCalendar", None)
+        if cal_tab:
+            act_cal = menu.addAction("✓ Economic Calendar" if curr_w == cal_tab else "Economic Calendar")
+            act_cal.setShortcut(QKeySequence("F3"))
+            act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
+
+        menu.addSeparator()
+
+        act_journal = menu.addAction("System Journal (Logs)")
+        act_journal.setShortcut(QKeySequence("Ctrl+L"))
+        act_journal.triggered.connect(self._trigger_journal)
+
+        menu.exec(self.btn_menu_view.mapToGlobal(QPoint(0, self.btn_menu_view.height())))
+
+    def _show_tools_menu(self):
+        if not hasattr(self, "btn_menu_tools") or not self.btn_menu_tools:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        act_order = menu.addAction("New Order")
+        act_order.setShortcut(QKeySequence("F9"))
+        def _on_new_order():
+            if hasattr(self.window, "btn_edge_ticket") and self.window.btn_edge_ticket:
+                self.window.btn_edge_ticket.click()
+        act_order.triggered.connect(_on_new_order)
+
+        act_bt = menu.addAction("Strategy Tester (Backtest)")
+        act_bt.setShortcut(QKeySequence("Ctrl+R"))
+        act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
+
+        act_journal = menu.addAction("System Journal (Logs)")
+        act_journal.setShortcut(QKeySequence("Ctrl+L"))
+        act_journal.triggered.connect(self._trigger_journal)
+
+        menu.addSeparator()
+
+        act_opt = menu.addAction("Options")
+        act_opt.setShortcut(QKeySequence("Ctrl+O"))
+        act_opt.triggered.connect(self._trigger_options)
+
+        menu.exec(self.btn_menu_tools.mapToGlobal(QPoint(0, self.btn_menu_tools.height())))
+
+    def _show_charts_menu(self):
+        if not hasattr(self, "btn_menu_charts") or not self.btn_menu_charts:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        act_bar = menu.addAction("Bar Chart")
+        act_bar.setShortcut(QKeySequence("Alt+1"))
+        act_candle = menu.addAction("Candlesticks")
+        act_candle.setShortcut(QKeySequence("Alt+2"))
+        act_line = menu.addAction("Line Chart")
+        act_line.setShortcut(QKeySequence("Alt+3"))
+
+        menu.exec(self.btn_menu_charts.mapToGlobal(QPoint(0, self.btn_menu_charts.height())))
+
+    def _show_insert_menu(self):
+        if not hasattr(self, "btn_menu_insert") or not self.btn_menu_insert:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+        act_ind = menu.addAction("Indicators & Strategies...")
+        act_ind.triggered.connect(self._show_strategy_and_indicators_menu)
+        menu.exec(self.btn_menu_insert.mapToGlobal(QPoint(0, self.btn_menu_insert.height())))
+
+    def _show_window_menu(self):
+        if not hasattr(self, "btn_menu_window") or not self.btn_menu_window:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+        act_full = menu.addAction("Toggle Fullscreen")
+        act_full.setShortcut(QKeySequence("F11"))
+        def _toggle_fs():
+            if self.window.isFullScreen():
+                self.window.showNormal()
+            else:
+                self.window.showFullScreen()
+        act_full.triggered.connect(_toggle_fs)
+        menu.exec(self.btn_menu_window.mapToGlobal(QPoint(0, self.btn_menu_window.height())))
+
+    def _show_help_menu(self):
+        if not hasattr(self, "btn_menu_help") or not self.btn_menu_help:
+            return
+        menu = QMenu(self.window)
+        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+        act_about = menu.addAction("About VECTRA Institutional OS v2.2")
+        def _on_about():
+            QMessageBox.information(
+                self.window,
+                "About VECTRA",
+                "VECTRA Quantitative Trading OS v2.2\nArchitecture: MetaTrader 5 / Institutional ECN\nStrategy: ICT Zones Pro v4.2"
+            )
+        act_about.triggered.connect(_on_about)
+        menu.exec(self.btn_menu_help.mapToGlobal(QPoint(0, self.btn_menu_help.height())))
+
+    def _trigger_journal(self):
+        btn = getattr(self, "btn_bottom_audit", None)
+        if btn:
+            btn.click()
+
+    def _trigger_options(self):
+        btn = getattr(self, "btnNavSettings", None)
+        if btn:
+            btn.click()
+
     def _setup_custom_title_bar(self):
         """Create institutional MT5-Style Workspace Layout matching blueprint:
         Top Bar (32px): Unified header with Symbol + Subtitle, Discrete TF buttons (M1-D1), IND badge,
@@ -692,10 +877,55 @@ class WorkspaceHeaderController:
         if not os.path.exists(assets_dir):
             assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
+        is_dark = getattr(self, "is_dark_theme", False)
+
+        # 0. TOP MENU BAR (26px) - Authentic MT5 Menu Bar
+        menu_bar = QFrame()
+        menu_bar.setObjectName("topMenuBar")
+        menu_bar.setFixedHeight(26)
+        bg_m = "#060910" if is_dark else "#f8fafc"
+        border_m = "#1e222d" if is_dark else "#cbd5e1"
+        menu_bar.setStyleSheet(f"QFrame#topMenuBar {{ background-color: {bg_m}; border-bottom: 1px solid {border_m}; }}")
+        self.menu_bar = menu_bar
+
+        m_layout = QHBoxLayout(menu_bar)
+        m_layout.setContentsMargins(6, 0, 6, 0)
+        m_layout.setSpacing(1)
+
+        self.mt5_menu_buttons = []
+        btn_col = "#94a3b8" if is_dark else "#334155"
+        btn_h_bg = "#1e293b" if is_dark else "#e2e8f0"
+        btn_h_col = "#ffffff" if is_dark else "#0f172a"
+        m_btn_style = (
+            f"QPushButton {{ background: transparent; color: {btn_col}; font-size: 11px; font-weight: 500; "
+            f"padding: 2px 8px; border: none; border-radius: 2px; }} "
+            f"QPushButton:hover {{ background-color: {btn_h_bg}; color: {btn_h_col}; }}"
+        )
+
+        menus_def = [
+            ("btnMenuFile", "File", self._show_file_menu),
+            ("btnMenuView", "View", self._show_view_menu),
+            ("btnMenuInsert", "Insert", self._show_insert_menu),
+            ("btnMenuCharts", "Charts", self._show_charts_menu),
+            ("btnMenuTools", "Tools", self._show_tools_menu),
+            ("btnMenuWindow", "Window", self._show_window_menu),
+            ("btnMenuHelp", "Help", self._show_help_menu),
+        ]
+        for attr_name, label, handler in menus_def:
+            b = QPushButton(label)
+            b.setObjectName(attr_name)
+            b.setStyleSheet(m_btn_style)
+            b.clicked.connect(handler)
+            m_layout.addWidget(b)
+            self.mt5_menu_buttons.append(b)
+            setattr(self, attr_name, b)
+
+        m_layout.addStretch()
+
         header_container = QFrame()
         header_container.setObjectName("topHeaderContainer")
         header_container.setFixedHeight(32)
-        header_container.setStyleSheet("QFrame#topHeaderContainer { background-color: #0a0c10; border-bottom: 1px solid #1e222d; }")
+        header_container.setStyleSheet(f"QFrame#topHeaderContainer {{ background-color: {'#0a0c10' if is_dark else '#ffffff'}; border-bottom: 1px solid {'#1e222d' if is_dark else '#cbd5e1'}; }}")
         self.header_container = header_container
 
         h_layout = QHBoxLayout(header_container)
@@ -868,6 +1098,19 @@ class WorkspaceHeaderController:
         self.shortcut_f5 = QShortcut(QKeySequence("F5"), self.window)
         self.shortcut_f5.activated.connect(lambda: self.terminal._toggle_bot())
 
+        # MT5 Global Navigation Hotkeys
+        self.shortcut_f1 = QShortcut(QKeySequence("F1"), self.window)
+        self.shortcut_f1.activated.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
+
+        self.shortcut_f2 = QShortcut(QKeySequence("F2"), self.window)
+        self.shortcut_f2.activated.connect(lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"))
+
+        self.shortcut_ctrl_r = QShortcut(QKeySequence("Ctrl+R"), self.window)
+        self.shortcut_ctrl_r.activated.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
+
+        self.shortcut_f3 = QShortcut(QKeySequence("F3"), self.window)
+        self.shortcut_f3.activated.connect(lambda: self._switch_nav_tab(getattr(self.window, "tabCalendar", None), getattr(self, "btnNavCalendar", None), "Calendar"))
+
         # 5. Right-docked Account Telemetry (BAL | EQ | PnL - Account Capital Only)
         self.lbl_top_ticker = QLabel()
         self.lbl_top_ticker.setObjectName("lblTopTicker")
@@ -962,7 +1205,7 @@ class WorkspaceHeaderController:
         self.btn_win_close = btn_close
         win_layout.addWidget(btn_close)
 
-        h_layout.addWidget(win_controls)
+        m_layout.addWidget(win_controls)
 
         # Window drag handlers
         def mouse_press(event):
@@ -981,21 +1224,24 @@ class WorkspaceHeaderController:
         header_container.mousePressEvent = mouse_press
         header_container.mouseMoveEvent = mouse_move
         header_container.mouseReleaseEvent = mouse_release
+        menu_bar.mousePressEvent = mouse_press
+        menu_bar.mouseMoveEvent = mouse_move
+        menu_bar.mouseReleaseEvent = mouse_release
 
-        # BOTTOM BAR (30px): 3 Workspaces on Left, Consolidated Telemetry on Right
+        # BOTTOM BAR (22px): Clean Status Bar - old bulky tabs removed, telemetry kept
         bottom_bar = QFrame()
         bottom_bar.setObjectName("bottomTabBar")
-        bottom_bar.setFixedHeight(30)
-        bg = "#090d16" if is_dark else "#ffffff"
-        border = "#1e222d" if is_dark else "#cbd5e1"
+        bottom_bar.setFixedHeight(22)
+        bg = "#090d16" if is_dark else "#f8fafc"
+        border = "#1e222d" if is_dark else "#e2e8f0"
         bottom_bar.setStyleSheet(f"QFrame#bottomTabBar {{ background-color: {bg}; border-top: 1px solid {border}; }}")
         self.bottom_bar = bottom_bar
 
         b_layout = QHBoxLayout(bottom_bar)
         b_layout.setContentsMargins(10, 0, 10, 0)
-        b_layout.setSpacing(2)
+        b_layout.setSpacing(4)
 
-        # 3 Core Workspaces on Left: Terminal · Performance · Backtest (MT5 Toolbox / VS style)
+        # Tab buttons retained in memory for full compatibility, but hidden from bottom bar
         self.nav_buttons = []
         tabs_spec = [
             ("btnNavTerminal", "Terminal", self.window.tab2, "Terminal"),
@@ -1007,18 +1253,21 @@ class WorkspaceHeaderController:
         for obj_name, label_text, target_tab, full_title in tabs_spec:
             btn = QPushButton(label_text)
             btn.setObjectName(obj_name)
-            btn.setFixedHeight(30)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setCheckable(True)
+            btn.setFixedHeight(22)
+            btn.setVisible(False)
             def _make_nav_handler(target_tab, btn_obj, tab_title):
                 def _handler(checked=False):
                     self._switch_nav_tab(target_tab, btn_obj, tab_title)
                 return _handler
 
             btn.clicked.connect(_make_nav_handler(target_tab, btn, full_title))
-            b_layout.addWidget(btn)
             self.nav_buttons.append((btn, target_tab, full_title))
             setattr(self, obj_name, btn)
+
+        lbl_status_tip = QLabel("For Help, press F1")
+        lbl_status_tip.setObjectName("lblStatusTip")
+        lbl_status_tip.setStyleSheet(f"color: {'#64748b' if is_dark else '#94a3b8'}; font-size: 10px; font-family: 'Segoe UI', sans-serif;")
+        b_layout.addWidget(lbl_status_tip)
 
         if hasattr(self.terminal, "nav"):
             self.terminal.nav.nav_buttons = self.nav_buttons
@@ -1108,6 +1357,7 @@ class WorkspaceHeaderController:
         master_layout = QVBoxLayout(master)
         master_layout.setContentsMargins(0, 0, 0, 0)
         master_layout.setSpacing(0)
+        master_layout.addWidget(menu_bar, 0)
         master_layout.addWidget(header_container, 0)
         master_layout.addWidget(self.window.mainSplitter, 1)
         master_layout.addWidget(bottom_bar, 0)
