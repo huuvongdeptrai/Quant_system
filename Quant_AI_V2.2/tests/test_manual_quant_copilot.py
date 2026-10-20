@@ -1234,3 +1234,78 @@ class TestPendingOrderExecution:
             trading_plan_panel._setup_chart_manual_lines(win, "XAUUSD", is_buy=True, lot=0.10, sl=2620.0, tp=2680.0)
             assert entry_line.movable, "Pending entry line should be movable for drag-and-drop on chart"
             assert abs(entry_line.value() - 2630.0) < 1e-4, "Pending entry line should be placed at pending price"
+
+    def test_order_type_distinct_buy_and_sell_labels(self, qapp):
+        """Card M1 buttons always maintain distinct BUY (Ask) vs SELL (Bid) labels."""
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+        from frontend.controllers.chart import trading_plan_panel
+
+        win = QWidget()
+        win.current_sym = "XAUUSD"
+        win.is_dark_theme = True
+        win.layoutAIArea = QVBoxLayout(win)
+        win._last_manual_ask = 2650.50
+        win._last_manual_bid = 2650.25
+        trading_plan_panel.setup_trading_plan_cards(win, is_dark=True)
+        win.show()
+        win.btnPlanModeManual.click()
+
+        combo = win.comboManualOrderType
+
+        # 1. Market mode
+        combo.setCurrentText("MARKET")
+        assert win.lblManualBuyText.text() == "BUY MARKET"
+        assert win.lblManualSellText.text() == "SELL MARKET"
+
+        # 2. Buy Limit mode
+        combo.setCurrentText("BUY LIMIT")
+        assert win.lblManualBuyText.text() == "BUY LIMIT"
+        assert win.lblManualSellText.text() == "SELL LIMIT"
+
+        # 3. Sell Limit mode
+        combo.setCurrentText("SELL LIMIT")
+        assert win.lblManualBuyText.text() == "BUY LIMIT"
+        assert win.lblManualSellText.text() == "SELL LIMIT"
+
+        # 4. Stop mode
+        combo.setCurrentText("BUY STOP")
+        assert win.lblManualBuyText.text() == "BUY STOP"
+        assert win.lblManualSellText.text() == "SELL STOP"
+
+        win.close()
+
+    def test_pending_price_valid_initialization_not_zero_or_min(self, qapp):
+        """Pending price spin initializes around market price, never 0.01."""
+        from PySide6.QtWidgets import QWidget, QVBoxLayout
+        from frontend.controllers.chart import trading_plan_panel
+
+        win = QWidget()
+        win.current_sym = "ETHUSD"
+        win.is_dark_theme = True
+        win.layoutAIArea = QVBoxLayout(win)
+        win._last_manual_ask = 4144.75
+        win._last_manual_bid = 4144.67
+        win._last_manual_entry = 4144.75
+        trading_plan_panel.setup_trading_plan_cards(win, is_dark=True)
+        win.show()
+        win.btnPlanModeManual.click()
+
+        # Switch to BUY LIMIT
+        combo = win.comboManualOrderType
+        combo.setCurrentText("BUY LIMIT")
+
+        pending_val = win.spinManualPendingPrice.value()
+        assert pending_val > 100.0, f"Pending price {pending_val} should be near market ETH ~4144, not 0.01"
+        assert pending_val < 4144.75, "BUY LIMIT pending price must be below market ask"
+
+        # Clicking SELL button switches direction and flips combo to SELL LIMIT
+        win.btnManualSell.click()
+        assert win._manual_direction == "SELL"
+        assert combo.currentText() == "SELL LIMIT"
+        pending_sell_val = win.spinManualPendingPrice.value()
+        assert pending_sell_val > 4144.67, "SELL LIMIT pending price must be above market bid"
+
+        # Execute button is enabled and has valid price
+        assert win.btnManualExecute.isEnabled(), "Execute button should be enabled"
+        assert "SELL LIMIT" in win.btnManualExecute.text()
+        win.close()

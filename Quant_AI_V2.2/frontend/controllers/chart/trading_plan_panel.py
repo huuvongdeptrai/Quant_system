@@ -1094,12 +1094,23 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             b.style().unpolish(b)
             b.style().polish(b)
 
-    # SpinBoxes (SL / TP / Lot)
-    for spin_name in ["spinManualSL", "spinManualTP", "spinManualLot"]:
+    # SpinBoxes (SL / TP / Lot / Pending Price)
+    for spin_name in ["spinManualSL", "spinManualTP", "spinManualLot", "spinManualPendingPrice"]:
         sp = getattr(window, spin_name, None)
         if sp:
             sp.style().unpolish(sp)
             sp.style().polish(sp)
+
+    # Order Type Selector (Dynamic unpolish/polish for Light/Dark mode)
+    if hasattr(window, "comboManualOrderType") and window.comboManualOrderType:
+        window.comboManualOrderType.style().unpolish(window.comboManualOrderType)
+        window.comboManualOrderType.style().polish(window.comboManualOrderType)
+
+    # Order Type & Pending Price Labels
+    for lbl_name in ["lblManualOrderTypeLabel", "lblManualPendingPriceLabel"]:
+        lbl_w = getattr(window, lbl_name, None)
+        if lbl_w:
+            lbl_w.setStyleSheet(f"color: {sub_color}; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; border: none; background: transparent;")
 
     # Lot Summary Box (Transparent, no border, clean whitespace separation)
     if hasattr(window, "boxManualLotSummary") and window.boxManualLotSummary:
@@ -1297,8 +1308,8 @@ def evaluate_manual_compliance(window, symbol=None):
                 is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
                 order_type_str = getattr(window, "_manual_order_type", "MARKET")
                 
-                # For pending orders, entry_ref is the pending trigger price
-                if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0:
+                # For pending orders, entry_ref is the pending trigger price (strictly > 0.01 to avoid default/min clamp error)
+                if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0.01:
                     entry_ref = float(window.spinManualPendingPrice.value())
                 else:
                     entry_ref = getattr(window, "_last_manual_entry", 0.0)
@@ -1453,7 +1464,7 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     point = info.point if info and info.point > 0 else (0.01 if digits == 2 else 0.0001)
 
     order_type_str = getattr(window, "_manual_order_type", "MARKET")
-    if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0:
+    if order_type_str != "MARKET" and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice and window.spinManualPendingPrice.value() > 0.01:
         entry_p = float(window.spinManualPendingPrice.value())
     else:
         tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
@@ -1808,6 +1819,24 @@ def sync_manual_copilot_quotes(window):
         # Check if stops need re-alignment (uninitialized or wrong orientation for direction or symbol changed)
         sym_changed = (clean_sym != getattr(window, "_last_reseed_sym", None))
         window._last_reseed_sym = clean_sym
+
+        # Reseed pending entry price if symbol changed or currently invalid <= 0.01
+        if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+            window.spinManualPendingPrice.setDecimals(digits)
+            cur_p_val = window.spinManualPendingPrice.value()
+            pt_dist = max(pip_unit * 15.0, 50 * point)
+            order_type_s = getattr(window, "_manual_order_type", "MARKET")
+            if sym_changed or cur_p_val <= 0.01 or (ref_p > 0 and abs(cur_p_val - ref_p) > ref_p * 0.5):
+                if order_type_s == "BUY LIMIT":
+                    window.spinManualPendingPrice.setValue(round(bid - pt_dist, digits))
+                elif order_type_s == "SELL LIMIT":
+                    window.spinManualPendingPrice.setValue(round(ask + pt_dist, digits))
+                elif order_type_s == "BUY STOP":
+                    window.spinManualPendingPrice.setValue(round(ask + pt_dist, digits))
+                elif order_type_s == "SELL STOP":
+                    window.spinManualPendingPrice.setValue(round(bid - pt_dist, digits))
+                else:
+                    window.spinManualPendingPrice.setValue(round(ref_p, digits))
 
         needs_realign = sym_changed or (cur_sl <= 0.0 or cur_tp <= 0.0)
         if not needs_realign:
@@ -2346,7 +2375,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     spin_pending_price = QDoubleSpinBox()
     spin_pending_price.setObjectName("spinManualPendingPrice")
     spin_pending_price.setDecimals(2)
-    spin_pending_price.setRange(0.01, 999999.0)
+    spin_pending_price.setRange(0.0, 1000000.0)
     spin_pending_price.setValue(0.0)
     spin_pending_price.setSingleStep(0.5)
     spin_pending_price.setFixedHeight(22)
@@ -2358,6 +2387,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     # Store references on window
     window.comboManualOrderType = combo_order_type
     window.spinManualPendingPrice = spin_pending_price
+    window.lblManualOrderTypeLabel = lbl_order_type
+    window.lblManualPendingPriceLabel = lbl_pending_price
     window._manual_order_type = "MARKET"
 
     # Recalculate and redraw lines when pending price changes
@@ -2375,18 +2406,54 @@ def setup_trading_plan_cards(window, is_dark=False):
         lbl_pending_price_ref.setVisible(is_pending)
         spin_pending_price.setVisible(is_pending)
 
+        # Update BUY/SELL button labels (Distinct Buy vs Sell quotes always separated)
+        if order_str == "MARKET":
+            lbl_buy_t.setText("BUY MARKET")
+            lbl_sell_t.setText("SELL MARKET")
+        elif "LIMIT" in order_str:
+            lbl_buy_t.setText("BUY LIMIT")
+            lbl_sell_t.setText("SELL LIMIT")
+        elif "STOP" in order_str:
+            lbl_buy_t.setText("BUY STOP")
+            lbl_sell_t.setText("SELL STOP")
+
         # Smart default pending price based on current market & order type
         if is_pending:
             sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
             info = mt5.symbol_info(sym)
             dig = info.digits if info else 2
             pt = info.point if info and info.point > 0 else 0.01
-            tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
-            curr_ask = tick.ask if tick else getattr(window, "_last_manual_entry", 2650.0)
-            curr_bid = tick.bid if tick else getattr(window, "_last_manual_entry", 2650.0)
-            step_dist = 50 * pt
+            pip_u = get_symbol_pip_unit(sym, dig, pt)
+            step_dist = max(pip_u * 15.0, 50 * pt)
 
-            if spin_pending_price.value() <= 0:
+            tick = mt5.symbol_info_tick(sym) if mt5.terminal_info() is not None else None
+            curr_ask = float(tick.ask) if tick and tick.ask > 0 else float(getattr(window, "_last_manual_ask", 2650.25))
+            curr_bid = float(tick.bid) if tick and tick.bid > 0 else float(getattr(window, "_last_manual_bid", 2650.00))
+
+            spin_pending_price.setDecimals(dig)
+            spin_pending_price.setSingleStep(pip_u if pip_u > 0 else pt * 10)
+
+            # Auto-align direction
+            if "BUY" in order_str:
+                window._manual_direction = "BUY"
+            elif "SELL" in order_str:
+                window._manual_direction = "SELL"
+
+            cur_p_val = spin_pending_price.value()
+            needs_new_price = False
+
+            if cur_p_val <= 0.01:
+                needs_new_price = True
+            elif order_str == "BUY LIMIT" and cur_p_val >= curr_ask:
+                needs_new_price = True
+            elif order_str == "SELL LIMIT" and cur_p_val <= curr_bid:
+                needs_new_price = True
+            elif order_str == "BUY STOP" and cur_p_val <= curr_ask:
+                needs_new_price = True
+            elif order_str == "SELL STOP" and cur_p_val >= curr_bid:
+                needs_new_price = True
+
+            if needs_new_price:
                 if order_str == "BUY LIMIT":
                     spin_pending_price.setValue(round(curr_bid - step_dist, dig))
                 elif order_str == "SELL LIMIT":
@@ -2395,31 +2462,12 @@ def setup_trading_plan_cards(window, is_dark=False):
                     spin_pending_price.setValue(round(curr_ask + step_dist, dig))
                 elif order_str == "SELL STOP":
                     spin_pending_price.setValue(round(curr_bid - step_dist, dig))
-        # Update BUY/SELL button labels
-        if order_str == "MARKET":
-            lbl_buy_t.setText("BUY MARKET")
-            lbl_sell_t.setText("SELL MARKET")
-        elif order_str == "BUY LIMIT":
-            lbl_buy_t.setText("BUY LIMIT")
-            lbl_sell_t.setText("BUY LIMIT")
-        elif order_str == "SELL LIMIT":
-            lbl_buy_t.setText("SELL LIMIT")
-            lbl_sell_t.setText("SELL LIMIT")
-        elif order_str == "BUY STOP":
-            lbl_buy_t.setText("BUY STOP")
-            lbl_sell_t.setText("BUY STOP")
-        elif order_str == "SELL STOP":
-            lbl_buy_t.setText("SELL STOP")
-            lbl_sell_t.setText("SELL STOP")
-        # Auto-set _manual_direction based on order type
-        if "BUY" in order_str or order_str == "MARKET":
-            window._manual_direction = "BUY"
-            btn_buy.setEnabled(True)
-            btn_sell.setEnabled(order_str == "MARKET")
-        else:
-            window._manual_direction = "SELL"
-            btn_buy.setEnabled(False)
-            btn_sell.setEnabled(True)
+
+        # Both buttons always stay interactive to allow direction switching
+        btn_buy.setEnabled(True)
+        btn_sell.setEnabled(True)
+        apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
+        _recalculate_manual_lot_and_rr(window)
 
     combo_order_type.currentIndexChanged.connect(_on_order_type_changed)
 
@@ -2817,6 +2865,22 @@ def setup_trading_plan_cards(window, is_dark=False):
     # Signal wiring: Direction toggles
     def _set_dir(new_d):
         window._manual_direction = new_d
+        # If in pending mode, dynamically synchronize comboManualOrderType to match clicked side
+        if hasattr(window, "comboManualOrderType") and window.comboManualOrderType:
+            curr_ot = window.comboManualOrderType.currentText()
+            if "LIMIT" in curr_ot:
+                target_ot = "BUY LIMIT" if new_d == "BUY" else "SELL LIMIT"
+                if curr_ot != target_ot:
+                    idx_tgt = window.comboManualOrderType.findText(target_ot)
+                    if idx_tgt >= 0:
+                        window.comboManualOrderType.setCurrentIndex(idx_tgt)
+            elif "STOP" in curr_ot:
+                target_ot = "BUY STOP" if new_d == "BUY" else "SELL STOP"
+                if curr_ot != target_ot:
+                    idx_tgt = window.comboManualOrderType.findText(target_ot)
+                    if idx_tgt >= 0:
+                        window.comboManualOrderType.setCurrentIndex(idx_tgt)
+
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
         sync_manual_copilot_quotes(window)
 
