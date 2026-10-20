@@ -338,6 +338,13 @@ class QuantTerminal(QObject):
         if hasattr(self.window, "chartSplitter"):
             self.window.chartSplitter.setSizes([900, 340])
 
+        # Initialize Macro & Economic Calendar tab workspace
+        if not hasattr(self.window, "tabCalendar"):
+            self.window.tabCalendar = QWidget()
+            self.window.tabCalendar.setObjectName("tabCalendar")
+            if hasattr(self.window, "tabWidget"):
+                self.window.tabWidget.addTab(self.window.tabCalendar, "CALENDAR")
+
         # Pure Flat Architecture (Zero Drop Shadow / Glow per Institutional Specification)
         if self.window.centralWidget():
             self.window.centralWidget().setGraphicsEffect(None)
@@ -529,6 +536,10 @@ class QuantTerminal(QObject):
         # Update Tab 5 (Logs)
         if hasattr(self, "logs") and hasattr(self.logs, "update_theme"):
             self.logs.update_theme(is_dark)
+
+        # Update Tab Calendar
+        if hasattr(self, "calendar") and hasattr(self.calendar, "update_theme"):
+            self.calendar.update_theme(is_dark)
 
         # Update Top Navigation Tab buttons
         self._update_nav_buttons_style(is_dark)

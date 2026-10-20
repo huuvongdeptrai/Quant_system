@@ -207,6 +207,14 @@ class NavigationController:
                 curr_sym = getattr(self.window, "current_sym", None)
                 if curr_sym:
                     self.window.backtest_controller.set_symbol(curr_sym)
+        elif target_tab == getattr(self.window, "tabCalendar", None):
+            cal_mgr = getattr(self.window, "calendar_mgr", None) or getattr(self.terminal, "calendar", None)
+            if cal_mgr:
+                curr_sym = getattr(self.window, "current_sym", None)
+                if curr_sym and hasattr(cal_mgr, "set_current_symbol"):
+                    cal_mgr.set_current_symbol(curr_sym)
+                if hasattr(cal_mgr, "load_calendar"):
+                    cal_mgr.load_calendar()
 
         # Dedicated Viewport: Only show Watchlist on Tab 1 (Terminal), unless manually collapsed
         if hasattr(self.window, "sidebar"):

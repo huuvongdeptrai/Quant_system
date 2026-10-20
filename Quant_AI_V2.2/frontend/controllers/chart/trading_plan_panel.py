@@ -1238,8 +1238,21 @@ def evaluate_manual_compliance(window, symbol=None):
                 window._event_risk_engine = ere
             is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
             if is_impacted:
-                checks["news"] = {"passed": False, "msg": f"Red Event: {news_title[:18]}", "val": "BLOCKED"}
-                block_reason = "HIGH IMPACT NEWS EVENT"
+                p_mins = int(cfg.get("news_defense_mins", 15))
+                checks["news"] = {
+                    "passed": False,
+                    "msg": f"Red Event: {news_title} (±{p_mins}m Blackout Window)",
+                    "val": "BLOCKED",
+                    "event": news_title,
+                }
+                block_reason = f"NEWS: {news_title[:14].upper()}"
+            else:
+                checks["news"] = {
+                    "passed": True,
+                    "msg": "News Defense: Clear (No high-impact blackout)",
+                    "val": "PASS",
+                    "event": "Clear",
+                }
         except Exception as e:
             logger.debug(f"[TradingPlan] News check error: {e}")
 
@@ -1561,10 +1574,14 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         c_pass = c_info.get("passed", True)
         if v_widget:
             v_widget.setText(c_info.get("val", "PASS"))
+            v_widget.setToolTip(c_info.get("msg", ""))
             v_widget.setStyleSheet(
                 f"color: {bull_c if c_pass else bear_c}; font-family: Consolas, monospace; "
                 f"font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
             )
+        row_lbl = getattr(window, lbl_val_name.replace("Val", ""), None)
+        if row_lbl:
+            row_lbl.setToolTip(c_info.get("msg", ""))
 
     # Update execute button with exact price: BUY 0.19 LOTS @ 2650.50
     dir_str = getattr(window, "_manual_direction", "BUY")

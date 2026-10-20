@@ -810,6 +810,32 @@ class WorkspaceHeaderController:
         self.window.btn_algo_toggle = btn_algo
         ctx_layout.addWidget(btn_algo)
 
+        # Separator 4: Between ALGO Control Pill and Event Risk Badge
+        sep_event = QFrame()
+        sep_event.setFixedWidth(1)
+        sep_event.setFixedHeight(14)
+        sep_event.setStyleSheet(f"background-color: {sep_col};")
+        ctx_layout.addWidget(sep_event)
+
+        # 5. Live Event Risk Badge (Shows blackout warning or clear status for active asset)
+        btn_event_risk = QPushButton("EVENT: CLEAR")
+        btn_event_risk.setObjectName("btnEventRiskBadge")
+        btn_event_risk.setFixedHeight(22)
+        btn_event_risk.setCursor(Qt.PointingHandCursor)
+        btn_event_risk.setStyleSheet(
+            "QPushButton#btnEventRiskBadge { background-color: transparent; color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); "
+            "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
+            "QPushButton#btnEventRiskBadge:hover { background-color: rgba(34, 197, 94, 0.1); }"
+        )
+        def _jump_to_calendar(chk=False):
+            if hasattr(self.terminal, "nav") and hasattr(self.window, "tabCalendar"):
+                btn_cal = getattr(self, "btnNavCalendar", None)
+                self.terminal.nav._switch_nav_tab(self.window.tabCalendar, btn_cal, "Calendar")
+        btn_event_risk.clicked.connect(_jump_to_calendar)
+        self.btn_event_risk = btn_event_risk
+        self.window.btn_event_risk = btn_event_risk
+        ctx_layout.addWidget(btn_event_risk)
+
         h_layout.addWidget(self.chart_context_bar)
 
         # Dedicated Non-Terminal Workspace Branding (Shown on Stats, Backtest, Logs)
@@ -975,6 +1001,7 @@ class WorkspaceHeaderController:
             ("btnNavTerminal", "Terminal", self.window.tab2, "Terminal"),
             ("btnNavStats", "Performance", self.window.tab3, "Performance"),
             ("btnNavBacktest", "Backtest", self.window.tab_5, "Backtest"),
+            ("btnNavCalendar", "Calendar", getattr(self.window, "tabCalendar", None), "Calendar"),
         ]
 
         for obj_name, label_text, target_tab, full_title in tabs_spec:
@@ -1089,6 +1116,47 @@ class WorkspaceHeaderController:
             total_w = max(400, self.window.mainSplitter.width() or 1440)
             sidebar_w = 260
             self.window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
+
+
+    def _update_event_risk_badge(self, symbol=None):
+        """Updates live event risk ticker badge for active asset."""
+        if not hasattr(self, "btn_event_risk") or not self.btn_event_risk:
+            return
+
+        if not symbol:
+            symbol = getattr(self.window, "current_sym", "XAUUSD")
+        clean_sym = symbol.split("\n")[0].split(".")[0].strip().upper()
+
+        ere = getattr(self.window, "_event_risk_engine", None)
+        if not ere:
+            try:
+                from backend.core.event_risk_engine import EventRiskEngine
+                ere = EventRiskEngine()
+                self.window._event_risk_engine = ere
+            except Exception:
+                return
+
+        try:
+            is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
+            if is_impacted:
+                self.btn_event_risk.setText(f"EVENT: 🔴 {news_title[:12].upper()}")
+                self.btn_event_risk.setStyleSheet(
+                    "QPushButton#btnEventRiskBadge { background-color: #ef4444; color: #ffffff; border: 1px solid #ef4444; "
+                    "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
+                    "QPushButton#btnEventRiskBadge:hover { background-color: #dc2626; }"
+                )
+                self.btn_event_risk.setToolTip(f"High-impact news event active: {news_title}\nTrading pause active. Click to view Macro Calendar.")
+            else:
+                self.btn_event_risk.setText("EVENT: CLEAR")
+                self.btn_event_risk.setStyleSheet(
+                    "QPushButton#btnEventRiskBadge { background-color: transparent; color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.4); "
+                    "border-radius: 2px; padding: 0 6px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; } "
+                    "QPushButton#btnEventRiskBadge:hover { background-color: rgba(34, 197, 94, 0.1); }"
+                )
+                self.btn_event_risk.setToolTip(f"No active news blackout for {clean_sym}.\nClick to view Macro Calendar.")
+        except Exception:
+            pass
+
 
 # Backward compatibility alias
 HeaderController = WorkspaceHeaderController
