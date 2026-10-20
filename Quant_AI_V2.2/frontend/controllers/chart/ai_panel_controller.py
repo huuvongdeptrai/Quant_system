@@ -110,10 +110,14 @@ class AIAnalyzerThread(QtCore.QThread):
                 return
 
             if "error" in result:
-                try:
-                    self.signals.error.emit(str(result["error"]))
-                except (RuntimeError, AttributeError):
-                    pass
+                err_msg = str(result["error"])
+                # Only emit error signal for true runtime failures; Ollama offline is a deliberate,
+                # graceful fallback to the local quantitative model and should not wipe the UI proposal.
+                if "ollama offline" not in err_msg.lower():
+                    try:
+                        self.signals.error.emit(err_msg)
+                    except (RuntimeError, AttributeError):
+                        pass
                 # Fallback to local quant model instantly so plan is never blank
                 result = {
                     "_sym": self.sym,
@@ -122,7 +126,7 @@ class AIAnalyzerThread(QtCore.QThread):
                     "_support": self.tech_data.get("support", 0) if self.tech_data else 0,
                     "trend_intraday": self.tech_data.get("math_trend", "SIDEWAYS") if self.tech_data else "SIDEWAYS",
                     "scenario_a": "Local Quant Model active (Ollama offline).",
-                    "scenario_b": "Technical analysis via ICT Zones Pro.",
+                    "scenario_b": "Technical analysis via quantitative strategy.",
                     "confidence": 85,
                     "ai_offline": True,
                 }
@@ -194,12 +198,24 @@ class AIAnalyzerThread(QtCore.QThread):
                     df = pd.DataFrame(self.rates)
                     if "time" in df.columns:
                         df["time"] = pd.to_datetime(df["time"], unit="s")
-                    macro_eng = MacroRegimeEngine()
-                    macro_ctx = (
-                        macro_eng.get_market_regime()
-                        if hasattr(macro_eng, "get_market_regime")
-                        else {"volatility_risk": "LOW", "bias": "NEUTRAL"}
-                    )
+                    macro_ctx = {"volatility_risk": "LOW", "bias": "NEUTRAL"}
+                    try:
+                        from backend.infrastructure.data_providers.asset_registry import AssetRegistry
+                        adapter = AssetRegistry.get_adapter(self.sym)
+                        if adapter and hasattr(adapter, "get_macro_bias"):
+                            b_val = adapter.get_macro_bias(self.sym)
+                            macro_ctx["bias"] = b_val
+                            macro_ctx["macro_bias"] = b_val
+
+                        macro_eng = MacroRegimeEngine()
+                        m_state = macro_eng.get_market_state()
+                        if m_state:
+                            vix = float(m_state.get("vix", 18.0))
+                            macro_ctx["volatility_risk"] = "HIGH" if vix > 25.0 else ("MEDIUM" if vix > 18.0 else "LOW")
+                            macro_ctx["vix"] = vix
+                            macro_ctx["dxy_trend"] = m_state.get("dxy_trend", "NEUTRAL")
+                    except Exception as e_m:
+                        logger.debug(f"[AIAnalysisThread] Macro context assembly: {e_m}")
 
                     strat_id = getattr(self, "strategy_id", None)
                     from backend.core.strategies import get_strategy_instance

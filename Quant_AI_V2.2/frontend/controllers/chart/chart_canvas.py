@@ -1967,6 +1967,15 @@ def setup_chart_ui(window):
                     window.candlesticks.generatePicture()
                     window.candlesticks.update()
 
+                # On-Bar-Close Event Trigger (QuantConnect LEAN & Sierra Chart standard)
+                # When previous candle confirms closed, automatically re-evaluate quantitative strategy
+                clean_sym = getattr(window, "current_sym", "").split("\n")[0].strip()
+                last_analyzed = getattr(window, "_last_analyzed_bar_time", 0)
+                if clean_sym and r["time"] != last_analyzed:
+                    window._last_analyzed_bar_time = r["time"]
+                    from frontend.controllers.chart.ai_panel_controller import _run_analysis
+                    _run_analysis(window, clean_sym, force=False)
+
     from backend.core.event_bus import event_bus
 
     event_bus.market_tick.connect(on_market_tick)

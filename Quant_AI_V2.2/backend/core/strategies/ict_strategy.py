@@ -606,8 +606,8 @@ class ICTZonesProStrategy(BaseStrategy):
             # Tăng độ khó PA ở phiên Mỹ
             self.require_pa = True
 
-        volatility = macro_context.get("volatility_risk", "LOW")
-        macro_bias = macro_context.get("bias", "NEUTRAL")
+        volatility = macro_context.get("volatility_risk") or macro_context.get("volatility", "LOW")
+        macro_bias = macro_context.get("bias") or macro_context.get("macro_bias", "NEUTRAL")
 
         if volatility == "HIGH":
             min_conf = self.min_confluence + 2

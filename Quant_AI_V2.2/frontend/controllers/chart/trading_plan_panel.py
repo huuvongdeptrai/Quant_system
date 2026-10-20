@@ -163,8 +163,16 @@ def clear_manual_chart_lines(window):
 
 def resolve_strategy_model_name(window, model_name: Optional[str] = None) -> str:
     """Resolve human-readable model name based on active strategy contract."""
-    if model_name and model_name.strip() and model_name.strip() not in ("Quantitative Strategy", "--"):
-        return model_name.strip()
+    candidate = model_name.strip() if (model_name and isinstance(model_name, str)) else None
+    if candidate and candidate not in ("Quantitative Strategy", "--"):
+        try:
+            from backend.core.strategies import get_strategy_instance
+            strat = get_strategy_instance(candidate)
+            if hasattr(strat, "name") and strat.name:
+                return str(strat.name)
+        except Exception:
+            pass
+        return candidate
 
     active_id = getattr(window, "active_strategy_id", None)
     if active_id:
@@ -1644,67 +1652,23 @@ def sync_live_position_to_ai_plan(window):
             window.active_signals_by_symbol = {}
 
         if pos is None:
+            was_live = getattr(window, "is_live_position", False)
             window.is_live_position = False
             window.live_ticket = None
+
+            # If an active position in MT5 just closed, re-evaluate quantitative strategy immediately
+            if was_live:
+                from frontend.controllers.chart.ai_panel_controller import _run_analysis
+                _run_analysis(window, clean_sym, force=True)
+                return
 
             # Check if there is an active proposal waiting for operator approval for clean_sym
             curr_sig = window.active_signals_by_symbol.get(clean_sym, {})
             if curr_sig.get("has_signal") and not curr_sig.get("is_live_position"):
                 return
 
-            window.order_proposal_active = False
-            clear_manual_chart_lines(window)
-
-            raw_model = resolve_strategy_model_name(window, getattr(window, "active_strategy_id", None))
-            strat_display = str(raw_model) if raw_model else "Quantitative Strategy"
-            is_dark = getattr(window, "is_dark_theme", False)
-
-            if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
-                window.lblModelSubtitle.setText("SETUP MODEL")
-            if hasattr(window, "lblModelName") and window.lblModelName:
-                window.lblModelName.setText(strat_display)
-            if hasattr(window, "lblModelGrade") and window.lblModelGrade:
-                window.lblModelGrade.setText("AWAITING SETUP")
-                window.lblModelGrade.setStyleSheet(
-                    "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
-                )
-            update_strategy_checklist_ui(window, strat_display, None, None, None, is_active=False)
-
-            if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
-                window.lblOrderBudgetTitle.setText("ORDER & RISK BUDGET")
-            if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
-                window.lblOrderTypeBadge.setText("NO ORDER")
-                window.lblOrderTypeBadge.setStyleSheet(
-                    "background-color: #1e293b; color: #64748b; border: 1px solid #334155; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
-                )
-            if hasattr(window, "lblEntryVal") and window.lblEntryVal:
-                window.lblEntryVal.setText("--")
-            if hasattr(window, "lblSLVal") and window.lblSLVal:
-                window.lblSLVal.setText("--")
-            if hasattr(window, "lblTPVal") and window.lblTPVal:
-                window.lblTPVal.setText("--")
-            if hasattr(window, "lblSizeVal") and window.lblSizeVal:
-                window.lblSizeVal.setText("--")
-
-            if hasattr(window, "lblGateExpiryTitle") and window.lblGateExpiryTitle:
-                window.lblGateExpiryTitle.setText("EXPIRATION")
-            if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
-                window.lblGateExpiryTime.setText("--")
-            if hasattr(window, "barSignalExpiry") and window.barSignalExpiry:
-                window.barSignalExpiry.setValue(0)
-            if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
-                window.btnApproveOrder.setText("AWAITING STRATEGY SIGNAL")
-                window.btnApproveOrder.setEnabled(False)
-                window.btnApproveOrder.setCursor(Qt.ArrowCursor)
-            if hasattr(window, "btnModifyOrder") and window.btnModifyOrder:
-                window.btnModifyOrder.setEnabled(False)
-            if hasattr(window, "btnDiscardOrder") and window.btnDiscardOrder:
-                window.btnDiscardOrder.setText("DISCARD")
-                window.btnDiscardOrder.setEnabled(False)
-            if hasattr(window, "cardSetupModel"):
-                apply_playbook_cards_theme(window, is_dark)
+            # In standby mode without an open MT5 position, preserve the strategy's calculated
+            # dynamic checklist and do not clobber Card 1 / Card 2 on every market tick.
             return
 
         if pos is not None:
