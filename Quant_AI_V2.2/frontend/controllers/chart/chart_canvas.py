@@ -2079,26 +2079,126 @@ def setup_chart_ui(window):
 
         if is_dark:
             menu_style = (
-                "QMenu { background-color: #0c0e17; color: #f8fafc; border: 1px solid #272d3b; "
-                "border-radius: 4px; padding: 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
-                "QMenu::item { padding: 6px 20px 6px 14px; border-radius: 3px; color: #e2e8f0 !important; background-color: transparent; } "
+                "QMenu { background-color: #0c0e17; color: #f8fafc; border: 1px solid #1e293b; "
+                "border-radius: 2px; padding: 3px; font-family: Consolas, monospace; font-size: 11px; } "
+                "QMenu::item { padding: 5px 22px 5px 12px; border-radius: 2px; color: #cbd5e1 !important; background-color: transparent; } "
                 "QMenu::item:selected { background-color: #1e293b; color: #38bdf8 !important; } "
                 "QMenu::item:disabled { color: #64748b !important; } "
-                "QMenu::separator { height: 1px; background-color: #272d3b; margin: 4px 6px; }"
+                "QMenu::separator { height: 1px; background-color: #1e293b; margin: 3px 4px; }"
             )
         else:
             menu_style = (
                 "QMenu { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
-                "border-radius: 4px; padding: 4px; font-family: 'Segoe UI', Consolas, sans-serif; font-size: 11px; } "
-                "QMenu::item { padding: 6px 20px 6px 14px; border-radius: 3px; color: #0f172a !important; background-color: transparent; } "
+                "border-radius: 2px; padding: 3px; font-family: Consolas, monospace; font-size: 11px; } "
+                "QMenu::item { padding: 5px 22px 5px 12px; border-radius: 2px; color: #1e293b !important; background-color: transparent; } "
                 "QMenu::item:selected { background-color: #f1f5f9; color: #0284c7 !important; } "
                 "QMenu::item:disabled { color: #94a3b8 !important; } "
-                "QMenu::separator { height: 1px; background-color: #e2e8f0; margin: 4px 6px; }"
+                "QMenu::separator { height: 1px; background-color: #e2e8f0; margin: 3px 4px; }"
             )
 
         menu.setStyleSheet(menu_style)
 
-        tf_menu = menu.addMenu("TIMEFRAME")
+        # -------------------------------------------------------------
+        # 1. Price Context Mapping & Fast One-Click Order Placement
+        # -------------------------------------------------------------
+        try:
+            vb = window.plot_widget.plotItem.vb
+            scene_pos = window.plot_widget.mapToScene(pos.x(), pos.y())
+            view_point = vb.mapSceneToView(scene_pos)
+            click_p_raw = float(view_point.y())
+
+            raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
+            sym = raw_sym.split("\n")[0].strip()
+            sym_info = mt5.symbol_info(sym)
+            digits = sym_info.digits if sym_info else (2 if click_p_raw > 10 else 5)
+            click_p = round(click_p_raw, digits)
+
+            tick = mt5.symbol_info_tick(sym)
+            cur_bid = tick.bid if tick else click_p
+            cur_ask = tick.ask if tick else click_p
+
+            lot = 0.05
+            if hasattr(window, "active_signal_data") and window.active_signal_data:
+                lot = window.active_signal_data.get("lot", 0.05)
+            elif hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                try:
+                    lot = float(window.lblSizeVal.text().split()[0])
+                except Exception:
+                    lot = 0.05
+            lot = round(float(lot), 2)
+
+            is_above = click_p >= cur_ask
+            primary_type = "SELL_LIMIT" if is_above else "BUY_LIMIT"
+            primary_label = f"Sell Limit {lot:<5.2f}    {click_p:.{digits}f}" if is_above else f"Buy Limit  {lot:<5.2f}    {click_p:.{digits}f}"
+            secondary_type = "BUY_STOP" if is_above else "SELL_STOP"
+            secondary_label = f"Buy Stop   {lot:<5.2f}    {click_p:.{digits}f}" if is_above else f"Sell Stop  {lot:<5.2f}    {click_p:.{digits}f}"
+
+            def _do_execute_pending(order_type_str: str, target_price: float):
+                try:
+                    from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                    exec_mgr = None
+                    if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                        exec_mgr = window.quant_terminal.exec_mgr
+                    if not exec_mgr:
+                        exec_mgr = ExecutionManager(slippage=20)
+
+                    res = exec_mgr.execute_pending_order(
+                        symbol=sym,
+                        order_type=order_type_str,
+                        price=target_price,
+                        volume=lot,
+                        sl_price=0.0,
+                        tp_price=0.0,
+                        comment="VECTRA_ChartOrder",
+                    )
+
+                    from backend.core.event_bus import event_bus
+                    if res.get("status") == "success":
+                        tkt = res.get("ticket")
+                        msg = f"Đã đặt {order_type_str} {lot} {sym} @ {target_price} (Ticket #{tkt})"
+                        logger.info(f"[ChartTrading] {msg}")
+                        event_bus.log_event.emit("", "SUCCESS", msg, "#22c55e")
+                        window.is_pending_order = True
+                        window.pending_ticket = tkt
+                        window.pending_order_type = order_type_str
+                        window.pending_price = target_price
+                        if hasattr(window, "refresh_active_orders"):
+                            window.refresh_active_orders()
+                    else:
+                        err_msg = res.get("msg", "Lỗi gửi lệnh MT5")
+                        logger.error(f"[ChartTrading] {err_msg}")
+                        event_bus.log_event.emit("", "ERROR", f"Không thể đặt {order_type_str}: {err_msg}", "#ef4444")
+                except Exception as e:
+                    logger.error(f"[ChartTrading] Exception while executing pending order: {e}")
+
+            # Top Item: Primary One-Click Order
+            act_primary = menu.addAction(primary_label)
+            act_primary.triggered.connect(lambda chk=False, t=primary_type, p=click_p: _do_execute_pending(t, p))
+
+            # Trading Submenu (Full suite like MT5)
+            m_trading = menu.addMenu("Trading")
+            m_trading.setStyleSheet(menu_style)
+
+            act_sub1 = m_trading.addAction(primary_label)
+            act_sub1.triggered.connect(lambda chk=False, t=primary_type, p=click_p: _do_execute_pending(t, p))
+
+            act_sub2 = m_trading.addAction(secondary_label)
+            act_sub2.triggered.connect(lambda chk=False, t=secondary_type, p=click_p: _do_execute_pending(t, p))
+
+            act_alert = m_trading.addAction(f"Alert                    {click_p:.{digits}f}")
+            def _do_set_alert(target_p):
+                from backend.core.event_bus import event_bus
+                event_bus.log_event.emit("", "INFO", f"Đã tạo cảnh báo giá {sym} @ {target_p}", "#38bdf8")
+            act_alert.triggered.connect(lambda chk=False, p=click_p: _do_set_alert(p))
+
+            m_trading.addSeparator()
+            act_new_order = m_trading.addAction("New Order Ticket...     F9")
+            act_new_order.triggered.connect(lambda chk=False: _open_ai_drawer() if hasattr(window, "btn_edge_plan") else None)
+
+            menu.addSeparator()
+        except Exception as e:
+            logger.debug(f"[ChartCanvas] Price mapping in context menu: {e}")
+        tf_menu = menu.addMenu("Timeframes")
         tf_menu.setStyleSheet(menu_style)
         tfs = [
             ("M1", mt5.TIMEFRAME_M1), ("M5", mt5.TIMEFRAME_M5), ("M15", mt5.TIMEFRAME_M15),
@@ -2110,12 +2210,22 @@ def setup_chart_ui(window):
             act = tf_menu.addAction(f"{prefix}{tf_n}")
             act.triggered.connect(lambda chk=False, v=tf_v, n=tf_n: change_timeframe(v, n))
 
-        menu.addSeparator()
-        act_ind = menu.addAction("INDICATORS...")
+        # Chart Modes (Alt+2 Candlestick, Alt+1 Bars, Alt+3 Line)
+        m_mode = menu.addMenu("Chart Mode")
+        m_mode.setStyleSheet(menu_style)
+        cur_m = getattr(window, "chart_mode", "candlestick")
+        act_c = m_mode.addAction(f"{'✓  ' if cur_m == 'candlestick' else '    '}Candlesticks (Alt+2)")
+        act_c.triggered.connect(lambda: set_chart_mode("candlestick") if "set_chart_mode" in globals() else None)
+        act_b = m_mode.addAction(f"{'✓  ' if cur_m == 'bar' else '    '}Bar Chart (Alt+1)")
+        act_b.triggered.connect(lambda: set_chart_mode("bar") if "set_chart_mode" in globals() else None)
+        act_l = m_mode.addAction(f"{'✓  ' if cur_m == 'line' else '    '}Line Chart (Alt+3)")
+        act_l.triggered.connect(lambda: set_chart_mode("line") if "set_chart_mode" in globals() else None)
+
+        act_ind = menu.addAction("Indicators...")
         act_ind.triggered.connect(lambda: _open_indicators() if hasattr(window, "open_indicators") else None)
 
         menu.addSeparator()
-        act_reset = menu.addAction("RESET VIEW (AUTO-SCALE)")
+        act_reset = menu.addAction("Auto Fit (Reset Scale)")
         def _do_reset():
             if hasattr(window, "chart_data_list") and window.chart_data_list:
                 tot = len(window.chart_data_list)
@@ -2124,7 +2234,7 @@ def setup_chart_ui(window):
                 update_y_range()
         act_reset.triggered.connect(_do_reset)
 
-        act_export = menu.addAction("EXPORT CHART IMAGE...")
+        act_export = menu.addAction("Export Chart Image...")
         def _do_export():
             try:
                 raw_sym = getattr(window, "current_sym", "CHART") or "CHART"
