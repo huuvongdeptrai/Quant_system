@@ -7,11 +7,12 @@ import sys
 from datetime import datetime, timedelta
 from loguru import logger
 from PySide6.QtWidgets import (
+    QMenuBar, QMenu,
     QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QPushButton, QFrame, QTableWidgetItem, QCheckBox, QGraphicsDropShadowEffect,
     QSizePolicy, QComboBox, QMessageBox, QHeaderView, QMenu
 )
-from PySide6.QtGui import QFont, QIcon, QColor, QCursor, QKeySequence, QShortcut, QMouseEvent
+from PySide6.QtGui import QFont, QIcon, QColor, QCursor, QKeySequence, QShortcut, QMouseEvent, QAction
 from PySide6.QtCore import Qt, QTimer, QFile, QIODevice, QObject, QThread, QSize, QPoint
 from backend.infrastructure.brokers.mt5_safe import mt5
 from frontend.widgets.bot_power_button import AlgoControlPill
@@ -570,15 +571,15 @@ class WorkspaceHeaderController:
             self.menu_bar.setStyleSheet(
                 f"QFrame#topMenuBar {{ background-color: {bg_menu}; border-bottom: 1px solid {border_menu}; }}"
             )
-            btn_col = "#94a3b8" if is_dark else "#334155"
-            btn_h_bg = "#1e293b" if is_dark else "#e2e8f0"
-            btn_h_col = "#ffffff" if is_dark else "#0f172a"
-            for mb in getattr(self, "mt5_menu_buttons", []):
-                mb.setStyleSheet(
-                    f"QPushButton {{ background: transparent; color: {btn_col}; font-size: 11px; font-weight: 500; "
-                    f"padding: 2px 8px; border: none; border-radius: 2px; }} "
-                    f"QPushButton:hover {{ background-color: {btn_h_bg}; color: {btn_h_col}; }}"
-                )
+            if hasattr(self, "_apply_native_menu_bar_theme"):
+                self._apply_native_menu_bar_theme(is_dark)
+            style_m = self._create_mt5_menu_style(is_dark)
+            for m in (getattr(self, "menu_file", None), getattr(self, "menu_view", None),
+                      getattr(self, "menu_insert", None), getattr(self, "menu_charts", None),
+                      getattr(self, "menu_tools", None), getattr(self, "menu_window", None),
+                      getattr(self, "menu_help", None)):
+                if m:
+                    m.setStyleSheet(style_m)
 
         # 2. Bottom Status Bar (Height: 22px)
         if hasattr(self, "bottom_bar") and self.bottom_bar:
@@ -722,7 +723,7 @@ class WorkspaceHeaderController:
                 font-size: 11px;
             }}
             QMenu::item {{
-                padding: 5px 24px 5px 12px;
+                padding: 5px 28px 5px 22px;
                 margin: 1px 4px;
                 border-radius: 2px;
             }}
@@ -730,12 +731,71 @@ class WorkspaceHeaderController:
                 background-color: {menu_hover};
                 color: {menu_text};
             }}
+            QMenu::indicator {{
+                width: 14px;
+                height: 14px;
+                margin-left: 4px;
+            }}
             QMenu::separator {{
                 height: 1px;
                 background-color: {menu_border};
                 margin: 4px 0px;
             }}
         """
+
+    def _apply_native_menu_bar_theme(self, is_dark: bool = False):
+        if not hasattr(self, "native_menu_bar") or not self.native_menu_bar:
+            return
+        if is_dark:
+            self.native_menu_bar.setStyleSheet("""
+                QMenuBar#nativeMenuBar {
+                    background-color: transparent;
+                    color: #94a3b8;
+                    font-family: 'Segoe UI', -apple-system, sans-serif;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: none;
+                }
+                QMenuBar#nativeMenuBar::item {
+                    background: transparent;
+                    color: #94a3b8;
+                    padding: 3px 8px;
+                    border-radius: 2px;
+                }
+                QMenuBar#nativeMenuBar::item:selected {
+                    background-color: #1e293b;
+                    color: #ffffff;
+                }
+                QMenuBar#nativeMenuBar::item:pressed {
+                    background-color: #0284c7;
+                    color: #ffffff;
+                }
+            """)
+        else:
+            self.native_menu_bar.setStyleSheet("""
+                QMenuBar#nativeMenuBar {
+                    background-color: transparent;
+                    color: #334155;
+                    font-family: 'Segoe UI', -apple-system, sans-serif;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border: none;
+                }
+                QMenuBar#nativeMenuBar::item {
+                    background: transparent;
+                    color: #334155;
+                    padding: 3px 8px;
+                    border-radius: 2px;
+                }
+                QMenuBar#nativeMenuBar::item:selected {
+                    background-color: #e2e8f0;
+                    color: #0f172a;
+                }
+                QMenuBar#nativeMenuBar::item:pressed {
+                    background-color: #cbd5e1;
+                    color: #0f172a;
+                }
+            """)
 
     # -------------------------------------------------------------
     # ACTION HANDLERS & HELPERS FOR MT5 TOP MENUS
@@ -1359,6 +1419,318 @@ class WorkspaceHeaderController:
 
         menu.exec(self.btn_menu_help.mapToGlobal(QPoint(0, self.btn_menu_help.height())))
 
+    def _setup_native_mt5_menus(self, native_mb, is_dark):
+        """Constructs genuine MT5 Dropdown Menus with checkable state and immediate triggers."""
+        style_menu = self._create_mt5_menu_style(is_dark)
+
+        # 1. FILE MENU
+        m_file = native_mb.addMenu("&File")
+        m_file.setStyleSheet(style_menu)
+        self.menu_file = m_file
+
+        act_sym = m_file.addAction("New Chart / Select Symbol...")
+        act_sym.setShortcut(QKeySequence("Ctrl+N"))
+        act_sym.triggered.connect(self._on_select_symbol)
+
+        act_save = m_file.addAction("Save Chart As Picture...")
+        act_save.setShortcut(QKeySequence("Ctrl+S"))
+        act_save.triggered.connect(self._on_save_chart_picture)
+
+        act_data = m_file.addAction("Open Data Folder")
+        act_data.triggered.connect(self._on_open_data_folder)
+
+        act_export = m_file.addAction("Export Blotter to CSV")
+        act_export.triggered.connect(self._on_export_blotter_csv)
+
+        m_file.addSeparator()
+
+        act_login = m_file.addAction("Login to Trade Account...")
+        act_login.triggered.connect(self._trigger_options)
+
+        act_exit = m_file.addAction("Exit VECTRA")
+        act_exit.setShortcut(QKeySequence("Alt+F4"))
+        act_exit.triggered.connect(self.window.close)
+
+        # 2. VIEW MENU
+        m_view = native_mb.addMenu("&View")
+        m_view.setStyleSheet(style_menu)
+        self.menu_view = m_view
+
+        def _populate_view():
+            m_view.clear()
+            curr_w = self.window.tabWidget.currentWidget() if hasattr(self.window, "tabWidget") else None
+
+            act_term = m_view.addAction("Terminal")
+            act_term.setCheckable(True)
+            act_term.setChecked(curr_w == getattr(self.window, "tab2", None))
+            act_term.setShortcut(QKeySequence("F1"))
+            act_term.triggered.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
+
+            act_stats = m_view.addAction("Performance")
+            act_stats.setCheckable(True)
+            act_stats.setChecked(curr_w == getattr(self.window, "tab3", None))
+            act_stats.setShortcut(QKeySequence("F2"))
+            act_stats.triggered.connect(lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"))
+
+            act_bt = m_view.addAction("Strategy Tester")
+            act_bt.setCheckable(True)
+            act_bt.setChecked(curr_w == getattr(self.window, "tab_5", None))
+            act_bt.setShortcut(QKeySequence("Ctrl+R"))
+            act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
+
+            cal_tab = getattr(self.window, "tabCalendar", None)
+            if cal_tab:
+                act_cal = m_view.addAction("Economic Calendar")
+                act_cal.setCheckable(True)
+                act_cal.setChecked(curr_w == cal_tab)
+                act_cal.setShortcut(QKeySequence("F3"))
+                act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
+
+            m_view.addSeparator()
+
+            is_wl_open = getattr(self.window, "sidebar", None) and self.window.sidebar.isVisible()
+            act_wl = m_view.addAction("Market Watch (Watchlist)")
+            act_wl.setCheckable(True)
+            act_wl.setChecked(bool(is_wl_open))
+            act_wl.setShortcut(QKeySequence("Ctrl+M"))
+            act_wl.triggered.connect(self._toggle_watchlist)
+
+            is_plan_open = getattr(self.window, "frameAIArea", None) and self.window.frameAIArea.isVisible()
+            act_plan = m_view.addAction("Toolbox / Trading Plan")
+            act_plan.setCheckable(True)
+            act_plan.setChecked(bool(is_plan_open))
+            act_plan.setShortcut(QKeySequence("Ctrl+T"))
+            act_plan.triggered.connect(self._toggle_trading_plan)
+
+            is_dock_open = not getattr(self.window, "is_dock_collapsed", False)
+            act_blotter = m_view.addAction("Blotter Dock (Positions)")
+            act_blotter.setCheckable(True)
+            act_blotter.setChecked(bool(is_dock_open))
+            act_blotter.setShortcut(QKeySequence("Ctrl+B"))
+            act_blotter.triggered.connect(self._toggle_blotter_dock)
+
+            m_view.addSeparator()
+
+            act_journal = m_view.addAction("System Journal (Logs)")
+            act_journal.setShortcut(QKeySequence("Ctrl+L"))
+            act_journal.triggered.connect(self._trigger_journal)
+
+            is_d = getattr(self, "is_dark_theme", False)
+            act_theme = m_view.addAction("Switch to Light Theme" if is_d else "Switch to Dark Theme")
+            act_theme.triggered.connect(self._toggle_color_theme)
+
+        m_view.aboutToShow.connect(_populate_view)
+        _populate_view()
+
+        # 3. INSERT MENU
+        m_insert = native_mb.addMenu("&Insert")
+        m_insert.setStyleSheet(style_menu)
+        self.menu_insert = m_insert
+
+        sub_ind = m_insert.addMenu("Indicators")
+        sub_ind.setStyleSheet(style_menu)
+
+        act_cfg_ind = sub_ind.addAction("Indicator Settings & Strategies...")
+        act_cfg_ind.triggered.connect(self._show_strategy_and_indicators_menu)
+        sub_ind.addSeparator()
+
+        act_vpoc = sub_ind.addAction("Volume Profile (VPOC / VAH)")
+        act_vpoc.triggered.connect(self._toggle_volume_profile)
+
+        act_fvg = sub_ind.addAction("ICT Fair Value Gaps (FVG)")
+        act_fvg.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
+
+        sub_draw = m_insert.addMenu("Objects / Drawings")
+        sub_draw.setStyleSheet(style_menu)
+
+        act_cross = sub_draw.addAction("Cursor / Crosshair")
+        act_cross.setShortcut(QKeySequence("Ctrl+1"))
+        act_cross.triggered.connect(lambda: self._set_drawing_tool("crosshair"))
+
+        act_trend = sub_draw.addAction("Trendline Tool")
+        act_trend.setShortcut(QKeySequence("Alt+T"))
+        act_trend.triggered.connect(lambda: self._set_drawing_tool("trendline"))
+
+        act_rect = sub_draw.addAction("Rectangle / Zone Tool (OB/FVG)")
+        act_rect.setShortcut(QKeySequence("Alt+R"))
+        act_rect.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
+
+        act_ruler = sub_draw.addAction("Ruler (Measure Pips & Bars)")
+        act_ruler.setShortcut(QKeySequence("Shift+M"))
+        act_ruler.triggered.connect(lambda: self._set_drawing_tool("ruler"))
+
+        sub_draw.addSeparator()
+        act_clear_draw = sub_draw.addAction("Clear All Drawings")
+        act_clear_draw.triggered.connect(self._clear_all_drawings)
+
+        # 4. CHARTS MENU
+        m_charts = native_mb.addMenu("&Charts")
+        m_charts.setStyleSheet(style_menu)
+        self.menu_charts = m_charts
+
+        def _populate_charts():
+            m_charts.clear()
+            curr_mode = "candlestick"
+            if hasattr(self.window, "candlesticks") and self.window.candlesticks:
+                curr_mode = getattr(self.window.candlesticks, "chart_mode", "candlestick")
+
+            act_bar = m_charts.addAction("Bar Chart")
+            act_bar.setCheckable(True)
+            act_bar.setChecked(curr_mode == "bar")
+            act_bar.setShortcut(QKeySequence("Alt+1"))
+            act_bar.triggered.connect(lambda: self._set_chart_type("bar"))
+
+            act_candle = m_charts.addAction("Candlesticks")
+            act_candle.setCheckable(True)
+            act_candle.setChecked(curr_mode == "candlestick")
+            act_candle.setShortcut(QKeySequence("Alt+2"))
+            act_candle.triggered.connect(lambda: self._set_chart_type("candlestick"))
+
+            act_line = m_charts.addAction("Line Chart")
+            act_line.setCheckable(True)
+            act_line.setChecked(curr_mode == "line")
+            act_line.setShortcut(QKeySequence("Alt+3"))
+            act_line.triggered.connect(lambda: self._set_chart_type("line"))
+
+            m_charts.addSeparator()
+
+            sub_tf = m_charts.addMenu("Timeframes")
+            sub_tf.setStyleSheet(style_menu)
+            tf_list = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+            curr_tf = getattr(self, "active_timeframe", "H1")
+            for tf in tf_list:
+                act_tf = sub_tf.addAction(tf)
+                act_tf.setCheckable(True)
+                act_tf.setChecked(tf == curr_tf)
+                def _make_tf_fn(target_tf=tf):
+                    return lambda: self._on_tf_click(target_tf) if hasattr(self, "_on_tf_click") else None
+                act_tf.triggered.connect(_make_tf_fn())
+
+            m_charts.addSeparator()
+
+            act_zin = m_charts.addAction("Zoom In (+)")
+            act_zin.setShortcut(QKeySequence("+"))
+            act_zin.triggered.connect(self._zoom_in_chart)
+
+            act_zout = m_charts.addAction("Zoom Out (-)")
+            act_zout.setShortcut(QKeySequence("-"))
+            act_zout.triggered.connect(self._zoom_out_chart)
+
+            act_fit = m_charts.addAction("Reset View / Auto Fit")
+            act_fit.setShortcut(QKeySequence("Ctrl+0"))
+            act_fit.triggered.connect(self._auto_fit_chart)
+
+            act_grid = m_charts.addAction("Toggle Grid")
+            act_grid.setShortcut(QKeySequence("Ctrl+G"))
+            act_grid.triggered.connect(self._toggle_grid)
+
+            act_ref = m_charts.addAction("Refresh Chart Data")
+            act_ref.setShortcut(QKeySequence("Ctrl+F5"))
+            act_ref.triggered.connect(self._refresh_chart_data)
+
+        m_charts.aboutToShow.connect(_populate_charts)
+        _populate_charts()
+
+        # 5. TOOLS MENU
+        m_tools = native_mb.addMenu("&Tools")
+        m_tools.setStyleSheet(style_menu)
+        self.menu_tools = m_tools
+
+        act_order = m_tools.addAction("New Order (Trading Plan)")
+        act_order.setShortcut(QKeySequence("F9"))
+        act_order.triggered.connect(self._toggle_trading_plan)
+
+        act_strat = m_tools.addAction("Strategy Manager...")
+        act_strat.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        act_strat.triggered.connect(self._open_strategy_manager_dialog)
+
+        act_bt = m_tools.addAction("Strategy Tester (Backtest)")
+        act_bt.setShortcut(QKeySequence("Ctrl+R"))
+        act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
+
+        act_kill = m_tools.addAction("EMERGENCY FLATTEN ALL (Kill-Switch)")
+        act_kill.setShortcut(QKeySequence("Ctrl+Shift+K"))
+        act_kill.triggered.connect(self._trigger_kill_switch)
+
+        m_tools.addSeparator()
+
+        act_journal = m_tools.addAction("System Journal (Logs)")
+        act_journal.setShortcut(QKeySequence("Ctrl+L"))
+        act_journal.triggered.connect(self._trigger_journal)
+
+        cal_tab = getattr(self.window, "tabCalendar", None)
+        if cal_tab:
+            act_cal = m_tools.addAction("Economic Calendar")
+            act_cal.setShortcut(QKeySequence("F3"))
+            act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
+
+        act_opt = m_tools.addAction("Options")
+        act_opt.setShortcut(QKeySequence("Ctrl+O"))
+        act_opt.triggered.connect(self._trigger_options)
+
+        # 6. WINDOW MENU
+        m_window = native_mb.addMenu("&Window")
+        m_window.setStyleSheet(style_menu)
+        self.menu_window = m_window
+
+        act_layout = m_window.addAction("Default Institutional Layout")
+        act_layout.triggered.connect(self._reset_default_layout)
+
+        act_focus = m_window.addAction("Focus Chart Mode (Maximize Chart)")
+        act_focus.setShortcut(QKeySequence("Shift+F11"))
+        act_focus.triggered.connect(self._toggle_focus_chart)
+
+        m_window.addSeparator()
+
+        act_full = m_window.addAction("Toggle Fullscreen")
+        act_full.setShortcut(QKeySequence("F11"))
+        def _toggle_fs():
+            if self.window.isFullScreen():
+                self.window.showNormal()
+            else:
+                self.window.showFullScreen()
+        act_full.triggered.connect(_toggle_fs)
+
+        # 7. HELP MENU
+        m_help = native_mb.addMenu("&Help")
+        m_help.setStyleSheet(style_menu)
+        self.menu_help = m_help
+
+        act_cheat = m_help.addAction("Keyboard Shortcuts & Cheat Sheet")
+        act_cheat.setShortcut(QKeySequence("Ctrl+/"))
+        act_cheat.triggered.connect(self._show_shortcuts_cheat_sheet)
+
+        act_diag = m_help.addAction("MT5 IPC Connection Diagnostics")
+        act_diag.triggered.connect(self._show_diagnostics_dialog)
+
+        m_help.addSeparator()
+
+        act_about = m_help.addAction("About VECTRA Institutional OS v2.2")
+        def _on_about():
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self.window,
+                "About VECTRA",
+                "VECTRA Quantitative Trading OS v2.2\nArchitecture: MetaTrader 5 / Institutional ECN\nStrategy: ICT Zones Pro v4.2 / Market Profile vPOC\nBuilt for professional prop & multi-asset desks."
+            )
+        act_about.triggered.connect(_on_about)
+
+        # Maintain aliases for legacy compatibility
+        self.btnMenuFile = self.menu_file
+        self.btn_menu_file = self.menu_file
+        self.btnMenuView = self.menu_view
+        self.btn_menu_view = self.menu_view
+        self.btnMenuInsert = self.menu_insert
+        self.btn_menu_insert = self.menu_insert
+        self.btnMenuCharts = self.menu_charts
+        self.btn_menu_charts = self.menu_charts
+        self.btnMenuTools = self.menu_tools
+        self.btn_menu_tools = self.menu_tools
+        self.btnMenuWindow = self.menu_window
+        self.btn_menu_window = self.menu_window
+        self.btnMenuHelp = self.menu_help
+        self.btn_menu_help = self.menu_help
+
     def _setup_custom_title_bar(self):
         """Create institutional MT5-Style Workspace Layout matching blueprint:
         Top Bar (32px): Unified header with Symbol + Subtitle, Discrete TF buttons (M1-D1), IND badge,
@@ -1385,33 +1757,15 @@ class WorkspaceHeaderController:
         m_layout.setContentsMargins(6, 0, 6, 0)
         m_layout.setSpacing(1)
 
-        self.mt5_menu_buttons = []
-        btn_col = "#94a3b8" if is_dark else "#334155"
-        btn_h_bg = "#1e293b" if is_dark else "#e2e8f0"
-        btn_h_col = "#ffffff" if is_dark else "#0f172a"
-        m_btn_style = (
-            f"QPushButton {{ background: transparent; color: {btn_col}; font-size: 11px; font-weight: 500; "
-            f"padding: 2px 8px; border: none; border-radius: 2px; }} "
-            f"QPushButton:hover {{ background-color: {btn_h_bg}; color: {btn_h_col}; }}"
-        )
+        # Native QMenuBar matching MT5 Desktop exactly
+        native_mb = QMenuBar()
+        native_mb.setObjectName("nativeMenuBar")
+        self.native_menu_bar = native_mb
+        self._apply_native_menu_bar_theme(is_dark)
 
-        menus_def = [
-            ("btnMenuFile", "File", self._show_file_menu),
-            ("btnMenuView", "View", self._show_view_menu),
-            ("btnMenuInsert", "Insert", self._show_insert_menu),
-            ("btnMenuCharts", "Charts", self._show_charts_menu),
-            ("btnMenuTools", "Tools", self._show_tools_menu),
-            ("btnMenuWindow", "Window", self._show_window_menu),
-            ("btnMenuHelp", "Help", self._show_help_menu),
-        ]
-        for attr_name, label, handler in menus_def:
-            b = QPushButton(label)
-            b.setObjectName(attr_name)
-            b.setStyleSheet(m_btn_style)
-            b.clicked.connect(handler)
-            m_layout.addWidget(b)
-            self.mt5_menu_buttons.append(b)
-            setattr(self, attr_name, b)
+        # Build 7 Authentic Menus on native_mb
+        self._setup_native_mt5_menus(native_mb, is_dark)
+        m_layout.addWidget(native_mb)
 
         m_layout.addStretch()
 
