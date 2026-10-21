@@ -1421,8 +1421,15 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     if not getattr(window, "_show_manual_preview", True):
         clear_manual_chart_lines(window)
         return
-    # On-chart lines remain visible even when frameAIArea is collapsed
-    pass
+
+    # If Trading Plan drawer is collapsed and there is no active MT5 order,
+    # do not draw unsubmitted manual draft preview lines on chart
+    if hasattr(window, "frameAIArea") and not window.frameAIArea.isVisible():
+        is_live = getattr(window, "is_live_position", False)
+        is_pending_ord = getattr(window, "is_pending_order", False)
+        if not is_live and not is_pending_ord:
+            clear_manual_chart_lines(window)
+            return
 
     info = mt5.symbol_info(sym)
     dig = info.digits if info else 2

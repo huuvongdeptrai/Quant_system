@@ -177,3 +177,32 @@ def test_sync_live_position_renders_pending_orders(qapp):
     assert win.pending_ticket == 998877
     assert win.line_order_entry.isVisible() is True
     assert win.lblOrderTypeBadge.text() == "PENDING #998877"
+
+
+def test_drawer_close_clears_unsubmitted_manual_draft_preview(qapp):
+    """
+    Verifies that unsubmitted manual draft preview lines are hidden when the drawer is closed,
+    preventing phantom order confusion when no trade was actually placed.
+    """
+    from frontend.controllers.chart.trading_plan_panel import _setup_chart_manual_lines
+
+    win = _create_test_window()
+    win.show()
+    win._open_ai_drawer()
+    win._plan_mode = "manual"
+    win.is_live_position = False
+    win.is_pending_order = False
+    win._show_manual_preview = True
+
+    # Setup manual draft lines while drawer is open
+    _setup_chart_manual_lines(win, "XAUUSD", is_buy=True, lot=1.45, sl=4130.35, tp=4137.85)
+    assert win.line_order_entry.isVisible() is True
+    assert win.line_order_sl.isVisible() is True
+    assert win.line_order_tp.isVisible() is True
+
+    # Closing drawer without placing order MUST clear unsubmitted draft lines!
+    win._close_ai_drawer()
+    assert win.line_order_entry.isVisible() is False
+    assert win.line_order_sl.isVisible() is False
+    assert win.line_order_tp.isVisible() is False
+    win.close()
