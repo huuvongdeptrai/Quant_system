@@ -737,14 +737,369 @@ class WorkspaceHeaderController:
             }}
         """
 
+    # -------------------------------------------------------------
+    # ACTION HANDLERS & HELPERS FOR MT5 TOP MENUS
+    # -------------------------------------------------------------
+    def _on_select_symbol(self):
+        """Ctrl+N: Opens SymbolSearchDialog and switches chart symbol."""
+        try:
+            from frontend.controllers.watchlist.symbol_search_dialog import SymbolSearchDialog
+            dlg = SymbolSearchDialog(self.window)
+            if dlg.exec() and dlg.selected_symbol:
+                sym = dlg.selected_symbol
+                cat = getattr(dlg, "selected_category", "OTHER")
+                if hasattr(self.terminal, "watchlist") and self.terminal.watchlist:
+                    self.terminal.watchlist.add_symbol_to_tree(sym, cat)
+                if hasattr(self.window, "draw_and_analyze"):
+                    self.window.draw_and_analyze(sym)
+                if hasattr(self, "_refresh_top_ticker"):
+                    self._refresh_top_ticker()
+        except Exception as e:
+            logger.warning(f"Error selecting symbol from menu: {e}")
+
+    def _on_save_chart_picture(self):
+        """Ctrl+S: Captures high-res chart picture to PNG/JPG."""
+        try:
+            from PySide6.QtWidgets import QFileDialog, QMessageBox
+            curr_sym = getattr(self.window, "current_sym", "XAUUSD")
+            clean_sym = curr_sym.split("\n")[0].strip()
+            fn = f"vectra_chart_{clean_sym}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            save_path, _ = QFileDialog.getSaveFileName(
+                self.window, "Save Chart As Picture", fn, "PNG Image (*.png);;JPEG Image (*.jpg)"
+            )
+            if save_path:
+                plot_w = getattr(self.window, "plot_widget", None) or getattr(self.window, "frameChartArea", None)
+                if plot_w:
+                    pix = plot_w.grab()
+                    pix.save(save_path)
+                    QMessageBox.information(self.window, "Chart Saved", f"Chart snapshot saved to:\n{save_path}")
+        except Exception as e:
+            logger.warning(f"Error saving chart picture: {e}")
+
+    def _on_open_data_folder(self):
+        """Opens system data / database directory in Windows Explorer."""
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            data_dir = os.path.join(base_dir, "backend", "database")
+            if not os.path.exists(data_dir):
+                data_dir = base_dir
+            if sys.platform == "win32":
+                os.startfile(data_dir)
+            else:
+                import subprocess
+                subprocess.Popen(["xdg-open", data_dir])
+        except Exception as e:
+            logger.warning(f"Failed to open data folder: {e}")
+
+    def _on_export_blotter_csv(self):
+        """Exports open positions and deals to a clean CSV file."""
+        try:
+            from PySide6.QtWidgets import QFileDialog, QMessageBox
+            import csv
+            fn = f"blotter_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            save_path, _ = QFileDialog.getSaveFileName(self.window, "Export Blotter to CSV", fn, "CSV Files (*.csv)")
+            if not save_path:
+                return
+            positions = mt5.positions_get() if mt5.terminal_info() else []
+            with open(save_path, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["Ticket", "Time", "Symbol", "Side", "Volume (Lots)", "Open Price", "Current Price", "SL", "TP", "Profit ($)", "Comment"])
+                if positions:
+                    for p in positions:
+                        t_str = datetime.fromtimestamp(p.time).strftime("%Y-%m-%d %H:%M:%S") if hasattr(p, "time") else ""
+                        side = "BUY" if p.type == 0 else "SELL"
+                        w.writerow([p.ticket, t_str, p.symbol, side, p.volume, p.price_open, p.price_current, p.sl, p.tp, f"{p.profit:.2f}", getattr(p, "comment", "")])
+            QMessageBox.information(self.window, "Export Completed", f"Blotter exported successfully to:\n{save_path}")
+        except Exception as e:
+            logger.warning(f"Error exporting blotter CSV: {e}")
+
+    def _toggle_watchlist(self):
+        """Ctrl+M: Toggles Market Watch / Watchlist sidebar."""
+        if hasattr(self.window, "sidebar"):
+            is_vis = self.window.sidebar.isVisible()
+            if is_vis:
+                self.window.sidebar.setVisible(False)
+                self.window.watchlist_collapsed = True
+                if hasattr(self.window, "btn_edge_wl") and self.window.btn_edge_wl:
+                    self.window.btn_edge_wl.setVisible(True)
+            else:
+                self.window.sidebar.setVisible(True)
+                self.window.watchlist_collapsed = False
+                if hasattr(self.window, "btn_edge_wl") and self.window.btn_edge_wl:
+                    self.window.btn_edge_wl.setVisible(False)
+                if hasattr(self.window, "mainSplitter"):
+                    total_w = max(400, self.window.mainSplitter.width() or 1440)
+                    self.window.mainSplitter.setSizes([260, max(100, total_w - 260)])
+
+    def _toggle_trading_plan(self):
+        """Ctrl+T / F9: Toggles Toolbox / Trading Plan panel."""
+        if hasattr(self.window, "frameAIArea"):
+            if self.window.frameAIArea.isVisible():
+                if hasattr(self.window, "btn_close_plan") and self.window.btn_close_plan:
+                    self.window.btn_close_plan.click()
+                else:
+                    self.window.frameAIArea.setVisible(False)
+                    if hasattr(self.window, "btn_edge_plan") and self.window.btn_edge_plan:
+                        self.window.btn_edge_plan.setVisible(True)
+            else:
+                if hasattr(self.window, "btn_edge_plan") and self.window.btn_edge_plan:
+                    self.window.btn_edge_plan.click()
+                else:
+                    self.window.frameAIArea.setVisible(True)
+
+    def _toggle_blotter_dock(self):
+        """Ctrl+B: Toggles Trade Blotter dock collapse / expand."""
+        if hasattr(self.window, "btnDockToggle") and self.window.btnDockToggle:
+            self.window.btnDockToggle.click()
+        elif hasattr(self.window, "frameExecutions"):
+            vis = self.window.frameExecutions.isVisible()
+            self.window.frameExecutions.setVisible(not vis)
+
+    def _toggle_color_theme(self):
+        """Toggles between Dark Institutional and Light Institutional theme."""
+        if hasattr(self.terminal, "_on_toggle_theme"):
+            self.terminal._on_toggle_theme()
+        elif hasattr(self.terminal, "toggle_theme"):
+            self.terminal.toggle_theme()
+
+    def _toggle_volume_profile(self):
+        """Toggles Volume Profile (VPOC, VAH, VAL, VA fill) visibility on chart."""
+        if hasattr(self.window, "line_vpoc") and self.window.line_vpoc:
+            target_vis = not self.window.line_vpoc.isVisible()
+            for fn in ("toggle_vpoc", "toggle_tpoc", "toggle_vah", "toggle_val", "toggle_va_fill"):
+                if hasattr(self.window, fn):
+                    try:
+                        getattr(self.window, fn)(target_vis)
+                    except Exception:
+                        pass
+
+    def _set_drawing_tool(self, mode_str):
+        """Sets active drawing tool mode (crosshair, trendline, rectangle, ruler)."""
+        de = getattr(self.window, "drawing_engine", None)
+        if de:
+            from frontend.controllers.chart.drawing_engine import ChartDrawingEngine
+            mode_map = {
+                "crosshair": ChartDrawingEngine.MODE_CROSSHAIR,
+                "trendline": ChartDrawingEngine.MODE_TRENDLINE,
+                "rectangle": ChartDrawingEngine.MODE_RECTANGLE,
+                "ruler": ChartDrawingEngine.MODE_RULER,
+            }
+            if mode_str in mode_map:
+                de.set_mode(mode_map[mode_str])
+
+    def _clear_all_drawings(self):
+        """Clears all user drawings on the active chart."""
+        de = getattr(self.window, "drawing_engine", None)
+        if de and hasattr(de, "clear_user_drawings"):
+            de.clear_user_drawings()
+
+    def _set_chart_type(self, mode_str):
+        """Alt+1..3: Switches chart rendering type (candlestick, bar, line)."""
+        cs = getattr(self.window, "candlesticks", None)
+        if cs and hasattr(cs, "set_chart_mode"):
+            cs.set_chart_mode(mode_str)
+
+    def _zoom_in_chart(self):
+        """+ / =: Zooms in chart horizontal axis."""
+        pw = getattr(self.window, "plot_widget", None)
+        if pw:
+            pw.getViewBox().scaleBy((0.8, 1.0))
+
+    def _zoom_out_chart(self):
+        """-: Zooms out chart horizontal axis."""
+        pw = getattr(self.window, "plot_widget", None)
+        if pw:
+            pw.getViewBox().scaleBy((1.25, 1.0))
+
+    def _auto_fit_chart(self):
+        """Ctrl+0: Auto-fits chart range to current price and bar history."""
+        pw = getattr(self.window, "plot_widget", None)
+        if pw:
+            pw.autoRange()
+
+    def _toggle_grid(self):
+        """Ctrl+G: Toggles background grid visibility."""
+        pw = getattr(self.window, "plot_widget", None)
+        if pw:
+            self._grid_enabled = not getattr(self, "_grid_enabled", True)
+            pw.showGrid(x=self._grid_enabled, y=self._grid_enabled, alpha=0.12)
+
+    def _refresh_chart_data(self):
+        """Ctrl+F5: Refreshes candlestick feed and Market Profile from MT5."""
+        if hasattr(self.window, "draw_and_analyze"):
+            sym = getattr(self.window, "current_sym", "XAUUSD")
+            self.window.draw_and_analyze(sym)
+
+    def _trigger_kill_switch(self):
+        """Ctrl+Shift+K: Activates emergency kill switch / liquidation."""
+        if hasattr(self.terminal, "blotter") and hasattr(self.terminal.blotter, "_handle_kill_switch"):
+            self.terminal.blotter._handle_kill_switch()
+        elif hasattr(self.window, "btnEmergencyKill"):
+            self.window.btnEmergencyKill.click()
+
+    def _reset_default_layout(self):
+        """Window -> Default Layout: Restores institutional 3-pane proportions."""
+        if hasattr(self.window, "sidebar"):
+            self.window.sidebar.setVisible(True)
+            self.window.watchlist_collapsed = False
+        if hasattr(self.window, "btn_edge_wl") and self.window.btn_edge_wl:
+            self.window.btn_edge_wl.setVisible(False)
+        if hasattr(self.window, "mainSplitter"):
+            total_w = max(400, self.window.mainSplitter.width() or 1440)
+            self.window.mainSplitter.setSizes([260, max(100, total_w - 260)])
+        if hasattr(self.window, "frameAIArea"):
+            self.window.frameAIArea.setVisible(True)
+        if hasattr(self.window, "btn_edge_plan") and self.window.btn_edge_plan:
+            self.window.btn_edge_plan.setVisible(False)
+        if getattr(self.window, "is_dock_collapsed", False):
+            if hasattr(self.window, "btnDockToggle") and self.window.btnDockToggle:
+                self.window.btnDockToggle.click()
+        self._focus_chart_active = False
+
+    def _toggle_focus_chart(self):
+        """Shift+F11: Focus Chart Mode collapses sidebars to give 100% canvas to chart."""
+        self._focus_chart_active = not getattr(self, "_focus_chart_active", False)
+        if self._focus_chart_active:
+            if hasattr(self.window, "sidebar"):
+                self.window.sidebar.setVisible(False)
+            if hasattr(self.window, "btn_edge_wl") and self.window.btn_edge_wl:
+                self.window.btn_edge_wl.setVisible(True)
+            if hasattr(self.window, "frameAIArea"):
+                self.window.frameAIArea.setVisible(False)
+            if hasattr(self.window, "btn_edge_plan") and self.window.btn_edge_plan:
+                self.window.btn_edge_plan.setVisible(True)
+            if not getattr(self.window, "is_dock_collapsed", False):
+                if hasattr(self.window, "btnDockToggle") and self.window.btnDockToggle:
+                    self.window.btnDockToggle.click()
+        else:
+            self._reset_default_layout()
+
+    def _show_shortcuts_cheat_sheet(self):
+        """Displays a clean institutional dialog summarizing all global hotkeys."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView
+        dlg = QDialog(self.window)
+        dlg.setWindowTitle("VECTRA Keyboard Shortcuts")
+        dlg.setFixedSize(520, 500)
+        is_dark = getattr(self, "is_dark_theme", False)
+
+        bg = "#0c0e14" if is_dark else "#ffffff"
+        text_col = "#f8fafc" if is_dark else "#0f172a"
+        border_col = "#272d3b" if is_dark else "#cbd5e1"
+
+        dlg.setStyleSheet(f"""
+            QDialog {{ background-color: {bg}; border: 1px solid {border_col}; }}
+            QTableWidget {{ background-color: {'#080b11' if is_dark else '#f8fafc'}; color: {text_col}; border: 1px solid {border_col}; gridline-color: {border_col}; font-family: 'Segoe UI', sans-serif; font-size: 11px; }}
+            QHeaderView::section {{ background-color: {'#161d2d' if is_dark else '#e2e8f0'}; color: {text_col}; font-weight: bold; border: 1px solid {border_col}; padding: 4px; }}
+        """)
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        lbl = QLabel("VECTRA QUANTITATIVE TERMINAL - SHORTCUT CHEAT SHEET")
+        lbl.setStyleSheet(f"color: {'#38bdf8' if is_dark else '#0284c7'}; font-weight: bold; font-family: Consolas, monospace; font-size: 11px;")
+        layout.addWidget(lbl)
+
+        table = QTableWidget(16, 2)
+        table.setHorizontalHeaderLabels(["HOTKEY", "ACTION"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        table.verticalHeader().setVisible(False)
+
+        shortcuts = [
+            ("F1", "Switch to Main Chart Terminal"),
+            ("F2", "Switch to Performance / PnL Stats"),
+            ("Ctrl+R", "Switch to Strategy Tester (Backtest)"),
+            ("F3", "Switch to Economic & Macro Calendar"),
+            ("F9", "New Order / Open Trading Plan"),
+            ("Ctrl+M", "Toggle Market Watch (Watchlist)"),
+            ("Ctrl+T", "Toggle Toolbox / Order Desk"),
+            ("Ctrl+B", "Toggle Trade Blotter Dock"),
+            ("Ctrl+N", "New Chart / Select Symbol Modal"),
+            ("Ctrl+S", "Save Chart Picture to Disk"),
+            ("Ctrl+L", "System Journal (Audit Logs)"),
+            ("Ctrl+O", "System Options & Settings"),
+            ("Alt+1 / 2 / 3", "Bar Chart / Candlesticks / Line Chart"),
+            ("Ctrl+0 / + / -", "Auto-Fit / Zoom In / Zoom Out"),
+            ("Ctrl+G", "Toggle Background Grid"),
+            ("Shift+F11 / F11", "Focus Chart Mode / Full Screen"),
+        ]
+
+        for row, (key, desc) in enumerate(shortcuts):
+            item_k = QTableWidgetItem(key)
+            item_k.setTextAlignment(Qt.AlignCenter)
+            item_k.setFont(QFont("Consolas", 10, QFont.Bold))
+            item_d = QTableWidgetItem(desc)
+            table.setItem(row, 0, item_k)
+            table.setItem(row, 1, item_d)
+
+        layout.addWidget(table)
+        dlg.exec()
+
+    def _show_diagnostics_dialog(self):
+        """Displays MT5 IPC diagnostics and telemetry summary."""
+        from PySide6.QtWidgets import QMessageBox
+        term = mt5.terminal_info()
+        acc = mt5.account_info() if term else None
+
+        if term and getattr(term, "connected", False):
+            ping = getattr(self, "broker_latency_ms", 0.0)
+            msg = (
+                f"MT5 Terminal: CONNECTED (Build {getattr(term, 'build', 'N/A')})\n"
+                f"Broker Server: {getattr(acc, 'server', 'N/A')}\n"
+                f"Trading Account: #{getattr(acc, 'login', 'N/A')} ({getattr(acc, 'name', 'User')})\n"
+                f"Company: {getattr(acc, 'company', 'N/A')}\n"
+                f"Server Ping Latency: {ping:.1f}ms\n"
+                f"Currency / Leverage: {getattr(acc, 'currency', 'USD')} (1:{getattr(acc, 'leverage', 100)})\n"
+                f"Trade Allowed: {getattr(term, 'trade_allowed', True)}\n"
+                f"Headless Mode: Active in Background"
+            )
+            QMessageBox.information(self.window, "MT5 IPC Diagnostics", msg)
+        else:
+            QMessageBox.warning(self.window, "MT5 IPC Diagnostics", "MT5 Terminal is currently OFFLINE.\nCheck if MT5 is running or credentials are correct.")
+
+    def _trigger_journal(self):
+        btn = getattr(self, "btn_bottom_audit", None)
+        if btn:
+            btn.click()
+
+    def _trigger_options(self):
+        btn = getattr(self, "btnNavSettings", None)
+        if btn:
+            btn.click()
+
+    # -------------------------------------------------------------
+    # 7 AUTHENTIC MT5 MENUS IMPLEMENTATION
+    # -------------------------------------------------------------
     def _show_file_menu(self):
         if not hasattr(self, "btn_menu_file") or not self.btn_menu_file:
             return
         menu = QMenu(self.window)
         menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        act_sym = menu.addAction("New Chart / Select Symbol...")
+        act_sym.setShortcut(QKeySequence("Ctrl+N"))
+        act_sym.triggered.connect(self._on_select_symbol)
+
+        act_save = menu.addAction("Save Chart As Picture...")
+        act_save.setShortcut(QKeySequence("Ctrl+S"))
+        act_save.triggered.connect(self._on_save_chart_picture)
+
+        act_data = menu.addAction("Open Data Folder")
+        act_data.triggered.connect(self._on_open_data_folder)
+
+        act_export = menu.addAction("Export Blotter to CSV")
+        act_export.triggered.connect(self._on_export_blotter_csv)
+
+        menu.addSeparator()
+
+        act_opt = menu.addAction("Login to Trade Account...")
+        act_opt.triggered.connect(self._trigger_options)
+
         act_exit = menu.addAction("Exit VECTRA")
         act_exit.setShortcut(QKeySequence("Alt+F4"))
         act_exit.triggered.connect(self.window.close)
+
         menu.exec(self.btn_menu_file.mapToGlobal(QPoint(0, self.btn_menu_file.height())))
 
     def _show_view_menu(self):
@@ -775,11 +1130,139 @@ class WorkspaceHeaderController:
 
         menu.addSeparator()
 
+        is_wl_open = getattr(self.window, "sidebar", None) and self.window.sidebar.isVisible()
+        act_wl = menu.addAction("✓ Market Watch (Watchlist)" if is_wl_open else "Market Watch (Watchlist)")
+        act_wl.setShortcut(QKeySequence("Ctrl+M"))
+        act_wl.triggered.connect(self._toggle_watchlist)
+
+        is_plan_open = getattr(self.window, "frameAIArea", None) and self.window.frameAIArea.isVisible()
+        act_plan = menu.addAction("✓ Toolbox / Trading Plan" if is_plan_open else "Toolbox / Trading Plan")
+        act_plan.setShortcut(QKeySequence("Ctrl+T"))
+        act_plan.triggered.connect(self._toggle_trading_plan)
+
+        is_dock_open = not getattr(self.window, "is_dock_collapsed", False)
+        act_blotter = menu.addAction("✓ Blotter Dock (Positions)" if is_dock_open else "Blotter Dock (Positions)")
+        act_blotter.setShortcut(QKeySequence("Ctrl+B"))
+        act_blotter.triggered.connect(self._toggle_blotter_dock)
+
+        menu.addSeparator()
+
         act_journal = menu.addAction("System Journal (Logs)")
         act_journal.setShortcut(QKeySequence("Ctrl+L"))
         act_journal.triggered.connect(self._trigger_journal)
 
+        is_dark = getattr(self, "is_dark_theme", False)
+        act_theme = menu.addAction("Switch to Light Theme" if is_dark else "Switch to Dark Theme")
+        act_theme.triggered.connect(self._toggle_color_theme)
+
         menu.exec(self.btn_menu_view.mapToGlobal(QPoint(0, self.btn_menu_view.height())))
+
+    def _show_insert_menu(self):
+        if not hasattr(self, "btn_menu_insert") or not self.btn_menu_insert:
+            return
+        menu = QMenu(self.window)
+        is_dark = getattr(self, "is_dark_theme", False)
+        menu.setStyleSheet(self._create_mt5_menu_style(is_dark))
+
+        # Submenu: Indicators
+        sub_ind = menu.addMenu("Indicators")
+        sub_ind.setStyleSheet(self._create_mt5_menu_style(is_dark))
+
+        act_cfg_ind = sub_ind.addAction("Indicator Settings & Strategies...")
+        act_cfg_ind.triggered.connect(self._show_strategy_and_indicators_menu)
+        sub_ind.addSeparator()
+
+        is_vpoc_vis = hasattr(self.window, "line_vpoc") and self.window.line_vpoc and self.window.line_vpoc.isVisible()
+        act_vpoc = sub_ind.addAction("✓ Volume Profile (VPOC / VAH)" if is_vpoc_vis else "Volume Profile (VPOC / VAH)")
+        act_vpoc.triggered.connect(self._toggle_volume_profile)
+
+        act_fvg = sub_ind.addAction("ICT Fair Value Gaps (FVG)")
+        act_fvg.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
+
+        # Submenu: Objects / Drawings
+        sub_draw = menu.addMenu("Objects / Drawings")
+        sub_draw.setStyleSheet(self._create_mt5_menu_style(is_dark))
+
+        act_cross = sub_draw.addAction("Cursor / Crosshair")
+        act_cross.setShortcut(QKeySequence("Ctrl+1"))
+        act_cross.triggered.connect(lambda: self._set_drawing_tool("crosshair"))
+
+        act_trend = sub_draw.addAction("Trendline Tool")
+        act_trend.setShortcut(QKeySequence("Alt+T"))
+        act_trend.triggered.connect(lambda: self._set_drawing_tool("trendline"))
+
+        act_rect = sub_draw.addAction("Rectangle / Zone Tool (OB/FVG)")
+        act_rect.setShortcut(QKeySequence("Alt+R"))
+        act_rect.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
+
+        act_ruler = sub_draw.addAction("Ruler (Measure Pips & Bars)")
+        act_ruler.setShortcut(QKeySequence("Shift+M"))
+        act_ruler.triggered.connect(lambda: self._set_drawing_tool("ruler"))
+
+        sub_draw.addSeparator()
+        act_clear_draw = sub_draw.addAction("Clear All Drawings")
+        act_clear_draw.triggered.connect(self._clear_all_drawings)
+
+        menu.exec(self.btn_menu_insert.mapToGlobal(QPoint(0, self.btn_menu_insert.height())))
+
+    def _show_charts_menu(self):
+        if not hasattr(self, "btn_menu_charts") or not self.btn_menu_charts:
+            return
+        menu = QMenu(self.window)
+        is_dark = getattr(self, "is_dark_theme", False)
+        menu.setStyleSheet(self._create_mt5_menu_style(is_dark))
+
+        curr_mode = "candlestick"
+        if hasattr(self.window, "candlesticks") and self.window.candlesticks:
+            curr_mode = getattr(self.window.candlesticks, "chart_mode", "candlestick")
+
+        act_bar = menu.addAction("✓ Bar Chart" if curr_mode == "bar" else "Bar Chart")
+        act_bar.setShortcut(QKeySequence("Alt+1"))
+        act_bar.triggered.connect(lambda: self._set_chart_type("bar"))
+
+        act_candle = menu.addAction("✓ Candlesticks" if curr_mode == "candlestick" else "Candlesticks")
+        act_candle.setShortcut(QKeySequence("Alt+2"))
+        act_candle.triggered.connect(lambda: self._set_chart_type("candlestick"))
+
+        act_line = menu.addAction("✓ Line Chart" if curr_mode == "line" else "Line Chart")
+        act_line.setShortcut(QKeySequence("Alt+3"))
+        act_line.triggered.connect(lambda: self._set_chart_type("line"))
+
+        menu.addSeparator()
+
+        sub_tf = menu.addMenu("Timeframes")
+        sub_tf.setStyleSheet(self._create_mt5_menu_style(is_dark))
+        tf_list = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+        curr_tf = getattr(self.window, "current_tf_str", "H1")
+        for tf in tf_list:
+            act_tf = sub_tf.addAction(f"✓ {tf}" if tf == curr_tf else tf)
+            def _make_tf_fn(target_tf=tf):
+                return lambda: self._on_tf_click(target_tf) if hasattr(self, "_on_tf_click") else None
+            act_tf.triggered.connect(_make_tf_fn())
+
+        menu.addSeparator()
+
+        act_zin = menu.addAction("Zoom In (+)")
+        act_zin.setShortcut(QKeySequence("+"))
+        act_zin.triggered.connect(self._zoom_in_chart)
+
+        act_zout = menu.addAction("Zoom Out (-)")
+        act_zout.setShortcut(QKeySequence("-"))
+        act_zout.triggered.connect(self._zoom_out_chart)
+
+        act_fit = menu.addAction("Reset View / Auto Fit")
+        act_fit.setShortcut(QKeySequence("Ctrl+0"))
+        act_fit.triggered.connect(self._auto_fit_chart)
+
+        act_grid = menu.addAction("Toggle Grid")
+        act_grid.setShortcut(QKeySequence("Ctrl+G"))
+        act_grid.triggered.connect(self._toggle_grid)
+
+        act_ref = menu.addAction("Refresh Chart Data")
+        act_ref.setShortcut(QKeySequence("Ctrl+F5"))
+        act_ref.triggered.connect(self._refresh_chart_data)
+
+        menu.exec(self.btn_menu_charts.mapToGlobal(QPoint(0, self.btn_menu_charts.height())))
 
     def _show_tools_menu(self):
         if not hasattr(self, "btn_menu_tools") or not self.btn_menu_tools:
@@ -787,22 +1270,35 @@ class WorkspaceHeaderController:
         menu = QMenu(self.window)
         menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
 
-        act_order = menu.addAction("New Order")
+        act_order = menu.addAction("New Order (Trading Plan)")
         act_order.setShortcut(QKeySequence("F9"))
         def _on_new_order():
-            if hasattr(self.window, "btn_edge_ticket") and self.window.btn_edge_ticket:
-                self.window.btn_edge_ticket.click()
+            self._toggle_trading_plan()
         act_order.triggered.connect(_on_new_order)
+
+        act_strat = menu.addAction("Strategy Manager...")
+        act_strat.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        act_strat.triggered.connect(self._open_strategy_manager_dialog)
 
         act_bt = menu.addAction("Strategy Tester (Backtest)")
         act_bt.setShortcut(QKeySequence("Ctrl+R"))
         act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
 
+        act_kill = menu.addAction("EMERGENCY FLATTEN ALL (Kill-Switch)")
+        act_kill.setShortcut(QKeySequence("Ctrl+Shift+K"))
+        act_kill.triggered.connect(self._trigger_kill_switch)
+
+        menu.addSeparator()
+
         act_journal = menu.addAction("System Journal (Logs)")
         act_journal.setShortcut(QKeySequence("Ctrl+L"))
         act_journal.triggered.connect(self._trigger_journal)
 
-        menu.addSeparator()
+        cal_tab = getattr(self.window, "tabCalendar", None)
+        if cal_tab:
+            act_cal = menu.addAction("Economic Calendar")
+            act_cal.setShortcut(QKeySequence("F3"))
+            act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
 
         act_opt = menu.addAction("Options")
         act_opt.setShortcut(QKeySequence("Ctrl+O"))
@@ -810,35 +1306,22 @@ class WorkspaceHeaderController:
 
         menu.exec(self.btn_menu_tools.mapToGlobal(QPoint(0, self.btn_menu_tools.height())))
 
-    def _show_charts_menu(self):
-        if not hasattr(self, "btn_menu_charts") or not self.btn_menu_charts:
-            return
-        menu = QMenu(self.window)
-        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
-
-        act_bar = menu.addAction("Bar Chart")
-        act_bar.setShortcut(QKeySequence("Alt+1"))
-        act_candle = menu.addAction("Candlesticks")
-        act_candle.setShortcut(QKeySequence("Alt+2"))
-        act_line = menu.addAction("Line Chart")
-        act_line.setShortcut(QKeySequence("Alt+3"))
-
-        menu.exec(self.btn_menu_charts.mapToGlobal(QPoint(0, self.btn_menu_charts.height())))
-
-    def _show_insert_menu(self):
-        if not hasattr(self, "btn_menu_insert") or not self.btn_menu_insert:
-            return
-        menu = QMenu(self.window)
-        menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
-        act_ind = menu.addAction("Indicators & Strategies...")
-        act_ind.triggered.connect(self._show_strategy_and_indicators_menu)
-        menu.exec(self.btn_menu_insert.mapToGlobal(QPoint(0, self.btn_menu_insert.height())))
-
     def _show_window_menu(self):
         if not hasattr(self, "btn_menu_window") or not self.btn_menu_window:
             return
         menu = QMenu(self.window)
         menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        act_layout = menu.addAction("Default Institutional Layout")
+        act_layout.triggered.connect(self._reset_default_layout)
+
+        is_focus = getattr(self, "_focus_chart_active", False)
+        act_focus = menu.addAction("✓ Focus Chart Mode" if is_focus else "Focus Chart Mode (Maximize Chart)")
+        act_focus.setShortcut(QKeySequence("Shift+F11"))
+        act_focus.triggered.connect(self._toggle_focus_chart)
+
+        menu.addSeparator()
+
         act_full = menu.addAction("Toggle Fullscreen")
         act_full.setShortcut(QKeySequence("F11"))
         def _toggle_fs():
@@ -847,6 +1330,7 @@ class WorkspaceHeaderController:
             else:
                 self.window.showFullScreen()
         act_full.triggered.connect(_toggle_fs)
+
         menu.exec(self.btn_menu_window.mapToGlobal(QPoint(0, self.btn_menu_window.height())))
 
     def _show_help_menu(self):
@@ -854,25 +1338,26 @@ class WorkspaceHeaderController:
             return
         menu = QMenu(self.window)
         menu.setStyleSheet(self._create_mt5_menu_style(getattr(self, "is_dark_theme", False)))
+
+        act_cheat = menu.addAction("Keyboard Shortcuts & Cheat Sheet")
+        act_cheat.setShortcut(QKeySequence("Ctrl+/"))
+        act_cheat.triggered.connect(self._show_shortcuts_cheat_sheet)
+
+        act_diag = menu.addAction("MT5 IPC Connection Diagnostics")
+        act_diag.triggered.connect(self._show_diagnostics_dialog)
+
+        menu.addSeparator()
+
         act_about = menu.addAction("About VECTRA Institutional OS v2.2")
         def _on_about():
             QMessageBox.information(
                 self.window,
                 "About VECTRA",
-                "VECTRA Quantitative Trading OS v2.2\nArchitecture: MetaTrader 5 / Institutional ECN\nStrategy: ICT Zones Pro v4.2"
+                "VECTRA Quantitative Trading OS v2.2\nArchitecture: MetaTrader 5 / Institutional ECN\nStrategy: ICT Zones Pro v4.2 / Market Profile vPOC\nBuilt for professional prop & multi-asset desks."
             )
         act_about.triggered.connect(_on_about)
+
         menu.exec(self.btn_menu_help.mapToGlobal(QPoint(0, self.btn_menu_help.height())))
-
-    def _trigger_journal(self):
-        btn = getattr(self, "btn_bottom_audit", None)
-        if btn:
-            btn.click()
-
-    def _trigger_options(self):
-        btn = getattr(self, "btnNavSettings", None)
-        if btn:
-            btn.click()
 
     def _setup_custom_title_bar(self):
         """Create institutional MT5-Style Workspace Layout matching blueprint:
@@ -1108,7 +1593,7 @@ class WorkspaceHeaderController:
         self.shortcut_f5 = QShortcut(QKeySequence("F5"), self.window)
         self.shortcut_f5.activated.connect(lambda: self.terminal._toggle_bot())
 
-        # MT5 Global Navigation Hotkeys
+        # MT5 Global Navigation & Tool Hotkeys
         self.shortcut_f1 = QShortcut(QKeySequence("F1"), self.window)
         self.shortcut_f1.activated.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
 
@@ -1120,6 +1605,57 @@ class WorkspaceHeaderController:
 
         self.shortcut_f3 = QShortcut(QKeySequence("F3"), self.window)
         self.shortcut_f3.activated.connect(lambda: self._switch_nav_tab(getattr(self.window, "tabCalendar", None), getattr(self, "btnNavCalendar", None), "Calendar"))
+
+        self.shortcut_f9 = QShortcut(QKeySequence("F9"), self.window)
+        self.shortcut_f9.activated.connect(self._toggle_trading_plan)
+
+        self.shortcut_ctrl_l = QShortcut(QKeySequence("Ctrl+L"), self.window)
+        self.shortcut_ctrl_l.activated.connect(self._trigger_journal)
+
+        self.shortcut_ctrl_o = QShortcut(QKeySequence("Ctrl+O"), self.window)
+        self.shortcut_ctrl_o.activated.connect(self._trigger_options)
+
+        self.shortcut_ctrl_m = QShortcut(QKeySequence("Ctrl+M"), self.window)
+        self.shortcut_ctrl_m.activated.connect(self._toggle_watchlist)
+
+        self.shortcut_ctrl_t = QShortcut(QKeySequence("Ctrl+T"), self.window)
+        self.shortcut_ctrl_t.activated.connect(self._toggle_trading_plan)
+
+        self.shortcut_ctrl_b = QShortcut(QKeySequence("Ctrl+B"), self.window)
+        self.shortcut_ctrl_b.activated.connect(self._toggle_blotter_dock)
+
+        self.shortcut_ctrl_n = QShortcut(QKeySequence("Ctrl+N"), self.window)
+        self.shortcut_ctrl_n.activated.connect(self._on_select_symbol)
+
+        self.shortcut_ctrl_s = QShortcut(QKeySequence("Ctrl+S"), self.window)
+        self.shortcut_ctrl_s.activated.connect(self._on_save_chart_picture)
+
+        self.shortcut_ctrl_shift_s = QShortcut(QKeySequence("Ctrl+Shift+S"), self.window)
+        self.shortcut_ctrl_shift_s.activated.connect(self._open_strategy_manager_dialog)
+
+        self.shortcut_ctrl_shift_k = QShortcut(QKeySequence("Ctrl+Shift+K"), self.window)
+        self.shortcut_ctrl_shift_k.activated.connect(self._trigger_kill_switch)
+
+        self.shortcut_alt_1 = QShortcut(QKeySequence("Alt+1"), self.window)
+        self.shortcut_alt_1.activated.connect(lambda: self._set_chart_type("bar"))
+
+        self.shortcut_alt_2 = QShortcut(QKeySequence("Alt+2"), self.window)
+        self.shortcut_alt_2.activated.connect(lambda: self._set_chart_type("candlestick"))
+
+        self.shortcut_alt_3 = QShortcut(QKeySequence("Alt+3"), self.window)
+        self.shortcut_alt_3.activated.connect(lambda: self._set_chart_type("line"))
+
+        self.shortcut_ctrl_0 = QShortcut(QKeySequence("Ctrl+0"), self.window)
+        self.shortcut_ctrl_0.activated.connect(self._auto_fit_chart)
+
+        self.shortcut_ctrl_g = QShortcut(QKeySequence("Ctrl+G"), self.window)
+        self.shortcut_ctrl_g.activated.connect(self._toggle_grid)
+
+        self.shortcut_ctrl_slash = QShortcut(QKeySequence("Ctrl+/"), self.window)
+        self.shortcut_ctrl_slash.activated.connect(self._show_shortcuts_cheat_sheet)
+
+        self.shortcut_shift_f11 = QShortcut(QKeySequence("Shift+F11"), self.window)
+        self.shortcut_shift_f11.activated.connect(self._toggle_focus_chart)
 
         # 5. Right-docked Account Telemetry (BAL | EQ | PnL - Account Capital Only)
         self.lbl_top_ticker = QLabel()

@@ -1,5 +1,5 @@
 """
-Candlestick and TimeAxis Graphics Items for pyqtgraph
+Candlestick, Bar Chart, Line Chart and TimeAxis Graphics Items for pyqtgraph
 """
 
 import os
@@ -12,47 +12,37 @@ from PySide6.QtGui import QPicture, QPainter, QColor
 class TimeAxisItem(pg.AxisItem):
 
     def __init__(self, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
-
         self.timestamps = []
 
     def update_timestamps(self, timestamps):
-
         self.timestamps = timestamps
 
     def tickStrings(self, values, scale, spacing):
-
         strings = []
-
         for v in values:
-
             idx = int(v)
-
             if 0 <= idx < len(self.timestamps):
-
                 dt = datetime.fromtimestamp(self.timestamps[idx])
-
                 strings.append(dt.strftime("%d/%m %H:%M"))
-
             else:
-
                 strings.append("")
-
         return strings
 
 
 class CandlestickItem(pg.GraphicsObject):
     """
-    High-Performance Candlestick Graphics Item with Dual-Layer Cached Painting.
+    High-Performance Multi-Style Financial Graphics Item with Dual-Layer Cached Painting.
+    Supports Candlesticks (Alt+2), Western OHLC Bars (Alt+1), and Line Chart (Alt+3).
     Caches (N-1) closed historical bars into a static QPicture and only renders
     the live active candle per tick, reducing update latency from 55ms to 0.08µs.
     """
 
-    def __init__(self, data, is_dark: bool = False):
+    def __init__(self, data, is_dark: bool = False, chart_mode: str = "candlestick"):
         super().__init__()
         self.data = list(data) if data is not None else []
         self.is_dark = is_dark
+        self.chart_mode = chart_mode  # 'candlestick', 'bar', 'line'
         self._w = 0.35
         self._static_picture = QPicture()
         self._live_bar = None
@@ -67,18 +57,37 @@ class CandlestickItem(pg.GraphicsObject):
             self.generatePicture()
             self.update()
 
+    def set_chart_mode(self, mode: str):
+        """Switches visual chart mode between 'candlestick', 'bar', and 'line'."""
+        if mode in ("candlestick", "bar", "line") and getattr(self, "chart_mode", "candlestick") != mode:
+            self.chart_mode = mode
+            self.generatePicture()
+            self.update()
+
     def _draw_single_candle(self, p, bar, bull_color, bear_color):
         t, open_p, close_p, low_p, high_p = bar
         w = self._w
         is_bear = open_p > close_p
         col = bear_color if is_bear else bull_color
         p.setBrush(pg.mkBrush(col))
-        p.setPen(pg.mkPen(col))
-        p.drawLine(QPointF(t, low_p), QPointF(t, high_p))
-        min_p = close_p if is_bear else open_p
-        p.drawRect(
-            QtCore.QRectF(t - w, min_p, w * 2, max(abs(close_p - open_p), 0.0001))
-        )
+        p.setPen(pg.mkPen(col, width=1.0))
+
+        mode = getattr(self, "chart_mode", "candlestick")
+        if mode == "bar":
+            # Traditional Western OHLC Bar Chart:
+            # Vertical line from low to high
+            p.drawLine(QPointF(t, low_p), QPointF(t, high_p))
+            # Left tick for open
+            p.drawLine(QPointF(t - w, open_p), QPointF(t, open_p))
+            # Right tick for close
+            p.drawLine(QPointF(t, close_p), QPointF(t + w, close_p))
+        else:
+            # Candlestick: Upper & Lower wicks + Real body rectangle
+            p.drawLine(QPointF(t, low_p), QPointF(t, high_p))
+            min_p = close_p if is_bear else open_p
+            p.drawRect(
+                QtCore.QRectF(t - w, min_p, w * 2, max(abs(close_p - open_p), 0.0001))
+            )
 
     def generatePicture(self):
         """Generates static cached picture of all closed bars except the live bar."""
@@ -97,9 +106,19 @@ class CandlestickItem(pg.GraphicsObject):
         self._live_bar = self.data[-1]
 
         p = QPainter(self._static_picture)
-        p.setPen(pg.mkPen("w"))
-        for bar in historical:
-            self._draw_single_candle(p, bar, bull_color, bear_color)
+        mode = getattr(self, "chart_mode", "candlestick")
+        if mode == "line":
+            line_col = "#38bdf8" if getattr(self, "is_dark", True) else "#0284c7"
+            p.setPen(pg.mkPen(line_col, width=1.5))
+            p.setBrush(Qt.NoBrush)
+            for i in range(len(historical) - 1):
+                t1, _, c1, _, _ = historical[i]
+                t2, _, c2, _, _ = historical[i + 1]
+                p.drawLine(QPointF(t1, c1), QPointF(t2, c2))
+        else:
+            p.setPen(pg.mkPen("w"))
+            for bar in historical:
+                self._draw_single_candle(p, bar, bull_color, bear_color)
         p.end()
 
         # Compute bounding rectangle
@@ -137,9 +156,16 @@ class CandlestickItem(pg.GraphicsObject):
         if self._live_bar:
             bull_color = "#22c55e" if getattr(self, "is_dark", True) else "#15803D"
             bear_color = "#ef4444" if getattr(self, "is_dark", True) else "#B91C1C"
-            self._draw_single_candle(p, self._live_bar, bull_color, bear_color)
+            mode = getattr(self, "chart_mode", "candlestick")
+            if mode == "line":
+                if len(self.data) >= 2:
+                    t1, _, c1, _, _ = self.data[-2]
+                    t2, _, c2, _, _ = self._live_bar
+                    line_col = "#38bdf8" if getattr(self, "is_dark", True) else "#0284c7"
+                    p.setPen(pg.mkPen(line_col, width=1.5))
+                    p.drawLine(QPointF(t1, c1), QPointF(t2, c2))
+            else:
+                self._draw_single_candle(p, self._live_bar, bull_color, bear_color)
 
     def boundingRect(self):
         return self._bounds
-
-
