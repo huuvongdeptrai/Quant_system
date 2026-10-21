@@ -144,37 +144,82 @@ class MT5SafeController:
                 return
             root_d = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             cfg_p = os.path.join(root_d, "config", "settings.json")
-            if not os.path.exists(cfg_p):
-                return
-            with open(cfg_p, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-            if not cfg.get("headless_mt5", False):
-                return
-            self.hide_mt5_window()
+            headless = True
+            if os.path.exists(cfg_p):
+                with open(cfg_p, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                headless = cfg.get("headless_mt5", True)
+            if headless:
+                self.hide_mt5_window()
         except Exception as e:
             logger.debug(f"[MT5Safe] Headless check error: {e}")
 
+    def _get_mt5_pids(self):
+        """Retrieves active PIDs for MT5 executable instances."""
+        try:
+            import psutil
+            pids = set()
+            for p in psutil.process_iter(["pid", "name"]):
+                try:
+                    pname = p.info.get("name")
+                    if pname and pname.lower() in ("terminal64.exe", "terminal.exe", "metatrader.exe"):
+                        pids.add(p.info["pid"])
+                except Exception:
+                    pass
+            return pids
+        except Exception:
+            return set()
+
     def hide_mt5_window(self):
-        """Hides the MT5 desktop window using Win32 API SW_HIDE."""
+        """Hides the MT5 desktop window using Win32 API SW_HIDE based on PID, Class Name, and Title."""
         try:
             import ctypes, sys
+            from ctypes import wintypes
             if sys.platform != "win32":
                 return False
+
             user32 = ctypes.windll.user32
+            hdesk = user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+
+            mt5_pids = self._get_mt5_pids()
             hidden = []
+
             def enum_proc(hwnd, lParam):
                 if user32.IsWindowVisible(hwnd):
-                    length = user32.GetWindowTextLengthW(hwnd)
-                    if length > 0:
-                        buff = ctypes.create_unicode_buffer(length + 1)
-                        user32.GetWindowTextW(hwnd, buff, length + 1)
-                        title = buff.value
-                        if "MetaTrader" in title or "terminal64" in title.lower():
-                            user32.ShowWindow(hwnd, 0) # SW_HIDE = 0
-                            hidden.append(hwnd)
+                    pid = wintypes.DWORD()
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+                    class_buff = ctypes.create_unicode_buffer(256)
+                    user32.GetClassNameW(hwnd, class_buff, 256)
+                    c_name = class_buff.value
+
+                    is_mt5 = False
+                    if pid.value in mt5_pids:
+                        is_mt5 = True
+                    elif "MetaQuotes::MetaTrader" in c_name:
+                        is_mt5 = True
+                    else:
+                        length = user32.GetWindowTextLengthW(hwnd)
+                        if length > 0:
+                            buff = ctypes.create_unicode_buffer(length + 1)
+                            user32.GetWindowTextW(hwnd, buff, length + 1)
+                            t = buff.value
+                            if "MetaTrader" in t or "terminal64" in t.lower() or "Hedge" in t:
+                                is_mt5 = True
+
+                    if is_mt5:
+                        user32.ShowWindow(hwnd, 0)  # SW_HIDE = 0
+                        hidden.append(hwnd)
                 return True
-            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-            user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            if hdesk:
+                user32.EnumDesktopWindows(hdesk, WNDENUMPROC(enum_proc), 0)
+            else:
+                user32.EnumWindows(WNDENUMPROC(enum_proc), 0)
+
             if hidden:
                 logger.info(f"[MT5Safe] Silent background mode active: hidden {len(hidden)} MT5 window(s).")
                 return True
@@ -184,26 +229,88 @@ class MT5SafeController:
             return False
 
     def show_mt5_window(self):
-        """Restores the MT5 desktop window using Win32 API SW_SHOW."""
+        """Restores the MT5 desktop main window using Win32 API SW_SHOW."""
         try:
             import ctypes, sys
+            from ctypes import wintypes
             if sys.platform != "win32":
                 return False
+
             user32 = ctypes.windll.user32
+            hdesk = user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+
+            mt5_pids = self._get_mt5_pids()
+            shown = []
+
             def enum_proc(hwnd, lParam):
-                length = user32.GetWindowTextLengthW(hwnd)
-                if length > 0:
-                    buff = ctypes.create_unicode_buffer(length + 1)
-                    user32.GetWindowTextW(hwnd, buff, length + 1)
-                    title = buff.value
-                    if "MetaTrader" in title:
-                        user32.ShowWindow(hwnd, 5) # SW_SHOW = 5
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+                class_buff = ctypes.create_unicode_buffer(256)
+                user32.GetClassNameW(hwnd, class_buff, 256)
+                c_name = class_buff.value
+
+                if pid.value in mt5_pids or "MetaQuotes::MetaTrader" in c_name:
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
+                        user32.SetForegroundWindow(hwnd)
+                        shown.append(hwnd)
                 return True
-            EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-            user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
-            return True
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            if hdesk:
+                user32.EnumDesktopWindows(hdesk, WNDENUMPROC(enum_proc), 0)
+            else:
+                user32.EnumWindows(WNDENUMPROC(enum_proc), 0)
+
+            if shown:
+                logger.info(f"[MT5Safe] Restored {len(shown)} MT5 main window(s).")
+                return True
+            return False
         except Exception as e:
             logger.warning(f"[MT5Safe] Failed to show MT5 window: {e}")
+            return False
+
+    def is_mt5_window_visible(self):
+        """Checks if the MT5 main window is currently visible."""
+        try:
+            import ctypes, sys
+            from ctypes import wintypes
+            if sys.platform != "win32":
+                return False
+
+            user32 = ctypes.windll.user32
+            hdesk = user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+
+            mt5_pids = self._get_mt5_pids()
+            visible = []
+
+            def enum_proc(hwnd, lParam):
+                if user32.IsWindowVisible(hwnd):
+                    pid = wintypes.DWORD()
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    class_buff = ctypes.create_unicode_buffer(256)
+                    user32.GetClassNameW(hwnd, class_buff, 256)
+                    c_name = class_buff.value
+                    if pid.value in mt5_pids or "MetaQuotes::MetaTrader" in c_name:
+                        length = user32.GetWindowTextLengthW(hwnd)
+                        if length > 0:
+                            visible.append(hwnd)
+                return True
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            if hdesk:
+                user32.EnumDesktopWindows(hdesk, WNDENUMPROC(enum_proc), 0)
+            else:
+                user32.EnumWindows(WNDENUMPROC(enum_proc), 0)
+
+            return len(visible) > 0
+        except Exception:
             return False
 
 mt5 = MT5SafeController()

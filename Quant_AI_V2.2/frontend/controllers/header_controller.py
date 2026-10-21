@@ -1648,6 +1648,13 @@ class WorkspaceHeaderController:
         m_tools.addSeparator()
         m_tools.addAction(act_journal)
         m_tools.addAction(act_cal)
+        def _toggle_mt5_window():
+            if mt5.is_mt5_window_visible():
+                mt5.hide_mt5_window()
+            else:
+                mt5.show_mt5_window()
+
+        act_mt5_win = _reg_action(m_tools, "Toggle MT5 Window", None, _toggle_mt5_window)
         act_opt = _reg_action(m_tools, "Options", "Ctrl+O", self._trigger_options)
 
         # -------------------------------------------------------------

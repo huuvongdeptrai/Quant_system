@@ -39,6 +39,7 @@ DEFAULTS = {
     "session_london": True,
     "session_ny": True,
     "close_friday": True,
+    "headless_mt5": True,
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "alert_fills": True,

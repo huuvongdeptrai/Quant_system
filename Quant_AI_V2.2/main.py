@@ -182,6 +182,9 @@ class QuantTerminal(QObject):
         # Initialize directly in institutional Light Theme per user preference
         self._on_theme_changed(False)
 
+        # Background MT5 Headless Guard: ensure broker terminal remains silently hidden
+        QTimer.singleShot(1500, self._ensure_headless_mt5)
+
         # Ensure default active workspace at launch is always TERMINAL (tab2)
         if hasattr(self, "btnNavTerminal"):
             self._switch_nav_tab(self.window.tab2, self.btnNavTerminal, "TERMINAL")
@@ -1149,6 +1152,18 @@ class QuantTerminal(QObject):
         if event:
             event.accept()
 
+    def _ensure_headless_mt5(self):
+        """Silently tucks MT5 desktop window into background if headless_mt5 is enabled."""
+        try:
+            from backend.infrastructure.brokers.mt5_safe import mt5
+            headless = True
+            if hasattr(self, "settings") and hasattr(self.settings, "config"):
+                headless = self.settings.config.get("headless_mt5", True)
+            if headless:
+                mt5.hide_mt5_window()
+        except Exception as e:
+            logger.debug(f"[QuantTerminal] Headless MT5 ensure check: {e}")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -1165,3 +1180,4 @@ if __name__ == "__main__":
     worker.start()
 
     sys.exit(app.exec())
+
