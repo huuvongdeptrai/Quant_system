@@ -510,9 +510,9 @@ def update_order_proposal_html(
     window.live_ticket = live_ticket
     window.is_pending_order = is_pending_order
     window.pending_ticket = pending_ticket
-    sl_pts = abs(entry - sl)
-    tp_pts = abs(tp - entry) if tp is not None else (sl_pts * 2.0)
-    if tp is None:
+    sl_pts = abs(entry - sl) if sl and sl > 0 else 0.0
+    tp_pts = abs(tp - entry) if tp and tp > 0 else (sl_pts * 2.0 if sl_pts > 0 else 0.0)
+    if tp is None and sl_pts > 0:
         tp = entry + (sl_pts * 2.0) if signal_type == "BUY" else entry - (sl_pts * 2.0)
     if rr_ratio is None:
         rr_ratio = round(tp_pts / sl_pts, 1) if sl_pts > 0 else 2.0
@@ -593,34 +593,50 @@ def update_order_proposal_html(
                     pass
 
         if hasattr(window, "line_order_sl") and window.line_order_sl:
-            window.line_order_sl.setValue(sl)
-            window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=order_w, style=order_style))
-            window.line_order_sl.setVisible(True)
-            if is_live_position:
-                window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
+            if sl and sl > 0:
+                window.line_order_sl.setValue(sl)
+                window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=order_w, style=order_style))
+                window.line_order_sl.setVisible(True)
+                if is_live_position:
+                    window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
+                else:
+                    window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+                if hasattr(window, "plot_widget"):
+                    try:
+                        if window.line_order_sl not in window.plot_widget.items():
+                            window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
+                    except Exception:
+                        pass
             else:
-                window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
-            if hasattr(window, "plot_widget"):
-                try:
-                    if window.line_order_sl not in window.plot_widget.items():
-                        window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
-                except Exception:
-                    pass
+                window.line_order_sl.setVisible(False)
+                if hasattr(window, "plot_widget") and window.plot_widget:
+                    try:
+                        window.plot_widget.removeItem(window.line_order_sl)
+                    except Exception:
+                        pass
 
         if hasattr(window, "line_order_tp") and window.line_order_tp:
-            window.line_order_tp.setValue(tp)
-            window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=order_w, style=order_style))
-            window.line_order_tp.setVisible(True)
-            if is_live_position:
-                window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
+            if tp and tp > 0:
+                window.line_order_tp.setValue(tp)
+                window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=order_w, style=order_style))
+                window.line_order_tp.setVisible(True)
+                if is_live_position:
+                    window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
+                else:
+                    window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
+                if hasattr(window, "plot_widget"):
+                    try:
+                        if window.line_order_tp not in window.plot_widget.items():
+                            window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+                    except Exception:
+                        pass
             else:
-                window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
-            if hasattr(window, "plot_widget"):
-                try:
-                    if window.line_order_tp not in window.plot_widget.items():
-                        window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
-                except Exception:
-                    pass
+                window.line_order_tp.setVisible(False)
+                if hasattr(window, "plot_widget") and window.plot_widget:
+                    try:
+                        window.plot_widget.removeItem(window.line_order_tp)
+                    except Exception:
+                        pass
     except Exception as e:
         logger.error(f"[TradingPlanPanel] Failed to update chart order lines: {e}")
 
@@ -1780,8 +1796,8 @@ def sync_live_position_to_ai_plan(window):
                 "has_signal": True,
                 "signal_type": pos_type,
                 "entry": open_p,
-                "sl": pos_sl if pos_sl > 0 else (open_p * 0.99 if pos_type == "BUY" else open_p * 1.01),
-                "tp": pos_tp if pos_tp > 0 else (open_p * 1.01 if pos_type == "BUY" else open_p * 0.99),
+                "sl": pos_sl if pos_sl > 0 else 0.0,
+                "tp": pos_tp if pos_tp > 0 else 0.0,
                 "is_live_position": True,
                 "is_pending_order": False,
                 "live_ticket": ticket,
@@ -1791,13 +1807,13 @@ def sync_live_position_to_ai_plan(window):
             window.active_signal_data.update(live_payload)
             window.active_signals_by_symbol[clean_sym] = window.active_signal_data
 
-            # Draw / update on-chart order lines for the live MT5 position
+            # Draw / update on-chart order lines for the live MT5 position (only real SL/TP from broker)
             update_order_proposal_html(
                 window,
                 sym=clean_sym,
                 entry=open_p,
-                sl=pos_sl if pos_sl > 0 else (open_p * 0.99 if pos_type == "BUY" else open_p * 1.01),
-                tp=pos_tp if pos_tp > 0 else (open_p * 1.01 if pos_type == "BUY" else open_p * 0.99),
+                sl=pos_sl if pos_sl > 0 else 0.0,
+                tp=pos_tp if pos_tp > 0 else 0.0,
                 has_signal=True,
                 signal_type=pos_type,
                 is_live_position=True,
@@ -1856,8 +1872,8 @@ def sync_live_position_to_ai_plan(window):
                 "has_signal": True,
                 "signal_type": pos_type,
                 "entry": open_ord,
-                "sl": ord_sl if ord_sl > 0 else (open_ord * 0.99 if pos_type == "BUY" else open_ord * 1.01),
-                "tp": ord_tp if ord_tp > 0 else (open_ord * 1.01 if pos_type == "BUY" else open_ord * 0.99),
+                "sl": ord_sl if ord_sl > 0 else 0.0,
+                "tp": ord_tp if ord_tp > 0 else 0.0,
                 "is_live_position": False,
                 "is_pending_order": True,
                 "live_ticket": t_ord,
@@ -1866,13 +1882,13 @@ def sync_live_position_to_ai_plan(window):
             window.active_signal_data.update(pending_payload)
             window.active_signals_by_symbol[clean_sym] = window.active_signal_data
 
-            # Draw / update on-chart order lines for the MT5 pending order
+            # Draw / update on-chart order lines for the MT5 pending order (only real SL/TP from broker)
             update_order_proposal_html(
                 window,
                 sym=clean_sym,
                 entry=open_ord,
-                sl=ord_sl if ord_sl > 0 else (open_ord * 0.99 if pos_type == "BUY" else open_ord * 1.01),
-                tp=ord_tp if ord_tp > 0 else (open_ord * 1.01 if pos_type == "BUY" else open_ord * 0.99),
+                sl=ord_sl if ord_sl > 0 else 0.0,
+                tp=ord_tp if ord_tp > 0 else 0.0,
                 has_signal=True,
                 signal_type=pos_type,
                 is_pending_order=True,
