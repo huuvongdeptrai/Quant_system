@@ -1283,10 +1283,13 @@ def setup_chart_ui(window):
 
     window._chart_overlay_filter = ChartOverlayPositionFilter(window.plot_widget, card_empty)
 
-    # Phím tắt toàn cục F5 làm mới biểu đồ và quét lại kết nối MT5
-    shortcut_f5 = QtGui.QShortcut(QtGui.QKeySequence("F5"), window)
-    shortcut_f5.activated.connect(lambda: window.draw_and_analyze(getattr(window, "current_sym", "XAUUSD")))
-    window.shortcut_f5 = shortcut_f5
+    # Phím tắt toàn cục Ctrl+F5 làm mới biểu đồ và quét lại kết nối MT5 (tránh xung đột với F5 Algo Bot)
+    if not hasattr(window, "act_ref") or not window.act_ref:
+        shortcut_f5 = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+F5"), window)
+        shortcut_f5.activated.connect(lambda: window.draw_and_analyze(getattr(window, "current_sym", "XAUUSD")))
+        window.shortcut_f5 = shortcut_f5
+    else:
+        window.shortcut_f5 = getattr(window, "act_ref", None)
 
     # Add Crosshair lines
     window.vLine = pg.InfiniteLine(

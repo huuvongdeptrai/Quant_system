@@ -1435,311 +1435,243 @@ class WorkspaceHeaderController:
         menu.exec(self.btn_menu_help.mapToGlobal(QPoint(0, self.btn_menu_help.height())))
 
     def _setup_native_mt5_menus(self, native_mb, is_dark):
-        """Constructs genuine MT5 Dropdown Menus with checkable state and immediate triggers."""
+        """Constructs genuine MT5 Dropdown Menus with unified canonical QActions for 100% working global shortcuts."""
         style_menu = self._create_mt5_menu_style(is_dark)
 
+        # Helper to create canonical action wired to window (Single Source of Truth, Zero Ambiguity)
+        def _reg_action(parent_menu, text, shortcut=None, handler=None, checkable=False):
+            act = QAction(text, self.window)
+            act.setShortcutContext(Qt.WindowShortcut)
+            act.activated = act.triggered
+            if checkable:
+                act.setCheckable(True)
+            if shortcut:
+                if isinstance(shortcut, (list, tuple)):
+                    act.setShortcuts([QKeySequence(s) for s in shortcut])
+                else:
+                    act.setShortcut(QKeySequence(shortcut))
+            if handler:
+                act.triggered.connect(handler)
+            self.window.addAction(act)
+            if parent_menu:
+                parent_menu.addAction(act)
+            return act
+
+        # -------------------------------------------------------------
         # 1. FILE MENU
+        # -------------------------------------------------------------
         m_file = native_mb.addMenu("&File")
         m_file.setStyleSheet(style_menu)
         self.menu_file = m_file
 
-        act_sym = m_file.addAction("New Chart...")
-        act_sym.setShortcut(QKeySequence("Ctrl+N"))
-        act_sym.triggered.connect(self._on_select_symbol)
-
-        act_save = m_file.addAction("Save As Picture...")
-        act_save.setShortcut(QKeySequence("Ctrl+S"))
-        act_save.triggered.connect(self._on_save_chart_picture)
-
-        act_data = m_file.addAction("Open Data Folder")
-        act_data.triggered.connect(self._on_open_data_folder)
-
-        act_export = m_file.addAction("Export Data...")
-        act_export.triggered.connect(self._on_export_blotter_csv)
+        act_sym = _reg_action(m_file, "New Chart...", "Ctrl+N", self._on_select_symbol)
+        act_save = _reg_action(m_file, "Save As Picture...", "Ctrl+S", self._on_save_chart_picture)
+        act_data = _reg_action(m_file, "Open Data Folder", None, self._on_open_data_folder)
+        act_export = _reg_action(m_file, "Export Data...", None, self._on_export_blotter_csv)
 
         m_file.addSeparator()
 
-        act_login = m_file.addAction("Login to Trade Account")
-        act_login.triggered.connect(self._trigger_options)
+        act_login = _reg_action(m_file, "Login to Trade Account", None, self._trigger_options)
+        act_exit = _reg_action(m_file, "Exit", "Alt+F4", self.window.close)
 
-        act_exit = m_file.addAction("Exit")
-        act_exit.setShortcut(QKeySequence("Alt+F4"))
-        act_exit.triggered.connect(self.window.close)
+        # -------------------------------------------------------------
+        # SHARED CANONICAL ACTIONS (Cross-menu without shortcut collisions)
+        # -------------------------------------------------------------
+        act_bt = _reg_action(
+            None, "Strategy Tester", "Ctrl+R",
+            lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"),
+            checkable=True
+        )
 
+        act_cal = _reg_action(
+            None, "Calendar", "F3",
+            lambda: self._switch_nav_tab(getattr(self.window, "tabCalendar", None), getattr(self, "btnNavCalendar", None), "Calendar"),
+            checkable=True
+        )
+
+        act_journal = _reg_action(None, "Journal", "Ctrl+L", self._trigger_journal)
+
+        def _toggle_fs():
+            if self.window.isFullScreen():
+                self.window.showNormal()
+            else:
+                self.window.showFullScreen()
+        act_fs = _reg_action(None, "Full Screen", "F11", _toggle_fs)
+
+        # -------------------------------------------------------------
         # 2. VIEW MENU
+        # -------------------------------------------------------------
         m_view = native_mb.addMenu("&View")
         m_view.setStyleSheet(style_menu)
         self.menu_view = m_view
 
-        def _populate_view():
-            m_view.clear()
+        act_term = _reg_action(
+            m_view, "Terminal", "F1",
+            lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"),
+            checkable=True
+        )
+        act_stats = _reg_action(
+            m_view, "Reports", "F2",
+            lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"),
+            checkable=True
+        )
+        m_view.addAction(act_bt)
+        m_view.addAction(act_cal)
+
+        m_view.addSeparator()
+
+        act_wl = _reg_action(m_view, "Market Watch", "Ctrl+M", self._toggle_watchlist, checkable=True)
+        act_plan = _reg_action(m_view, "Toolbox", "Ctrl+T", self._toggle_trading_plan, checkable=True)
+        act_blotter = _reg_action(m_view, "Trade", "Ctrl+B", self._toggle_blotter_dock, checkable=True)
+
+        m_view.addSeparator()
+        m_view.addAction(act_journal)
+
+        sub_theme = m_view.addMenu("Theme")
+        sub_theme.setStyleSheet(style_menu)
+        is_d = getattr(self, "is_dark_theme", False)
+        act_dark = sub_theme.addAction("Dark")
+        act_dark.setCheckable(True)
+        act_dark.setChecked(is_d)
+        act_dark.triggered.connect(lambda: self._toggle_color_theme() if not getattr(self, "is_dark_theme", False) else None)
+        act_light = sub_theme.addAction("Light")
+        act_light.setCheckable(True)
+        act_light.setChecked(not is_d)
+        act_light.triggered.connect(lambda: self._toggle_color_theme() if getattr(self, "is_dark_theme", False) else None)
+
+        m_view.addSeparator()
+        m_view.addAction(act_fs)
+
+        def _sync_view_states():
             curr_w = self.window.tabWidget.currentWidget() if hasattr(self.window, "tabWidget") else None
-
-            act_term = m_view.addAction("Terminal")
-            act_term.setCheckable(True)
             act_term.setChecked(curr_w == getattr(self.window, "tab2", None))
-            act_term.setShortcut(QKeySequence("F1"))
-            act_term.triggered.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
-
-            act_stats = m_view.addAction("Reports")
-            act_stats.setCheckable(True)
             act_stats.setChecked(curr_w == getattr(self.window, "tab3", None))
-            act_stats.setShortcut(QKeySequence("F2"))
-            act_stats.triggered.connect(lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"))
-
-            act_bt = m_view.addAction("Strategy Tester")
-            act_bt.setCheckable(True)
             act_bt.setChecked(curr_w == getattr(self.window, "tab_5", None))
-            act_bt.setShortcut(QKeySequence("Ctrl+R"))
-            act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
-
             cal_tab = getattr(self.window, "tabCalendar", None)
-            if cal_tab:
-                act_cal = m_view.addAction("Calendar")
-                act_cal.setCheckable(True)
-                act_cal.setChecked(curr_w == cal_tab)
-                act_cal.setShortcut(QKeySequence("F3"))
-                act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
-
-            m_view.addSeparator()
-
+            act_cal.setChecked(bool(cal_tab and curr_w == cal_tab))
             is_wl_open = getattr(self.window, "sidebar", None) and self.window.sidebar.isVisible()
-            act_wl = m_view.addAction("Market Watch")
-            act_wl.setCheckable(True)
             act_wl.setChecked(bool(is_wl_open))
-            act_wl.setShortcut(QKeySequence("Ctrl+M"))
-            act_wl.triggered.connect(self._toggle_watchlist)
-
             is_plan_open = getattr(self.window, "frameAIArea", None) and self.window.frameAIArea.isVisible()
-            act_plan = m_view.addAction("Toolbox")
-            act_plan.setCheckable(True)
             act_plan.setChecked(bool(is_plan_open))
-            act_plan.setShortcut(QKeySequence("Ctrl+T"))
-            act_plan.triggered.connect(self._toggle_trading_plan)
-
             is_dock_open = not getattr(self.window, "is_dock_collapsed", False)
-            act_blotter = m_view.addAction("Trade")
-            act_blotter.setCheckable(True)
             act_blotter.setChecked(bool(is_dock_open))
-            act_blotter.setShortcut(QKeySequence("Ctrl+B"))
-            act_blotter.triggered.connect(self._toggle_blotter_dock)
+            is_cur_d = getattr(self, "is_dark_theme", False)
+            act_dark.setChecked(is_cur_d)
+            act_light.setChecked(not is_cur_d)
 
-            m_view.addSeparator()
+        m_view.aboutToShow.connect(_sync_view_states)
+        _sync_view_states()
 
-            act_journal = m_view.addAction("Journal")
-            act_journal.setShortcut(QKeySequence("Ctrl+L"))
-            act_journal.triggered.connect(self._trigger_journal)
-
-            sub_theme = m_view.addMenu("Theme")
-            sub_theme.setStyleSheet(style_menu)
-            is_d = getattr(self, "is_dark_theme", False)
-            act_dark = sub_theme.addAction("Dark")
-            act_dark.setCheckable(True)
-            act_dark.setChecked(is_d)
-            act_dark.triggered.connect(lambda: self._toggle_color_theme() if not getattr(self, "is_dark_theme", False) else None)
-            act_light = sub_theme.addAction("Light")
-            act_light.setCheckable(True)
-            act_light.setChecked(not is_d)
-            act_light.triggered.connect(lambda: self._toggle_color_theme() if getattr(self, "is_dark_theme", False) else None)
-
-            m_view.addSeparator()
-
-            act_fs = m_view.addAction("Full Screen")
-            act_fs.setShortcut(QKeySequence("F11"))
-            def _toggle_fs():
-                if self.window.isFullScreen():
-                    self.window.showNormal()
-                else:
-                    self.window.showFullScreen()
-            act_fs.triggered.connect(_toggle_fs)
-
-        m_view.aboutToShow.connect(_populate_view)
-        _populate_view()
-
+        # -------------------------------------------------------------
         # 3. INSERT MENU
+        # -------------------------------------------------------------
         m_insert = native_mb.addMenu("&Insert")
         m_insert.setStyleSheet(style_menu)
         self.menu_insert = m_insert
 
         sub_ind = m_insert.addMenu("Indicators")
         sub_ind.setStyleSheet(style_menu)
-
-        act_cfg_ind = sub_ind.addAction("Settings...")
-        act_cfg_ind.triggered.connect(self._show_strategy_and_indicators_menu)
+        act_cfg_ind = _reg_action(sub_ind, "Settings...", None, self._show_strategy_and_indicators_menu)
         sub_ind.addSeparator()
-
-        act_vpoc = sub_ind.addAction("Volume Profile")
-        act_vpoc.triggered.connect(self._toggle_volume_profile)
-
-        act_fvg = sub_ind.addAction("Fair Value Gaps")
-        act_fvg.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
+        act_vpoc = _reg_action(sub_ind, "Volume Profile", None, self._toggle_volume_profile)
+        act_fvg = _reg_action(sub_ind, "Fair Value Gaps", None, lambda: self._set_drawing_tool("rectangle"))
 
         sub_draw = m_insert.addMenu("Objects")
         sub_draw.setStyleSheet(style_menu)
-
-        act_cross = sub_draw.addAction("Crosshair")
-        act_cross.setShortcut(QKeySequence("Ctrl+1"))
-        act_cross.triggered.connect(lambda: self._set_drawing_tool("crosshair"))
-
-        act_trend = sub_draw.addAction("Trendline")
-        act_trend.setShortcut(QKeySequence("Alt+T"))
-        act_trend.triggered.connect(lambda: self._set_drawing_tool("trendline"))
-
-        act_rect = sub_draw.addAction("Rectangle")
-        act_rect.setShortcut(QKeySequence("Alt+R"))
-        act_rect.triggered.connect(lambda: self._set_drawing_tool("rectangle"))
-
-        act_ruler = sub_draw.addAction("Ruler")
-        act_ruler.setShortcut(QKeySequence("Shift+M"))
-        act_ruler.triggered.connect(lambda: self._set_drawing_tool("ruler"))
-
+        act_cross = _reg_action(sub_draw, "Crosshair", "Ctrl+1", lambda: self._set_drawing_tool("crosshair"))
+        act_trend = _reg_action(sub_draw, "Trendline", "Alt+T", lambda: self._set_drawing_tool("trendline"))
+        act_rect = _reg_action(sub_draw, "Rectangle", "Alt+R", lambda: self._set_drawing_tool("rectangle"))
+        act_ruler = _reg_action(sub_draw, "Ruler", "Shift+M", lambda: self._set_drawing_tool("ruler"))
         sub_draw.addSeparator()
-        act_clear_draw = sub_draw.addAction("Delete All")
-        act_clear_draw.triggered.connect(self._clear_all_drawings)
+        act_clear_draw = _reg_action(sub_draw, "Delete All", None, self._clear_all_drawings)
 
+        # -------------------------------------------------------------
         # 4. CHARTS MENU
+        # -------------------------------------------------------------
         m_charts = native_mb.addMenu("&Charts")
         m_charts.setStyleSheet(style_menu)
         self.menu_charts = m_charts
 
-        def _populate_charts():
-            m_charts.clear()
+        act_bar = _reg_action(m_charts, "Bar Chart", "Alt+1", lambda: self._set_chart_type("bar"), checkable=True)
+        act_candle = _reg_action(m_charts, "Candlesticks", "Alt+2", lambda: self._set_chart_type("candlestick"), checkable=True)
+        act_line = _reg_action(m_charts, "Line Chart", "Alt+3", lambda: self._set_chart_type("line"), checkable=True)
+
+        m_charts.addSeparator()
+
+        sub_tf = m_charts.addMenu("Timeframes")
+        sub_tf.setStyleSheet(style_menu)
+        tf_list = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
+        self._tf_actions = {}
+        for tf in tf_list:
+            act_tf = sub_tf.addAction(tf)
+            act_tf.setCheckable(True)
+            def _make_tf_fn(target_tf=tf):
+                return lambda: self._on_tf_click(target_tf) if hasattr(self, "_on_tf_click") else None
+            act_tf.triggered.connect(_make_tf_fn())
+            self._tf_actions[tf] = act_tf
+
+        m_charts.addSeparator()
+
+        act_zin = _reg_action(m_charts, "Zoom In", ["+", "="], self._zoom_in_chart)
+        act_zout = _reg_action(m_charts, "Zoom Out", "-", self._zoom_out_chart)
+        act_fit = _reg_action(m_charts, "Auto Scroll", "Ctrl+0", self._auto_fit_chart)
+        act_grid = _reg_action(m_charts, "Grid", "Ctrl+G", self._toggle_grid)
+        act_ref = _reg_action(m_charts, "Refresh", "Ctrl+F5", self._refresh_chart_data)
+
+        def _sync_charts_states():
             curr_mode = "candlestick"
             if hasattr(self.window, "candlesticks") and self.window.candlesticks:
                 curr_mode = getattr(self.window.candlesticks, "chart_mode", "candlestick")
-
-            act_bar = m_charts.addAction("Bar Chart")
-            act_bar.setCheckable(True)
             act_bar.setChecked(curr_mode == "bar")
-            act_bar.setShortcut(QKeySequence("Alt+1"))
-            act_bar.triggered.connect(lambda: self._set_chart_type("bar"))
-
-            act_candle = m_charts.addAction("Candlesticks")
-            act_candle.setCheckable(True)
             act_candle.setChecked(curr_mode == "candlestick")
-            act_candle.setShortcut(QKeySequence("Alt+2"))
-            act_candle.triggered.connect(lambda: self._set_chart_type("candlestick"))
-
-            act_line = m_charts.addAction("Line Chart")
-            act_line.setCheckable(True)
             act_line.setChecked(curr_mode == "line")
-            act_line.setShortcut(QKeySequence("Alt+3"))
-            act_line.triggered.connect(lambda: self._set_chart_type("line"))
 
-            m_charts.addSeparator()
-
-            sub_tf = m_charts.addMenu("Timeframes")
-            sub_tf.setStyleSheet(style_menu)
-            tf_list = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]
             curr_tf = getattr(self, "active_timeframe", "H1")
-            for tf in tf_list:
-                act_tf = sub_tf.addAction(tf)
-                act_tf.setCheckable(True)
+            for tf, act_tf in self._tf_actions.items():
                 act_tf.setChecked(tf == curr_tf)
-                def _make_tf_fn(target_tf=tf):
-                    return lambda: self._on_tf_click(target_tf) if hasattr(self, "_on_tf_click") else None
-                act_tf.triggered.connect(_make_tf_fn())
 
-            m_charts.addSeparator()
+        m_charts.aboutToShow.connect(_sync_charts_states)
+        _sync_charts_states()
 
-            act_zin = m_charts.addAction("Zoom In")
-            act_zin.setShortcut(QKeySequence("+"))
-            act_zin.triggered.connect(self._zoom_in_chart)
-
-            act_zout = m_charts.addAction("Zoom Out")
-            act_zout.setShortcut(QKeySequence("-"))
-            act_zout.triggered.connect(self._zoom_out_chart)
-
-            act_fit = m_charts.addAction("Auto Scroll")
-            act_fit.setShortcut(QKeySequence("Ctrl+0"))
-            act_fit.triggered.connect(self._auto_fit_chart)
-
-            act_grid = m_charts.addAction("Grid")
-            act_grid.setShortcut(QKeySequence("Ctrl+G"))
-            act_grid.triggered.connect(self._toggle_grid)
-
-            act_ref = m_charts.addAction("Refresh")
-            act_ref.setShortcut(QKeySequence("Ctrl+F5"))
-            act_ref.triggered.connect(self._refresh_chart_data)
-
-        m_charts.aboutToShow.connect(_populate_charts)
-        _populate_charts()
-
+        # -------------------------------------------------------------
         # 5. TOOLS MENU
+        # -------------------------------------------------------------
         m_tools = native_mb.addMenu("&Tools")
         m_tools.setStyleSheet(style_menu)
         self.menu_tools = m_tools
 
-        act_order = m_tools.addAction("New Order")
-        act_order.setShortcut(QKeySequence("F9"))
-        act_order.triggered.connect(self._toggle_trading_plan)
-
-        act_strat = m_tools.addAction("Strategy Manager...")
-        act_strat.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        act_strat.triggered.connect(self._open_strategy_manager_dialog)
-
-        act_bt = m_tools.addAction("Strategy Tester")
-        act_bt.setShortcut(QKeySequence("Ctrl+R"))
-        act_bt.triggered.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
-
-        act_kill = m_tools.addAction("Close All Positions")
-        act_kill.setShortcut(QKeySequence("Ctrl+Shift+K"))
-        act_kill.triggered.connect(self._trigger_kill_switch)
+        act_order = _reg_action(m_tools, "New Order", "F9", self._toggle_trading_plan)
+        act_strat = _reg_action(m_tools, "Strategy Manager...", "Ctrl+Shift+S", self._open_strategy_manager_dialog)
+        m_tools.addAction(act_bt)
+        act_kill = _reg_action(m_tools, "Close All Positions", "Ctrl+Shift+K", self._trigger_kill_switch)
 
         m_tools.addSeparator()
+        m_tools.addAction(act_journal)
+        m_tools.addAction(act_cal)
+        act_opt = _reg_action(m_tools, "Options", "Ctrl+O", self._trigger_options)
 
-        act_journal = m_tools.addAction("Journal")
-        act_journal.setShortcut(QKeySequence("Ctrl+L"))
-        act_journal.triggered.connect(self._trigger_journal)
-
-        cal_tab = getattr(self.window, "tabCalendar", None)
-        if cal_tab:
-            act_cal = m_tools.addAction("Calendar")
-            act_cal.setShortcut(QKeySequence("F3"))
-            act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
-
-        act_opt = m_tools.addAction("Options")
-        act_opt.setShortcut(QKeySequence("Ctrl+O"))
-        act_opt.triggered.connect(self._trigger_options)
-
+        # -------------------------------------------------------------
         # 6. WINDOW MENU
+        # -------------------------------------------------------------
         m_window = native_mb.addMenu("&Window")
         m_window.setStyleSheet(style_menu)
         self.menu_window = m_window
 
-        act_layout = m_window.addAction("Default Layout")
-        act_layout.triggered.connect(self._reset_default_layout)
-
-        act_focus = m_window.addAction("Maximize Chart")
-        act_focus.setShortcut(QKeySequence("Shift+F11"))
-        act_focus.triggered.connect(self._toggle_focus_chart)
-
+        act_layout = _reg_action(m_window, "Default Layout", None, self._reset_default_layout)
+        act_focus = _reg_action(m_window, "Maximize Chart", "Shift+F11", self._toggle_focus_chart)
         m_window.addSeparator()
+        m_window.addAction(act_fs)
 
-        act_full = m_window.addAction("Full Screen")
-        act_full.setShortcut(QKeySequence("F11"))
-        def _toggle_fs():
-            if self.window.isFullScreen():
-                self.window.showNormal()
-            else:
-                self.window.showFullScreen()
-        act_full.triggered.connect(_toggle_fs)
-
+        # -------------------------------------------------------------
         # 7. HELP MENU
+        # -------------------------------------------------------------
         m_help = native_mb.addMenu("&Help")
         m_help.setStyleSheet(style_menu)
         self.menu_help = m_help
 
-        act_cheat = m_help.addAction("Help Topics")
-        act_cheat.setShortcut(QKeySequence("F1"))
-        act_cheat.triggered.connect(self._show_shortcuts_cheat_sheet)
-
-        act_diag = m_help.addAction("Connection Diagnostics")
-        act_diag.triggered.connect(self._show_diagnostics_dialog)
-
+        act_cheat = _reg_action(m_help, "Help Topics", "Ctrl+/", self._show_shortcuts_cheat_sheet)
+        act_diag = _reg_action(m_help, "Connection Diagnostics", None, self._show_diagnostics_dialog)
         m_help.addSeparator()
-
-        act_about = m_help.addAction("About...")
         def _on_about():
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(
@@ -1747,7 +1679,67 @@ class WorkspaceHeaderController:
                 "About VECTRA",
                 "VECTRA Quantitative Trading OS v2.2\nArchitecture: MetaTrader 5 / Institutional ECN\nStrategy: ICT Zones Pro v4.2 / Market Profile vPOC\nBuilt for professional prop & multi-asset desks."
             )
-        act_about.triggered.connect(_on_about)
+        act_about = _reg_action(m_help, "About...", None, _on_about)
+
+        # Bot Algo Toggle (F5)
+        act_f5 = _reg_action(None, "Toggle Algo Bot", "F5", lambda: self.terminal._toggle_bot() if hasattr(self.terminal, "_toggle_bot") else None)
+
+        # Expose all canonical actions to controller instance for backward compatibility
+        self.act_term = act_term
+        self.act_stats = act_stats
+        self.act_bt = act_bt
+        self.act_cal = act_cal
+        self.act_wl = act_wl
+        self.act_plan = act_plan
+        self.act_blotter = act_blotter
+        self.act_journal = act_journal
+        self.act_fs = act_fs
+        self.act_sym = act_sym
+        self.act_save = act_save
+        self.act_order = act_order
+        self.act_strat = act_strat
+        self.act_kill = act_kill
+        self.act_opt = act_opt
+        self.act_bar = act_bar
+        self.act_candle = act_candle
+        self.act_line = act_line
+        self.act_zin = act_zin
+        self.act_zout = act_zout
+        self.act_fit = act_fit
+        self.act_grid = act_grid
+        self.act_ref = act_ref
+        self.act_cross = act_cross
+        self.act_trend = act_trend
+        self.act_rect = act_rect
+        self.act_ruler = act_ruler
+        self.act_focus = act_focus
+        self.act_cheat = act_cheat
+        self.act_f5 = act_f5
+
+        # Canonical aliases for legacy shortcut references (preserving 100% backward compatibility)
+        self.shortcut_f1 = act_term
+        self.shortcut_f2 = act_stats
+        self.shortcut_ctrl_r = act_bt
+        self.shortcut_f3 = act_cal
+        self.shortcut_f5 = act_f5
+        self.shortcut_f9 = act_order
+        self.shortcut_ctrl_l = act_journal
+        self.shortcut_ctrl_o = act_opt
+        self.shortcut_ctrl_m = act_wl
+        self.shortcut_ctrl_t = act_plan
+        self.shortcut_ctrl_b = act_blotter
+        self.shortcut_ctrl_n = act_sym
+        self.shortcut_ctrl_s = act_save
+        self.shortcut_ctrl_shift_s = act_strat
+        self.shortcut_ctrl_shift_k = act_kill
+        self.shortcut_alt_1 = act_bar
+        self.shortcut_alt_2 = act_candle
+        self.shortcut_alt_3 = act_line
+        self.shortcut_ctrl_0 = act_fit
+        self.shortcut_ctrl_g = act_grid
+        self.shortcut_ctrl_slash = act_cheat
+        self.shortcut_shift_f11 = act_focus
+        self.shortcut_f11 = act_fs
 
         # Maintain aliases for legacy compatibility
         self.btnMenuFile = self.menu_file
@@ -1977,73 +1969,7 @@ class WorkspaceHeaderController:
         # Creates clean, balanced symmetry between left chart controls and right account telemetry
         h_layout.addStretch(1)
 
-        # Global HotKey F5 to toggle Algo Bot
-        self.shortcut_f5 = QShortcut(QKeySequence("F5"), self.window)
-        self.shortcut_f5.activated.connect(lambda: self.terminal._toggle_bot())
-
-        # MT5 Global Navigation & Tool Hotkeys
-        self.shortcut_f1 = QShortcut(QKeySequence("F1"), self.window)
-        self.shortcut_f1.activated.connect(lambda: self._switch_nav_tab(self.window.tab2, getattr(self, "btnNavTerminal", None), "Terminal"))
-
-        self.shortcut_f2 = QShortcut(QKeySequence("F2"), self.window)
-        self.shortcut_f2.activated.connect(lambda: self._switch_nav_tab(self.window.tab3, getattr(self, "btnNavStats", None), "Performance"))
-
-        self.shortcut_ctrl_r = QShortcut(QKeySequence("Ctrl+R"), self.window)
-        self.shortcut_ctrl_r.activated.connect(lambda: self._switch_nav_tab(self.window.tab_5, getattr(self, "btnNavBacktest", None), "Backtest"))
-
-        self.shortcut_f3 = QShortcut(QKeySequence("F3"), self.window)
-        self.shortcut_f3.activated.connect(lambda: self._switch_nav_tab(getattr(self.window, "tabCalendar", None), getattr(self, "btnNavCalendar", None), "Calendar"))
-
-        self.shortcut_f9 = QShortcut(QKeySequence("F9"), self.window)
-        self.shortcut_f9.activated.connect(self._toggle_trading_plan)
-
-        self.shortcut_ctrl_l = QShortcut(QKeySequence("Ctrl+L"), self.window)
-        self.shortcut_ctrl_l.activated.connect(self._trigger_journal)
-
-        self.shortcut_ctrl_o = QShortcut(QKeySequence("Ctrl+O"), self.window)
-        self.shortcut_ctrl_o.activated.connect(self._trigger_options)
-
-        self.shortcut_ctrl_m = QShortcut(QKeySequence("Ctrl+M"), self.window)
-        self.shortcut_ctrl_m.activated.connect(self._toggle_watchlist)
-
-        self.shortcut_ctrl_t = QShortcut(QKeySequence("Ctrl+T"), self.window)
-        self.shortcut_ctrl_t.activated.connect(self._toggle_trading_plan)
-
-        self.shortcut_ctrl_b = QShortcut(QKeySequence("Ctrl+B"), self.window)
-        self.shortcut_ctrl_b.activated.connect(self._toggle_blotter_dock)
-
-        self.shortcut_ctrl_n = QShortcut(QKeySequence("Ctrl+N"), self.window)
-        self.shortcut_ctrl_n.activated.connect(self._on_select_symbol)
-
-        self.shortcut_ctrl_s = QShortcut(QKeySequence("Ctrl+S"), self.window)
-        self.shortcut_ctrl_s.activated.connect(self._on_save_chart_picture)
-
-        self.shortcut_ctrl_shift_s = QShortcut(QKeySequence("Ctrl+Shift+S"), self.window)
-        self.shortcut_ctrl_shift_s.activated.connect(self._open_strategy_manager_dialog)
-
-        self.shortcut_ctrl_shift_k = QShortcut(QKeySequence("Ctrl+Shift+K"), self.window)
-        self.shortcut_ctrl_shift_k.activated.connect(self._trigger_kill_switch)
-
-        self.shortcut_alt_1 = QShortcut(QKeySequence("Alt+1"), self.window)
-        self.shortcut_alt_1.activated.connect(lambda: self._set_chart_type("bar"))
-
-        self.shortcut_alt_2 = QShortcut(QKeySequence("Alt+2"), self.window)
-        self.shortcut_alt_2.activated.connect(lambda: self._set_chart_type("candlestick"))
-
-        self.shortcut_alt_3 = QShortcut(QKeySequence("Alt+3"), self.window)
-        self.shortcut_alt_3.activated.connect(lambda: self._set_chart_type("line"))
-
-        self.shortcut_ctrl_0 = QShortcut(QKeySequence("Ctrl+0"), self.window)
-        self.shortcut_ctrl_0.activated.connect(self._auto_fit_chart)
-
-        self.shortcut_ctrl_g = QShortcut(QKeySequence("Ctrl+G"), self.window)
-        self.shortcut_ctrl_g.activated.connect(self._toggle_grid)
-
-        self.shortcut_ctrl_slash = QShortcut(QKeySequence("Ctrl+/"), self.window)
-        self.shortcut_ctrl_slash.activated.connect(self._show_shortcuts_cheat_sheet)
-
-        self.shortcut_shift_f11 = QShortcut(QKeySequence("Shift+F11"), self.window)
-        self.shortcut_shift_f11.activated.connect(self._toggle_focus_chart)
+        # Global MT5 Hotkeys are unified via Window QActions in _setup_native_mt5_menus (Zero Collision)
 
         # 5. Right-docked Account Telemetry (BAL | EQ | PnL - Account Capital Only)
         self.lbl_top_ticker = QLabel()

@@ -175,15 +175,9 @@ class QuantTerminal(QObject):
 
         event_bus.remote_command.connect(self._handle_remote_command)
 
-        # Global shortcut Ctrl+O for authentic MT5 Options Dialog
-        if hasattr(self, "settings") and hasattr(self.settings, "open_options_dialog"):
-            self.shortcut_options = QShortcut(QKeySequence("Ctrl+O"), self.window)
-            self.shortcut_options.activated.connect(self.settings.open_options_dialog)
-
-        # Global shortcut Ctrl+L for authentic System Audit & Journal Dialog
-        if hasattr(self, "logs") and hasattr(self.logs, "toggle_audit_dialog"):
-            self.shortcut_logs = QShortcut(QKeySequence("Ctrl+L"), self.window)
-            self.shortcut_logs.activated.connect(self.logs.toggle_audit_dialog)
+        # Global shortcuts Ctrl+O and Ctrl+L are canonically managed by WorkspaceHeaderController (Zero Collision)
+        self.shortcut_options = getattr(getattr(self, "header", None), "shortcut_ctrl_o", None)
+        self.shortcut_logs = getattr(getattr(self, "header", None), "shortcut_ctrl_l", None)
 
         # Initialize directly in institutional Light Theme per user preference
         self._on_theme_changed(False)
