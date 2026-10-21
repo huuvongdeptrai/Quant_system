@@ -313,8 +313,8 @@ def setup_chart_ui(window):
                 if not sig and hasattr(window, "active_signal_data") and isinstance(window.active_signal_data, dict):
                     if window.active_signal_data.get("sym", "").upper() == clean_curr.upper():
                         sig = window.active_signal_data
+                from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
                 if sig and sig.get("has_signal"):
-                    from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
                     update_order_proposal_html(
                         window, sym=clean_curr, entry=sig.get("entry"),
                         sl=sig.get("sl"), tp=sig.get("tp"), has_signal=True,
@@ -326,6 +326,13 @@ def setup_chart_ui(window):
                         model_name=sig.get("model_name", None),
                         grade=sig.get("grade", None),
                         status=sig.get("status", "LIVE POSITION IN MARKET"),
+                        checklist=sig.get("checklist", None),
+                    )
+                else:
+                    update_order_proposal_html(
+                        window, sym=clean_curr, has_signal=False,
+                        model_name=sig.get("model_name", None) if sig else None,
+                        checklist=sig.get("checklist", None) if sig else None,
                     )
         except Exception:
             pass

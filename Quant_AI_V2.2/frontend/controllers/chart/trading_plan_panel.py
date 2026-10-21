@@ -353,25 +353,34 @@ def update_order_proposal_html(
 
     # 0. CHẾ ĐỘ THỦ CÔNG: KHÔNG CHO PHÉP TÍN HIỆU AI NỀN GHI ĐÈ GIAO DIỆN MANUAL COPILOT
     if getattr(window, "_plan_mode", "ai") == "manual":
-        sig_manual = {
-            "sym": clean_sym,
-            "has_signal": has_signal,
-            "signal_type": signal_type,
-            "entry": entry,
-            "sl": sl,
-            "tp": tp,
-            "is_live_position": is_live_position,
-            "live_ticket": live_ticket,
-            "live_volume": live_volume,
-            "live_profit": live_profit,
-            "model_name": model_name,
-            "grade": grade,
-            "confidence": confidence,
-            "exec_mode": exec_mode,
-            "status": status,
-        }
-        window.active_signal_data = sig_manual
-        window.active_signals_by_symbol[clean_sym] = sig_manual
+        # Cache incoming background AI signals separately without contaminating active UI state
+        if has_signal:
+            sig_background = {
+                "sym": clean_sym,
+                "has_signal": True,
+                "signal_type": signal_type,
+                "entry": entry,
+                "sl": sl,
+                "tp": tp,
+                "is_live_position": is_live_position,
+                "live_ticket": live_ticket,
+                "live_volume": live_volume,
+                "live_profit": live_profit,
+                "model_name": model_name,
+                "grade": grade,
+                "confidence": confidence,
+                "exec_mode": exec_mode,
+                "status": status,
+                "checklist": checklist,
+            }
+            window.active_signals_by_symbol[clean_sym] = sig_background
+        elif clean_sym not in window.active_signals_by_symbol or not window.active_signals_by_symbol[clean_sym].get("has_signal"):
+            window.active_signals_by_symbol[clean_sym] = {
+                "sym": clean_sym,
+                "has_signal": False,
+                "model_name": model_name,
+                "checklist": checklist,
+            }
         return
 
     # 1. TRƯỜNG HỢP: KHÔNG CÓ TÍN HIỆU THỰC TẾ (HOLD / CHỜ SETUP)
@@ -2871,9 +2880,17 @@ def setup_trading_plan_cards(window, is_dark=False):
                     model_name=sig.get("model_name", None),
                     grade=sig.get("grade", None),
                     status=sig.get("status", "LIVE POSITION IN MARKET"),
+                    checklist=sig.get("checklist", None),
                 )
             else:
                 clear_manual_chart_lines(window)
+                update_order_proposal_html(
+                    window,
+                    sym=clean_curr,
+                    has_signal=False,
+                    model_name=sig.get("model_name", None) if sig else None,
+                    checklist=sig.get("checklist", None) if sig else None,
+                )
 
     btn_mode_ai.clicked.connect(lambda: _switch_mode("ai"))
     btn_mode_manual.clicked.connect(lambda: _switch_mode("manual"))
