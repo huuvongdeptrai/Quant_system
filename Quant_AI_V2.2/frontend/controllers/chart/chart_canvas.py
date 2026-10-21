@@ -1568,6 +1568,133 @@ def setup_chart_ui(window):
     window.line_order_sl.sigPositionChanged.connect(lambda: _sync_order_metrics())
     window.line_order_tp.sigPositionChanged.connect(lambda: _sync_order_metrics())
 
+    def _on_entry_drag_finished(*args):
+        if getattr(window, "is_pending_order", False) and getattr(window, "pending_ticket", None):
+            tkt = window.pending_ticket
+            new_p = window.line_order_entry.value()
+            raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
+            sym = raw_sym.split("\n")[0].strip()
+            sym_info = mt5.symbol_info(sym)
+            digits = sym_info.digits if sym_info else (2 if new_p > 10 else 5)
+            new_p = round(float(new_p), digits)
+
+            cur_sl = window.line_order_sl.value() if (hasattr(window, "line_order_sl") and window.line_order_sl.isVisible()) else 0.0
+            cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+
+            exec_mgr = None
+            if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                exec_mgr = window.quant_terminal.exec_mgr
+            if not exec_mgr:
+                from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                exec_mgr = ExecutionManager(slippage=20)
+
+            res = exec_mgr.modify_pending_order(int(tkt), price=new_p, sl=cur_sl, tp=cur_tp)
+            from backend.core.event_bus import event_bus
+            if res and res.get("status") == "success":
+                window.pending_price = new_p
+                event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật giá lệnh chờ #{tkt} sang {new_p:.{digits}f} trên sàn MT5", "#22c55e")
+                if hasattr(window, "refresh_active_orders"):
+                    window.refresh_active_orders()
+            else:
+                err = res.get("msg", "Error") if res else "Unknown"
+                event_bus.log_event.emit("", "ERROR", f"Không thể sửa giá lệnh chờ #{tkt}: {err}", "#ef4444")
+                if hasattr(window, "pending_price") and window.pending_price:
+                    window.line_order_entry.setValue(window.pending_price)
+
+    def _on_sl_drag_finished(*args):
+        is_live = getattr(window, "is_live_position", False)
+        is_pending = getattr(window, "is_pending_order", False)
+        if not is_live and not is_pending:
+            return
+
+        new_sl = window.line_order_sl.value()
+        raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
+        sym = raw_sym.split("\n")[0].strip()
+        sym_info = mt5.symbol_info(sym)
+        digits = sym_info.digits if sym_info else (2 if new_sl > 10 else 5)
+        new_sl = round(float(new_sl), digits)
+
+        exec_mgr = None
+        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+            exec_mgr = window.quant_terminal.exec_mgr
+        if not exec_mgr:
+            from backend.infrastructure.brokers.execution_manager import ExecutionManager
+            exec_mgr = ExecutionManager(slippage=20)
+
+        from backend.core.event_bus import event_bus
+        if is_live and getattr(window, "live_ticket", None):
+            tkt = window.live_ticket
+            cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+            res = exec_mgr.modify_position(int(tkt), sl=new_sl, tp=cur_tp)
+            if res and res.get("status") == "success":
+                event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss vị thế #{tkt} sang {new_sl:.{digits}f}", "#22c55e")
+                if hasattr(window, "refresh_active_orders"):
+                    window.refresh_active_orders()
+            else:
+                err = res.get("msg", "Error") if res else "Unknown"
+                event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật SL vị thế #{tkt}: {err}", "#ef4444")
+        elif is_pending and getattr(window, "pending_ticket", None):
+            tkt = window.pending_ticket
+            cur_price = window.line_order_entry.value()
+            cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+            res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=new_sl, tp=cur_tp)
+            if res and res.get("status") == "success":
+                event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss lệnh chờ #{tkt} sang {new_sl:.{digits}f}", "#22c55e")
+                if hasattr(window, "refresh_active_orders"):
+                    window.refresh_active_orders()
+            else:
+                err = res.get("msg", "Error") if res else "Unknown"
+                event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật SL lệnh chờ #{tkt}: {err}", "#ef4444")
+
+    def _on_tp_drag_finished(*args):
+        is_live = getattr(window, "is_live_position", False)
+        is_pending = getattr(window, "is_pending_order", False)
+        if not is_live and not is_pending:
+            return
+
+        new_tp = window.line_order_tp.value()
+        raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
+        sym = raw_sym.split("\n")[0].strip()
+        sym_info = mt5.symbol_info(sym)
+        digits = sym_info.digits if sym_info else (2 if new_tp > 10 else 5)
+        new_tp = round(float(new_tp), digits)
+
+        exec_mgr = None
+        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+            exec_mgr = window.quant_terminal.exec_mgr
+        if not exec_mgr:
+            from backend.infrastructure.brokers.execution_manager import ExecutionManager
+            exec_mgr = ExecutionManager(slippage=20)
+
+        from backend.core.event_bus import event_bus
+        if is_live and getattr(window, "live_ticket", None):
+            tkt = window.live_ticket
+            cur_sl = window.line_order_sl.value() if (hasattr(window, "line_order_sl") and window.line_order_sl.isVisible()) else 0.0
+            res = exec_mgr.modify_position(int(tkt), sl=cur_sl, tp=new_tp)
+            if res and res.get("status") == "success":
+                event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit vị thế #{tkt} sang {new_tp:.{digits}f}", "#22c55e")
+                if hasattr(window, "refresh_active_orders"):
+                    window.refresh_active_orders()
+            else:
+                err = res.get("msg", "Error") if res else "Unknown"
+                event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật TP vị thế #{tkt}: {err}", "#ef4444")
+        elif is_pending and getattr(window, "pending_ticket", None):
+            tkt = window.pending_ticket
+            cur_price = window.line_order_entry.value()
+            cur_sl = window.line_order_sl.value() if (hasattr(window, "line_order_sl") and window.line_order_sl.isVisible()) else 0.0
+            res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=cur_sl, tp=new_tp)
+            if res and res.get("status") == "success":
+                event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit lệnh chờ #{tkt} sang {new_tp:.{digits}f}", "#22c55e")
+                if hasattr(window, "refresh_active_orders"):
+                    window.refresh_active_orders()
+            else:
+                err = res.get("msg", "Error") if res else "Unknown"
+                event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật TP lệnh chờ #{tkt}: {err}", "#ef4444")
+
+    window.line_order_entry.sigPositionChangeFinished.connect(_on_entry_drag_finished)
+    window.line_order_sl.sigPositionChangeFinished.connect(_on_sl_drag_finished)
+    window.line_order_tp.sigPositionChangeFinished.connect(_on_tp_drag_finished)
+
     def _on_approve():
         if not getattr(window, "order_proposal_active", False):
             return
@@ -2107,13 +2234,173 @@ def setup_chart_ui(window):
         menu.setStyleSheet(menu_style)
 
         # -------------------------------------------------------------
-        # 1. Price Context Mapping & Fast One-Click Order Placement
+        # 1. Order-Line Hit Test: MT5-style Modify / Delete Context Menu
         # -------------------------------------------------------------
         try:
             vb = window.plot_widget.plotItem.vb
-            scene_pos = window.plot_widget.mapToScene(pos.x(), pos.y())
+            from PySide6.QtCore import QPointF
+
+            def _extract_y(pt):
+                if pt is None:
+                    return 0.0
+                if hasattr(pt, "y"):
+                    return float(pt.y() if callable(pt.y) else pt.y)
+                if hasattr(pt, "boundingRect"):
+                    return float(pt.boundingRect().center().y())
+                return 0.0
+
+            scene_pos = window.plot_widget.mapToScene(pos.x(), pos.y()) if hasattr(pos, "x") else pos
+            scene_y = _extract_y(scene_pos)
+
+            # Detect if user right-clicked directly on or near an active Order Line
+            hit_order_line = None
+            hit_line_type = None
+            for l_type, l_name in [("ENTRY", "line_order_entry"), ("SL", "line_order_sl"), ("TP", "line_order_tp")]:
+                if hasattr(window, l_name):
+                    l_obj = getattr(window, l_name)
+                    if l_obj and l_obj.isVisible():
+                        try:
+                            line_scene_pt = vb.mapViewToScene(QPointF(0, float(l_obj.value())))
+                            line_scene_y = _extract_y(line_scene_pt)
+                            if abs(scene_y - line_scene_y) <= 14:
+                                hit_order_line = l_obj
+                                hit_line_type = l_type
+                                break
+                        except Exception:
+                            pass
+
+            is_pending = getattr(window, "is_pending_order", False)
+            is_live = getattr(window, "is_live_position", False)
+            if hit_order_line is not None and (is_pending or is_live):
+                tkt = getattr(window, "pending_ticket" if is_pending else "live_ticket", None)
+                raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
+                sym = raw_sym.split("\n")[0].strip()
+                sym_info = mt5.symbol_info(sym)
+                digits = sym_info.digits if sym_info else 2
+
+                ord_type_name = "order"
+                ord_vol = 0.01
+                ord_price = float(hit_order_line.value())
+
+                if is_pending and tkt:
+                    p_orders = mt5.orders_get(ticket=int(tkt))
+                    if p_orders and len(p_orders) > 0:
+                        po = p_orders[0]
+                        ord_type_name = "sell limit" if po.type == mt5.ORDER_TYPE_SELL_LIMIT else (
+                            "buy limit" if po.type == mt5.ORDER_TYPE_BUY_LIMIT else (
+                                "buy stop" if po.type == mt5.ORDER_TYPE_BUY_STOP else "sell stop"
+                            )
+                        )
+                        ord_vol = float(po.volume_current)
+                        ord_price = float(po.price_open)
+                elif is_live and tkt:
+                    p_pos = mt5.positions_get(ticket=int(tkt))
+                    if p_pos and len(p_pos) > 0:
+                        ps = p_pos[0]
+                        ord_type_name = "buy" if ps.type == 0 else "sell"
+                        ord_vol = float(ps.volume)
+                        ord_price = float(ps.price_open)
+
+                order_menu = QMenu(window.plot_widget)
+                order_menu.setStyleSheet(menu_style)
+
+                # 1. Modify Item (Opens Trading Plan drawer prefilled)
+                modify_label = f"Modify #{tkt} {ord_type_name} {ord_vol:<5.2f}    {ord_price:.{digits}f}"
+                act_modify = order_menu.addAction(modify_label)
+                def _do_modify_order():
+                    _open_ai_drawer()
+                    if hasattr(window, "tabTradingPlan") and window.tabTradingPlan:
+                        window.tabTradingPlan.setCurrentIndex(1)
+                    if is_pending and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+                        window.spinManualPendingPrice.setValue(ord_price)
+                act_modify.triggered.connect(_do_modify_order)
+
+                # 2. Delete / Close Item (Identical to MT5 Image 2)
+                if is_pending:
+                    delete_label = f"Delete #{tkt} {ord_type_name} {ord_vol:<5.2f}    {ord_price:.{digits}f}"
+                else:
+                    delete_label = f"Close  #{tkt} {ord_type_name} {ord_vol:<5.2f}    {ord_price:.{digits}f}"
+                act_delete = order_menu.addAction(delete_label)
+
+                def _do_delete_or_close():
+                    exec_mgr = None
+                    if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                        exec_mgr = window.quant_terminal.exec_mgr
+                    if not exec_mgr:
+                        from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                        exec_mgr = ExecutionManager(slippage=20)
+
+                    from backend.core.event_bus import event_bus
+                    if is_pending:
+                        res = exec_mgr.cancel_pending_order(int(tkt))
+                        if res and res.get("status") == "success":
+                            event_bus.log_event.emit("", "SUCCESS", f"Đã hủy lệnh chờ #{tkt} trên sàn MT5", "#22c55e")
+                            window.is_pending_order = False
+                            window.pending_ticket = None
+                            from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                            clear_manual_chart_lines(window)
+                            if hasattr(window, "refresh_active_orders"):
+                                window.refresh_active_orders()
+                        else:
+                            err_m = res.get("msg", "Error") if res else "Unknown"
+                            event_bus.log_event.emit("", "ERROR", f"Lỗi hủy lệnh #{tkt}: {err_m}", "#ef4444")
+                    else:
+                        res = exec_mgr.close_position(int(tkt))
+                        if res and res.get("status") == "success":
+                            event_bus.log_event.emit("", "SUCCESS", f"Đã đóng vị thế #{tkt} trên sàn MT5", "#22c55e")
+                            window.is_live_position = False
+                            window.live_ticket = None
+                            from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                            clear_manual_chart_lines(window)
+                            if hasattr(window, "refresh_active_orders"):
+                                window.refresh_active_orders()
+                        else:
+                            err_m = res.get("msg", "Error") if res else "Unknown"
+                            event_bus.log_event.emit("", "ERROR", f"Lỗi đóng vị thế #{tkt}: {err_m}", "#ef4444")
+                act_delete.triggered.connect(_do_delete_or_close)
+
+                order_menu.addSeparator()
+
+                # 3. Trailing Stop Submenu (MT5 Standard)
+                m_trailing = order_menu.addMenu("Trailing Stop")
+                m_trailing.setStyleSheet(menu_style)
+                m_trailing.addAction("None")
+                for pts in [15, 20, 30, 50, 100]:
+                    act_p = m_trailing.addAction(f"{pts} Points")
+                    def _set_trail(p=pts):
+                        from backend.core.event_bus import event_bus
+                        event_bus.log_event.emit("", "INFO", f"Đã đặt Trailing Stop {p} points cho #{tkt}", "#38bdf8")
+                    act_p.triggered.connect(_set_trail)
+
+                if is_live:
+                    order_menu.addSeparator()
+                    act_be = order_menu.addAction("Move SL to Breakeven")
+                    def _do_be():
+                        exec_mgr = None
+                        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+                            exec_mgr = window.quant_terminal.exec_mgr
+                        if not exec_mgr:
+                            from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                            exec_mgr = ExecutionManager(slippage=20)
+                        cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+                        res = exec_mgr.modify_position(int(tkt), sl=ord_price, tp=cur_tp)
+                        from backend.core.event_bus import event_bus
+                        if res and res.get("status") == "success":
+                            event_bus.log_event.emit("", "SUCCESS", f"Đã dời SL vị thế #{tkt} về hòa vốn {ord_price:.{digits}f}", "#22c55e")
+                            if hasattr(window, "line_order_sl") and window.line_order_sl:
+                                window.line_order_sl.setValue(ord_price)
+                            if hasattr(window, "refresh_active_orders"):
+                                window.refresh_active_orders()
+                        else:
+                            err_m = res.get("msg", "Error") if res else "Unknown"
+                            event_bus.log_event.emit("", "ERROR", f"Không thể dời SL về hòa vốn: {err_m}", "#ef4444")
+                    act_be.triggered.connect(_do_be)
+
+                order_menu.exec(window.plot_widget.mapToGlobal(pos))
+                return
+
             view_point = vb.mapSceneToView(scene_pos)
-            click_p_raw = float(view_point.y())
+            click_p_raw = _extract_y(view_point)
 
             raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
             sym = raw_sym.split("\n")[0].strip()

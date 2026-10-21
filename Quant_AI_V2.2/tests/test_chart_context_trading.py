@@ -259,3 +259,106 @@ def test_chart_one_click_execution_when_enabled(qapp):
                 connect_call()
                 assert not mock_box.called
                 assert mock_exec_mgr.execute_pending_order.called
+
+def test_order_line_context_menu_modify_and_delete(qapp):
+    """
+    Verifies that right-clicking directly on a pending order line displays
+    the MT5-style Order Context Menu (Modify, Delete, Trailing Stop),
+    and clicking Delete calls ExecutionManager.cancel_pending_order.
+    """
+    from PySide6.QtCore import QPointF
+    win = _create_mock_window()
+    win.is_pending_order = True
+    win.pending_ticket = 284837434
+    win.pending_price = 4143.054
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.cancel_pending_order.return_value = {"status": "success", "ticket": 284837434}
+
+    # Setup line_order_entry at 4143.054
+    win.line_order_entry.setValue(4143.054)
+    win.line_order_entry.setVisible(True)
+
+    mock_sym_info = MagicMock()
+    mock_sym_info.digits = 3
+    mock_sym_info.point = 0.001
+
+    mock_order = MagicMock()
+    mock_order.type = 3  # SELL LIMIT
+    mock_order.volume_current = 1.24
+    mock_order.price_open = 4143.054
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[mock_order]), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        # Mock mapToScene and mapViewToScene so click is within 2px of line
+        with patch.object(win.plot_widget, "mapToScene", return_value=MagicMock(y=lambda: 200.0)), \
+             patch.object(win.plot_widget.plotItem.vb, "mapViewToScene", return_value=MagicMock(y=lambda: 200.0)):
+
+            with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+                mock_menu_inst = MagicMock()
+                actions_created = []
+
+                def fake_add_action(text):
+                    act = MagicMock()
+                    act.text = lambda: text
+                    actions_created.append(act)
+                    return act
+
+                mock_menu_inst.addAction.side_effect = fake_add_action
+                mock_sub = MagicMock()
+                mock_menu_inst.addMenu.return_value = mock_sub
+                MockMenu.return_value = mock_menu_inst
+
+                # Trigger right click on order line
+                win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+
+                # Verify Order Context Menu was executed
+                assert mock_menu_inst.exec.called
+                action_texts = [a.text() for a in actions_created]
+
+                # Check Modify and Delete actions match MT5 format
+                assert any("Modify #284837434" in t and "4143.054" in t for t in action_texts)
+                assert any("Delete #284837434" in t and "4143.054" in t for t in action_texts)
+
+                # Trigger Delete action
+                delete_act = next(a for a in actions_created if "Delete" in a.text())
+                delete_handler = delete_act.triggered.connect.call_args[0][0]
+                delete_handler()
+
+                # Verify cancel_pending_order was called with ticket 284837434
+                mock_exec_mgr.cancel_pending_order.assert_called_with(284837434)
+                assert win.is_pending_order is False
+                assert win.pending_ticket is None
+
+
+def test_order_line_drag_and_drop_modifies_pending_order(qapp):
+    """
+    Verifies that dragging the pending order line on the chart and releasing mouse
+    triggers sigPositionChangeFinished and calls ExecutionManager.modify_pending_order.
+    """
+    win = _create_mock_window()
+    win.is_pending_order = True
+    win.pending_ticket = 284837434
+    win.pending_price = 4140.000
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.modify_pending_order.return_value = {"status": "success", "ticket": 284837434, "price": 4145.500}
+
+    mock_sym_info = MagicMock()
+    mock_sym_info.digits = 3
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        # User dragged line to 4145.500
+        win.line_order_entry.setValue(4145.500)
+        # Emit drag finished
+        win.line_order_entry.sigPositionChangeFinished.emit(win.line_order_entry)
+
+        assert mock_exec_mgr.modify_pending_order.called
+        kwargs = mock_exec_mgr.modify_pending_order.call_args[1]
+        assert kwargs["price"] == 4145.500
+        assert mock_exec_mgr.modify_pending_order.call_args[0][0] == 284837434
+        assert win.pending_price == 4145.500

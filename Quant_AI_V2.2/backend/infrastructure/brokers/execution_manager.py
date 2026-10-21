@@ -574,3 +574,50 @@ class ExecutionManager:
             "msg": f"Loi huy lenh cho #{ticket}: {res.comment if res else 'Unknown'}",
             "latency_ms": round(total_latency_ms, 2),
         }
+
+    def modify_pending_order(
+        self, ticket: int, price: float, sl: float = 0.0, tp: float = 0.0
+    ) -> dict:
+        """
+        Dieu chinh muc gia, Stop Loss hoac Take Profit cho mot lenh cho (Pending Order) tren MT5 (TRADE_ACTION_MODIFY).
+        """
+        start_exec = time.perf_counter()
+        orders = mt5.orders_get(ticket=ticket)
+        if not orders or len(orders) == 0:
+            return {
+                "status": "error",
+                "msg": f"Khong tim thay lenh cho #{ticket}",
+                "latency_ms": 0.0,
+            }
+
+        ord_obj = orders[0]
+        sym = ord_obj.symbol
+        info = mt5.symbol_info(sym)
+        digits = info.digits if info else (2 if price > 10 else 5)
+
+        request = {
+            "action": mt5.TRADE_ACTION_MODIFY,
+            "order": int(ticket),
+            "price": round(float(price), digits),
+            "sl": round(float(sl), digits) if sl and sl > 0 else 0.0,
+            "tp": round(float(tp), digits) if tp and tp > 0 else 0.0,
+            "type_time": getattr(ord_obj, "type_time", mt5.ORDER_TIME_GTC),
+            "type_filling": getattr(ord_obj, "type_filling", mt5.ORDER_FILLING_IOC),
+        }
+        res = mt5.order_send(request)
+        total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
+
+        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+            return {
+                "status": "success",
+                "ticket": ticket,
+                "price": round(float(price), digits),
+                "msg": f"Da cap nhat lenh cho #{ticket} sang gia {price:.{digits}f} thanh cong (Do tre: {total_latency_ms:.1f} ms)",
+                "latency_ms": round(total_latency_ms, 2),
+            }
+        return {
+            "status": "error",
+            "msg": f"Loi sua lenh cho #{ticket}: {res.comment if res else 'Unknown'}",
+            "retcode": getattr(res, "retcode", None),
+            "latency_ms": round(total_latency_ms, 2),
+        }

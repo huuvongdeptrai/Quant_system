@@ -578,6 +578,7 @@ def update_order_proposal_html(
         if hasattr(window, "line_order_entry") and window.line_order_entry:
             window.line_order_entry.setValue(entry)
             window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=order_w, style=order_style))
+            window.line_order_entry.setMovable(is_pending_order)
             window.line_order_entry.setVisible(True)
             if is_live_position:
                 window.line_order_entry.label.setFormat(f"OPEN #{live_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
@@ -596,6 +597,7 @@ def update_order_proposal_html(
             if sl and sl > 0:
                 window.line_order_sl.setValue(sl)
                 window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=order_w, style=order_style))
+                window.line_order_sl.setMovable(True)
                 window.line_order_sl.setVisible(True)
                 if is_live_position:
                     window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
@@ -619,6 +621,7 @@ def update_order_proposal_html(
             if tp and tp > 0:
                 window.line_order_tp.setValue(tp)
                 window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=order_w, style=order_style))
+                window.line_order_tp.setMovable(True)
                 window.line_order_tp.setVisible(True)
                 if is_live_position:
                     window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
