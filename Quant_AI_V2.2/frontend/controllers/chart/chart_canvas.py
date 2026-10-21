@@ -2117,14 +2117,19 @@ def setup_chart_ui(window):
             cur_bid = tick.bid if tick else click_p
             cur_ask = tick.ask if tick else click_p
 
-            lot = 0.05
-            if hasattr(window, "active_signal_data") and window.active_signal_data:
-                lot = window.active_signal_data.get("lot", 0.05)
-            elif hasattr(window, "lblSizeVal") and window.lblSizeVal:
+            # Resolve lot size: Manual spinbox > Broker volume_min (institutional standard, no cross-contamination)
+            min_lot = float(sym_info.volume_min) if (sym_info and hasattr(sym_info, "volume_min") and sym_info.volume_min) else 0.01
+            lot = None
+            if hasattr(window, "spinManualLot") and window.spinManualLot and window.spinManualLot.value() > 0:
+                lot = float(window.spinManualLot.value())
+            elif hasattr(window, "lblManualLotVal") and window.lblManualLotVal:
                 try:
-                    lot = float(window.lblSizeVal.text().split()[0])
+                    lot = float(window.lblManualLotVal.text().split()[0])
                 except Exception:
-                    lot = 0.05
+                    pass
+
+            if lot is None or lot <= 0:
+                lot = min_lot
             lot = round(float(lot), 2)
 
             is_above = click_p >= cur_ask
@@ -2135,6 +2140,25 @@ def setup_chart_ui(window):
 
             def _do_execute_pending(order_type_str: str, target_price: float):
                 try:
+                    # Institutional Safety Guard: Confirmation dialog before dispatching real broker orders
+                    one_click = getattr(window, "one_click_trading_enabled", False)
+                    if not one_click:
+                        from PySide6.QtWidgets import QMessageBox
+                        reply = QMessageBox.question(
+                            window,
+                            "Xác nhận đặt lệnh MT5",
+                            f"Bạn có chắc chắn muốn gửi lệnh sau lên MT5?\n\n"
+                            f"• Loại lệnh: {order_type_str}\n"
+                            f"• Cặp tiền: {sym}\n"
+                            f"• Khối lượng: {lot:.2f} lot\n"
+                            f"• Giá đặt: {target_price:.{digits}f}\n\n"
+                            f"Bấm 'Yes' để gửi lệnh lên sàn, hoặc 'No' để hủy bỏ.",
+                            QMessageBox.Yes | QMessageBox.No,
+                            QMessageBox.No,
+                        )
+                        if reply != QMessageBox.Yes:
+                            return
+
                     from backend.infrastructure.brokers.execution_manager import ExecutionManager
                     exec_mgr = None
                     if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
@@ -2193,7 +2217,14 @@ def setup_chart_ui(window):
 
             m_trading.addSeparator()
             act_new_order = m_trading.addAction("New Order Ticket...     F9")
-            act_new_order.triggered.connect(lambda chk=False: _open_ai_drawer() if hasattr(window, "btn_edge_plan") else None)
+            def _do_open_new_order_ticket(target_p):
+                if hasattr(window, "btn_edge_plan"):
+                    _open_ai_drawer()
+                if hasattr(window, "tabTradingPlan") and window.tabTradingPlan:
+                    window.tabTradingPlan.setCurrentIndex(1)
+                if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+                    window.spinManualPendingPrice.setValue(target_p)
+            act_new_order.triggered.connect(lambda chk=False, p=click_p: _do_open_new_order_ticket(p))
 
             menu.addSeparator()
         except Exception as e:

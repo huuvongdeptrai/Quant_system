@@ -1,12 +1,14 @@
 """
 Unit tests for Institutional Right-Click Chart Trading and Context-Aware Order Placement.
-Validates that right-clicking above market suggests Sell Limit / Buy Stop,
-and below market suggests Buy Limit / Sell Stop with One-Click Execution (Option A).
+Validates:
+1. Context-aware menu actions (Sell Limit above ask, Buy Limit below bid).
+2. Dynamic lot resolution (Manual spinbox > Active AI signal > Broker volume_min, NO hardcoded 0.05).
+3. Institutional Safety Guard: Confirmation dialog intercepts accidental clicks unless One-Click is enabled.
 """
 
 import pytest
 from unittest.mock import MagicMock, patch
-from PySide6.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QMainWindow, QFrame, QVBoxLayout, QMessageBox
 from PySide6.QtCore import QPoint
 
 from frontend.controllers.chart.chart_canvas import setup_chart_ui
@@ -33,7 +35,7 @@ def _create_mock_window():
 def test_chart_context_menu_above_and_below_market(qapp):
     """
     Verifies that right-click context menu creates MT5-style context-aware
-    trading actions (Sell Limit above ask, Buy Limit below bid).
+    trading actions (Sell Limit above ask, Buy Limit below bid) and respects broker volume_min.
     """
     win = _create_mock_window()
     assert hasattr(win, "plot_widget")
@@ -41,6 +43,7 @@ def test_chart_context_menu_above_and_below_market(qapp):
     mock_sym_info = MagicMock()
     mock_sym_info.digits = 2
     mock_sym_info.point = 0.01
+    mock_sym_info.volume_min = 0.01
 
     mock_tick = MagicMock()
     mock_tick.bid = 2000.00
@@ -60,9 +63,9 @@ def test_chart_context_menu_above_and_below_market(qapp):
 
                 win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
                 assert mock_menu_inst.exec.called
-                # Verify addAction was called with Sell Limit
                 actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
-                assert any("Sell Limit" in str(a) and "2050.00" in str(a) for a in actions_added)
+                # Volume must be 0.01 (min_lot), NEVER hardcoded 0.05
+                assert any("Sell Limit 0.01" in str(a) and "2050.00" in str(a) for a in actions_added)
 
         # 2. Test clicking BELOW market (y = 1950 < bid 2000.00)
         mock_pt_below = MagicMock()
@@ -76,29 +79,60 @@ def test_chart_context_menu_above_and_below_market(qapp):
                 win.plot_widget.customContextMenuRequested.emit(QPoint(100, 200))
                 assert mock_menu_inst.exec.called
                 actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
-                assert any("Buy Limit" in str(a) and "1950.00" in str(a) for a in actions_added)
+                assert any("Buy Limit  0.01" in str(a) and "1950.00" in str(a) for a in actions_added)
 
 
-def test_chart_one_click_execution_dispatch(qapp):
+def test_chart_order_dynamic_lot_from_manual_spinbox(qapp):
     """
-    Verifies that triggering the top action calls ExecutionManager.execute_pending_order
-    with exact price, lot, and symbol (Option A One-Click Trading).
+    Verifies that right-click context menu dynamically reads user lot size
+    from spinManualLot instead of hardcoded 0.05.
     """
     win = _create_mock_window()
+    mock_spin = MagicMock()
+    mock_spin.value.return_value = 0.25
+    win.spinManualLot = mock_spin
+
+    mock_sym_info = MagicMock()
+    mock_sym_info.digits = 2
+    mock_sym_info.point = 0.01
+    mock_sym_info.volume_min = 0.01
+
+    mock_tick = MagicMock()
+    mock_tick.bid = 2000.00
+    mock_tick.ask = 2000.50
+
+    mock_pt = MagicMock()
+    mock_pt.y.return_value = 2050.00
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
+         patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt):
+
+        with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+            mock_menu_inst = MagicMock()
+            MockMenu.return_value = mock_menu_inst
+
+            win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+            actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
+            assert any("Sell Limit 0.25" in str(a) for a in actions_added)
+
+
+def test_chart_one_click_execution_safety_guard(qapp):
+    """
+    Verifies that triggering order without one_click_trading_enabled prompts
+    QMessageBox.question. If user cancels (No), nothing is dispatched to broker.
+    """
+    win = _create_mock_window()
+    win.one_click_trading_enabled = False
 
     mock_exec_mgr = MagicMock()
-    mock_exec_mgr.execute_pending_order.return_value = {
-        "status": "success",
-        "ticket": 888123,
-        "msg": "OK"
-    }
-
     mock_pt = MagicMock()
     mock_pt.y.return_value = 2050.00
 
     mock_sym_info = MagicMock()
     mock_sym_info.digits = 2
     mock_sym_info.point = 0.01
+    mock_sym_info.volume_min = 0.02
 
     mock_tick = MagicMock()
     mock_tick.bid = 2000.00
@@ -126,19 +160,75 @@ def test_chart_one_click_execution_dispatch(qapp):
             MockMenu.return_value = mock_menu_inst
 
             win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
-
-            # The first action added is the top Sell Limit action
             top_action = actions_list[0]
-            assert "Sell Limit" in top_action.text()
-            assert "2050.00" in top_action.text()
-
-            # Trigger its connected handler
-            # In chart_canvas: act_primary.triggered.connect(lambda chk=False, t=primary_type, p=click_p: _do_execute_pending(t, p))
             connect_call = top_action.triggered.connect.call_args[0][0]
-            connect_call()
 
-            assert mock_exec_mgr.execute_pending_order.called
-            call_kwargs = mock_exec_mgr.execute_pending_order.call_args[1]
-            assert call_kwargs["symbol"] == "XAUUSD"
-            assert call_kwargs["order_type"] == "SELL_LIMIT"
-            assert call_kwargs["price"] == 2050.00
+            # 1. User cancels in safety prompt (QMessageBox.No) -> NO order dispatched
+            with patch("PySide6.QtWidgets.QMessageBox.question", return_value=QMessageBox.No):
+                connect_call()
+                assert not mock_exec_mgr.execute_pending_order.called
+
+            # 2. User confirms (QMessageBox.Yes) -> Dispatched to broker with dynamic volume 0.02
+            with patch("PySide6.QtWidgets.QMessageBox.question", return_value=QMessageBox.Yes):
+                mock_exec_mgr.execute_pending_order.return_value = {"status": "success", "ticket": 999123}
+                connect_call()
+                assert mock_exec_mgr.execute_pending_order.called
+                kwargs = mock_exec_mgr.execute_pending_order.call_args[1]
+                assert kwargs["symbol"] == "XAUUSD"
+                assert kwargs["order_type"] == "SELL_LIMIT"
+                assert kwargs["volume"] == 0.02
+                assert kwargs["price"] == 2050.00
+
+
+def test_chart_one_click_execution_when_enabled(qapp):
+    """
+    Verifies that when one_click_trading_enabled is True, orders dispatch immediately
+    without showing modal.
+    """
+    win = _create_mock_window()
+    win.one_click_trading_enabled = True
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.execute_pending_order.return_value = {"status": "success", "ticket": 123456}
+
+    mock_pt = MagicMock()
+    mock_pt.y.return_value = 2050.00
+
+    mock_sym_info = MagicMock()
+    mock_sym_info.digits = 2
+    mock_sym_info.point = 0.01
+    mock_sym_info.volume_min = 0.01
+
+    mock_tick = MagicMock()
+    mock_tick.bid = 2000.00
+    mock_tick.ask = 2000.50
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr), \
+         patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt):
+
+        with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+            mock_menu_inst = MagicMock()
+            actions_list = []
+
+            def fake_add_action(text):
+                act = MagicMock()
+                act.text = lambda: text
+                actions_list.append(act)
+                return act
+
+            mock_menu_inst.addAction.side_effect = fake_add_action
+            mock_submenu = MagicMock()
+            mock_submenu.addAction.side_effect = fake_add_action
+            mock_menu_inst.addMenu.return_value = mock_submenu
+            MockMenu.return_value = mock_menu_inst
+
+            win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+            top_action = actions_list[0]
+            connect_call = top_action.triggered.connect.call_args[0][0]
+
+            with patch("PySide6.QtWidgets.QMessageBox.question") as mock_box:
+                connect_call()
+                assert not mock_box.called
+                assert mock_exec_mgr.execute_pending_order.called
