@@ -652,6 +652,12 @@ class QuantTerminal(QObject):
                 if hasattr(self, "_render_blotter"):
                     self._render_blotter("active")
 
+            if hasattr(self.window, "sync_chart_orders"):
+                try:
+                    self.window.sync_chart_orders()
+                except Exception as e:
+                    logger.debug(f"[QuantTerminal] sync_chart_orders tick error: {e}")
+
         active_sym = getattr(self.window, "current_sym", "").split("\n")[0].strip() if hasattr(self, "window") else ""
         all_syms = self.watchlist.get_all_symbols()
         sorted_syms = sorted(all_syms, key=lambda s: 0 if s == active_sym else 1)

@@ -29,7 +29,9 @@ def _create_mock_window():
     win.is_dark_theme = True
     win.frameChartArea = QFrame()
     win.frameChartArea.setLayout(QVBoxLayout())
-    setup_chart_ui(win)
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=None):
+        setup_chart_ui(win)
+    win.chart_order_lines = {}
     return win
 
 
@@ -362,3 +364,86 @@ def test_order_line_drag_and_drop_modifies_pending_order(qapp):
         assert kwargs["price"] == 4145.500
         assert mock_exec_mgr.modify_pending_order.call_args[0][0] == 284837434
         assert win.pending_price == 4145.500
+
+
+def test_multi_order_on_chart_synchronization_and_interaction(qapp):
+    """
+    Verifies that multiple pending orders in MT5 (e.g. 3 Sell Limit orders)
+    are all synchronized onto the chart as distinct interactive lines,
+    can be dragged to modify prices, and can be cancelled via right click.
+    """
+    win = _create_mock_window()
+
+    mock_sym_info = MagicMock(digits=3, point=0.001)
+
+    order1 = MagicMock(ticket=284858911, symbol="XAUUSD", type=3, volume_initial=4.33, volume_current=4.33, price_open=4149.156, sl=0.0, tp=0.0)
+    order2 = MagicMock(ticket=284858998, symbol="XAUUSD", type=3, volume_initial=5.39, volume_current=5.39, price_open=4148.868, sl=0.0, tp=0.0)
+    order3 = MagicMock(ticket=284859200, symbol="XAUUSD", type=3, volume_initial=1.00, volume_current=1.00, price_open=4144.610, sl=0.0, tp=0.0)
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.modify_pending_order.return_value = {"status": "success", "ticket": 284858911}
+    mock_exec_mgr.cancel_pending_order.return_value = {"status": "success", "ticket": 284858998}
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[order1, order2, order3]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        # Trigger sync
+        win.sync_chart_orders()
+
+        # 1. Verify all 3 orders have entry lines in chart_order_lines
+        assert (284858911, "ENTRY") in win.chart_order_lines
+        assert (284858998, "ENTRY") in win.chart_order_lines
+        assert (284859200, "ENTRY") in win.chart_order_lines
+
+        line1 = win.chart_order_lines[(284858911, "ENTRY")]
+        line2 = win.chart_order_lines[(284858998, "ENTRY")]
+        line3 = win.chart_order_lines[(284859200, "ENTRY")]
+
+        assert line1.value() == 4149.156
+        assert line2.value() == 4148.868
+        assert line3.value() == 4144.610
+        assert line1.movable is True
+        assert line2.movable is True
+        assert line3.movable is True
+
+        # 2. Test dragging line 1 to 4152.000
+        line1.setValue(4152.000)
+        line1.sigPositionChangeFinished.emit(line1)
+        assert mock_exec_mgr.modify_pending_order.called
+        assert mock_exec_mgr.modify_pending_order.call_args[0][0] == 284858911
+        assert mock_exec_mgr.modify_pending_order.call_args[1]["price"] == 4152.000
+
+        # 3. Test right clicking line 2 displays Delete #284858998 and clicking Delete cancels it
+        with patch.object(win.plot_widget, "mapToScene", return_value=MagicMock(y=lambda: 200.0)), \
+             patch.object(win.plot_widget.plotItem.vb, "mapViewToScene", return_value=MagicMock(y=lambda: 200.0)):
+            with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+                mock_menu_inst = MagicMock()
+                actions_created = []
+                def fake_add_action(text):
+                    act = MagicMock()
+                    act.text = lambda: text
+                    actions_created.append(act)
+                    return act
+                mock_menu_inst.addAction.side_effect = fake_add_action
+                mock_menu_inst.addMenu.return_value = MagicMock()
+                MockMenu.return_value = mock_menu_inst
+
+                # Trigger right click
+                win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+                action_texts = [a.text() for a in actions_created]
+                assert any("Delete" in t for t in action_texts)
+
+    # 4. Test when order 2 is cancelled in MT5, next sync removes its line
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[order1, order3]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)):
+
+        win.sync_chart_orders()
+        assert (284858998, "ENTRY") not in win.chart_order_lines
+        assert (284858911, "ENTRY") in win.chart_order_lines
+        assert (284859200, "ENTRY") in win.chart_order_lines
+

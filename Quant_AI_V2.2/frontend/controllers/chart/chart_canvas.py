@@ -1695,6 +1695,346 @@ def setup_chart_ui(window):
     window.line_order_sl.sigPositionChangeFinished.connect(_on_sl_drag_finished)
     window.line_order_tp.sigPositionChangeFinished.connect(_on_tp_drag_finished)
 
+    # -------------------------------------------------------------------------
+    # MULTI-ORDER ON-CHART VISUALIZER & SYNCHRONIZER (MT5 / TradingView Standard)
+    # -------------------------------------------------------------------------
+    window.chart_order_lines = {}
+
+    def _on_chart_order_line_dragged(target_line):
+        tkt = getattr(target_line, "order_ticket", None)
+        l_type = getattr(target_line, "order_type", None)
+        is_pos = getattr(target_line, "is_position", False)
+        sym = getattr(target_line, "order_symbol", getattr(window, "current_sym", "XAUUSD")).split("\n")[0].strip()
+
+        if not tkt or not l_type:
+            return
+
+        new_val = target_line.value()
+        sym_info = mt5.symbol_info(sym)
+        digits = sym_info.digits if sym_info else (2 if new_val > 10 else 5)
+        new_val = round(float(new_val), digits)
+
+        exec_mgr = None
+        if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
+            exec_mgr = window.quant_terminal.exec_mgr
+        if not exec_mgr:
+            from backend.infrastructure.brokers.execution_manager import ExecutionManager
+            exec_mgr = ExecutionManager(slippage=20)
+
+        from backend.core.event_bus import event_bus
+
+        if is_pos:
+            pos_list = mt5.positions_get(ticket=int(tkt))
+            if not pos_list or len(pos_list) == 0:
+                sync_chart_orders(window)
+                return
+            p_obj = pos_list[0]
+            cur_sl = float(p_obj.sl)
+            cur_tp = float(p_obj.tp)
+
+            if l_type == "SL":
+                res = exec_mgr.modify_position(int(tkt), sl=new_val, tp=cur_tp)
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss vị thế #{tkt} sang {new_val:.{digits}f}", "#22c55e")
+                else:
+                    err = res.get("msg", "Error") if res else "Unknown"
+                    event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật SL vị thế #{tkt}: {err}", "#ef4444")
+            elif l_type == "TP":
+                res = exec_mgr.modify_position(int(tkt), sl=cur_sl, tp=new_val)
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit vị thế #{tkt} sang {new_val:.{digits}f}", "#22c55e")
+                else:
+                    err = res.get("msg", "Error") if res else "Unknown"
+                    event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật TP vị thế #{tkt}: {err}", "#ef4444")
+        else:
+            ord_list = mt5.orders_get(ticket=int(tkt))
+            if not ord_list or len(ord_list) == 0:
+                sync_chart_orders(window)
+                return
+            o_obj = ord_list[0]
+            cur_p = float(o_obj.price_open)
+            cur_sl = float(o_obj.sl)
+            cur_tp = float(o_obj.tp)
+
+            if l_type == "ENTRY":
+                res = exec_mgr.modify_pending_order(int(tkt), price=new_val, sl=cur_sl, tp=cur_tp)
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật giá lệnh chờ #{tkt} sang {new_val:.{digits}f} trên sàn MT5", "#22c55e")
+                else:
+                    err = res.get("msg", "Error") if res else "Unknown"
+                    event_bus.log_event.emit("", "ERROR", f"Không thể sửa giá lệnh chờ #{tkt}: {err}", "#ef4444")
+            elif l_type == "SL":
+                res = exec_mgr.modify_pending_order(int(tkt), price=cur_p, sl=new_val, tp=cur_tp)
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss lệnh chờ #{tkt} sang {new_val:.{digits}f}", "#22c55e")
+                else:
+                    err = res.get("msg", "Error") if res else "Unknown"
+                    event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật SL lệnh chờ #{tkt}: {err}", "#ef4444")
+            elif l_type == "TP":
+                res = exec_mgr.modify_pending_order(int(tkt), price=cur_p, sl=cur_sl, tp=new_val)
+                if res and res.get("status") == "success":
+                    event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit lệnh chờ #{tkt} sang {new_val:.{digits}f}", "#22c55e")
+                else:
+                    err = res.get("msg", "Error") if res else "Unknown"
+                    event_bus.log_event.emit("", "ERROR", f"Lỗi cập nhật TP lệnh chờ #{tkt}: {err}", "#ef4444")
+
+        sync_chart_orders(window)
+
+    def sync_chart_orders(win=window):
+        """
+        Real-time synchronization of all MT5 active positions and pending orders for current symbol onto chart canvas.
+        Institutes standard MT5 / TradingView multi-order visualizer with drag-and-drop modification and order context menu.
+        """
+        if not hasattr(win, "plot_widget") or not win.plot_widget:
+            return
+
+        clean_sym = getattr(win, "current_sym", "").split("\n")[0].strip()
+        if not clean_sym:
+            return
+
+        if not hasattr(win, "chart_order_lines"):
+            win.chart_order_lines = {}
+
+        if mt5.terminal_info() is None:
+            for k, l_obj in list(win.chart_order_lines.items()):
+                try:
+                    win.plot_widget.removeItem(l_obj)
+                except Exception:
+                    pass
+            win.chart_order_lines.clear()
+            return
+
+        info = mt5.symbol_info(clean_sym)
+        digits = info.digits if info else (2 if "JPY" in clean_sym or "XAU" in clean_sym else 5)
+
+        is_dark = getattr(win, "is_dark_theme", True)
+        bull_color = "#22c55e" if is_dark else "#15803d"
+        bear_color = "#ef4444" if is_dark else "#dc2626"
+
+        base_sym = clean_sym.split(".")[0].split("+")[0].upper()
+
+        pos_raw = mt5.positions_get(symbol=clean_sym)
+        if pos_raw is None or len(pos_raw) == 0:
+            all_p = mt5.positions_get() or []
+            positions = [p for p in all_p if getattr(p, "symbol", "").split(".")[0].split("+")[0].upper() == base_sym]
+        else:
+            positions = list(pos_raw)
+
+        ord_raw = mt5.orders_get(symbol=clean_sym)
+        if ord_raw is None or len(ord_raw) == 0:
+            all_o = mt5.orders_get() or []
+            pending_orders = [o for o in all_o if getattr(o, "symbol", "").split(".")[0].split("+")[0].upper() == base_sym]
+        else:
+            pending_orders = list(ord_raw)
+
+        active_keys = set()
+
+        if positions:
+            win.is_live_position = True
+            win.live_ticket = positions[0].ticket
+        elif not getattr(win, "is_pending_order", False):
+            win.is_live_position = False
+
+        if pending_orders:
+            win.is_pending_order = True
+            win.pending_ticket = pending_orders[0].ticket
+        elif not getattr(win, "is_live_position", False):
+            win.is_pending_order = False
+
+        def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio):
+            active_keys.add(key)
+            if key in win.chart_order_lines:
+                line = win.chart_order_lines[key]
+                line.order_ticket = tkt
+                line.order_type = l_type
+                line.is_position = is_pos
+                line.order_action = action_str
+                line.order_vol = vol
+                line.order_symbol = clean_sym
+                if not getattr(line, "is_dragging", False):
+                    line.setValue(price)
+                    line.setPen(pg.mkPen(color=color, width=1.5, style=style))
+                    line.setMovable(movable)
+                    if hasattr(line, "label") and line.label:
+                        line.label.setFormat(label_str)
+                        line.label.setColor(color)
+                    if line not in win.plot_widget.items():
+                        win.plot_widget.addItem(line, ignoreBounds=True)
+            else:
+                line = pg.InfiniteLine(
+                    angle=0,
+                    movable=movable,
+                    pos=price,
+                    pen=pg.mkPen(color=color, width=1.5, style=style),
+                    label=label_str,
+                    labelOpts={"color": color, "position": pos_ratio, "fill": (15, 23, 42, 210), "movable": False}
+                )
+                line.order_ticket = tkt
+                line.order_type = l_type
+                line.is_position = is_pos
+                line.order_action = action_str
+                line.order_vol = vol
+                line.order_symbol = clean_sym
+                line.is_dragging = False
+
+                def _on_drag_change(*args, l_ref=line):
+                    l_ref.is_dragging = True
+
+                def _on_drag_finish(*args, l_ref=line):
+                    l_ref.is_dragging = False
+                    _on_chart_order_line_dragged(l_ref)
+
+                line.sigPositionChanged.connect(_on_drag_change)
+                line.sigPositionChangeFinished.connect(_on_drag_finish)
+
+                win.plot_widget.addItem(line, ignoreBounds=True)
+                win.chart_order_lines[key] = line
+
+        # 1. Process Live Positions
+        for p in positions:
+            tkt = int(p.ticket)
+            vol = float(p.volume)
+            open_p = float(p.price_open)
+            sl = float(p.sl)
+            tp = float(p.tp)
+            is_buy = (p.type == 0)
+            act_name = "buy" if is_buy else "sell"
+            dir_c = bull_color if is_buy else bear_color
+
+            # Position Entry Line (solid, not movable)
+            _upsert_line(
+                key=(tkt, "ENTRY"),
+                price=open_p,
+                color=dir_c,
+                style=QtCore.Qt.SolidLine,
+                label_str=f"#{tkt} {act_name} {vol:.2f}  {open_p:.{digits}f}",
+                movable=False,
+                tkt=tkt,
+                l_type="ENTRY",
+                is_pos=True,
+                action_str=act_name,
+                vol=vol,
+                pos_ratio=0.15
+            )
+
+            # Position SL Line (dashed, movable)
+            if sl > 0:
+                _upsert_line(
+                    key=(tkt, "SL"),
+                    price=sl,
+                    color=bear_color,
+                    style=QtCore.Qt.DashLine,
+                    label_str=f"#{tkt} sl: {sl:.{digits}f}",
+                    movable=True,
+                    tkt=tkt,
+                    l_type="SL",
+                    is_pos=True,
+                    action_str=act_name,
+                    vol=vol,
+                    pos_ratio=0.65
+                )
+
+            # Position TP Line (dashed, movable)
+            if tp > 0:
+                _upsert_line(
+                    key=(tkt, "TP"),
+                    price=tp,
+                    color=bull_color,
+                    style=QtCore.Qt.DashLine,
+                    label_str=f"#{tkt} tp: {tp:.{digits}f}",
+                    movable=True,
+                    tkt=tkt,
+                    l_type="TP",
+                    is_pos=True,
+                    action_str=act_name,
+                    vol=vol,
+                    pos_ratio=0.35
+                )
+
+        # 2. Process Pending Orders
+        for o in pending_orders:
+            tkt = int(o.ticket)
+            vol = float(o.volume_initial or o.volume_current)
+            open_p = float(o.price_open)
+            sl = float(o.sl)
+            tp = float(o.tp)
+            ord_type = o.type
+            if ord_type == mt5.ORDER_TYPE_BUY_LIMIT:
+                act_name = "buy limit"
+                dir_c = bull_color
+            elif ord_type == mt5.ORDER_TYPE_SELL_LIMIT:
+                act_name = "sell limit"
+                dir_c = bear_color
+            elif ord_type == mt5.ORDER_TYPE_BUY_STOP:
+                act_name = "buy stop"
+                dir_c = bull_color
+            else:
+                act_name = "sell stop"
+                dir_c = bear_color
+
+            # Pending Entry Line (dash-dot, movable=True!)
+            _upsert_line(
+                key=(tkt, "ENTRY"),
+                price=open_p,
+                color=dir_c,
+                style=QtCore.Qt.DashDotLine,
+                label_str=f"#{tkt} {act_name} {vol:.2f}  {open_p:.{digits}f}",
+                movable=True,
+                tkt=tkt,
+                l_type="ENTRY",
+                is_pos=False,
+                action_str=act_name,
+                vol=vol,
+                pos_ratio=0.15
+            )
+
+            # Pending SL Line (dashed, movable)
+            if sl > 0:
+                _upsert_line(
+                    key=(tkt, "SL"),
+                    price=sl,
+                    color=bear_color,
+                    style=QtCore.Qt.DashLine,
+                    label_str=f"#{tkt} sl: {sl:.{digits}f}",
+                    movable=True,
+                    tkt=tkt,
+                    l_type="SL",
+                    is_pos=False,
+                    action_str=act_name,
+                    vol=vol,
+                    pos_ratio=0.65
+                )
+
+            # Pending TP Line (dashed, movable)
+            if tp > 0:
+                _upsert_line(
+                    key=(tkt, "TP"),
+                    price=tp,
+                    color=bull_color,
+                    style=QtCore.Qt.DashLine,
+                    label_str=f"#{tkt} tp: {tp:.{digits}f}",
+                    movable=True,
+                    tkt=tkt,
+                    l_type="TP",
+                    is_pos=False,
+                    action_str=act_name,
+                    vol=vol,
+                    pos_ratio=0.35
+                )
+
+        # 3. Clean up lines whose orders are no longer active in MT5
+        for key in list(win.chart_order_lines.keys()):
+            if key not in active_keys:
+                l_obj = win.chart_order_lines.pop(key)
+                try:
+                    win.plot_widget.removeItem(l_obj)
+                except Exception:
+                    pass
+
+    window.sync_chart_orders = lambda: sync_chart_orders(window)
+    window.refresh_active_orders = lambda: sync_chart_orders(window)
+
+
     def _on_approve():
         if not getattr(window, "order_proposal_active", False):
             return
@@ -2252,37 +2592,64 @@ def setup_chart_ui(window):
             scene_pos = window.plot_widget.mapToScene(pos.x(), pos.y()) if hasattr(pos, "x") else pos
             scene_y = _extract_y(scene_pos)
 
-            # Detect if user right-clicked directly on or near an active Order Line
+            # Detect if user right-clicked directly on or near ANY active Order Line
             hit_order_line = None
             hit_line_type = None
-            for l_type, l_name in [("ENTRY", "line_order_entry"), ("SL", "line_order_sl"), ("TP", "line_order_tp")]:
-                if hasattr(window, l_name):
-                    l_obj = getattr(window, l_name)
-                    if l_obj and l_obj.isVisible():
-                        try:
-                            line_scene_pt = vb.mapViewToScene(QPointF(0, float(l_obj.value())))
-                            line_scene_y = _extract_y(line_scene_pt)
-                            if abs(scene_y - line_scene_y) <= 14:
-                                hit_order_line = l_obj
-                                hit_line_type = l_type
-                                break
-                        except Exception:
-                            pass
+            hit_ticket = None
+            hit_is_pos = False
+            hit_vol = 0.01
+            hit_action = "order"
 
-            is_pending = getattr(window, "is_pending_order", False)
-            is_live = getattr(window, "is_live_position", False)
-            if hit_order_line is not None and (is_pending or is_live):
-                tkt = getattr(window, "pending_ticket" if is_pending else "live_ticket", None)
+            # 1. Check dynamic broker order lines
+            for (tkt, l_type), l_obj in getattr(window, "chart_order_lines", {}).items():
+                if l_obj and l_obj.isVisible():
+                    try:
+                        line_scene_pt = vb.mapViewToScene(QPointF(0, float(l_obj.value())))
+                        line_scene_y = _extract_y(line_scene_pt)
+                        if abs(scene_y - line_scene_y) <= 14:
+                            hit_order_line = l_obj
+                            hit_line_type = l_type
+                            hit_ticket = getattr(l_obj, "order_ticket", tkt)
+                            hit_is_pos = getattr(l_obj, "is_position", False)
+                            hit_vol = getattr(l_obj, "order_vol", 0.01)
+                            hit_action = getattr(l_obj, "order_action", "order")
+                            break
+                    except Exception:
+                        pass
+
+            # 2. Fallback check for single order proposal lines (line_order_entry, line_order_sl, line_order_tp)
+            if hit_order_line is None:
+                for l_type, l_name in [("ENTRY", "line_order_entry"), ("SL", "line_order_sl"), ("TP", "line_order_tp")]:
+                    if hasattr(window, l_name):
+                        l_obj = getattr(window, l_name)
+                        if l_obj and l_obj.isVisible():
+                            try:
+                                line_scene_pt = vb.mapViewToScene(QPointF(0, float(l_obj.value())))
+                                line_scene_y = _extract_y(line_scene_pt)
+                                if abs(scene_y - line_scene_y) <= 14:
+                                    hit_order_line = l_obj
+                                    hit_line_type = l_type
+                                    is_pend = getattr(window, "is_pending_order", False)
+                                    hit_is_pos = getattr(window, "is_live_position", False)
+                                    hit_ticket = getattr(window, "pending_ticket" if is_pend else "live_ticket", None)
+                                    break
+                            except Exception:
+                                pass
+
+            is_pending = not hit_is_pos
+            is_live = hit_is_pos
+            if hit_order_line is not None and (hit_ticket or is_pending or is_live):
+                tkt = hit_ticket or getattr(window, "pending_ticket" if is_pending else "live_ticket", None)
                 raw_sym = getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
                 sym = raw_sym.split("\n")[0].strip()
                 sym_info = mt5.symbol_info(sym)
                 digits = sym_info.digits if sym_info else 2
 
-                ord_type_name = "order"
-                ord_vol = 0.01
+                ord_type_name = hit_action
+                ord_vol = hit_vol
                 ord_price = float(hit_order_line.value())
 
-                if is_pending and tkt:
+                if is_pending and tkt and ord_type_name == "order":
                     p_orders = mt5.orders_get(ticket=int(tkt))
                     if p_orders and len(p_orders) > 0:
                         po = p_orders[0]
@@ -2291,9 +2658,9 @@ def setup_chart_ui(window):
                                 "buy stop" if po.type == mt5.ORDER_TYPE_BUY_STOP else "sell stop"
                             )
                         )
-                        ord_vol = float(po.volume_current)
+                        ord_vol = float(po.volume_current or po.volume_initial)
                         ord_price = float(po.price_open)
-                elif is_live and tkt:
+                elif is_live and tkt and ord_type_name == "order":
                     p_pos = mt5.positions_get(ticket=int(tkt))
                     if p_pos and len(p_pos) > 0:
                         ps = p_pos[0]
@@ -2337,10 +2704,16 @@ def setup_chart_ui(window):
                             event_bus.log_event.emit("", "SUCCESS", f"Đã hủy lệnh chờ #{tkt} trên sàn MT5", "#22c55e")
                             window.is_pending_order = False
                             window.pending_ticket = None
+                            if hasattr(window, "chart_order_lines"):
+                                for lt in ("ENTRY", "SL", "TP"):
+                                    l_rem = window.chart_order_lines.pop((int(tkt), lt), None)
+                                    if l_rem and hasattr(window, "plot_widget") and window.plot_widget:
+                                        try:
+                                            window.plot_widget.removeItem(l_rem)
+                                        except Exception:
+                                            pass
                             from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
                             clear_manual_chart_lines(window)
-                            if hasattr(window, "refresh_active_orders"):
-                                window.refresh_active_orders()
                         else:
                             err_m = res.get("msg", "Error") if res else "Unknown"
                             event_bus.log_event.emit("", "ERROR", f"Lỗi hủy lệnh #{tkt}: {err_m}", "#ef4444")
@@ -2350,10 +2723,16 @@ def setup_chart_ui(window):
                             event_bus.log_event.emit("", "SUCCESS", f"Đã đóng vị thế #{tkt} trên sàn MT5", "#22c55e")
                             window.is_live_position = False
                             window.live_ticket = None
+                            if hasattr(window, "chart_order_lines"):
+                                for lt in ("ENTRY", "SL", "TP"):
+                                    l_rem = window.chart_order_lines.pop((int(tkt), lt), None)
+                                    if l_rem and hasattr(window, "plot_widget") and window.plot_widget:
+                                        try:
+                                            window.plot_widget.removeItem(l_rem)
+                                        except Exception:
+                                            pass
                             from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
                             clear_manual_chart_lines(window)
-                            if hasattr(window, "refresh_active_orders"):
-                                window.refresh_active_orders()
                         else:
                             err_m = res.get("msg", "Error") if res else "Unknown"
                             event_bus.log_event.emit("", "ERROR", f"Lỗi đóng vị thế #{tkt}: {err_m}", "#ef4444")
@@ -2965,6 +3344,12 @@ def setup_chart_ui(window):
             sync_live_position_to_ai_plan(window)
         except Exception:
             pass
+
+        try:
+            if hasattr(window, "sync_chart_orders"):
+                window.sync_chart_orders()
+        except Exception as e:
+            logger.debug(f"[ChartCanvas] sync_chart_orders in draw_and_analyze error: {e}")
 
         total_candles = len(window.chart_data_list)
 
