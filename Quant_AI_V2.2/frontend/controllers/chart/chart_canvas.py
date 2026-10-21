@@ -2195,11 +2195,7 @@ def setup_chart_ui(window):
                 except Exception as e:
                     logger.error(f"[ChartTrading] Exception while executing pending order: {e}")
 
-            # Top Item: Primary One-Click Order
-            act_primary = menu.addAction(primary_label)
-            act_primary.triggered.connect(lambda chk=False, t=primary_type, p=click_p: _do_execute_pending(t, p))
-
-            # Trading Submenu (Full suite like MT5)
+            # Trading Submenu (Institutional Standard: MT5 & TradingView place all trade actions in a dedicated submenu)
             m_trading = menu.addMenu("Trading")
             m_trading.setStyleSheet(menu_style)
 

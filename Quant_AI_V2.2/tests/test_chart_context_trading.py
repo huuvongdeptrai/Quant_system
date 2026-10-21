@@ -1,9 +1,10 @@
 """
 Unit tests for Institutional Right-Click Chart Trading and Context-Aware Order Placement.
 Validates:
-1. Context-aware menu actions (Sell Limit above ask, Buy Limit below bid).
-2. Dynamic lot resolution (Manual spinbox > Active AI signal > Broker volume_min, NO hardcoded 0.05).
+1. Institutional submenu layout (Trading submenu contains Sell Limit / Buy Stop, NO direct execution at root menu).
+2. Dynamic lot resolution (Manual spinbox > Broker volume_min, NO hardcoded 0.05).
 3. Institutional Safety Guard: Confirmation dialog intercepts accidental clicks unless One-Click is enabled.
+4. One-Click direct dispatch when explicitly enabled.
 """
 
 import pytest
@@ -34,8 +35,8 @@ def _create_mock_window():
 
 def test_chart_context_menu_above_and_below_market(qapp):
     """
-    Verifies that right-click context menu creates MT5-style context-aware
-    trading actions (Sell Limit above ask, Buy Limit below bid) and respects broker volume_min.
+    Verifies that right-click context menu creates MT5/TradingView-style dedicated 'Trading' submenu,
+    leaving the root menu free of accidental financial execution triggers.
     """
     win = _create_mock_window()
     assert hasattr(win, "plot_widget")
@@ -59,13 +60,32 @@ def test_chart_context_menu_above_and_below_market(qapp):
         with patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt_above):
             with patch("PySide6.QtWidgets.QMenu") as MockMenu:
                 mock_menu_inst = MagicMock()
+                mock_trading_sub = MagicMock()
+                submenus_created = {}
+
+                def fake_add_menu(name):
+                    sub = MagicMock()
+                    submenus_created[name] = sub
+                    return sub
+
+                mock_menu_inst.addMenu.side_effect = fake_add_menu
                 MockMenu.return_value = mock_menu_inst
 
                 win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
                 assert mock_menu_inst.exec.called
-                actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
+
+                # Root menu must have Trading submenu
+                assert "Trading" in submenus_created
+                sub = submenus_created["Trading"]
+                trading_actions = [str(call[0][0]) for call in sub.addAction.call_args_list if call[0]]
+
                 # Volume must be 0.01 (min_lot), NEVER hardcoded 0.05
-                assert any("Sell Limit 0.01" in str(a) and "2050.00" in str(a) for a in actions_added)
+                assert any("Sell Limit 0.01" in a and "2050.00" in a for a in trading_actions)
+                assert any("Buy Stop   0.01" in a and "2050.00" in a for a in trading_actions)
+
+                # Root level actions must NOT contain any order execution
+                root_actions = [str(call[0][0]) for call in mock_menu_inst.addAction.call_args_list if call[0]]
+                assert not any("Sell Limit" in a or "Buy Limit" in a for a in root_actions)
 
         # 2. Test clicking BELOW market (y = 1950 < bid 2000.00)
         mock_pt_below = MagicMock()
@@ -74,12 +94,18 @@ def test_chart_context_menu_above_and_below_market(qapp):
         with patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt_below):
             with patch("PySide6.QtWidgets.QMenu") as MockMenu:
                 mock_menu_inst = MagicMock()
+                submenus_created = {}
+                mock_menu_inst.addMenu.side_effect = lambda name: submenus_created.setdefault(name, MagicMock())
                 MockMenu.return_value = mock_menu_inst
 
                 win.plot_widget.customContextMenuRequested.emit(QPoint(100, 200))
                 assert mock_menu_inst.exec.called
-                actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
-                assert any("Buy Limit  0.01" in str(a) and "1950.00" in str(a) for a in actions_added)
+
+                sub = submenus_created.get("Trading")
+                assert sub is not None
+                trading_actions = [str(call[0][0]) for call in sub.addAction.call_args_list if call[0]]
+                assert any("Buy Limit  0.01" in a and "1950.00" in a for a in trading_actions)
+                assert any("Sell Stop  0.01" in a and "1950.00" in a for a in trading_actions)
 
 
 def test_chart_order_dynamic_lot_from_manual_spinbox(qapp):
@@ -110,11 +136,14 @@ def test_chart_order_dynamic_lot_from_manual_spinbox(qapp):
 
         with patch("PySide6.QtWidgets.QMenu") as MockMenu:
             mock_menu_inst = MagicMock()
+            submenus_created = {}
+            mock_menu_inst.addMenu.side_effect = lambda name: submenus_created.setdefault(name, MagicMock())
             MockMenu.return_value = mock_menu_inst
 
             win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
-            actions_added = [call[0][0] for call in mock_menu_inst.addAction.call_args_list if call[0]]
-            assert any("Sell Limit 0.25" in str(a) for a in actions_added)
+            sub = submenus_created["Trading"]
+            trading_actions = [str(call[0][0]) for call in sub.addAction.call_args_list if call[0]]
+            assert any("Sell Limit 0.25" in a for a in trading_actions)
 
 
 def test_chart_one_click_execution_safety_guard(qapp):
@@ -153,7 +182,6 @@ def test_chart_one_click_execution_safety_guard(qapp):
                 actions_list.append(act)
                 return act
 
-            mock_menu_inst.addAction.side_effect = fake_add_action
             mock_submenu = MagicMock()
             mock_submenu.addAction.side_effect = fake_add_action
             mock_menu_inst.addMenu.return_value = mock_submenu
@@ -218,7 +246,6 @@ def test_chart_one_click_execution_when_enabled(qapp):
                 actions_list.append(act)
                 return act
 
-            mock_menu_inst.addAction.side_effect = fake_add_action
             mock_submenu = MagicMock()
             mock_submenu.addAction.side_effect = fake_add_action
             mock_menu_inst.addMenu.return_value = mock_submenu
