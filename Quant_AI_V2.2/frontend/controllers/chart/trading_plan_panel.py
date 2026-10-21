@@ -141,6 +141,21 @@ def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 
     if vol_step > 0:
         calc_lot = round(round(calc_lot / vol_step) * vol_step, 2)
     lot = max(vol_min, min(calc_lot, vol_max))
+
+    # Free Margin & Leverage Cap: Prevent MT5 retcode 10019 (NO_MONEY)
+    acc = mt5.account_info() if mt5.terminal_info() is not None else None
+    if acc and getattr(acc, "margin_free", 0.0) and float(acc.margin_free) > 0:
+        free_m = float(acc.margin_free)
+        lev = float(getattr(acc, "leverage", 100) or 100)
+        tick = mt5.symbol_info_tick(symbol) if mt5.terminal_info() is not None else None
+        ref_price = float(tick.ask if tick else (getattr(info, "bid", 2650.0) or 2650.0))
+        if ref_price > 0 and mult > 0 and lev > 0:
+            max_affordable_lot = (free_m * 0.90 * lev) / (ref_price * mult)
+            if vol_step > 0:
+                max_affordable_lot = round(max_affordable_lot / vol_step) * vol_step
+            if max_affordable_lot >= vol_min:
+                lot = min(lot, max_affordable_lot)
+
     return lot, target_risk_dlr
 
 
@@ -1266,6 +1281,7 @@ def evaluate_manual_compliance(window, symbol=None):
         "max_trades": {"passed": True, "msg": "Exposure: OK", "val": "PASS"},
         "spread": {"passed": True, "msg": "Spread: OK", "val": "PASS"},
         "stops": {"passed": True, "msg": "Stops: Valid", "val": "PASS"},
+        "margin": {"passed": True, "msg": "Margin: OK", "val": "PASS"},
     }
     block_reason = ""
 
@@ -1432,6 +1448,36 @@ def evaluate_manual_compliance(window, symbol=None):
         except Exception as e:
             logger.debug(f"[TradingPlan] Stops check error: {e}")
 
+    # 6. Free Margin & Leverage Adequacy Check (Pre-Trade Liquidity Gate)
+    if not block_reason and acc and hasattr(acc, "margin_free") and float(getattr(acc, "margin_free", 0.0)) > 0:
+        try:
+            free_margin = float(acc.margin_free)
+            spin_lot = getattr(window, "spinManualLot", None)
+            lot_to_check = float(spin_lot.value()) if (spin_lot and hasattr(spin_lot, "value") and spin_lot.value() > 0) else 0.01
+            entry_p_check = _get_manual_effective_entry_price(window, is_buy, clean_sym)
+            calc_action = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
+            req_margin = mt5.order_calc_margin(calc_action, clean_sym, lot_to_check, entry_p_check)
+            if req_margin is None or req_margin <= 0:
+                mult = get_symbol_multiplier(clean_sym, mt5.symbol_info(clean_sym))
+                lev = float(getattr(acc, "leverage", 100) or 100)
+                req_margin = (entry_p_check * mult * lot_to_check) / lev if lev > 0 else 0.0
+
+            if req_margin > 0 and req_margin > (free_margin * 0.95):
+                checks["margin"] = {
+                    "passed": False,
+                    "msg": f"Margin: Req ${req_margin:,.0f} > Free ${free_margin:,.0f}",
+                    "val": "INSUFFICIENT"
+                }
+                block_reason = f"INSUFFICIENT MARGIN (${req_margin:,.0f})"
+            else:
+                checks["margin"] = {
+                    "passed": True,
+                    "msg": f"Margin: Req ${req_margin:,.0f} <= Free ${free_margin:,.0f}",
+                    "val": "PASS"
+                }
+        except Exception as e_m:
+            logger.debug(f"[TradingPlan] Margin check error: {e_m}")
+
     passed = (block_reason == "")
     return passed, checks, block_reason
 
@@ -1488,7 +1534,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_entry.setMovable(is_pending)
         dir_s = order_type_str if is_pending else ("BUY" if is_buy else "SELL")
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
-            window.line_order_entry.label.setFormat(f"MANUAL {dir_s} | {lot:.2f}L @ {entry_p:.{dig}f}  [×]")
+            window.line_order_entry.label.setFormat(f"[PREVIEW] {dir_s} | {lot:.2f}L @ {entry_p:.{dig}f}  [×]")
             window.line_order_entry.label.setColor("#f8fafc")
             window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_entry.label.border = pg.mkPen(color=dir_c, width=1.0)
@@ -1512,7 +1558,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.0, style=Qt.DashLine))
         window.line_order_sl.setMovable(True)
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
-            window.line_order_sl.label.setFormat(f"MANUAL SL | {sl:.{dig}f}  [×]")
+            window.line_order_sl.label.setFormat(f"[PREVIEW] SL | {sl:.{dig}f}  [×]")
             window.line_order_sl.label.setColor("#f8fafc")
             window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_sl.label.border = pg.mkPen(color=bear_c, width=1.0)
@@ -1536,7 +1582,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
         window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.0, style=Qt.DashLine))
         window.line_order_tp.setMovable(True)
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
-            window.line_order_tp.label.setFormat(f"MANUAL TP | {tp:.{dig}f}  [×]")
+            window.line_order_tp.label.setFormat(f"[PREVIEW] TP | {tp:.{dig}f}  [×]")
             window.line_order_tp.label.setColor("#f8fafc")
             window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_tp.label.border = pg.mkPen(color=bull_c, width=1.0)
@@ -3481,6 +3527,49 @@ def start_signal_expiry_countdown(window, duration_sec=None):
         if getattr(window, "_plan_mode", "ai") == "manual":
             timer.stop()
             return
+
+        # Real-time Price-Action Invalidation Gate: Cancel setup instantly if market breaches levels
+        clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+        tick = mt5.symbol_info_tick(clean_sym) if mt5.terminal_info() is not None else None
+        if tick and hasattr(window, "line_order_sl") and hasattr(window, "line_order_entry"):
+            try:
+                cur_bid = float(tick.bid)
+                cur_ask = float(tick.ask)
+                entry_val = float(window.line_order_entry.value()) if window.line_order_entry.isVisible() else 0.0
+                sl_val = float(window.line_order_sl.value()) if window.line_order_sl.isVisible() else 0.0
+                tp_val = float(window.line_order_tp.value()) if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+                is_buy_proposal = (sl_val < entry_val) if (sl_val > 0 and entry_val > 0) else True
+
+                price_invalidated = False
+                if is_buy_proposal and sl_val > 0 and cur_bid <= sl_val:
+                    price_invalidated = True
+                elif not is_buy_proposal and sl_val > 0 and cur_ask >= sl_val:
+                    price_invalidated = True
+                elif is_buy_proposal and tp_val > 0 and cur_bid >= tp_val:
+                    price_invalidated = True
+                elif not is_buy_proposal and tp_val > 0 and cur_ask <= tp_val:
+                    price_invalidated = True
+
+                if price_invalidated:
+                    timer.stop()
+                    if hasattr(window, "_active_proposal_sig") and window._active_proposal_sig:
+                        if not hasattr(window, "_discarded_signals"):
+                            window._discarded_signals = set()
+                        window._discarded_signals.add(window._active_proposal_sig)
+                    if hasattr(window, "lblGateExpiryTime") and window.lblGateExpiryTime:
+                        window.lblGateExpiryTime.setText("0s")
+                    if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
+                        window.btnApproveOrder.setEnabled(False)
+                        window.btnApproveOrder.setText("INVALIDATED")
+                    if hasattr(window, "lblSignalExpiry") and window.lblSignalExpiry:
+                        window.lblSignalExpiry.setText("STATUS: SETUP INVALIDATED (PRICE BREACHED)")
+                        window.lblSignalExpiry.setStyleSheet("color: #ef4444; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
+                    clear_manual_chart_lines(window)
+                    window.order_proposal_active = False
+                    return
+            except Exception as e_inv:
+                logger.debug(f"[TradingPlan] Invalidation tick check: {e_inv}")
+
         window._signal_expiry_remaining -= 1
         rem = window._signal_expiry_remaining
         if rem > 0:

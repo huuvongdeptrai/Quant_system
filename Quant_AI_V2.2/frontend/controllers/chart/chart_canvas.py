@@ -1346,6 +1346,16 @@ def setup_chart_ui(window):
     else:
         window.shortcut_f5 = getattr(window, "act_ref", None)
 
+    # Phím tắt toàn cục Esc: Hủy các đường vẽ lệnh nháp và thu gọn Trading Plan drawer
+    shortcut_esc = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Escape), window)
+    def _on_escape_pressed():
+        from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+        clear_manual_chart_lines(window)
+        if hasattr(window, "btn_close_plan") and hasattr(window, "frameAIArea") and window.frameAIArea.isVisible():
+            window.btn_close_plan.click()
+    shortcut_esc.activated.connect(_on_escape_pressed)
+    window.shortcut_esc = shortcut_esc
+
     # Add Crosshair lines
     window.vLine = pg.InfiniteLine(
         angle=90, movable=False, pen=pg.mkPen("#475569", style=QtCore.Qt.DashLine)
@@ -1653,7 +1663,15 @@ def setup_chart_ui(window):
         from backend.core.event_bus import event_bus
         if is_live and getattr(window, "live_ticket", None):
             tkt = window.live_ticket
-            cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+            cur_tp = 0.0
+            pos_list = mt5.positions_get(ticket=int(tkt))
+            if pos_list and len(pos_list) > 0:
+                cur_tp = float(pos_list[0].tp)
+            elif (int(tkt), "TP") in getattr(window, "chart_order_lines", {}):
+                cur_tp = float(window.chart_order_lines[(int(tkt), "TP")].value())
+            elif hasattr(window, "line_order_tp") and window.line_order_tp.isVisible():
+                cur_tp = float(window.line_order_tp.value())
+
             res = exec_mgr.modify_position(int(tkt), sl=new_sl, tp=cur_tp)
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss vị thế #{tkt} sang {new_sl:.{digits}f}", "#22c55e")
@@ -1665,7 +1683,15 @@ def setup_chart_ui(window):
         elif is_pending and getattr(window, "pending_ticket", None):
             tkt = window.pending_ticket
             cur_price = window.line_order_entry.value()
-            cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+            cur_tp = 0.0
+            ord_list = mt5.orders_get(ticket=int(tkt))
+            if ord_list and len(ord_list) > 0:
+                cur_tp = float(ord_list[0].tp)
+            elif (int(tkt), "TP") in getattr(window, "chart_order_lines", {}):
+                cur_tp = float(window.chart_order_lines[(int(tkt), "TP")].value())
+            elif hasattr(window, "line_order_tp") and window.line_order_tp.isVisible():
+                cur_tp = float(window.line_order_tp.value())
+
             res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=new_sl, tp=cur_tp)
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss lệnh chờ #{tkt} sang {new_sl:.{digits}f}", "#22c55e")
@@ -1698,7 +1724,15 @@ def setup_chart_ui(window):
         from backend.core.event_bus import event_bus
         if is_live and getattr(window, "live_ticket", None):
             tkt = window.live_ticket
-            cur_sl = window.line_order_sl.value() if (hasattr(window, "line_order_sl") and window.line_order_sl.isVisible()) else 0.0
+            cur_sl = 0.0
+            pos_list = mt5.positions_get(ticket=int(tkt))
+            if pos_list and len(pos_list) > 0:
+                cur_sl = float(pos_list[0].sl)
+            elif (int(tkt), "SL") in getattr(window, "chart_order_lines", {}):
+                cur_sl = float(window.chart_order_lines[(int(tkt), "SL")].value())
+            elif hasattr(window, "line_order_sl") and window.line_order_sl.isVisible():
+                cur_sl = float(window.line_order_sl.value())
+
             res = exec_mgr.modify_position(int(tkt), sl=cur_sl, tp=new_tp)
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit vị thế #{tkt} sang {new_tp:.{digits}f}", "#22c55e")
@@ -1710,7 +1744,15 @@ def setup_chart_ui(window):
         elif is_pending and getattr(window, "pending_ticket", None):
             tkt = window.pending_ticket
             cur_price = window.line_order_entry.value()
-            cur_sl = window.line_order_sl.value() if (hasattr(window, "line_order_sl") and window.line_order_sl.isVisible()) else 0.0
+            cur_sl = 0.0
+            ord_list = mt5.orders_get(ticket=int(tkt))
+            if ord_list and len(ord_list) > 0:
+                cur_sl = float(ord_list[0].sl)
+            elif (int(tkt), "SL") in getattr(window, "chart_order_lines", {}):
+                cur_sl = float(window.chart_order_lines[(int(tkt), "SL")].value())
+            elif hasattr(window, "line_order_sl") and window.line_order_sl.isVisible():
+                cur_sl = float(window.line_order_sl.value())
+
             res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=cur_sl, tp=new_tp)
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit lệnh chờ #{tkt} sang {new_tp:.{digits}f}", "#22c55e")
@@ -1870,9 +1912,10 @@ def setup_chart_ui(window):
         elif not getattr(win, "is_live_position", False):
             win.is_pending_order = False
 
-        def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio, border_color=None):
+        def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio, border_color=None, entry_p=None):
             active_keys.add(key)
             border_c = border_color or color
+            ref_entry = entry_p if entry_p is not None else price
             if key in win.chart_order_lines:
                 line = win.chart_order_lines[key]
                 line.order_ticket = tkt
@@ -1881,6 +1924,7 @@ def setup_chart_ui(window):
                 line.order_action = action_str
                 line.order_vol = vol
                 line.order_symbol = clean_sym
+                line.order_entry_price = ref_entry
                 if not getattr(line, "is_dragging", False):
                     line.setValue(price)
                     line.setPen(pg.mkPen(color=color, width=1.2, style=style))
@@ -1917,10 +1961,44 @@ def setup_chart_ui(window):
                 line.order_action = action_str
                 line.order_vol = vol
                 line.order_symbol = clean_sym
+                line.order_entry_price = ref_entry
                 line.is_dragging = False
 
                 def _on_drag_change(*args, l_ref=line):
                     l_ref.is_dragging = True
+                    try:
+                        cur_v = float(l_ref.value())
+                        ref_e = getattr(l_ref, "order_entry_price", cur_v)
+                        t_type = getattr(l_ref, "order_type", "")
+                        v_lots = getattr(l_ref, "order_vol", 0.01)
+                        s_tkt = str(getattr(l_ref, "order_ticket", ""))[-4:]
+                        act = getattr(l_ref, "order_action", "buy").lower()
+                        is_b = ("buy" in act)
+
+                        sym_info_loc = mt5.symbol_info(clean_sym)
+                        dig_loc = sym_info_loc.digits if sym_info_loc else digits
+                        pt_loc = sym_info_loc.point if sym_info_loc and sym_info_loc.point > 0 else 0.01
+                        pip_unit_loc = pt_loc * 10.0 if ("JPY" in clean_sym or "XAU" in clean_sym or dig_loc in (3, 5)) else pt_loc
+
+                        from frontend.controllers.chart.trading_plan_panel import get_symbol_multiplier
+                        mult_loc = get_symbol_multiplier(clean_sym, sym_info_loc)
+
+                        if t_type in ("SL", "TP"):
+                            pips_diff = (cur_v - ref_e) / pip_unit_loc if is_b else (ref_e - cur_v) / pip_unit_loc
+                            dlr_pnl = ((cur_v - ref_e) if is_b else (ref_e - cur_v)) * mult_loc * v_lots
+                            sign_pnl = f"+${dlr_pnl:,.2f}" if dlr_pnl >= 0 else f"-${abs(dlr_pnl):,.2f}"
+                            hud_text = f"{t_type} #{s_tkt} | {sign_pnl} ({pips_diff:+.1f} pips) @ {cur_v:.{dig_loc}f}"
+                            if hasattr(l_ref, "label") and l_ref.label:
+                                l_ref.label.setFormat(hud_text)
+                                l_ref.label.setColor("#38bdf8" if dlr_pnl >= 0 else "#f87171")
+                        elif t_type == "ENTRY":
+                            diff_pts = (cur_v - ref_e) / pt_loc if pt_loc > 0 else 0.0
+                            hud_text = f"ENTRY #{s_tkt} | {cur_v:.{dig_loc}f} ({diff_pts:+.0f} pts)"
+                            if hasattr(l_ref, "label") and l_ref.label:
+                                l_ref.label.setFormat(hud_text)
+                                l_ref.label.setColor("#38bdf8")
+                    except Exception as e_drag:
+                        logger.debug(f"[ChartCanvas] Drag HUD calculation error: {e_drag}")
 
                 def _on_drag_finish(*args, l_ref=line):
                     l_ref.is_dragging = False
@@ -1940,6 +2018,37 @@ def setup_chart_ui(window):
             sl = float(p.sl)
             tp = float(p.tp)
             is_buy = (p.type == 0)
+
+            # Live Trailing Stop Engine Execution
+            if hasattr(win, "_active_trailing_stops") and tkt in win._active_trailing_stops:
+                try:
+                    pts_trail = win._active_trailing_stops[tkt]
+                    pt_val = info.point if info and info.point > 0 else 0.01
+                    trail_dist = pts_trail * pt_val
+                    cur_market_p = float(getattr(p, "price_current", open_p))
+                    if is_buy:
+                        target_sl = round(cur_market_p - trail_dist, digits)
+                        if target_sl > open_p and (sl <= 0.00001 or target_sl > sl + (5 * pt_val)):
+                            exec_mgr = getattr(getattr(win, "quant_terminal", None), "exec_mgr", None)
+                            if not exec_mgr:
+                                from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                                exec_mgr = ExecutionManager(slippage=20)
+                            res_tr = exec_mgr.modify_position(tkt, sl=target_sl, tp=tp)
+                            if res_tr and res_tr.get("status") == "success":
+                                sl = target_sl
+                    else:
+                        target_sl = round(cur_market_p + trail_dist, digits)
+                        if target_sl < open_p and (sl <= 0.00001 or target_sl < sl - (5 * pt_val)):
+                            exec_mgr = getattr(getattr(win, "quant_terminal", None), "exec_mgr", None)
+                            if not exec_mgr:
+                                from backend.infrastructure.brokers.execution_manager import ExecutionManager
+                                exec_mgr = ExecutionManager(slippage=20)
+                            res_tr = exec_mgr.modify_position(tkt, sl=target_sl, tp=tp)
+                            if res_tr and res_tr.get("status") == "success":
+                                sl = target_sl
+                except Exception as e_tr:
+                    logger.debug(f"[ChartCanvas] Trailing Stop update error: {e_tr}")
+
             act_name = "buy" if is_buy else "sell"
             dir_c = bull_color if is_buy else bear_color
             short_tkt = str(tkt)[-4:]
@@ -1958,7 +2067,8 @@ def setup_chart_ui(window):
                 action_str=act_name,
                 vol=vol,
                 pos_ratio=0.92,
-                border_color=dir_c
+                border_color=dir_c,
+                entry_p=open_p
             )
 
             # Position SL Line (dashed, movable)
@@ -1976,7 +2086,8 @@ def setup_chart_ui(window):
                     action_str=act_name,
                     vol=vol,
                     pos_ratio=0.84,
-                    border_color=bear_color
+                    border_color=bear_color,
+                    entry_p=open_p
                 )
 
             # Position TP Line (dashed, movable)
@@ -1994,7 +2105,8 @@ def setup_chart_ui(window):
                     action_str=act_name,
                     vol=vol,
                     pos_ratio=0.76,
-                    border_color=bull_color
+                    border_color=bull_color,
+                    entry_p=open_p
                 )
 
         # 2. Process Pending Orders (Uniform DashLine, Pinned to Right Margin)
@@ -2033,7 +2145,8 @@ def setup_chart_ui(window):
                 action_str=act_name,
                 vol=vol,
                 pos_ratio=0.92,
-                border_color=dir_c
+                border_color=dir_c,
+                entry_p=open_p
             )
 
             # Pending SL Line (dashed, movable)
@@ -2051,7 +2164,8 @@ def setup_chart_ui(window):
                     action_str=act_name,
                     vol=vol,
                     pos_ratio=0.84,
-                    border_color=bear_color
+                    border_color=bear_color,
+                    entry_p=open_p
                 )
 
             # Pending TP Line (dashed, movable)
@@ -2069,7 +2183,8 @@ def setup_chart_ui(window):
                     action_str=act_name,
                     vol=vol,
                     pos_ratio=0.76,
-                    border_color=bull_color
+                    border_color=bull_color,
+                    entry_p=open_p
                 )
 
         # 3. Clean up lines whose orders are no longer active in MT5
@@ -2847,12 +2962,22 @@ def setup_chart_ui(window):
                 # 3. Trailing Stop Submenu (MT5 Standard)
                 m_trailing = order_menu.addMenu("Trailing Stop")
                 m_trailing.setStyleSheet(menu_style)
-                m_trailing.addAction("None")
+                act_none = m_trailing.addAction("None")
+                def _cancel_trail():
+                    if hasattr(window, "_active_trailing_stops") and int(tkt) in window._active_trailing_stops:
+                        del window._active_trailing_stops[int(tkt)]
+                    from backend.core.event_bus import event_bus
+                    event_bus.log_event.emit("", "INFO", f"Đã hủy Trailing Stop cho #{tkt}", "#64748b")
+                act_none.triggered.connect(_cancel_trail)
+
                 for pts in [15, 20, 30, 50, 100]:
                     act_p = m_trailing.addAction(f"{pts} Points")
                     def _set_trail(p=pts):
+                        if not hasattr(window, "_active_trailing_stops"):
+                            window._active_trailing_stops = {}
+                        window._active_trailing_stops[int(tkt)] = p
                         from backend.core.event_bus import event_bus
-                        event_bus.log_event.emit("", "INFO", f"Đã đặt Trailing Stop {p} points cho #{tkt}", "#38bdf8")
+                        event_bus.log_event.emit("", "SUCCESS", f"Đã kích hoạt Trailing Stop {p} points cho #{tkt}", "#38bdf8")
                     act_p.triggered.connect(_set_trail)
 
                 if is_live:
@@ -2865,11 +2990,23 @@ def setup_chart_ui(window):
                         if not exec_mgr:
                             from backend.infrastructure.brokers.execution_manager import ExecutionManager
                             exec_mgr = ExecutionManager(slippage=20)
-                        cur_tp = window.line_order_tp.value() if (hasattr(window, "line_order_tp") and window.line_order_tp.isVisible()) else 0.0
+
+                        # Query existing position details from MT5 or cache to preserve take profit
+                        cur_tp = 0.0
+                        pos_list = mt5.positions_get(ticket=int(tkt))
+                        if pos_list and len(pos_list) > 0:
+                            cur_tp = float(pos_list[0].tp)
+                        elif hasattr(window, "chart_order_lines") and (int(tkt), "TP") in window.chart_order_lines:
+                            cur_tp = float(window.chart_order_lines[(int(tkt), "TP")].value())
+                        elif hasattr(window, "line_order_tp") and window.line_order_tp.isVisible():
+                            cur_tp = float(window.line_order_tp.value())
+
                         res = exec_mgr.modify_position(int(tkt), sl=ord_price, tp=cur_tp)
                         from backend.core.event_bus import event_bus
                         if res and res.get("status") == "success":
                             event_bus.log_event.emit("", "SUCCESS", f"Đã dời SL vị thế #{tkt} về hòa vốn {ord_price:.{digits}f}", "#22c55e")
+                            if hasattr(window, "chart_order_lines") and (int(tkt), "SL") in window.chart_order_lines:
+                                window.chart_order_lines[(int(tkt), "SL")].setValue(ord_price)
                             if hasattr(window, "line_order_sl") and window.line_order_sl:
                                 window.line_order_sl.setValue(ord_price)
                             if hasattr(window, "refresh_active_orders"):
@@ -2992,10 +3129,11 @@ def setup_chart_ui(window):
             m_trading.addSeparator()
             act_new_order = m_trading.addAction("New Order Ticket...     F9")
             def _do_open_new_order_ticket(target_p):
-                if hasattr(window, "btn_edge_plan"):
-                    _open_ai_drawer()
-                if hasattr(window, "tabTradingPlan") and window.tabTradingPlan:
-                    window.tabTradingPlan.setCurrentIndex(1)
+                _open_ai_drawer()
+                if hasattr(window, "_switch_plan_mode"):
+                    window._switch_plan_mode("manual")
+                elif hasattr(window, "btnPlanModeManual") and window.btnPlanModeManual:
+                    window.btnPlanModeManual.click()
                 if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
                     window.spinManualPendingPrice.setValue(target_p)
             act_new_order.triggered.connect(lambda chk=False, p=click_p: _do_open_new_order_ticket(p))

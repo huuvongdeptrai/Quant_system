@@ -542,3 +542,174 @@ def test_order_modify_switches_to_manual_copilot(qapp):
         assert kwargs["tp"] == 4120.000
 
 
+
+
+def test_move_sl_to_breakeven_preserves_existing_take_profit(qapp):
+    """
+    Verifies that choosing 'Move SL to Breakeven' from chart context menu
+    preserves the position's existing TP target from MT5 instead of wiping it to 0.0.
+    """
+    win = _create_mock_window()
+    pos = MagicMock(
+        ticket=123456,
+        symbol="XAUUSD",
+        type=0,  # BUY
+        volume=1.0,
+        price_open=4100.0,
+        price_current=4120.0,
+        sl=4080.0,
+        tp=4150.0  # Existing TP target
+    )
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.modify_position.return_value = {"status": "success", "ticket": 123456}
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[pos]),          patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[]),          patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)),          patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        win.sync_chart_orders()
+        assert (123456, "ENTRY") in win.chart_order_lines
+
+        # Trigger right-click on the order line to open menu
+        with patch.object(win.plot_widget, "mapToScene", return_value=MagicMock(y=lambda: 200.0)),              patch.object(win.plot_widget.plotItem.vb, "mapViewToScene", return_value=MagicMock(y=lambda: 200.0)):
+            with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+                mock_menu_inst = MagicMock()
+                actions_map = {}
+                def fake_add_action(text):
+                    act = MagicMock()
+                    act.text = lambda: text
+                    actions_map[text] = act
+                    return act
+                mock_menu_inst.addAction.side_effect = fake_add_action
+                mock_menu_inst.addMenu.return_value = MagicMock()
+                MockMenu.return_value = mock_menu_inst
+
+                win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+
+                assert "Move SL to Breakeven" in actions_map
+                be_action = actions_map["Move SL to Breakeven"]
+                connect_args = be_action.triggered.connect.call_args[0]
+                handler = connect_args[0]
+                handler()
+
+        # VERIFY: modify_position was called with entry price as SL and 4150.0 as TP (PRESERVED!)
+        assert mock_exec_mgr.modify_position.called
+        call_args = mock_exec_mgr.modify_position.call_args
+        assert call_args[0][0] == 123456
+        assert call_args[1]["sl"] == 4100.0
+        assert call_args[1]["tp"] == 4150.0  # CRITICAL: TP must NOT be 0.0!
+
+
+def test_trailing_stop_activation_and_execution(qapp):
+    """
+    Verifies that choosing 'Trailing Stop -> 20 Points' records active trailing stop
+    and sync_chart_orders automatically steps the SL forward on MT5 when in profit.
+    """
+    win = _create_mock_window()
+    pos = MagicMock(
+        ticket=654321,
+        symbol="XAUUSD",
+        type=0,  # BUY
+        volume=1.0,
+        price_open=4100.0,
+        price_current=4130.0,  # +30.0 points in profit
+        sl=4080.0,
+        tp=4180.0
+    )
+    mock_sym_info = MagicMock(digits=2, point=0.01)
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.modify_position.return_value = {"status": "success", "ticket": 654321}
+
+    # Simulate activating 20 points trailing stop
+    win._active_trailing_stops = {654321: 20}
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[pos]),          patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[]),          patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info),          patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)),          patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        win.sync_chart_orders()
+
+        # VERIFY: SL was stepped forward: 4130.0 - (20 * 0.01) = 4129.80
+        assert mock_exec_mgr.modify_position.called
+        call_args = mock_exec_mgr.modify_position.call_args
+        assert call_args[0][0] == 654321
+        assert abs(call_args[1]["sl"] - 4129.80) < 1e-2
+
+
+def test_margin_adequacy_pre_check_blocks_insufficient_margin(qapp):
+    """
+    Verifies that evaluate_manual_compliance blocks execution when required margin
+    exceeds available free margin, protecting trader from MT5 retcode 10019.
+    """
+    from frontend.controllers.chart.trading_plan_panel import evaluate_manual_compliance, setup_trading_plan_cards
+
+    win = _create_mock_window()
+    win.frameAIArea = QFrame()
+    win.layoutAIArea = QVBoxLayout(win.frameAIArea)
+    setup_trading_plan_cards(win, is_dark=True)
+
+    # Set lot to a large volume (e.g. 50 lots) with matching valid entry price
+    win._last_manual_entry = 4120.0
+    win._last_manual_ask = 4120.0
+    win._last_manual_bid = 4119.5
+    win.spinManualSL.setRange(0.0, 1000000.0)
+    win.spinManualTP.setRange(0.0, 1000000.0)
+    win.spinManualLot.setValue(50.0)
+    win.spinManualSL.setValue(4090.0)
+    win.spinManualTP.setValue(4150.0)
+    win._manual_direction = "BUY"
+
+    mock_acc = MagicMock(
+        balance=5000.0,
+        equity=5000.0,
+        margin_free=2000.0,
+        leverage=100
+    )
+    mock_tick = MagicMock(ask=4120.0, bid=4119.5)
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.account_info", return_value=mock_acc), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.order_calc_margin", return_value=205000.0):
+        passed, checks, block_reason = evaluate_manual_compliance(win, "XAUUSD")
+        assert passed is False
+        assert "INSUFFICIENT MARGIN" in block_reason
+        assert checks["margin"]["passed"] is False
+
+
+def test_ai_signal_price_action_invalidation_gate(qapp):
+    """
+    Verifies that when market price breaches the SL level of an active proposal,
+    the countdown timer stops and marks the setup as INVALIDATED immediately.
+    """
+    from frontend.controllers.chart.trading_plan_panel import start_signal_expiry_countdown
+
+    win = _create_mock_window()
+    win.line_order_entry = MagicMock()
+    win.line_order_entry.value.return_value = 4120.0
+    win.line_order_entry.isVisible.return_value = True
+
+    win.line_order_sl = MagicMock()
+    win.line_order_sl.value.return_value = 4100.0  # Buy setup SL at 4100
+    win.line_order_sl.isVisible.return_value = True
+
+    win.line_order_tp = MagicMock()
+    win.line_order_tp.value.return_value = 4150.0
+    win.line_order_tp.isVisible.return_value = True
+
+    win.btnApproveOrder = MagicMock()
+    win.lblSignalExpiry = MagicMock()
+    win.lblGateExpiryTime = MagicMock()
+    win.barSignalExpiry = MagicMock()
+    win._plan_mode = "ai"
+
+    # Start countdown
+    start_signal_expiry_countdown(win, duration_sec=60)
+    timer = win._signal_expiry_timer
+
+    # Market price crashes to 4095.0 (below SL of 4100.0)
+    mock_tick = MagicMock(bid=4095.0, ask=4095.5)
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick),          patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)):
+
+        # Trigger timer tick
+        timer.timeout.emit()
+
+        # VERIFY: Invalidation triggered!
+        assert win.btnApproveOrder.setEnabled.called
+        assert win.btnApproveOrder.setEnabled.call_args[0][0] is False
+        assert win.btnApproveOrder.setText.call_args[0][0] == "INVALIDATED"

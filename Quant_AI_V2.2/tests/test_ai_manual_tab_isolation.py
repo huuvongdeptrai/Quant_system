@@ -17,7 +17,7 @@ from frontend.controllers.chart.trading_plan_panel import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def qapp():
     app = QApplication.instance()
     if not app:

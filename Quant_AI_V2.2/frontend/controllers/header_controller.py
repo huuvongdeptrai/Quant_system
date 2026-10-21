@@ -892,7 +892,7 @@ class WorkspaceHeaderController:
                     self.window.mainSplitter.setSizes([260, max(100, total_w - 260)])
 
     def _toggle_trading_plan(self):
-        """Ctrl+T / F9: Toggles Toolbox / Trading Plan panel."""
+        """Ctrl+T: Toggles Toolbox / Trading Plan panel."""
         if hasattr(self.window, "frameAIArea"):
             if self.window.frameAIArea.isVisible():
                 if hasattr(self.window, "btn_close_plan") and self.window.btn_close_plan:
@@ -906,6 +906,19 @@ class WorkspaceHeaderController:
                     self.window.btn_edge_plan.click()
                 else:
                     self.window.frameAIArea.setVisible(True)
+
+    def _open_new_order_ticket(self):
+        """F9: Opens New Order Ticket directly in Manual Quant Copilot mode."""
+        if hasattr(self.window, "frameAIArea"):
+            if not self.window.frameAIArea.isVisible():
+                if hasattr(self.window, "btn_edge_plan") and self.window.btn_edge_plan:
+                    self.window.btn_edge_plan.click()
+                else:
+                    self.window.frameAIArea.setVisible(True)
+        if hasattr(self.window, "_switch_plan_mode"):
+            self.window._switch_plan_mode("manual")
+        elif hasattr(self.window, "btnPlanModeManual") and self.window.btnPlanModeManual:
+            self.window.btnPlanModeManual.click()
 
     def _toggle_blotter_dock(self):
         """Ctrl+B: Toggles Trade Blotter dock collapse / expand."""
@@ -1640,7 +1653,7 @@ class WorkspaceHeaderController:
         m_tools.setStyleSheet(style_menu)
         self.menu_tools = m_tools
 
-        act_order = _reg_action(m_tools, "New Order", "F9", self._toggle_trading_plan)
+        act_order = _reg_action(m_tools, "New Order", "F9", self._open_new_order_ticket)
         act_strat = _reg_action(m_tools, "Strategy Manager...", "Ctrl+Shift+S", self._open_strategy_manager_dialog)
         m_tools.addAction(act_bt)
         act_kill = _reg_action(m_tools, "Close All Positions", "Ctrl+Shift+K", self._trigger_kill_switch)
