@@ -2251,6 +2251,45 @@ def setup_chart_ui(window):
                             logger.debug(f"[ChartCanvas] Line remove error: {err}")
 
     def _on_modify():
+        ticket = getattr(window, "live_ticket", None) or getattr(window, "pending_ticket", None)
+        is_pos = getattr(window, "is_live_position", False)
+        is_pend = getattr(window, "is_pending_order", False)
+
+        # For live positions or pending orders, switch to MANUAL ORDER copilot prefilled
+        if is_pos or is_pend:
+            from frontend.controllers.chart.trading_plan_panel import populate_manual_order_for_modification
+            if ticket:
+                if is_pos:
+                    p_pos = mt5.positions_get(ticket=int(ticket))
+                    if p_pos and len(p_pos) > 0:
+                        ps = p_pos[0]
+                        act = "BUY" if ps.type == 0 else "SELL"
+                        populate_manual_order_for_modification(
+                            window, ticket, act, float(ps.volume), float(ps.price_open),
+                            sl=float(ps.sl), tp=float(ps.tp), is_position=True
+                        )
+                        return
+                else:
+                    p_ord = mt5.orders_get(ticket=int(ticket))
+                    if p_ord and len(p_ord) > 0:
+                        po = p_ord[0]
+                        act = "BUY LIMIT" if po.type == mt5.ORDER_TYPE_BUY_LIMIT else (
+                            "SELL LIMIT" if po.type == mt5.ORDER_TYPE_SELL_LIMIT else (
+                                "BUY STOP" if po.type == mt5.ORDER_TYPE_BUY_STOP else "SELL STOP"
+                            )
+                        )
+                        populate_manual_order_for_modification(
+                            window, ticket, act, float(po.volume_initial or po.volume_current), float(po.price_open),
+                            sl=float(po.sl), tp=float(po.tp), is_position=False
+                        )
+                        return
+            if hasattr(window, "_switch_plan_mode"):
+                window._switch_plan_mode("manual")
+            elif hasattr(window, "btnPlanModeManual"):
+                window.btnPlanModeManual.click()
+            return
+
+        # Draft unapproved AI proposal adjustment
         if hasattr(window, "line_order_entry"):
             window.line_order_entry.setMovable(True)
         if hasattr(window, "line_order_sl"):
@@ -2718,15 +2757,33 @@ def setup_chart_ui(window):
                 order_menu = QMenu(window.plot_widget)
                 order_menu.setStyleSheet(menu_style)
 
-                # 1. Modify Item (Opens Trading Plan drawer prefilled)
+                # 1. Modify Item (Opens Trading Plan drawer prefilled in MANUAL ORDER mode)
                 modify_label = f"Modify #{tkt} {ord_type_name} {ord_vol:<5.2f}    {ord_price:.{digits}f}"
                 act_modify = order_menu.addAction(modify_label)
                 def _do_modify_order():
-                    _open_ai_drawer()
-                    if hasattr(window, "tabTradingPlan") and window.tabTradingPlan:
-                        window.tabTradingPlan.setCurrentIndex(1)
-                    if is_pending and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
-                        window.spinManualPendingPrice.setValue(ord_price)
+                    from frontend.controllers.chart.trading_plan_panel import populate_manual_order_for_modification
+                    mod_sl = 0.0
+                    mod_tp = 0.0
+                    if is_pending:
+                        p_orders = mt5.orders_get(ticket=int(tkt))
+                        if p_orders and len(p_orders) > 0:
+                            mod_sl = float(p_orders[0].sl)
+                            mod_tp = float(p_orders[0].tp)
+                    else:
+                        p_pos = mt5.positions_get(ticket=int(tkt))
+                        if p_pos and len(p_pos) > 0:
+                            mod_sl = float(p_pos[0].sl)
+                            mod_tp = float(p_pos[0].tp)
+                    populate_manual_order_for_modification(
+                        window=window,
+                        ticket=tkt,
+                        order_type_str=ord_type_name,
+                        volume=ord_vol,
+                        price=ord_price,
+                        sl=mod_sl,
+                        tp=mod_tp,
+                        is_position=is_live
+                    )
                 act_modify.triggered.connect(_do_modify_order)
 
                 # 2. Delete / Close Item (Identical to MT5 Image 2)

@@ -447,3 +447,98 @@ def test_multi_order_on_chart_synchronization_and_interaction(qapp):
         assert (284858911, "ENTRY") in win.chart_order_lines
         assert (284859200, "ENTRY") in win.chart_order_lines
 
+
+def test_order_modify_switches_to_manual_copilot(qapp):
+    """
+    Verifies that selecting 'Modify #...' from on-chart context menu or clicking MODIFY in Card 2
+    switches the Trading Plan directly to the MANUAL ORDER copilot (not AI Strategy),
+    prepopulates ticket, volume, direction, price, SL, TP, and binds the execution gate.
+    """
+    from frontend.controllers.chart.trading_plan_panel import setup_trading_plan_cards
+
+    win = _create_mock_window()
+    win.frameAIArea = QFrame()
+    win.layoutAIArea = QVBoxLayout(win.frameAIArea)
+    setup_trading_plan_cards(win, is_dark=True)
+
+    mock_sym_info = MagicMock(digits=3, point=0.001)
+    order = MagicMock(
+        ticket=284886853,
+        symbol="XAUUSD",
+        type=3,  # ORDER_TYPE_SELL_LIMIT
+        volume_initial=3.30,
+        volume_current=3.30,
+        price_open=4139.644,
+        sl=4149.000,
+        tp=4120.000
+    )
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.modify_pending_order.return_value = {"status": "success", "ticket": 284886853}
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[order]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr):
+
+        # Sync order line to chart
+        win.sync_chart_orders()
+        assert (284886853, "ENTRY") in win.chart_order_lines
+
+        # Trigger right-click on the order line to open menu
+        with patch.object(win.plot_widget, "mapToScene", return_value=MagicMock(y=lambda: 200.0)), \
+             patch.object(win.plot_widget.plotItem.vb, "mapViewToScene", return_value=MagicMock(y=lambda: 200.0)):
+            with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+                mock_menu_inst = MagicMock()
+                actions_map = {}
+                def fake_add_action(text):
+                    act = MagicMock()
+                    act.text = lambda: text
+                    actions_map[text] = act
+                    return act
+                mock_menu_inst.addAction.side_effect = fake_add_action
+                mock_menu_inst.addMenu.return_value = MagicMock()
+                MockMenu.return_value = mock_menu_inst
+
+                win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+
+                # Find the Modify action
+                modify_act_text = [t for t in actions_map.keys() if "Modify #284886853" in t][0]
+                modify_action = actions_map[modify_act_text]
+
+                # Trigger the modify action
+                connect_args = modify_action.triggered.connect.call_args[0]
+                handler = connect_args[0]
+                handler()
+
+        # VERIFY: Drawer is switched to MANUAL ORDER (not AI Strategy!)
+        assert win._plan_mode == "manual"
+        assert win.containerPlanManual.isVisible() is True
+        assert win.containerPlanAI.isVisible() is False
+
+        # VERIFY: Prefilled values
+        assert win._modifying_ticket == 284886853
+        assert win._modifying_is_position is False
+        assert win._manual_direction == "SELL"
+        assert win.spinManualLot.value() == 3.30
+        assert abs(win.spinManualPendingPrice.value() - 4139.644) < 1e-3
+        assert abs(win.spinManualSL.value() - 4149.000) < 1e-3
+        assert abs(win.spinManualTP.value() - 4120.000) < 1e-3
+
+        # VERIFY: Execution button binds to modification
+        assert win.btnManualExecute.text() == "MODIFY ORDER #284886853"
+        assert "ORDER MODIFICATION (#284886853)" in win.lblManualGateTitle.text()
+
+        # Test executing the modification
+        from frontend.controllers.chart.trading_plan_panel import execute_manual_quant_order
+        execute_manual_quant_order(win)
+
+        assert mock_exec_mgr.modify_pending_order.called
+        kwargs = mock_exec_mgr.modify_pending_order.call_args[1]
+        assert mock_exec_mgr.modify_pending_order.call_args[0][0] == 284886853
+        assert kwargs["price"] == 4139.644
+        assert kwargs["sl"] == 4149.000
+        assert kwargs["tp"] == 4120.000
+
+

@@ -1687,12 +1687,20 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         if row_lbl:
             row_lbl.setToolTip(c_info.get("msg", ""))
 
-    # Update execute button with exact price: BUY 0.19 LOTS @ 2650.50
+    # Update execute button with exact price or modification target
     dir_str = getattr(window, "_manual_direction", "BUY")
     order_type_str = getattr(window, "_manual_order_type", "MARKET")
     action_label = order_type_str if order_type_str != "MARKET" else dir_str
+    mod_ticket = getattr(window, "_modifying_ticket", None)
+    is_mod_pos = getattr(window, "_modifying_is_position", False)
+
     if hasattr(window, "btnManualExecute") and window.btnManualExecute:
-        if passed:
+        if mod_ticket:
+            action_verb = "UPDATE SL/TP" if is_mod_pos else "MODIFY ORDER"
+            window.btnManualExecute.setEnabled(True)
+            window.btnManualExecute.setText(f"{action_verb} #{mod_ticket}")
+            window.btnManualExecute.setToolTip(f"Commit modification for MT5 #{mod_ticket}")
+        elif passed:
             window.btnManualExecute.setEnabled(True)
             window.btnManualExecute.setText(f"{action_label} {lot:.2f} LOTS @ {entry_p:.{digits}f}")
             window.btnManualExecute.setToolTip(f"Send institutional {action_label} order with {risk_pct}% risk")
@@ -1704,8 +1712,8 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         window.btnManualExecute.style().unpolish(window.btnManualExecute)
         window.btnManualExecute.style().polish(window.btnManualExecute)
 
-    # Also update chart lines
-    if getattr(window, "_show_manual_preview", True):
+    # Also update chart lines (suppress manual preview lines when modifying an existing broker ticket)
+    if getattr(window, "_show_manual_preview", True) and not getattr(window, "_modifying_ticket", None):
         _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
     else:
         clear_manual_chart_lines(window)
@@ -1946,6 +1954,98 @@ def sync_live_position_to_ai_plan(window):
         logger.debug(f"[sync_live_position_to_ai_plan] Error: {e}")
 
 
+def populate_manual_order_for_modification(window, ticket, order_type_str, volume, price, sl=0.0, tp=0.0, is_position=False):
+    """
+    Prefills the Manual Order Copilot to modify an existing MT5 broker order or position.
+    Seamlessly switches drawer to MANUAL ORDER mode, binds modification state, and configures spinboxes.
+    """
+    if not hasattr(window, "containerPlanManual"):
+        return
+
+    # 1. Switch to Manual Order tab
+    if hasattr(window, "_switch_plan_mode"):
+        window._switch_plan_mode("manual")
+    elif hasattr(window, "btnPlanModeManual"):
+        window.btnPlanModeManual.click()
+
+    # 2. Bind modification ticket
+    window._modifying_ticket = int(ticket)
+    window._modifying_is_position = bool(is_position)
+
+    # 3. Direction
+    is_buy = ("BUY" in str(order_type_str).upper())
+    window._manual_direction = "BUY" if is_buy else "SELL"
+    if hasattr(window, "btnManualBuy") and window.btnManualBuy:
+        window.btnManualBuy.setProperty("selected", "true" if is_buy else "false")
+        window.btnManualBuy.style().unpolish(window.btnManualBuy)
+        window.btnManualBuy.style().polish(window.btnManualBuy)
+    if hasattr(window, "btnManualSell") and window.btnManualSell:
+        window.btnManualSell.setProperty("selected", "true" if not is_buy else "false")
+        window.btnManualSell.style().unpolish(window.btnManualSell)
+        window.btnManualSell.style().polish(window.btnManualSell)
+
+    # 4. Order Type
+    clean_type = str(order_type_str).upper().replace("_", " ").strip()
+    if is_position:
+        clean_type = "MARKET"
+    window._manual_order_type = clean_type
+    if hasattr(window, "comboManualOrderType") and window.comboManualOrderType:
+        idx = window.comboManualOrderType.findText(clean_type)
+        if idx >= 0:
+            window.comboManualOrderType.blockSignals(True)
+            window.comboManualOrderType.setCurrentIndex(idx)
+            window.comboManualOrderType.blockSignals(False)
+
+    # 5. Pending Price
+    clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
+    info = mt5.symbol_info(clean_sym)
+    digits = info.digits if info else (2 if price > 10 else 5)
+    if not is_position and hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+        window.spinManualPendingPrice.blockSignals(True)
+        window.spinManualPendingPrice.setValue(round(float(price), digits))
+        window.spinManualPendingPrice.blockSignals(False)
+
+    # 6. Volume
+    if hasattr(window, "spinManualLot") and window.spinManualLot:
+        window.spinManualLot.blockSignals(True)
+        window.spinManualLot.setValue(round(float(volume), 2))
+        window.spinManualLot.blockSignals(False)
+        window._user_custom_lot = True
+
+    # 7. SL and TP
+    if hasattr(window, "spinManualSL") and window.spinManualSL:
+        window.spinManualSL.blockSignals(True)
+        window.spinManualSL.setValue(round(float(sl), digits) if sl and float(sl) > 0 else 0.0)
+        window.spinManualSL.blockSignals(False)
+
+    if hasattr(window, "spinManualTP") and window.spinManualTP:
+        window.spinManualTP.blockSignals(True)
+        window.spinManualTP.setValue(round(float(tp), digits) if tp and float(tp) > 0 else 0.0)
+        window.spinManualTP.blockSignals(False)
+
+    # 8. Execution Button & Gate Title
+    action_verb = "UPDATE SL/TP" if is_position else "MODIFY ORDER"
+    if hasattr(window, "btnManualExecute") and window.btnManualExecute:
+        window.btnManualExecute.setEnabled(True)
+        window.btnManualExecute.setText(f"{action_verb} #{ticket}")
+        window.btnManualExecute.setToolTip(f"Commit modification for MT5 #{ticket}")
+        window.btnManualExecute.setProperty("direction", "BUY" if is_buy else "SELL")
+        window.btnManualExecute.style().unpolish(window.btnManualExecute)
+        window.btnManualExecute.style().polish(window.btnManualExecute)
+
+    if hasattr(window, "lblManualGateTitle") and window.lblManualGateTitle:
+        window.lblManualGateTitle.setText(f"ORDER MODIFICATION (#{ticket})")
+
+    # 9. Recalculate metrics & preview
+    _recalculate_manual_lot_and_rr(window)
+
+    # 10. Open drawer
+    if hasattr(window, "_open_ai_drawer"):
+        window._open_ai_drawer()
+    elif hasattr(window, "frameAIArea") and window.frameAIArea:
+        window.frameAIArea.setVisible(True)
+
+
 def sync_manual_copilot_quotes(window):
     """Syncs live Bid/Ask prices and default SL/TP values for the Manual Quant Copilot."""
     clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
@@ -2099,7 +2199,7 @@ def execute_manual_quant_order(window):
         lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct)
 
     # Orientation verification
-    if (is_buy and sl_p >= entry_p) or (not is_buy and sl_p <= entry_p):
+    if sl_p > 0 and ((is_buy and sl_p >= entry_p) or (not is_buy and sl_p <= entry_p)):
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.critical(
             window,
@@ -2118,6 +2218,53 @@ def execute_manual_quant_order(window):
     from backend.core.event_bus import event_bus
     dir_str = "BUY" if is_buy else "SELL"
 
+    mod_ticket = getattr(window, "_modifying_ticket", None)
+    is_modifying_pos = getattr(window, "_modifying_is_position", False)
+
+    # CASE A: Modifying an existing MT5 broker order or position
+    if mod_ticket:
+        if mt5.terminal_info() is not None:
+            if is_modifying_pos:
+                order_res = exec_mgr.modify_position(
+                    int(mod_ticket),
+                    sl=sl_p,
+                    tp=tp_p
+                )
+            else:
+                pending_price = 0.0
+                if hasattr(window, "spinManualPendingPrice") and window.spinManualPendingPrice:
+                    pending_price = window.spinManualPendingPrice.value()
+                order_res = exec_mgr.modify_pending_order(
+                    int(mod_ticket),
+                    price=pending_price,
+                    sl=sl_p,
+                    tp=tp_p
+                )
+        else:
+            order_res = {"status": "success", "ticket": mod_ticket}
+
+        if order_res and order_res.get("status") == "success":
+            window._modifying_ticket = None
+            window._modifying_is_position = False
+            if hasattr(window, "lblManualGateTitle") and window.lblManualGateTitle:
+                window.lblManualGateTitle.setText("PRE-TRADE COMPLIANCE GATE")
+            if hasattr(window, "btnManualExecute"):
+                window.btnManualExecute.setText(f"MODIFIED #{mod_ticket}")
+                window.btnManualExecute.setEnabled(False)
+                QTimer.singleShot(3000, lambda: _recalculate_manual_lot_and_rr(window))
+            event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật lệnh #{mod_ticket} thành công trên sàn MT5", "#10b981")
+            if hasattr(window, "sync_chart_orders"):
+                window.sync_chart_orders()
+            return
+        else:
+            err_msg = order_res.get("msg", "Error") if order_res else "Failed to modify order"
+            event_bus.log_event.emit("", "ERROR", f"Không thể cập nhật lệnh #{mod_ticket}: {err_msg}", "#ef4444")
+            if hasattr(window, "btnManualExecute"):
+                window.btnManualExecute.setText("RETRY MODIFY")
+                window.btnManualExecute.setEnabled(True)
+            return
+
+    # CASE B: Standard New Order Execution
     order_res = None
     _order_type_str = getattr(window, "_manual_order_type", "MARKET")
 
@@ -3053,6 +3200,11 @@ def setup_trading_plan_cards(window, is_dark=False):
                     pass
             sync_manual_copilot_quotes(window)
         else:
+            # Clear modification state when switching back to AI Strategy
+            window._modifying_ticket = None
+            window._modifying_is_position = False
+            if hasattr(window, "lblManualGateTitle") and window.lblManualGateTitle:
+                window.lblManualGateTitle.setText("PRE-TRADE COMPLIANCE GATE")
             sync_live_position_to_ai_plan(window)
             clean_curr = getattr(window, "current_sym", "").split("\n")[0].strip()
             sig = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
@@ -3085,6 +3237,7 @@ def setup_trading_plan_cards(window, is_dark=False):
 
     btn_mode_ai.clicked.connect(lambda: _switch_mode("ai"))
     btn_mode_manual.clicked.connect(lambda: _switch_mode("manual"))
+    window._switch_plan_mode = _switch_mode
 
     # Signal wiring: Direction toggles
     def _set_dir(new_d):
@@ -3265,6 +3418,10 @@ def setup_trading_plan_cards(window, is_dark=False):
             clear_manual_chart_lines(window)
 
     def _reset_manual_defaults():
+        window._modifying_ticket = None
+        window._modifying_is_position = False
+        if hasattr(window, "lblManualGateTitle") and window.lblManualGateTitle:
+            window.lblManualGateTitle.setText("PRE-TRADE COMPLIANCE GATE")
         window._show_manual_preview = True
         btn_m_clear_preview.setText("HIDE PREVIEW")
         _apply_atr_preset()
