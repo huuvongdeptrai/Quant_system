@@ -40,6 +40,7 @@ DEFAULTS = {
     "session_ny": True,
     "close_friday": True,
     "headless_mt5": True,
+    "display_timezone": "UTC+7",
     "telegram_bot_token": "",
     "telegram_chat_id": "",
     "alert_fills": True,

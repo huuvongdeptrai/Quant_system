@@ -487,8 +487,55 @@ def setup_chart_ui(window):
     window.btnChartAutoScale = btn_autoscale
     ribbon_layout.addWidget(btn_autoscale)
 
-    lbl_live_badge = QLabel('<span style="color:#22c55e; font-family:Consolas, monospace; font-size:8.5px; font-weight:bold;">LIVE (UTC)</span>')
-    ribbon_layout.addWidget(lbl_live_badge)
+    from backend.core.timezone_manager import timezone_manager, SUPPORTED_TIMEZONES
+    from PySide6.QtWidgets import QMenu
+    from PySide6.QtCore import QPoint
+
+    btn_tz = QPushButton(f"{timezone_manager.short_label} ▾")
+    btn_tz.setObjectName("btnChartTimezone")
+    btn_tz.setFixedHeight(18)
+    btn_tz.setCursor(Qt.PointingHandCursor)
+    btn_tz.setToolTip("Chart & Calendar Display Timezone (Click to change)")
+    btn_tz.setStyleSheet(
+        "QPushButton#btnChartTimezone { background-color: transparent; color: #94a3b8; "
+        "border: 1px solid rgba(255, 255, 255, 0.08); font-family: Consolas, monospace; "
+        "font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 5px; min-height: 18px; max-height: 18px; } "
+        "QPushButton#btnChartTimezone:hover { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; }"
+    )
+
+    def _open_tz_menu():
+        menu = QMenu(btn_tz)
+        is_d = getattr(window, "is_dark_theme", False)
+        m_bg = "#101524" if is_d else "#ffffff"
+        m_bdr = "#1e293b" if is_d else "#cbd5e1"
+        m_txt = "#94a3b8" if is_d else "#475569"
+        m_hvr = "#1e293b" if is_d else "#f1f5f9"
+        m_htxt = "#f8fafc" if is_d else "#0f172a"
+        menu.setStyleSheet(f"""
+            QMenu {{ background-color: {m_bg}; border: 1px solid {m_bdr}; border-radius: 2px; padding: 2px; }}
+            QMenu::item {{ color: {m_txt}; font-family: Consolas, monospace; font-size: 9.5px; padding: 4px 16px 4px 10px; }}
+            QMenu::item:selected {{ background-color: {m_hvr}; color: {m_htxt}; }}
+        """)
+        for k, v in SUPPORTED_TIMEZONES.items():
+            prefix = "✓ " if k == timezone_manager.active_key else "   "
+            act = menu.addAction(f"{prefix}{v['menu_text']}")
+            def _make_handler(tz_k):
+                return lambda: _apply_tz(tz_k)
+            act.triggered.connect(_make_handler(k))
+        menu.exec_(btn_tz.mapToGlobal(QPoint(0, btn_tz.height())))
+
+    def _apply_tz(tz_k):
+        timezone_manager.set_active_timezone(tz_k)
+        btn_tz.setText(f"{timezone_manager.short_label} ▾")
+        if hasattr(window, "plot_widget"):
+            b_axis = window.plot_widget.getAxis("bottom")
+            if hasattr(b_axis, "picture"):
+                b_axis.picture = None
+            window.plot_widget.update()
+
+    btn_tz.clicked.connect(_open_tz_menu)
+    ribbon_layout.addWidget(btn_tz)
+    window.btn_chart_tz = btn_tz
 
     # Edge Tab: Trading Plan restore button (appears when Trading Plan is folded)
     btn_edge_plan = QPushButton(" TRADING PLAN")
@@ -513,7 +560,7 @@ def setup_chart_ui(window):
     window.frameChartRibbon = ribbon
     window.lbl_ribbon_left = lbl_ribbon_left
     window.lbl_chart_zoom = lbl_zoom
-    window.lbl_chart_live_badge = lbl_live_badge
+    window.lbl_chart_live_badge = btn_tz
 
     # Vertical Drawing Toolbar (width: 26px) - Institutional Interactive Chart Controls
     toolbar_draw = QFrame()
@@ -1814,7 +1861,7 @@ def setup_chart_ui(window):
 
                     t_val = window.time_axis.timestamps[idx]
 
-                    dt_str = datetime.fromtimestamp(t_val).strftime("%d/%m %H:%M")
+                    dt_str = timezone_manager.format_mt5_ts(t_val)
 
                     data = window.chart_data_list[idx]
 

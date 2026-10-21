@@ -20,11 +20,11 @@ class TimeAxisItem(pg.AxisItem):
 
     def tickStrings(self, values, scale, spacing):
         strings = []
+        from backend.core.timezone_manager import timezone_manager
         for v in values:
             idx = int(v)
             if 0 <= idx < len(self.timestamps):
-                dt = datetime.fromtimestamp(self.timestamps[idx])
-                strings.append(dt.strftime("%d/%m %H:%M"))
+                strings.append(timezone_manager.format_mt5_ts(self.timestamps[idx]))
             else:
                 strings.append("")
         return strings

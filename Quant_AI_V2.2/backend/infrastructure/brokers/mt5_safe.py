@@ -135,6 +135,26 @@ class MT5SafeController:
                 action, symbol, volume, price_open, price_close
             )
 
+    def get_broker_utc_offset(self) -> int:
+        """
+        Calculates broker server UTC offset in seconds (e.g. +7200 for UTC+2 EET).
+        Returns offset such that: broker_time = utc_time + offset.
+        Defaults to +7200 (2h) if disconnected.
+        """
+        try:
+            with self._mt5_lock:
+                from datetime import datetime, timezone
+                for sym in ("XAUUSD", "EURUSD", "GBPUSD", "BTCUSD"):
+                    tick = _mt5.symbol_info_tick(sym)
+                    if tick and getattr(tick, "time", 0) > 0:
+                        utc_now = datetime.now(timezone.utc).timestamp()
+                        diff = tick.time - utc_now
+                        offset_hours = round(diff / 3600.0)
+                        return int(offset_hours * 3600)
+        except Exception as e:
+            logger.debug(f"[MT5Safe] Error determining broker UTC offset: {e}")
+        return 7200
+
 
 
     def _check_headless_mt5(self):

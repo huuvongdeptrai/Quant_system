@@ -84,6 +84,10 @@ class CalendarManager:
         setattr(self.window, "calendar_mgr", self)
         setattr(self.window, "tableEconomicCalendar", self.table)
 
+        # Synchronize with Central Timezone Manager
+        from backend.core.timezone_manager import timezone_manager
+        timezone_manager.add_listener(self._on_timezone_changed)
+
         # 1-second Countdown & Real-time Telemetry Timer
         self._clock_timer = QTimer(self.window)
         self._clock_timer.timeout.connect(self._on_clock_tick)
@@ -714,9 +718,16 @@ class CalendarManager:
 
             text_alpha = "#64748b" if is_past else ("#f8fafc" if is_d else "#0f172a")
 
-            # Col 0: TIME (VN)
-            time_str = e.get("time", "").split(" ")[-1]
-            t.setCellWidget(row, 0, self._cell(time_str, color=text_alpha, bold=True, font="Consolas"))
+            # Col 0: Synchronized Timezone Event Time
+            from backend.core.timezone_manager import timezone_manager
+            sort_key = e.get("sort_key", 0.0)
+            if sort_key > 0:
+                time_str = timezone_manager.format_utc_ts(sort_key, "%H:%M")
+            else:
+                time_str = e.get("time", "").split(" ")[-1]
+            cell_w = self._cell(time_str, color=text_alpha, bold=True, font="Consolas")
+            cell_w.setProperty("sort_key", sort_key)
+            t.setCellWidget(row, 0, cell_w)
 
             # Col 1: CURR
             t.setCellWidget(row, 1, self._country_badge(e.get("country", "US"), is_past=is_past))
@@ -844,7 +855,14 @@ class CalendarManager:
         impact = event.get("impact", 0)
 
         self.lbl_next_event_title.setText(f"{cntry} · {title.upper()}")
-        self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} VN (UTC+7)")
+        from backend.core.timezone_manager import timezone_manager
+        sort_key = event.get("sort_key", 0.0)
+        self._last_next_event_utc = sort_key
+        if sort_key > 0:
+            time_str = timezone_manager.format_utc_ts(sort_key, "%H:%M")
+        else:
+            time_str = event.get("time", "")
+        self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} ({timezone_manager.short_label})")
 
         # Target relevance badge
         curr_sym = self._current_symbol.upper()
@@ -1070,6 +1088,36 @@ class CalendarManager:
             self.frame_protocol.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
         if hasattr(self, "frame_actions") and self.frame_actions:
             self.frame_actions.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
+
+    def _on_timezone_changed(self, tz_key: str):
+        """Synchronizes calendar column header and row time cells when global timezone changes."""
+        try:
+            from backend.core.timezone_manager import timezone_manager
+            if hasattr(self, "table") and self.table:
+                # Update Column 0 Header
+                header_item = self.table.horizontalHeaderItem(0)
+                if header_item:
+                    header_item.setText(timezone_manager.cal_header)
+
+                # Update all rendered rows in Column 0
+                for r in range(self.table.rowCount()):
+                    w = self.table.cellWidget(r, 0)
+                    if w:
+                        sk = w.property("sort_key")
+                        if sk and sk > 0:
+                            lbl = w.findChild(QLabel)
+                            if lbl:
+                                lbl.setText(timezone_manager.format_utc_ts(sk, "%H:%M"))
+                            elif isinstance(w, QLabel):
+                                w.setText(timezone_manager.format_utc_ts(sk, "%H:%M"))
+
+            # Update Scheduled Next Event Label
+            if hasattr(self, "lbl_next_event_time") and hasattr(self, "_last_next_event_utc") and self._last_next_event_utc > 0:
+                time_str = timezone_manager.format_utc_ts(self._last_next_event_utc, "%H:%M")
+                tz_lbl = timezone_manager.short_label
+                self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} ({tz_lbl})")
+        except Exception as e:
+            logger.debug(f"[MacroCalendar] _on_timezone_changed error: {e}")
 
 
 # Backward compatibility alias
