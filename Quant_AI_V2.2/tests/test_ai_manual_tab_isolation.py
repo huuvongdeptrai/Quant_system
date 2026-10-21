@@ -175,7 +175,9 @@ def test_sync_live_position_renders_pending_orders(qapp):
 
     assert win.is_pending_order is True
     assert win.pending_ticket == 998877
-    assert win.line_order_entry.isVisible() is True
+    assert (998877, "ENTRY") in win.chart_order_lines
+    assert win.chart_order_lines[(998877, "ENTRY")].isVisible() is True
+    assert win.line_order_entry.isVisible() is False
     assert win.lblOrderTypeBadge.text() == "PENDING #998877"
 
 

@@ -1352,17 +1352,29 @@ def setup_chart_ui(window):
     )
 
     window.hLine = pg.InfiniteLine(
-        angle=0, movable=False, pen=pg.mkPen("#475569", style=QtCore.Qt.DashLine)
+        angle=0, movable=False, pen=pg.mkPen("#475569", style=QtCore.Qt.DashLine),
+        label="",
+        labelOpts={
+            "color": "#f8fafc",
+            "position": 0.99,
+            "anchors": [(1, 0.5), (1, 0.5)],
+            "fill": (15, 23, 42, 230),
+            "border": "#475569",
+            "movable": False,
+        }
     )
+    if hasattr(window.hLine, "label") and window.hLine.label:
+        window.hLine.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
 
     window.plot_widget.addItem(window.vLine, ignoreBounds=True)
     window.plot_widget.addItem(window.hLine, ignoreBounds=True)
 
-    # Crosshair text label
+    # Crosshair text label (kept hidden; cursor price is pinned to the right Y-axis on hLine)
     window.crosshair_label = pg.TextItem(
         color="#E5E7EB", anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 150)
     )
     window.crosshair_label.setZValue(10)  # ensure it's on top
+    window.crosshair_label.setVisible(False)
     window.plot_widget.addItem(window.crosshair_label, ignoreBounds=True)
 
     # Current price line - 1px dashed institutional silver
@@ -1463,22 +1475,39 @@ def setup_chart_ui(window):
     window.order_proposal_active = False
     window.line_order_entry = pg.InfiniteLine(
         angle=0, movable=False, pos=0.0,
-        pen=pg.mkPen(color="#22c55e", width=1.5, style=QtCore.Qt.DashLine),
+        pen=pg.mkPen(color="#22c55e", width=1.2, style=QtCore.Qt.DashLine),
         label="BUY ORDER: --",
-        labelOpts={"color": "#22c55e", "position": 0.15, "fill": (0, 0, 0, 180)}
+        labelOpts={
+            "color": "#f8fafc", "position": 0.92,
+            "fill": (15, 23, 42, 235), "border": "#22c55e", "movable": False
+        }
     )
+    if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
+        window.line_order_entry.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
+
     window.line_order_sl = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
-        pen=pg.mkPen(color="#ef4444", width=1.5, style=QtCore.Qt.DashLine),
+        pen=pg.mkPen(color="#ef4444", width=1.0, style=QtCore.Qt.DashLine),
         label="STOP LOSS: --",
-        labelOpts={"color": "#ef4444", "position": 0.65, "fill": (0, 0, 0, 180)}
+        labelOpts={
+            "color": "#f8fafc", "position": 0.84,
+            "fill": (15, 23, 42, 235), "border": "#ef4444", "movable": False
+        }
     )
+    if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
+        window.line_order_sl.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
+
     window.line_order_tp = pg.InfiniteLine(
         angle=0, movable=True, pos=0.0,
-        pen=pg.mkPen(color="#22c55e", width=1.5, style=QtCore.Qt.DashLine),
+        pen=pg.mkPen(color="#22c55e", width=1.0, style=QtCore.Qt.DashLine),
         label="TAKE PROFIT: --",
-        labelOpts={"color": "#22c55e", "position": 0.35, "fill": (0, 0, 0, 180)}
+        labelOpts={
+            "color": "#f8fafc", "position": 0.76,
+            "fill": (15, 23, 42, 235), "border": "#22c55e", "movable": False
+        }
     )
+    if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
+        window.line_order_tp.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
 
     def _sync_order_metrics():
         if getattr(window, "_plan_mode", "ai") == "manual":
@@ -1841,8 +1870,9 @@ def setup_chart_ui(window):
         elif not getattr(win, "is_live_position", False):
             win.is_pending_order = False
 
-        def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio):
+        def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio, border_color=None):
             active_keys.add(key)
+            border_c = border_color or color
             if key in win.chart_order_lines:
                 line = win.chart_order_lines[key]
                 line.order_ticket = tkt
@@ -1853,11 +1883,15 @@ def setup_chart_ui(window):
                 line.order_symbol = clean_sym
                 if not getattr(line, "is_dragging", False):
                     line.setValue(price)
-                    line.setPen(pg.mkPen(color=color, width=1.5, style=style))
+                    line.setPen(pg.mkPen(color=color, width=1.2, style=style))
                     line.setMovable(movable)
                     if hasattr(line, "label") and line.label:
                         line.label.setFormat(label_str)
-                        line.label.setColor(color)
+                        line.label.setColor("#f8fafc")
+                        line.label.fill = pg.mkBrush(15, 23, 42, 235)
+                        line.label.border = pg.mkPen(color=border_c, width=1.0)
+                        line.label.setPosition(pos_ratio)
+                        line.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                     if line not in win.plot_widget.items():
                         win.plot_widget.addItem(line, ignoreBounds=True)
             else:
@@ -1865,10 +1899,18 @@ def setup_chart_ui(window):
                     angle=0,
                     movable=movable,
                     pos=price,
-                    pen=pg.mkPen(color=color, width=1.5, style=style),
+                    pen=pg.mkPen(color=color, width=1.2, style=style),
                     label=label_str,
-                    labelOpts={"color": color, "position": pos_ratio, "fill": (15, 23, 42, 210), "movable": False}
+                    labelOpts={
+                        "color": "#f8fafc",
+                        "position": pos_ratio,
+                        "fill": (15, 23, 42, 235),
+                        "border": border_c,
+                        "movable": False
+                    }
                 )
+                if hasattr(line, "label") and line.label:
+                    line.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                 line.order_ticket = tkt
                 line.order_type = l_type
                 line.is_position = is_pos
@@ -1890,7 +1932,7 @@ def setup_chart_ui(window):
                 win.plot_widget.addItem(line, ignoreBounds=True)
                 win.chart_order_lines[key] = line
 
-        # 1. Process Live Positions
+        # 1. Process Live Positions (Solid Line, Pinned to Right Margin)
         for p in positions:
             tkt = int(p.ticket)
             vol = float(p.volume)
@@ -1900,6 +1942,7 @@ def setup_chart_ui(window):
             is_buy = (p.type == 0)
             act_name = "buy" if is_buy else "sell"
             dir_c = bull_color if is_buy else bear_color
+            short_tkt = str(tkt)[-4:]
 
             # Position Entry Line (solid, not movable)
             _upsert_line(
@@ -1907,14 +1950,15 @@ def setup_chart_ui(window):
                 price=open_p,
                 color=dir_c,
                 style=QtCore.Qt.SolidLine,
-                label_str=f"#{tkt} {act_name} {vol:.2f}  {open_p:.{digits}f}",
+                label_str=f"POS #{short_tkt} | {act_name.upper()} {vol:.2f}L @ {open_p:.{digits}f}",
                 movable=False,
                 tkt=tkt,
                 l_type="ENTRY",
                 is_pos=True,
                 action_str=act_name,
                 vol=vol,
-                pos_ratio=0.15
+                pos_ratio=0.92,
+                border_color=dir_c
             )
 
             # Position SL Line (dashed, movable)
@@ -1924,14 +1968,15 @@ def setup_chart_ui(window):
                     price=sl,
                     color=bear_color,
                     style=QtCore.Qt.DashLine,
-                    label_str=f"#{tkt} sl: {sl:.{digits}f}",
+                    label_str=f"SL #{short_tkt} | {sl:.{digits}f}",
                     movable=True,
                     tkt=tkt,
                     l_type="SL",
                     is_pos=True,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.65
+                    pos_ratio=0.84,
+                    border_color=bear_color
                 )
 
             # Position TP Line (dashed, movable)
@@ -1941,17 +1986,18 @@ def setup_chart_ui(window):
                     price=tp,
                     color=bull_color,
                     style=QtCore.Qt.DashLine,
-                    label_str=f"#{tkt} tp: {tp:.{digits}f}",
+                    label_str=f"TP #{short_tkt} | {tp:.{digits}f}",
                     movable=True,
                     tkt=tkt,
                     l_type="TP",
                     is_pos=True,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.35
+                    pos_ratio=0.76,
+                    border_color=bull_color
                 )
 
-        # 2. Process Pending Orders
+        # 2. Process Pending Orders (Uniform DashLine, Pinned to Right Margin)
         for o in pending_orders:
             tkt = int(o.ticket)
             vol = float(o.volume_initial or o.volume_current)
@@ -1971,21 +2017,23 @@ def setup_chart_ui(window):
             else:
                 act_name = "sell stop"
                 dir_c = bear_color
+            short_tkt = str(tkt)[-4:]
 
-            # Pending Entry Line (dash-dot, movable=True!)
+            # Pending Entry Line (Uniform DashLine for all pending orders, movable=True)
             _upsert_line(
                 key=(tkt, "ENTRY"),
                 price=open_p,
                 color=dir_c,
-                style=QtCore.Qt.DashDotLine,
-                label_str=f"#{tkt} {act_name} {vol:.2f}  {open_p:.{digits}f}",
+                style=QtCore.Qt.DashLine,
+                label_str=f"{act_name.upper()} | {vol:.2f}L @ {open_p:.{digits}f} (#{short_tkt})",
                 movable=True,
                 tkt=tkt,
                 l_type="ENTRY",
                 is_pos=False,
                 action_str=act_name,
                 vol=vol,
-                pos_ratio=0.15
+                pos_ratio=0.92,
+                border_color=dir_c
             )
 
             # Pending SL Line (dashed, movable)
@@ -1995,14 +2043,15 @@ def setup_chart_ui(window):
                     price=sl,
                     color=bear_color,
                     style=QtCore.Qt.DashLine,
-                    label_str=f"#{tkt} sl: {sl:.{digits}f}",
+                    label_str=f"SL (#{short_tkt}) | {sl:.{digits}f}",
                     movable=True,
                     tkt=tkt,
                     l_type="SL",
                     is_pos=False,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.65
+                    pos_ratio=0.84,
+                    border_color=bear_color
                 )
 
             # Pending TP Line (dashed, movable)
@@ -2012,14 +2061,15 @@ def setup_chart_ui(window):
                     price=tp,
                     color=bull_color,
                     style=QtCore.Qt.DashLine,
-                    label_str=f"#{tkt} tp: {tp:.{digits}f}",
+                    label_str=f"TP (#{short_tkt}) | {tp:.{digits}f}",
                     movable=True,
                     tkt=tkt,
                     l_type="TP",
                     is_pos=False,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.35
+                    pos_ratio=0.76,
+                    border_color=bull_color
                 )
 
         # 3. Clean up lines whose orders are no longer active in MT5
@@ -2370,12 +2420,10 @@ def setup_chart_ui(window):
                     else:
                         label_y = y
 
-                    window.crosshair_label.setText(f"{y:{fmt}}")
-                    if x > len(window.chart_data_list) - 30:
-                        window.crosshair_label.setAnchor((1, 1))
-                    else:
-                        window.crosshair_label.setAnchor((0, 1))
-                    window.crosshair_label.setPos(x, label_y)
+                    # Crosshair price pinned to Y-axis on the right margin (never floating mid-canvas)
+                    if hasattr(window, "hLine") and hasattr(window.hLine, "label") and window.hLine.label:
+                        window.hLine.label.setFormat(f"{y:{fmt}}")
+                    window.crosshair_label.setVisible(False)
 
             is_cross_mode = True
             if hasattr(window, "drawing_engine") and window.drawing_engine:
@@ -2386,11 +2434,10 @@ def setup_chart_ui(window):
                 window.hLine.setPos(y)
                 window.vLine.setVisible(True)
                 window.hLine.setVisible(True)
-                window.crosshair_label.setVisible(True)
             else:
                 window.vLine.setVisible(False)
                 window.hLine.setVisible(False)
-                window.crosshair_label.setVisible(False)
+            window.crosshair_label.setVisible(False)
 
     window.plot_widget.scene().sigMouseMoved.connect(mouseMoved)
 
@@ -3565,30 +3612,38 @@ def update_chart_theme(window, is_dark: bool = False):
         if hasattr(window, "drawing_engine") and window.drawing_engine:
             window.drawing_engine._update_button_styles()
 
-    # Order proposal interactive lines on chart
-    fill_rgba = (0, 0, 0, 180) if is_dark else (241, 245, 249, 230)
+    # Order proposal interactive lines on chart (Unified institutional styling)
     bull_color = "#22c55e" if is_dark else "#15803D"
     bear_color = "#ef4444" if is_dark else "#B91C1C"
     is_live = getattr(window, "is_live_position", False)
-    is_pending = getattr(window, "is_pending_order", False)
-    line_style = QtCore.Qt.SolidLine if is_live else (QtCore.Qt.DashDotLine if is_pending else QtCore.Qt.DashLine)
-    line_w = 1.8 if is_live else 1.5
+    line_style = QtCore.Qt.SolidLine if is_live else QtCore.Qt.DashLine
+    line_w = 1.2
 
     if hasattr(window, "line_order_entry") and window.line_order_entry:
         window.line_order_entry.setPen(pg.mkPen(color=bull_color, width=line_w, style=line_style))
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
-            window.line_order_entry.label.setColor(bull_color)
-            window.line_order_entry.label.fill = pg.mkBrush(*fill_rgba)
+            window.line_order_entry.label.setColor("#f8fafc")
+            window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_entry.label.border = pg.mkPen(color=bull_color, width=1.0)
     if hasattr(window, "line_order_sl") and window.line_order_sl:
-        window.line_order_sl.setPen(pg.mkPen(color=bear_color, width=line_w, style=line_style))
+        window.line_order_sl.setPen(pg.mkPen(color=bear_color, width=1.0, style=QtCore.Qt.DashLine))
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
-            window.line_order_sl.label.setColor(bear_color)
-            window.line_order_sl.label.fill = pg.mkBrush(*fill_rgba)
+            window.line_order_sl.label.setColor("#f8fafc")
+            window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_sl.label.border = pg.mkPen(color=bear_color, width=1.0)
     if hasattr(window, "line_order_tp") and window.line_order_tp:
-        window.line_order_tp.setPen(pg.mkPen(color=bull_color, width=line_w, style=line_style))
+        window.line_order_tp.setPen(pg.mkPen(color=bull_color, width=1.0, style=QtCore.Qt.DashLine))
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
-            window.line_order_tp.label.setColor(bull_color)
-            window.line_order_tp.label.fill = pg.mkBrush(*fill_rgba)
+            window.line_order_tp.label.setColor("#f8fafc")
+            window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_tp.label.border = pg.mkPen(color=bull_color, width=1.0)
+
+    # Synchronize all MT5 broker order lines with active theme colors
+    if hasattr(window, "sync_chart_orders"):
+        try:
+            window.sync_chart_orders()
+        except Exception:
+            pass
 
     # 1. Plot widget background & axes
     if hasattr(window, "plot_widget") and window.plot_widget:

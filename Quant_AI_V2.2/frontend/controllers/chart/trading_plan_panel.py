@@ -566,80 +566,101 @@ def update_order_proposal_html(
     else:
         order_action_name = "BUY LIMIT" if signal_type == "BUY" else "SELL LIMIT"
 
-    # Cập nhật đường ngang trên biểu đồ nến
+    # Cập nhật đường ngang trên biểu đồ nến (Institutional Visualizer)
     try:
         is_dark_val = getattr(window, "is_dark_theme", False) if is_dark is None else is_dark
         bull_c = "#22c55e" if is_dark_val else "#15803D"
         bear_c = "#ef4444" if is_dark_val else "#B91C1C"
         dir_c = bull_c if signal_type == "BUY" else bear_c
-        order_style = Qt.SolidLine if is_live_position else (Qt.DashDotLine if is_pending_order else Qt.DashLine)
-        order_w = 1.8 if is_live_position else 1.5
 
-        if hasattr(window, "line_order_entry") and window.line_order_entry:
-            window.line_order_entry.setValue(entry)
-            window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=order_w, style=order_style))
-            window.line_order_entry.setMovable(is_pending_order)
-            window.line_order_entry.setVisible(True)
-            if is_live_position:
-                window.line_order_entry.label.setFormat(f"OPEN #{live_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
-            elif is_pending_order:
-                window.line_order_entry.label.setFormat(f"PENDING #{pending_ticket}: {entry:.{digits}f} ({calc_lot:.2f}L)")
-            else:
-                window.line_order_entry.label.setFormat(f"{order_action_name}: {entry:.{digits}f} ({calc_lot:.2f} Lot)")
-            if hasattr(window, "plot_widget"):
+        if is_live_position or is_pending_order:
+            # Active broker positions and pending orders are rendered exclusively by sync_chart_orders
+            if hasattr(window, "line_order_entry") and window.line_order_entry:
+                window.line_order_entry.setVisible(False)
+            if hasattr(window, "line_order_sl") and window.line_order_sl:
+                window.line_order_sl.setVisible(False)
+            if hasattr(window, "line_order_tp") and window.line_order_tp:
+                window.line_order_tp.setVisible(False)
+            if hasattr(window, "sync_chart_orders"):
                 try:
-                    if window.line_order_entry not in window.plot_widget.items():
-                        window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
+                    window.sync_chart_orders()
                 except Exception:
                     pass
-
-        if hasattr(window, "line_order_sl") and window.line_order_sl:
-            if sl and sl > 0:
-                window.line_order_sl.setValue(sl)
-                window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=order_w, style=order_style))
-                window.line_order_sl.setMovable(True)
-                window.line_order_sl.setVisible(True)
-                if is_live_position:
-                    window.line_order_sl.label.setFormat(f"LIVE SL: {sl:.{digits}f}")
-                else:
-                    window.line_order_sl.label.setFormat(f"STOP LOSS: {sl:.{digits}f} (-${risk_dlr:.2f} | -{risk_pct:.1f}%)")
+        else:
+            # Unapproved AI Proposal draft preview
+            order_w = 1.2
+            if hasattr(window, "line_order_entry") and window.line_order_entry:
+                window.line_order_entry.setValue(entry)
+                window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=order_w, style=Qt.DashLine))
+                window.line_order_entry.setMovable(False)
+                window.line_order_entry.setVisible(True)
+                if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
+                    window.line_order_entry.label.setFormat(f"{order_action_name} | {calc_lot:.2f}L @ {entry:.{digits}f} (DRAFT)")
+                    window.line_order_entry.label.setColor("#f8fafc")
+                    window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
+                    window.line_order_entry.label.border = pg.mkPen(color=dir_c, width=1.0)
+                    window.line_order_entry.label.setPosition(0.92)
+                    window.line_order_entry.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                 if hasattr(window, "plot_widget"):
                     try:
-                        if window.line_order_sl not in window.plot_widget.items():
-                            window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
-                    except Exception:
-                        pass
-            else:
-                window.line_order_sl.setVisible(False)
-                if hasattr(window, "plot_widget") and window.plot_widget:
-                    try:
-                        window.plot_widget.removeItem(window.line_order_sl)
+                        if window.line_order_entry not in window.plot_widget.items():
+                            window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
                     except Exception:
                         pass
 
-        if hasattr(window, "line_order_tp") and window.line_order_tp:
-            if tp and tp > 0:
-                window.line_order_tp.setValue(tp)
-                window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=order_w, style=order_style))
-                window.line_order_tp.setMovable(True)
-                window.line_order_tp.setVisible(True)
-                if is_live_position:
-                    window.line_order_tp.label.setFormat(f"LIVE TP: {tp:.{digits}f}")
+            if hasattr(window, "line_order_sl") and window.line_order_sl:
+                if sl and sl > 0:
+                    window.line_order_sl.setValue(sl)
+                    window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.0, style=Qt.DashLine))
+                    window.line_order_sl.setMovable(True)
+                    window.line_order_sl.setVisible(True)
+                    if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
+                        window.line_order_sl.label.setFormat(f"SL (DRAFT) | {sl:.{digits}f}")
+                        window.line_order_sl.label.setColor("#f8fafc")
+                        window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
+                        window.line_order_sl.label.border = pg.mkPen(color=bear_c, width=1.0)
+                        window.line_order_sl.label.setPosition(0.84)
+                        window.line_order_sl.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
+                    if hasattr(window, "plot_widget"):
+                        try:
+                            if window.line_order_sl not in window.plot_widget.items():
+                                window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
+                        except Exception:
+                            pass
                 else:
-                    window.line_order_tp.label.setFormat(f"TAKE PROFIT: {tp:.{digits}f} (+${reward_dlr:.2f} | +{rr_ratio:.1f}R)")
-                if hasattr(window, "plot_widget"):
-                    try:
-                        if window.line_order_tp not in window.plot_widget.items():
-                            window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
-                    except Exception:
-                        pass
-            else:
-                window.line_order_tp.setVisible(False)
-                if hasattr(window, "plot_widget") and window.plot_widget:
-                    try:
-                        window.plot_widget.removeItem(window.line_order_tp)
-                    except Exception:
-                        pass
+                    window.line_order_sl.setVisible(False)
+                    if hasattr(window, "plot_widget") and window.plot_widget:
+                        try:
+                            window.plot_widget.removeItem(window.line_order_sl)
+                        except Exception:
+                            pass
+
+            if hasattr(window, "line_order_tp") and window.line_order_tp:
+                if tp and tp > 0:
+                    window.line_order_tp.setValue(tp)
+                    window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.0, style=Qt.DashLine))
+                    window.line_order_tp.setMovable(True)
+                    window.line_order_tp.setVisible(True)
+                    if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
+                        window.line_order_tp.label.setFormat(f"TP (DRAFT) | {tp:.{digits}f}")
+                        window.line_order_tp.label.setColor("#f8fafc")
+                        window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
+                        window.line_order_tp.label.border = pg.mkPen(color=bull_c, width=1.0)
+                        window.line_order_tp.label.setPosition(0.76)
+                        window.line_order_tp.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
+                    if hasattr(window, "plot_widget"):
+                        try:
+                            if window.line_order_tp not in window.plot_widget.items():
+                                window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
+                        except Exception:
+                            pass
+                else:
+                    window.line_order_tp.setVisible(False)
+                    if hasattr(window, "plot_widget") and window.plot_widget:
+                        try:
+                            window.plot_widget.removeItem(window.line_order_tp)
+                        except Exception:
+                            pass
     except Exception as e:
         logger.error(f"[TradingPlanPanel] Failed to update chart order lines: {e}")
 
@@ -1463,11 +1484,16 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_entry.setPos(entry_p)
             window.line_order_entry.blockSignals(False)
         pen_style = Qt.SolidLine if is_pending else Qt.DashLine
-        window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=1.5, style=pen_style))
+        window.line_order_entry.setPen(pg.mkPen(color=dir_c, width=1.2, style=pen_style))
         window.line_order_entry.setMovable(is_pending)
         dir_s = order_type_str if is_pending else ("BUY" if is_buy else "SELL")
         if hasattr(window.line_order_entry, "label") and window.line_order_entry.label:
-            window.line_order_entry.label.setFormat(f"MANUAL {dir_s}: {entry_p:.{dig}f} ({lot:.2f} Lots)  [×]")
+            window.line_order_entry.label.setFormat(f"MANUAL {dir_s} | {lot:.2f}L @ {entry_p:.{dig}f}  [×]")
+            window.line_order_entry.label.setColor("#f8fafc")
+            window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_entry.label.border = pg.mkPen(color=dir_c, width=1.0)
+            window.line_order_entry.label.setPosition(0.92)
+            window.line_order_entry.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_entry.setVisible(True)
         if window.line_order_entry not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_entry, ignoreBounds=True)
@@ -1483,10 +1509,15 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_sl.blockSignals(True)
             window.line_order_sl.setPos(sl)
             window.line_order_sl.blockSignals(False)
-        window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.5, style=Qt.DashLine))
+        window.line_order_sl.setPen(pg.mkPen(color=bear_c, width=1.0, style=Qt.DashLine))
         window.line_order_sl.setMovable(True)
         if hasattr(window.line_order_sl, "label") and window.line_order_sl.label:
-            window.line_order_sl.label.setFormat(f"MANUAL SL: {sl:.{dig}f}  [×]")
+            window.line_order_sl.label.setFormat(f"MANUAL SL | {sl:.{dig}f}  [×]")
+            window.line_order_sl.label.setColor("#f8fafc")
+            window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_sl.label.border = pg.mkPen(color=bear_c, width=1.0)
+            window.line_order_sl.label.setPosition(0.84)
+            window.line_order_sl.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_sl.setVisible(True)
         if window.line_order_sl not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_sl, ignoreBounds=True)
@@ -1502,10 +1533,15 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_tp.blockSignals(True)
             window.line_order_tp.setPos(tp)
             window.line_order_tp.blockSignals(False)
-        window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.5, style=Qt.DashLine))
+        window.line_order_tp.setPen(pg.mkPen(color=bull_c, width=1.0, style=Qt.DashLine))
         window.line_order_tp.setMovable(True)
         if hasattr(window.line_order_tp, "label") and window.line_order_tp.label:
-            window.line_order_tp.label.setFormat(f"MANUAL TP: {tp:.{dig}f}  [×]")
+            window.line_order_tp.label.setFormat(f"MANUAL TP | {tp:.{dig}f}  [×]")
+            window.line_order_tp.label.setColor("#f8fafc")
+            window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
+            window.line_order_tp.label.border = pg.mkPen(color=bull_c, width=1.0)
+            window.line_order_tp.label.setPosition(0.76)
+            window.line_order_tp.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_tp.setVisible(True)
         if window.line_order_tp not in window.plot_widget.items():
             window.plot_widget.addItem(window.line_order_tp, ignoreBounds=True)
