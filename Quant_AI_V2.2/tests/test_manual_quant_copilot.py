@@ -505,13 +505,13 @@ class TestPlanScenarioAudits:
         _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
         mock_plot.addItem.assert_not_called()
 
-        # Case 2: frameAIArea is not visible
+        # Case 2: frameAIArea is collapsed, lines MUST still be rendered for price tracking
         win._show_manual_preview = True
         frame_ai = MagicMock()
         frame_ai.isVisible.return_value = False
         win.frameAIArea = frame_ai
         _setup_chart_manual_lines(win, "XAUUSD", True, 0.2, 2640.0, 2660.0)
-        mock_plot.addItem.assert_not_called()
+        line_entry.setPos.assert_called()
 
     def test_manual_order_lines_dashed_pen_style(self, qapp):
         """Audit: Manual draft preview lines must use Qt.DashLine to distinguish from live positions."""

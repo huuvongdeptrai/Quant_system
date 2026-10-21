@@ -73,40 +73,107 @@ def test_manual_to_ai_tab_switch_state_isolation(qapp):
     """
     win = _create_test_window()
 
-    # 1. Start in Standby AI mode
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=None), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[]):
+        # 1. Start in Standby AI mode
+        update_order_proposal_html(
+            win,
+            sym="XAUUSD",
+            has_signal=False,
+            model_name="ICT Zones Pro v4.2",
+        )
+        assert win.lblOrderTypeBadge.text() == "NO ORDER"
+    
+        # 2. Switch to MANUAL ORDER
+        win.btnPlanModeManual.click()
+        assert win._plan_mode == "manual"
+        assert not win.containerPlanManual.isHidden()
+        assert win.containerPlanAI.isHidden()
+    
+        # Simulate manual user entering 4137.88 entry, 4147.88 SL, 4117.88 TP
+        if hasattr(win, "spinManualPendingPrice") and win.spinManualPendingPrice:
+            win.spinManualPendingPrice.setValue(4137.88)
+        if hasattr(win, "spinManualSL") and win.spinManualSL:
+            win.spinManualSL.setValue(4147.88)
+        if hasattr(win, "spinManualTP") and win.spinManualTP:
+            win.spinManualTP.setValue(4117.88)
+    
+        # 3. Switch BACK to AI STRATEGY
+        win.btnPlanModeAI.click()
+        assert win._plan_mode == "ai"
+        assert not win.containerPlanAI.isHidden()
+        assert win.containerPlanManual.isHidden()
+    
+        # 4. AI Strategy Card must be strictly clean (STANDBY NO ORDER), not leaking 4137.88!
+        assert win.lblOrderTypeBadge.text() == "NO ORDER"
+        assert win.lblEntryVal.text() == "--"
+        assert win.lblSLVal.text() == "--"
+        assert win.lblTPVal.text() == "--"
+        assert win.lblSizeVal.text() == "--"
+        assert win.btnApproveOrder.text() == "AWAITING STRATEGY SIGNAL"
+        assert win.btnApproveOrder.isEnabled() is False
+
+
+def test_drawer_close_preserves_on_chart_order_lines(qapp):
+    """
+    Verifies institutional requirement:
+    Closing the Trading Plan drawer must NEVER remove the active order lines from the chart,
+    enabling continuous price-action tracking across full-width chart.
+    """
+    win = _create_test_window()
+
+    # Setup active order proposal
     update_order_proposal_html(
         win,
         sym="XAUUSD",
-        has_signal=False,
+        entry=4137.88,
+        sl=4147.88,
+        tp=4117.88,
+        has_signal=True,
+        signal_type="SELL",
+        calc_lot=0.95,
         model_name="ICT Zones Pro v4.2",
     )
-    assert win.lblOrderTypeBadge.text() == "NO ORDER"
 
-    # 2. Switch to MANUAL ORDER
-    win.btnPlanModeManual.click()
-    assert win._plan_mode == "manual"
-    assert not win.containerPlanManual.isHidden()
-    assert win.containerPlanAI.isHidden()
+    assert win.line_order_entry.isVisible() is True
+    assert win.line_order_sl.isVisible() is True
+    assert win.line_order_tp.isVisible() is True
 
-    # Simulate manual user entering 4137.88 entry, 4147.88 SL, 4117.88 TP
-    if hasattr(win, "spinManualPendingPrice") and win.spinManualPendingPrice:
-        win.spinManualPendingPrice.setValue(4137.88)
-    if hasattr(win, "spinManualSL") and win.spinManualSL:
-        win.spinManualSL.setValue(4147.88)
-    if hasattr(win, "spinManualTP") and win.spinManualTP:
-        win.spinManualTP.setValue(4117.88)
+    # Close drawer
+    win._close_ai_drawer()
 
-    # 3. Switch BACK to AI STRATEGY
-    win.btnPlanModeAI.click()
-    assert win._plan_mode == "ai"
-    assert not win.containerPlanAI.isHidden()
-    assert win.containerPlanManual.isHidden()
+    # Lines MUST remain visible on chart!
+    assert win.line_order_entry.isVisible() is True
+    assert win.line_order_sl.isVisible() is True
+    assert win.line_order_tp.isVisible() is True
 
-    # 4. AI Strategy Card must be strictly clean (STANDBY NO ORDER), not leaking 4137.88!
-    assert win.lblOrderTypeBadge.text() == "NO ORDER"
-    assert win.lblEntryVal.text() == "--"
-    assert win.lblSLVal.text() == "--"
-    assert win.lblTPVal.text() == "--"
-    assert win.lblSizeVal.text() == "--"
-    assert win.btnApproveOrder.text() == "AWAITING STRATEGY SIGNAL"
-    assert win.btnApproveOrder.isEnabled() is False
+
+def test_sync_live_position_renders_pending_orders(qapp):
+    """
+    Verifies that MT5 pending orders (e.g. SELL LIMIT) are detected and rendered on chart.
+    """
+    from frontend.controllers.chart.trading_plan_panel import sync_live_position_to_ai_plan
+
+    win = _create_test_window()
+    win._plan_mode = "ai"
+
+    # Mock MT5: no open positions, but 1 pending order
+    mock_order = MagicMock()
+    mock_order.ticket = 998877
+    mock_order.symbol = "XAUUSD"
+    mock_order.type = 3  # ORDER_TYPE_SELL_LIMIT
+    mock_order.volume_initial = 0.95
+    mock_order.price_open = 4137.88
+    mock_order.sl = 4147.88
+    mock_order.tp = 4117.88
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock()), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[mock_order]):
+        sync_live_position_to_ai_plan(win)
+
+    assert win.is_pending_order is True
+    assert win.pending_ticket == 998877
+    assert win.line_order_entry.isVisible() is True
+    assert win.lblOrderTypeBadge.text() == "PENDING #998877"

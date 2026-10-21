@@ -280,16 +280,9 @@ def setup_chart_ui(window):
             window.frameAIArea.setVisible(False)
         if hasattr(window, "btn_edge_plan") and window.btn_edge_plan:
             window.btn_edge_plan.setVisible(True)
-        # Institutional UX: Remove draft preview lines from chart if there is no active MT5 position/order
-        is_live = getattr(window, "is_live_position", False)
-        is_pending = getattr(window, "is_pending_order", False)
-        if not is_live and not is_pending:
-            try:
-                from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
-                clear_manual_chart_lines(window)
-            except Exception:
-                pass
-
+        # Institutional UX: Collapsing the side drawer must NEVER hide on-chart order lines.
+        # Order lines (proposals, manual drafts, pending orders, open positions) remain on the chart
+        # for continuous price-action monitoring until explicitly discarded or closed.
     def _open_ai_drawer():
         if hasattr(window, "frameAIArea") and window.frameAIArea:
             window.frameAIArea.setVisible(True)

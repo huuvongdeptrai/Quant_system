@@ -302,8 +302,12 @@ def update_order_proposal_html(
     exec_mode="MANUAL",
     is_bot_active=False,
     checklist=None,
+    calc_lot=None,
+    **kwargs,
 ):
     """Render institutional Radar Matrix and Order Proposal Ticket with WCAG AAA contrast matching theme."""
+    if calc_lot is not None and live_volume is None:
+        live_volume = calc_lot
     raw_sym = sym or getattr(window, "current_sym", "XAUUSD") or "XAUUSD"
     clean_sym = raw_sym.split("\n")[0].strip()
     active_chart_sym = getattr(window, "current_sym", "").split("\n")[0].strip()
@@ -465,8 +469,8 @@ def update_order_proposal_html(
                         p_cand = mt5.positions_get(ticket=int(live_ticket))
                         if p_cand and len(p_cand) > 0:
                             # CRITICAL: Verify ticket actually belongs to clean_sym
-                            sym_cand = getattr(p_cand[0], "symbol", "").split(".")[0].upper()
-                            if sym_cand == clean_sym.split(".")[0].upper():
+                            cand_s = getattr(p_cand[0], "symbol", None)
+                            if not isinstance(cand_s, str) or not cand_s or cand_s.split(".")[0].upper() == clean_sym.split(".")[0].upper():
                                 p_list = p_cand
                             else:
                                 live_ticket = None
@@ -478,7 +482,8 @@ def update_order_proposal_html(
                 if p_list and len(p_list) > 0:
                     pos = p_list[0]
                     # Verify symbol match
-                    if getattr(pos, "symbol", "").split(".")[0].upper() != clean_sym.split(".")[0].upper():
+                    pos_s = getattr(pos, "symbol", None)
+                    if isinstance(pos_s, str) and pos_s and pos_s.split(".")[0].upper() != clean_sym.split(".")[0].upper():
                         pos = None
                         p_list = None
                         is_live_position = False
@@ -622,7 +627,12 @@ def update_order_proposal_html(
     # Card 1: Mô hình thiết lập (Active)
     resolved_model = resolve_strategy_model_name(window, model_name)
     if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
-        window.lblModelSubtitle.setText("POSITION IN MARKET" if is_live_position else ("PENDING ORDER" if is_pending_order else "SETUP MODEL"))
+        if is_live_position:
+            window.lblModelSubtitle.setText(f"POSITION IN MARKET (#{live_ticket})" if live_ticket else "POSITION IN MARKET")
+        elif is_pending_order:
+            window.lblModelSubtitle.setText(f"PENDING ORDER (#{pending_ticket})" if pending_ticket else "PENDING ORDER")
+        else:
+            window.lblModelSubtitle.setText("SETUP MODEL")
     if hasattr(window, "lblModelName") and window.lblModelName:
         window.lblModelName.setText(resolved_model)
     if hasattr(window, "lblModelGrade") and window.lblModelGrade:
@@ -1395,9 +1405,8 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     if not getattr(window, "_show_manual_preview", True):
         clear_manual_chart_lines(window)
         return
-    if hasattr(window, "frameAIArea") and not window.frameAIArea.isVisible():
-        clear_manual_chart_lines(window)
-        return
+    # On-chart lines remain visible even when frameAIArea is collapsed
+    pass
 
     info = mt5.symbol_info(sym)
     dig = info.digits if info else 2
@@ -1418,7 +1427,12 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # Entry line: Solid + Movable for Pending Orders; Dashed + Fixed for Market Orders
     if hasattr(window, "line_order_entry") and window.line_order_entry:
-        if abs(window.line_order_entry.value() - entry_p) > 1e-6:
+        try:
+            cur_entry = float(window.line_order_entry.value())
+            needs_entry = abs(cur_entry - entry_p) > 1e-6
+        except Exception:
+            needs_entry = True
+        if needs_entry:
             window.line_order_entry.blockSignals(True)
             window.line_order_entry.setPos(entry_p)
             window.line_order_entry.blockSignals(False)
@@ -1434,7 +1448,12 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # SL line (Draft Preview: Qt.DashLine)
     if hasattr(window, "line_order_sl") and window.line_order_sl:
-        if abs(window.line_order_sl.value() - sl) > 1e-6:
+        try:
+            cur_sl = float(window.line_order_sl.value())
+            needs_sl = abs(cur_sl - sl) > 1e-6
+        except Exception:
+            needs_sl = True
+        if needs_sl:
             window.line_order_sl.blockSignals(True)
             window.line_order_sl.setPos(sl)
             window.line_order_sl.blockSignals(False)
@@ -1448,7 +1467,12 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
 
     # TP line (Draft Preview: Qt.DashLine)
     if hasattr(window, "line_order_tp") and window.line_order_tp:
-        if abs(window.line_order_tp.value() - tp) > 1e-6:
+        try:
+            cur_tp = float(window.line_order_tp.value())
+            needs_tp = abs(cur_tp - tp) > 1e-6
+        except Exception:
+            needs_tp = True
+        if needs_tp:
             window.line_order_tp.blockSignals(True)
             window.line_order_tp.setPos(tp)
             window.line_order_tp.blockSignals(False)
@@ -1619,14 +1643,14 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         window.btnManualExecute.style().polish(window.btnManualExecute)
 
     # Also update chart lines
-    if getattr(window, "_show_manual_preview", True) and (not hasattr(window, "frameAIArea") or window.frameAIArea.isVisible()):
+    if getattr(window, "_show_manual_preview", True):
         _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
     else:
         clear_manual_chart_lines(window)
 
 
 def sync_live_position_to_ai_plan(window):
-    """Dynamically synchronizes live open MT5 position volume and floating PnL with AI Strategy Card."""
+    """Dynamically synchronizes live open MT5 positions and pending orders with on-chart lines & AI Strategy Card."""
     if getattr(window, "_plan_mode", "ai") == "manual":
         return
 
@@ -1657,16 +1681,28 @@ def sync_live_position_to_ai_plan(window):
             if positions and len(positions) > 0:
                 pos = positions[0]
 
+        # Check for MT5 pending orders if no open position exists
+        pending_order = None
+        if pos is None:
+            try:
+                p_orders = mt5.orders_get(symbol=clean_sym)
+                if p_orders and len(p_orders) > 0:
+                    pending_order = p_orders[0]
+            except Exception:
+                pending_order = None
+
         if not hasattr(window, "active_signals_by_symbol"):
             window.active_signals_by_symbol = {}
 
-        if pos is None:
+        if pos is None and pending_order is None:
             was_live = getattr(window, "is_live_position", False)
+            was_pending = getattr(window, "is_pending_order", False)
             window.is_live_position = False
+            window.is_pending_order = False
             window.live_ticket = None
 
-            # If an active position in MT5 just closed, re-evaluate quantitative strategy immediately
-            if was_live:
+            # If an active position or pending order in MT5 just closed/cancelled, re-evaluate quantitative strategy immediately
+            if was_live or was_pending:
                 if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
                     window.lblModelSubtitle.setText("SETUP MODEL")
                 if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -1684,13 +1720,14 @@ def sync_live_position_to_ai_plan(window):
                 if hasattr(window, "btnApproveOrder") and window.btnApproveOrder:
                     window.btnApproveOrder.setText("AWAITING STRATEGY SIGNAL")
                     window.btnApproveOrder.setEnabled(False)
+                clear_manual_chart_lines(window)
                 from frontend.controllers.chart.ai_panel_controller import _run_analysis
                 _run_analysis(window, clean_sym, force=True)
                 return
 
             # Check if there is an active proposal waiting for operator approval for clean_sym
             curr_sig = window.active_signals_by_symbol.get(clean_sym, {})
-            if curr_sig.get("has_signal") and not curr_sig.get("is_live_position"):
+            if curr_sig.get("has_signal") and not curr_sig.get("is_live_position") and not curr_sig.get("is_pending_order"):
                 return
 
             # In standby mode without an open MT5 position, preserve the strategy's calculated
@@ -1710,6 +1747,7 @@ def sync_live_position_to_ai_plan(window):
             digits = info.digits if info else (2 if open_p > 10 else 5)
 
             window.is_live_position = True
+            window.is_pending_order = False
             window.live_ticket = ticket
             pnl_str = f"+${pnl:.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
 
@@ -1745,12 +1783,103 @@ def sync_live_position_to_ai_plan(window):
                 "sl": pos_sl if pos_sl > 0 else (open_p * 0.99 if pos_type == "BUY" else open_p * 1.01),
                 "tp": pos_tp if pos_tp > 0 else (open_p * 1.01 if pos_type == "BUY" else open_p * 0.99),
                 "is_live_position": True,
+                "is_pending_order": False,
                 "live_ticket": ticket,
                 "live_profit": pnl,
                 "live_volume": vol,
             }
             window.active_signal_data.update(live_payload)
             window.active_signals_by_symbol[clean_sym] = window.active_signal_data
+
+            # Draw / update on-chart order lines for the live MT5 position
+            update_order_proposal_html(
+                window,
+                sym=clean_sym,
+                entry=open_p,
+                sl=pos_sl if pos_sl > 0 else (open_p * 0.99 if pos_type == "BUY" else open_p * 1.01),
+                tp=pos_tp if pos_tp > 0 else (open_p * 1.01 if pos_type == "BUY" else open_p * 0.99),
+                has_signal=True,
+                signal_type=pos_type,
+                is_live_position=True,
+                live_ticket=ticket,
+                live_volume=vol,
+                live_profit=pnl,
+                digits=digits,
+            )
+
+        elif pending_order is not None:
+            t_ord = pending_order.ticket
+            vol_ord = float(pending_order.volume_initial)
+            open_ord = float(pending_order.price_open)
+            ord_sl = float(pending_order.sl)
+            ord_tp = float(pending_order.tp)
+            type_str = "BUY LIMIT" if pending_order.type == mt5.ORDER_TYPE_BUY_LIMIT else (
+                "SELL LIMIT" if pending_order.type == mt5.ORDER_TYPE_SELL_LIMIT else (
+                    "BUY STOP" if pending_order.type == mt5.ORDER_TYPE_BUY_STOP else "SELL STOP"
+                )
+            )
+            pos_type = "BUY" if "BUY" in type_str else "SELL"
+
+            info = mt5.symbol_info(clean_sym)
+            digits = info.digits if info else (2 if open_ord > 10 else 5)
+
+            window.is_live_position = False
+            window.is_pending_order = True
+            window.live_ticket = t_ord
+
+            if hasattr(window, "lblSizeVal") and window.lblSizeVal:
+                window.lblSizeVal.setText(f"{vol_ord:.2f} LOTS (PENDING)")
+
+            if hasattr(window, "lblEntryVal") and window.lblEntryVal:
+                window.lblEntryVal.setText(f"{open_ord:.{digits}f}")
+
+            if hasattr(window, "lblSLVal") and window.lblSLVal:
+                window.lblSLVal.setText(f"{ord_sl:.{digits}f}  (PENDING)" if ord_sl > 0 else "NO SL")
+
+            if hasattr(window, "lblTPVal") and window.lblTPVal:
+                window.lblTPVal.setText(f"{ord_tp:.{digits}f}  (PENDING)" if ord_tp > 0 else "NO TP")
+
+            if hasattr(window, "lblOrderTypeBadge") and window.lblOrderTypeBadge:
+                window.lblOrderTypeBadge.setText(type_str)
+
+            if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
+                window.lblOrderBudgetTitle.setText("PENDING ORDER & RISK")
+
+            if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
+                window.lblModelSubtitle.setText(f"PENDING ORDER (#{t_ord})")
+
+            # Store active signal data for pending order
+            if not hasattr(window, "active_signal_data") or not isinstance(window.active_signal_data, dict):
+                window.active_signal_data = {}
+            pending_payload = {
+                "sym": clean_sym,
+                "has_signal": True,
+                "signal_type": pos_type,
+                "entry": open_ord,
+                "sl": ord_sl if ord_sl > 0 else (open_ord * 0.99 if pos_type == "BUY" else open_ord * 1.01),
+                "tp": ord_tp if ord_tp > 0 else (open_ord * 1.01 if pos_type == "BUY" else open_ord * 0.99),
+                "is_live_position": False,
+                "is_pending_order": True,
+                "live_ticket": t_ord,
+                "live_volume": vol_ord,
+            }
+            window.active_signal_data.update(pending_payload)
+            window.active_signals_by_symbol[clean_sym] = window.active_signal_data
+
+            # Draw / update on-chart order lines for the MT5 pending order
+            update_order_proposal_html(
+                window,
+                sym=clean_sym,
+                entry=open_ord,
+                sl=ord_sl if ord_sl > 0 else (open_ord * 0.99 if pos_type == "BUY" else open_ord * 1.01),
+                tp=ord_tp if ord_tp > 0 else (open_ord * 1.01 if pos_type == "BUY" else open_ord * 0.99),
+                has_signal=True,
+                signal_type=pos_type,
+                is_pending_order=True,
+                pending_ticket=t_ord,
+                live_volume=vol_ord,
+                digits=digits,
+            )
     except Exception as e:
         logger.debug(f"[sync_live_position_to_ai_plan] Error: {e}")
 
