@@ -49,24 +49,34 @@ def _create_mock_header_controller():
 
 
 def test_header_ribbon_three_zones_mounted(qapp):
-    """Verifies that the top header container contains Zone 1, Zone 2, and Zone 3 on a single row."""
+    """Verifies that the top header container contains Zone 1, Zone 2, and Zone 3 on a single contiguous row."""
     win, header = _create_mock_header_controller()
 
     assert hasattr(header, "header_container")
-    assert header.header_container.height() <= 32
+    assert header.header_container.height() == 26 or header.header_container.maximumHeight() == 26
 
     # Verify Zone 1 (Symbol + Timeframes)
     assert hasattr(header, "lbl_top_sym")
     assert hasattr(header, "tf_buttons")
     assert len(header.tf_buttons) == 9
 
+    # Verify separator between Zone 1 and Zone 2
+    assert hasattr(header, "sep_chart_algo")
+
     # Verify Zone 2 (ALGO Pill + Strategy + Event Risk)
     assert hasattr(header, "btn_algo_toggle")
     assert hasattr(header, "btn_top_ind")
     assert hasattr(header, "btn_event_risk")
+    assert header.btn_event_risk.maximumHeight() == 20
+    assert "border: 1px solid" in header.btn_event_risk.styleSheet()
 
     # Verify Zone 3 (Account Telemetry)
     assert hasattr(header, "lbl_top_ticker")
+
+    # Verify only ONE stretch exists in the ribbon layout (before Zone 3)
+    layout = header.header_container.layout()
+    stretches = [layout.itemAt(i) for i in range(layout.count()) if layout.itemAt(i).spacerItem() is not None]
+    assert len(stretches) == 1
 
 
 def test_timeframe_buttons_uniform_fixed_dimensions(qapp):

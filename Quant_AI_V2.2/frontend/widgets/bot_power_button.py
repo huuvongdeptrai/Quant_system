@@ -220,12 +220,12 @@ class AlgoControlPill(QFrame):
             f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 3px; }}"
         )
         self.lbl_status.setStyleSheet(
-            f"color: {status_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 700; margin: 0px; padding: 0px;"
+            f"color: {status_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; margin: 0px; padding: 0px;"
         )
         if hasattr(self, 'sep_line') and self.sep_line:
             self.sep_line.setStyleSheet(f"background-color: {sep_col}; border: none; margin: 0px;")
         self.lbl_action.setStyleSheet(
-            f"color: {action_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 800; margin: 0px; padding: 0px;"
+            f"color: {action_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; margin: 0px; padding: 0px;"
         )
 
     def mousePressEvent(self, event):

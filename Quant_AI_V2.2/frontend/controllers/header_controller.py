@@ -776,20 +776,17 @@ class WorkspaceHeaderController:
 
         # 5. IND Badge Button & Algo Control Pill (MT5 Flat resting state + Hover border)
         if hasattr(self, "btn_top_ind") and self.btn_top_ind:
-            if is_dark:
-                self.btn_top_ind.setStyleSheet(
-                    "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid transparent; "
-                    "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 3px; padding: 0 8px; min-height: 24px; max-height: 24px; } "
-                    "QPushButton:hover { background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; } "
-                    "QPushButton:pressed { background-color: #0f172a; border: 1px solid #334155; }"
-                )
-            else:
-                self.btn_top_ind.setStyleSheet(
-                    "QPushButton { background-color: transparent; color: #334155; border: 1px solid transparent; "
-                    "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 3px; padding: 0 8px; min-height: 24px; max-height: 24px; } "
-                    "QPushButton:hover { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; } "
-                    "QPushButton:pressed { background-color: #e2e8f0; border: 1px solid #94a3b8; }"
-                )
+            ind_col = "#cbd5e1" if is_dark else "#334155"
+            hover_bg = "#141721" if is_dark else "#f1f5f9"
+            hover_col = "#38bdf8" if is_dark else "#0284c7"
+            hover_border = "#272d3b" if is_dark else "#cbd5e1"
+            self.btn_top_ind.setStyleSheet(
+                f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid transparent; "
+                f"border-radius: 2px; padding: 0 8px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+                f"}} "
+                f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
+                f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"
+            )
 
         if hasattr(self, "btn_algo_toggle") and self.btn_algo_toggle:
             if hasattr(self.btn_algo_toggle, "set_dark_theme"):
@@ -1995,7 +1992,7 @@ class WorkspaceHeaderController:
 
         header_container = QFrame()
         header_container.setObjectName("topHeaderContainer")
-        header_container.setFixedHeight(32)
+        header_container.setFixedHeight(26)
         header_container.setStyleSheet(f"QFrame#topHeaderContainer {{ background-color: {'#0a0c10' if is_dark else '#ffffff'}; border-bottom: 1px solid {'#1e222d' if is_dark else '#cbd5e1'}; }}")
         self.header_container = header_container
 
@@ -2096,10 +2093,12 @@ class WorkspaceHeaderController:
         self.chart_context_bar = zone_chart
         h_layout.addWidget(zone_chart, 0, Qt.AlignVCenter)
 
-        # Stretch 1: Centers Zone 2 between left and right
-        h_layout.addStretch(1)
+        # Separator: Zone 1 (MN1) -> Zone 2 (Algo Control Pill)
+        sep_chart_algo = self._create_v_separator(is_dark)
+        self.sep_chart_algo = sep_chart_algo
+        h_layout.addWidget(sep_chart_algo, 0, Qt.AlignVCenter)
 
-        # --- ZONE 2: SEMI-AUTO SYSTEM CONTROLS ---
+        # --- ZONE 2: SEMI-AUTO SYSTEM CONTROLS (DIRECTLY ADJACENT, ZERO BLACK HOLE GAP) ---
         zone_algo = QWidget()
         zone_algo.setFixedHeight(22)
         z2_layout = QHBoxLayout(zone_algo)
@@ -2126,17 +2125,16 @@ class WorkspaceHeaderController:
         btn_ind.setFixedHeight(20)
         btn_ind.setCursor(Qt.PointingHandCursor)
         btn_ind.setToolTip("Configure Quantitative Strategy or Indicator Stack")
-        ind_bg = "transparent"
-        ind_col = "#94a3b8" if is_dark else "#334155"
-        hover_bg = "#1e293b" if is_dark else "#ffffff"
-        hover_col = "#f8fafc" if is_dark else "#0f172a"
-        hover_border = "#475569" if is_dark else "#cbd5e1"
+        ind_col = "#cbd5e1" if is_dark else "#334155"
+        hover_bg = "#141721" if is_dark else "#f1f5f9"
+        hover_col = "#38bdf8" if is_dark else "#0284c7"
+        hover_border = "#272d3b" if is_dark else "#cbd5e1"
         btn_ind.setStyleSheet(
-            f"QPushButton#btnTopIndicator {{ background-color: {ind_bg}; color: {ind_col}; border: 1px solid transparent; "
-            f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 600; "
-            f"min-height: 20px; max-height: 20px; }} "
+            f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid transparent; "
+            f"border-radius: 2px; padding: 0 8px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+            f"}} "
             f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
-            f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0f172a' if is_dark else '#e2e8f0'}; }}"
+            f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"
         )
         self.btn_top_ind = btn_ind
         self.window.btn_top_ind = btn_ind
@@ -2149,17 +2147,40 @@ class WorkspaceHeaderController:
         sep_strat_event = self._create_v_separator(is_dark)
         z2_layout.addWidget(sep_strat_event, 0, Qt.AlignVCenter)
 
-        # 3. Live Event Risk Badge (Grouped seamlessly beside Algo controls)
+        # 3. Live Event Risk Badge (Enclosed Institutional Badge)
         btn_event_risk = QPushButton("EVENT: CLEAR")
         btn_event_risk.setObjectName("btnEventRiskBadge")
         btn_event_risk.setFixedHeight(20)
         btn_event_risk.setCursor(Qt.PointingHandCursor)
-        event_col = "#22c55e" if is_dark else "#15803d"
-        event_h_col = "#4ade80" if is_dark else "#16a34a"
+        if is_dark:
+            event_bg = "#064e3b"
+            event_col = "#34d399"
+            event_border = "#059669"
+            event_h_bg = "#065f46"
+            event_h_col = "#6ee7b7"
+        else:
+            event_bg = "#dcfce7"
+            event_col = "#15803d"
+            event_border = "#86efac"
+            event_h_bg = "#bbf7d0"
+            event_h_col = "#166534"
+
         btn_event_risk.setStyleSheet(
-            f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {event_col}; border: none; "
-            f"padding: 0 4px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 700; }} "
-            f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {event_h_col}; }}"
+            f"QPushButton#btnEventRiskBadge {{ "
+            f"  background-color: {event_bg}; "
+            f"  color: {event_col}; "
+            f"  border: 1px solid {event_border}; "
+            f"  border-radius: 2px; "
+            f"  padding: 0 8px; "
+            f"  margin: 0px; "
+            f"  font-family: Consolas, monospace; "
+            f"  font-size: 10px; "
+            f"  font-weight: 700; "
+            f"}} "
+            f"QPushButton#btnEventRiskBadge:hover {{ "
+            f"  background-color: {event_h_bg}; "
+            f"  color: {event_h_col}; "
+            f"}}"
         )
         def _jump_to_calendar(chk=False):
             if hasattr(self.terminal, "nav") and hasattr(self.window, "tabCalendar"):
@@ -2179,6 +2200,8 @@ class WorkspaceHeaderController:
             orig_set_visible(v)
             if hasattr(self, "zone_algo") and self.zone_algo:
                 self.zone_algo.setVisible(v)
+            if hasattr(self, "sep_chart_algo") and self.sep_chart_algo:
+                self.sep_chart_algo.setVisible(v)
         zone_chart.setVisible = _chart_ctx_set_visible
 
         # Dedicated Non-Terminal Workspace Branding (Shown on Stats, Backtest, Logs)
@@ -2202,7 +2225,7 @@ class WorkspaceHeaderController:
         self.window.btn_top_ticket = None
         self.window._update_panel_toggle_styles = self._update_panel_toggle_styles
 
-        # Stretch 2: Pushes Zone 3 to the right edge
+        # SINGLE UNIFIED STRETCH: Anchors all operational tools together on left, pushing Account Telemetry to right
         h_layout.addStretch(1)
 
         # --- ZONE 3: RIGHT-DOCKED ACCOUNT TELEMETRY ---
@@ -2226,7 +2249,7 @@ class WorkspaceHeaderController:
         z3_layout.addWidget(self.lbl_top_ticker, 0, Qt.AlignVCenter)
         h_layout.addWidget(zone_acct, 0, Qt.AlignVCenter)
 
-        self.top_separators = [sep1, sep_algo_strat, sep_strat_event]
+        self.top_separators = [sep1, sep_chart_algo, sep_algo_strat, sep_strat_event]
 
         # 6. Execution Mode State (Configured centrally in Tab 4 Settings)
         self.execution_mode = "SEMI-AUTO"
@@ -2509,24 +2532,52 @@ class WorkspaceHeaderController:
             is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
             if is_impacted:
                 self.btn_event_risk.setText(f"EVENT: 🔴 {news_title[:12].upper()}")
-                text_col = "#ef4444" if is_dark else "#dc2626"
-                hover_col = "#f87171" if is_dark else "#b91c1c"
-                self.btn_event_risk.setStyleSheet(
-                    f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {text_col}; border: none; "
-                    f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 800; }} "
-                    f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {hover_col}; }}"
-                )
+                if is_dark:
+                    bg_col = "#450a0a"
+                    text_col = "#f87171"
+                    border_col = "#991b1b"
+                    hover_bg = "#5b1010"
+                    hover_col = "#fca5a5"
+                else:
+                    bg_col = "#fee2e2"
+                    text_col = "#b91c1c"
+                    border_col = "#fca5a5"
+                    hover_bg = "#fecaca"
+                    hover_col = "#991b1b"
                 self.btn_event_risk.setToolTip(f"High-impact news event active: {news_title}\nTrading pause active. Click to view Macro Calendar.")
             else:
                 self.btn_event_risk.setText("EVENT: CLEAR")
-                text_col = "#22c55e" if is_dark else "#15803d"
-                hover_col = "#4ade80" if is_dark else "#16a34a"
-                self.btn_event_risk.setStyleSheet(
-                    f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {text_col}; border: none; "
-                    f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 700; }} "
-                    f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {hover_col}; }}"
-                )
+                if is_dark:
+                    bg_col = "#064e3b"
+                    text_col = "#34d399"
+                    border_col = "#059669"
+                    hover_bg = "#065f46"
+                    hover_col = "#6ee7b7"
+                else:
+                    bg_col = "#dcfce7"
+                    text_col = "#15803d"
+                    border_col = "#86efac"
+                    hover_bg = "#bbf7d0"
+                    hover_col = "#166534"
                 self.btn_event_risk.setToolTip(f"No active news blackout for {clean_sym}.\nClick to view Macro Calendar.")
+
+            self.btn_event_risk.setStyleSheet(
+                f"QPushButton#btnEventRiskBadge {{ "
+                f"  background-color: {bg_col}; "
+                f"  color: {text_col}; "
+                f"  border: 1px solid {border_col}; "
+                f"  border-radius: 2px; "
+                f"  padding: 0 8px; "
+                f"  margin: 0px; "
+                f"  font-family: Consolas, monospace; "
+                f"  font-size: 10px; "
+                f"  font-weight: 700; "
+                f"}} "
+                f"QPushButton#btnEventRiskBadge:hover {{ "
+                f"  background-color: {hover_bg}; "
+                f"  color: {hover_col}; "
+                f"}}"
+            )
         except Exception:
             pass
 
