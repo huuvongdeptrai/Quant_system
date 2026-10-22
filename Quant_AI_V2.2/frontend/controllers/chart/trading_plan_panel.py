@@ -3284,13 +3284,29 @@ def setup_trading_plan_cards(window, is_dark=False):
     window._manual_risk_pct = 1.0
     container_ai.setVisible(True)
     container_manual.setVisible(False)
+    container_ai.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+    container_manual.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
     # Signal wiring: Mode Switcher
     def _switch_mode(target_mode):
         window._plan_mode = target_mode
-        container_ai.setVisible(target_mode == "ai")
-        container_manual.setVisible(target_mode == "manual")
+        is_ai = (target_mode == "ai")
+        container_ai.setVisible(is_ai)
+        container_manual.setVisible(not is_ai)
+
+        if is_ai:
+            container_ai.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+            container_manual.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        else:
+            container_manual.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+            container_ai.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
+
+        if hasattr(window, "frameAIArea") and window.frameAIArea:
+            window.frameAIArea.adjustSize()
+        if hasattr(window, "_reposition_trading_plan") and callable(window._reposition_trading_plan):
+            window._reposition_trading_plan()
         if target_mode == "manual":
             # PAUSE / STOP AI countdown timer so it doesn't wipe chart lines!
             if hasattr(window, "_signal_expiry_timer") and window._signal_expiry_timer is not None:

@@ -254,7 +254,10 @@ def setup_chart_ui(window):
         x = max(10, c_w - w - 85)
         ribbon_h = window.frameChartRibbon.height() if hasattr(window, "frameChartRibbon") and window.frameChartRibbon else 24
         y = ribbon_h + 8
-        h = min(530, max(200, c_h - y - 25))
+        # Dynamic auto-fit height: shrink tightly to active tab content (zero dead white void)
+        mode = getattr(window, "_plan_mode", "ai")
+        target_h = 401 if mode == "ai" else 495
+        h = min(target_h, max(200, c_h - y - 25))
         window.frameAIArea.setGeometry(x, y, w, h)
         window.frameAIArea.raise_()
 
