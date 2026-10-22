@@ -473,6 +473,48 @@ class CalendarManager:
         a_lay.addWidget(self.lbl_override_note)
 
         r_lay.addWidget(self.frame_actions)
+
+        # Section 4: Quantitative Event Assessment & Action Desk (Fills empty area cleanly)
+        self.frame_quant_action = QFrame()
+        self.frame_quant_action.setStyleSheet(
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
+        )
+        qa_lay = QVBoxLayout(self.frame_quant_action)
+        qa_lay.setContentsMargins(4, 4, 4, 4)
+        qa_lay.setSpacing(3)
+
+        top_qa = QHBoxLayout()
+        lbl_qa_tag = QLabel("QUANT EVENT IMPACT & ACTIONS")
+        lbl_qa_tag.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+        self.lbl_qa_badge = QLabel("AI EVALUATION")
+        self.lbl_qa_badge.setStyleSheet(
+            "background-color: rgba(2, 132, 199, 0.15); color: #0284c7; "
+            "font-family: Consolas; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+        )
+        top_qa.addWidget(lbl_qa_tag)
+        top_qa.addStretch()
+        top_qa.addWidget(self.lbl_qa_badge)
+        qa_lay.addLayout(top_qa)
+
+        self.lbl_qa_event_name = QLabel("EVENT: Select any row in calendar")
+        self.lbl_qa_event_name.setStyleSheet("font-size: 10px; font-weight: bold; border: none;")
+        qa_lay.addWidget(self.lbl_qa_event_name)
+
+        self.lbl_qa_surprise = QLabel("DEVIATION: --")
+        self.lbl_qa_surprise.setStyleSheet("font-family: Consolas; font-size: 9px; color: #64748b; border: none;")
+        qa_lay.addWidget(self.lbl_qa_surprise)
+
+        self.lbl_qa_ai_insight = QLabel("• AI Assessment: Click any event row to inspect macro deviation and liquidity shock.")
+        self.lbl_qa_ai_insight.setStyleSheet("font-size: 9.5px; color: #94a3b8; border: none;")
+        self.lbl_qa_ai_insight.setWordWrap(True)
+        qa_lay.addWidget(self.lbl_qa_ai_insight)
+
+        self.lbl_qa_asset_impact = QLabel("• Target Impact: Standing by for economic releases.")
+        self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #22c55e; font-weight: 600; border: none;")
+        self.lbl_qa_asset_impact.setWordWrap(True)
+        qa_lay.addWidget(self.lbl_qa_asset_impact)
+
+        r_lay.addWidget(self.frame_quant_action)
         r_lay.addStretch(1)
 
     def set_filter(self, filter_key):
@@ -597,10 +639,16 @@ class CalendarManager:
             f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
             f"background-color: {eco_bg}; color: #ffffff;"
         )
-        score_part = eco_state.get('reason', '')
-        if ' - ' in score_part:
-            score_part = score_part.split(' - ')[-1]
-        self.lbl_economic_metrics.setText(f"CYCLE: {eco_badge}  ·  {score_part}")
+        # Clarify economic cycle drivers with clear economic terms
+        if eco_badge == "RECESSION":
+            clear_eco = "PMI Thu hẹp & Thất nghiệp gia tăng"
+        elif eco_badge == "GROWTH":
+            clear_eco = "PMI Mở rộng & Thị trường lao động vững"
+        elif eco_badge == "STAGFLATION":
+            clear_eco = "Lạm phát cao & Tăng trưởng suy giảm"
+        else:
+            clear_eco = "PMI Ổn định & Tuyển dụng hồi phục"
+        self.lbl_economic_metrics.setText(f"CYCLE: {eco_badge}  ·  {clear_eco}")
 
         # 4. Target Asset Confluence Calculation
         self._calculate_target_asset_bias(is_risk_off, mon_badge, eco_badge, dxy_trend)
@@ -649,15 +697,15 @@ class CalendarManager:
         if gold_score >= 1.0:
             bias_text = "BULLISH"
             bias_bg = "#22c55e"
-            desc_text = "CONFLUENCE: FAVOR LONG (REAL YIELDS & SAFE HAVEN)"
+            desc_text = f"ƯU TIÊN MUA ({sym})  ·  Lãi suất thực giảm & Cầu trú ẩn hỗ trợ"
         elif gold_score <= -1.0:
             bias_text = "BEARISH"
             bias_bg = "#ef4444"
-            desc_text = "PRESSURE: FAVOR SHORT (DXY FIRM & TIGHT YIELDS)"
+            desc_text = f"ÁP LỰC BÁN ({sym})  ·  DXY tăng mạnh & Lãi suất thắt chặt"
         else:
             bias_text = "NEUTRAL"
             bias_bg = "#0284c7"
-            desc_text = "BALANCED FORCES: RANGE-BOUND EXPANSION"
+            desc_text = f"TRUNG LẬP ({sym})  ·  Cung cầu cân bằng, thị trường tích lũy"
 
         if hasattr(self, "badge_confluence_state"):
             self.badge_confluence_state.setText(bias_text)
@@ -890,8 +938,69 @@ class CalendarManager:
 
         self.lbl_desk_assets.setText("AFFECTED ASSETS: " + (", ".join(affected) if affected else f"{cntry} DOMESTIC"))
 
+        # Update quantitative assessment card for clicked event
+        self._update_quant_action_card(event)
+
         # Update countdown immediately
         self._on_clock_tick()
+
+    def _update_quant_action_card(self, event: dict):
+        """Populates Section 4 with clear quantitative assessment and target symbol impact."""
+        if not hasattr(self, "lbl_qa_event_name") or not event:
+            return
+
+        cntry = event.get("country", "US")
+        title = event.get("title", "Event")
+        actual = str(event.get("actual", "")).strip()
+        forecast = str(event.get("forecast", "")).strip()
+        prev = str(event.get("previous", "")).strip()
+        surprise = event.get("surprise", 0.0)
+        curr_sym = self._current_symbol.upper()
+
+        self.lbl_qa_event_name.setText(f"EVENT: {cntry} · {title.upper()}")
+
+        # When event has actual data released
+        if actual and actual != "--" and actual != "None":
+            surp_str = f"ACTUAL: {actual}  |  FORECAST: {forecast or '--'}  |  SURPRISE: {surprise:+.2f}"
+            self.lbl_qa_surprise.setText(surp_str)
+
+            title_l = title.lower()
+            if cntry.upper() == "US":
+                if "claims" in title_l or "unemploy" in title_l:
+                    is_usd_positive = (surprise < 0)
+                elif "cpi" in title_l or "ppi" in title_l or "inflation" in title_l:
+                    is_usd_positive = (surprise > 0)
+                elif "pmi" in title_l or "gdp" in title_l or "retail" in title_l:
+                    is_usd_positive = (surprise > 0)
+                else:
+                    is_usd_positive = (surprise > 0)
+
+                if is_usd_positive:
+                    eval_msg = "• Đánh giá AI: Số liệu khả quan hơn kỳ vọng -> Củng cố sức mạnh đồng USD."
+                    impact_msg = f"• Tác động {curr_sym}: Áp lực điều chỉnh giảm ngắn hạn. Không nhồi lệnh Mua khi chưa tạo đáy nến mới."
+                    color = "#ef4444"
+                elif surprise != 0:
+                    eval_msg = "• Đánh giá AI: Số liệu thấp hơn dự báo -> USD chịu áp lực giảm, dòng vốn ưu tiên tài sản trú ẩn."
+                    impact_msg = f"• Tác động {curr_sym}: Hỗ trợ đà tăng (Bullish). Ưu tiên setup Mua theo xu hướng."
+                    color = "#22c55e"
+                else:
+                    eval_msg = "• Đánh giá AI: Số liệu sát kỳ vọng thị trường -> Không gây sốc thanh khoản."
+                    impact_msg = f"• Tác động {curr_sym}: Biến động kỹ thuật bình thường, tuân thủ cấu trúc biểu đồ M15."
+                    color = "#0284c7"
+            else:
+                eval_msg = f"• Đánh giá AI: Dữ liệu kinh tế {cntry} {'tích cực' if surprise > 0 else 'tiêu cực'} so với dự báo."
+                impact_msg = f"• Tác động {curr_sym}: Tác động gián tiếp qua tỷ giá chéo, duy trì kiểm soát rủi ro thông thường."
+                color = "#0284c7"
+        else:
+            # Upcoming scheduled release
+            self.lbl_qa_surprise.setText(f"DỰ BÁO: {forecast or 'Chưa có'}  |  KỲ TRƯỚC: {prev or '--'}")
+            eval_msg = "• Đánh giá AI: Sự kiện đang được giám sát chặt chẽ trong cửa sổ rủi ro."
+            impact_msg = f"• Kịch bản {curr_sym}: Tự động kích hoạt khiên T-15M khi đồng hồ đếm ngược bước vào 15 phút trước giờ tin."
+            color = "#f59e0b"
+
+        self.lbl_qa_ai_insight.setText(eval_msg)
+        self.lbl_qa_asset_impact.setText(impact_msg)
+        self.lbl_qa_asset_impact.setStyleSheet(f"font-size: 9.5px; color: {color}; font-weight: 600; border: none;")
 
     def _on_clock_tick(self):
         """1-second timer tick for countdown and active defense monitoring (Pure UTC epoch)."""
@@ -1088,6 +1197,8 @@ class CalendarManager:
             self.frame_protocol.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
         if hasattr(self, "frame_actions") and self.frame_actions:
             self.frame_actions.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
+        if hasattr(self, "frame_quant_action") and self.frame_quant_action:
+            self.frame_quant_action.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
 
     def _on_timezone_changed(self, tz_key: str):
         """Synchronizes calendar column header and row time cells when global timezone changes."""
