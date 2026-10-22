@@ -1268,9 +1268,16 @@ QPushButton[objectName^="btnTopTf_"] {
 }
 
 QFrame#btnAlgoTrading {
+    background: transparent !important;
+    border: 1px solid transparent !important;
     min-height: 20px !important;
     max-height: 20px !important;
     margin: 0px !important;
+}
+
+QFrame#btnAlgoTrading:hover {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
 }
 
 QFrame#btnAlgoTrading QLabel {
@@ -1284,13 +1291,20 @@ QFrame#btnAlgoTrading QLabel {
 }
 
 QPushButton#btnTopIndicator {
+    background: transparent !important;
+    border: 1px solid transparent !important;
     min-height: 20px !important;
     max-height: 20px !important;
-    padding: 0px 6px !important;
+    padding: 0px 4px !important;
     margin: 0px !important;
     font-size: 10px !important;
     font-weight: 600 !important;
     font-family: 'Consolas', monospace !important;
+}
+
+QPushButton#btnTopIndicator:hover {
+    background: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
 }
 
 QPushButton#btnEventRiskBadge {

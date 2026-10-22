@@ -205,13 +205,13 @@ class AlgoControlPill(QFrame):
             self.lbl_action.setText("RUN")
             if self.is_dark:
                 bg = "transparent" if not self._is_hovered else "#161d2d"
-                border = "#1e293b" if not self._is_hovered else "#475569"
+                border = "transparent" if not self._is_hovered else "#475569"
                 status_col = "#94a3b8" if not self._is_hovered else "#cbd5e1"
                 action_col = "#22c55e" if not self._is_hovered else "#4ade80"
-                sep_col = "#1e293b" if not self._is_hovered else "#334155"
+                sep_col = "#272d3b" if not self._is_hovered else "#334155"
             else:
                 bg = "transparent" if not self._is_hovered else "#f8fafc"
-                border = "#e2e8f0" if not self._is_hovered else "#cbd5e1"
+                border = "transparent" if not self._is_hovered else "#cbd5e1"
                 status_col = "#64748b" if not self._is_hovered else "#334155"
                 action_col = "#15803d" if not self._is_hovered else "#166534"
                 sep_col = "#e2e8f0" if not self._is_hovered else "#cbd5e1"

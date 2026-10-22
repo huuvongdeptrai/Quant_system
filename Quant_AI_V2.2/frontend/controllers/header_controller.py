@@ -776,8 +776,8 @@ class WorkspaceHeaderController:
 
         # 5. IND Badge Button & Algo Control Pill (MT5 Flat resting state + Hover border)
         if hasattr(self, "btn_top_ind") and self.btn_top_ind:
-            ind_col = "#cbd5e1" if is_dark else "#475569"
-            border_col = "#1e293b" if is_dark else "#e2e8f0"
+            ind_col = "#38bdf8" if is_dark else "#0284c7"
+            border_col = "transparent"
             hover_bg = "#141721" if is_dark else "#f1f5f9"
             hover_col = "#38bdf8" if is_dark else "#0f172a"
             hover_border = "#272d3b" if is_dark else "#cbd5e1"
@@ -2126,8 +2126,8 @@ class WorkspaceHeaderController:
         btn_ind.setFixedHeight(20)
         btn_ind.setCursor(Qt.PointingHandCursor)
         btn_ind.setToolTip("Configure Quantitative Strategy or Indicator Stack")
-        ind_col = "#cbd5e1" if is_dark else "#475569"
-        border_col = "#1e293b" if is_dark else "#e2e8f0"
+        ind_col = "#38bdf8" if is_dark else "#0284c7"
+        border_col = "transparent"
         hover_bg = "#141721" if is_dark else "#f1f5f9"
         hover_col = "#38bdf8" if is_dark else "#0f172a"
         hover_border = "#272d3b" if is_dark else "#cbd5e1"
