@@ -1183,6 +1183,18 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             sp.style().unpolish(sp)
             sp.style().polish(sp)
 
+    # Volume Stepper Buttons
+    lot_step_style = (
+        f"QPushButton {{ background-color: {'#071524' if is_dark else '#f1f5f9'}; color: {'#94a3b8' if is_dark else '#475569'}; "
+        f"border: 1px solid {'#0c3359' if is_dark else '#cbd5e1'}; border-radius: 2px; font-family: Consolas, monospace; "
+        f"font-size: 10px; font-weight: 700; min-height: 18px; max-height: 18px; min-width: 18px; max-width: 18px; padding: 0px; margin: 0px; }} "
+        f"QPushButton:hover {{ background-color: {'#0c3359' if is_dark else '#e2e8f0'}; color: {'#38bdf8' if is_dark else '#0f172a'}; border-color: {'#38bdf8' if is_dark else '#94a3b8'}; }}"
+    )
+    if hasattr(window, "btnManualLotMinus") and window.btnManualLotMinus:
+        window.btnManualLotMinus.setStyleSheet(lot_step_style)
+    if hasattr(window, "btnManualLotPlus") and window.btnManualLotPlus:
+        window.btnManualLotPlus.setStyleSheet(lot_step_style)
+
     # Order Type Selector (Dynamic unpolish/polish for Light/Dark mode)
     if hasattr(window, "comboManualOrderType") and window.comboManualOrderType:
         window.comboManualOrderType.style().unpolish(window.comboManualOrderType)
@@ -2717,7 +2729,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_buy = QHBoxLayout(btn_buy)
     layout_buy.setContentsMargins(8, 2, 8, 2)
     layout_buy.setSpacing(4)
-    lbl_buy_t = QLabel("BUY MARKET")
+    lbl_buy_t = QLabel("BUY")
     lbl_buy_t.setObjectName("lblManualBuyText")
     lbl_ask_p = QLabel("0.00")
     lbl_ask_p.setObjectName("lblManualAskPrice")
@@ -2734,7 +2746,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_sell = QHBoxLayout(btn_sell)
     layout_sell.setContentsMargins(8, 2, 8, 2)
     layout_sell.setSpacing(4)
-    lbl_sell_t = QLabel("SELL MARKET")
+    lbl_sell_t = QLabel("SELL")
     lbl_sell_t.setObjectName("lblManualSellText")
     lbl_bid_p = QLabel("0.00")
     lbl_bid_p.setObjectName("lblManualBidPrice")
@@ -2801,10 +2813,10 @@ def setup_trading_plan_cards(window, is_dark=False):
         lbl_pending_price_ref.setVisible(is_pending)
         spin_pending_price.setVisible(is_pending)
 
-        # Update BUY/SELL button labels (Distinct Buy vs Sell quotes always separated)
+        # Update BUY/SELL button labels (Clean institutional: no redundant MARKET duplicate)
         if order_str == "MARKET":
-            lbl_buy_t.setText("BUY MARKET")
-            lbl_sell_t.setText("SELL MARKET")
+            lbl_buy_t.setText("BUY")
+            lbl_sell_t.setText("SELL")
         elif "LIMIT" in order_str:
             lbl_buy_t.setText("BUY LIMIT")
             lbl_sell_t.setText("SELL LIMIT")
@@ -2912,8 +2924,45 @@ def setup_trading_plan_cards(window, is_dark=False):
     spin_lot.setFixedHeight(20)
     spin_lot.setAlignment(Qt.AlignRight)
     spin_lot.setButtonSymbols(QDoubleSpinBox.NoButtons)
+
+    # Box with '-' / '+' stepper buttons flanking spin_lot
+    box_lot_ctrl = QWidget()
+    box_lot_ctrl.setFixedHeight(22)
+    layout_lot_ctrl = QHBoxLayout(box_lot_ctrl)
+    layout_lot_ctrl.setContentsMargins(0, 0, 0, 0)
+    layout_lot_ctrl.setSpacing(2)
+    layout_lot_ctrl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+    btn_lot_minus = QPushButton("-")
+    btn_lot_minus.setObjectName("btnManualLotMinus")
+    btn_lot_minus.setFixedSize(18, 20)
+    btn_lot_minus.setCursor(Qt.PointingHandCursor)
+    btn_lot_minus.setToolTip("Decrease 0.01 Lot")
+
+    btn_lot_plus = QPushButton("+")
+    btn_lot_plus.setObjectName("btnManualLotPlus")
+    btn_lot_plus.setFixedSize(18, 20)
+    btn_lot_plus.setCursor(Qt.PointingHandCursor)
+    btn_lot_plus.setToolTip("Increase 0.01 Lot")
+
+    layout_lot_ctrl.addWidget(btn_lot_minus, 0, Qt.AlignVCenter)
+    layout_lot_ctrl.addWidget(spin_lot, 0, Qt.AlignVCenter)
+    layout_lot_ctrl.addWidget(btn_lot_plus, 0, Qt.AlignVCenter)
+
+    def _step_lot(delta):
+        cur_v = round(spin_lot.value() + delta, 2)
+        cur_v = max(0.01, min(100.0, cur_v))
+        spin_lot.setValue(cur_v)
+        _recalculate_manual_lot_and_rr(window, from_user_lot_change=True)
+
+    btn_lot_minus.clicked.connect(lambda: _step_lot(-0.01))
+    btn_lot_plus.clicked.connect(lambda: _step_lot(0.01))
+
+    window.btnManualLotMinus = btn_lot_minus
+    window.btnManualLotPlus = btn_lot_plus
+
     layout_m_risk.addWidget(lbl_mr_title, 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
-    layout_m_risk.addWidget(spin_lot, 0, 1, 1, 2, Qt.AlignRight | Qt.AlignVCenter)
+    layout_m_risk.addWidget(box_lot_ctrl, 0, 1, 1, 2, Qt.AlignRight | Qt.AlignVCenter)
 
     # Quick Risk Selectors
     lbl_risk_lbl = QLabel("% RISK")

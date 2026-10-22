@@ -1256,8 +1256,8 @@ class TestPendingOrderExecution:
 
         # 1. Market mode
         combo.setCurrentText("MARKET")
-        assert win.lblManualBuyText.text() == "BUY MARKET"
-        assert win.lblManualSellText.text() == "SELL MARKET"
+        assert win.lblManualBuyText.text() == "BUY"
+        assert win.lblManualSellText.text() == "SELL"
 
         # 2. Buy Limit mode
         combo.setCurrentText("BUY LIMIT")

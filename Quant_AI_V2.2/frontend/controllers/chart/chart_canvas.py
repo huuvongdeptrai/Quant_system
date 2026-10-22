@@ -251,7 +251,7 @@ def setup_chart_ui(window):
         w = 325
         c_w = window.frameChartArea.width()
         c_h = window.frameChartArea.height()
-        x = max(10, c_w - w - 75)
+        x = max(10, c_w - w - 85)
         ribbon_h = window.frameChartRibbon.height() if hasattr(window, "frameChartRibbon") and window.frameChartRibbon else 24
         y = ribbon_h + 8
         h = min(530, max(200, c_h - y - 25))
