@@ -5,6 +5,7 @@ import time
 from loguru import logger
 
 _MACRO_CACHE = {"report": None, "timestamp": 0}
+_MACRO_CACHE_TTL = 900  # 15 minutes TTL
 
 
 class MacroRegimeEngine:
@@ -149,10 +150,14 @@ class MacroRegimeEngine:
         }
 
     def generate_macro_report(self):
+        global _MACRO_CACHE
+        now = time.time()
+        if _MACRO_CACHE.get("report") is not None and (now - _MACRO_CACHE.get("timestamp", 0)) < _MACRO_CACHE_TTL:
+            return _MACRO_CACHE["report"]
+
         tele_news = "No emergency breaking macro alerts reported in the last 4 hours."
         import json
         import os
-        import time
         from pathlib import Path
 
         try:
@@ -171,9 +176,12 @@ class MacroRegimeEngine:
         except Exception as err:
             logger.debug(f"[MacroRegime] Telegram news file read error: {err}")
 
-        return {
+        report = {
             "Market": self.get_market_state(),
             "Monetary": self.get_monetary_state(),
             "Economic": self.get_economic_state(),
             "Telegram_News": tele_news,
         }
+        _MACRO_CACHE["report"] = report
+        _MACRO_CACHE["timestamp"] = now
+        return report

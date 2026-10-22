@@ -645,6 +645,10 @@ def test_margin_adequacy_pre_check_blocks_insufficient_margin(qapp):
     setup_trading_plan_cards(win, is_dark=True)
 
     # Set lot to a large volume (e.g. 50 lots) with matching valid entry price
+    if hasattr(win, "lblManualAskPrice") and win.lblManualAskPrice:
+        win.lblManualAskPrice.setText("4120.0")
+    if hasattr(win, "lblManualBidPrice") and win.lblManualBidPrice:
+        win.lblManualBidPrice.setText("4119.5")
     win._last_manual_entry = 4120.0
     win._last_manual_ask = 4120.0
     win._last_manual_bid = 4119.5
@@ -654,6 +658,7 @@ def test_margin_adequacy_pre_check_blocks_insufficient_margin(qapp):
     win.spinManualSL.setValue(4090.0)
     win.spinManualTP.setValue(4150.0)
     win._manual_direction = "BUY"
+    win._last_manual_entry = 4120.0
 
     mock_acc = MagicMock(
         balance=5000.0,
