@@ -448,7 +448,15 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             for idx, t in enumerate(display_records, start=max(1, total_tr - len(display_records) + 1)):
                 pnl_str = f"+${t['pnl']:,.2f}" if t['pnl'] >= 0 else f"-${abs(t['pnl']):,.2f}"
                 vol = t.get("volume", 1.0)
-                self._log(f"[{now_str}] [TRADE #{idx:02d}] {t['side']} {self.current_symbol} {vol:.2f} lots @ {t['entry']:.2f} -> {t['outcome']} {t['exit']:.2f} | PnL: {pnl_str}")
+                entry_t = str(t.get("entry_time", "")).strip()
+                exit_t = str(t.get("exit_time", "")).strip()
+                if entry_t and exit_t:
+                    time_info = f"[{entry_t} -> {exit_t}] "
+                elif entry_t:
+                    time_info = f"[{entry_t}] "
+                else:
+                    time_info = ""
+                self._log(f"[{now_str}] [TRADE #{idx:02d}] {time_info}{t['side']} {self.current_symbol} {vol:.2f} lots @ {t['entry']:.2f} -> {t['outcome']} {t['exit']:.2f} | PnL: {pnl_str}")
         elif report.trades:
             total_tr = len(report.trades)
             display_trades = report.trades[-25:] if total_tr > 30 else report.trades

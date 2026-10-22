@@ -93,9 +93,28 @@ class TestBacktestPipelineAndStrategyDispatch:
         for trade in report.trade_records:
             assert "volume" in trade, "Trade record must include volume"
             assert "symbol" in trade, "Trade record must include symbol"
+            assert "entry_time" in trade, "Trade record must include entry_time"
+            assert "exit_time" in trade, "Trade record must include exit_time"
             assert trade["symbol"] == "XAUUSD"
             assert trade["volume"] > 0, "Volume must be positive"
             assert trade["volume"] <= 50.0, "Volume must be within safety bounds"
+
+    def test_trade_records_contain_exact_bar_timestamps_when_provided(self):
+        """Verify that real MT5 timestamps are converted to exact date/hour strings in trade records."""
+        df = generate_test_ohlcv(n=500, seed=123)
+        # Add real MT5 unix timestamp sequence (15m interval)
+        start_ts = 1727000000
+        df["time"] = [start_ts + i * 900 for i in range(len(df))]
+        bt = VectorizedBacktester(initial_balance=100000.0, risk_per_trade_pct=1.0)
+        report = bt.run(df, target_rr=2.5, strategy_name="wyckoff", symbol="XAUUSD")
+
+        assert report is not None and report.trade_records
+        for t in report.trade_records:
+            assert "entry_time" in t and "exit_time" in t
+            # Verify standard datetime format: YYYY-MM-DD HH:MM
+            assert len(t["entry_time"]) == 16, f"entry_time format mismatch: {t['entry_time']}"
+            assert len(t["exit_time"]) == 16, f"exit_time format mismatch: {t['exit_time']}"
+            assert "-" in t["entry_time"] and ":" in t["entry_time"]
 
     def test_next_bar_open_fill_eliminates_lookahead(self):
         """Verify fill_on_next_open correctly executes on the open of the following candle."""

@@ -359,7 +359,32 @@ class VectorizedBacktester:
         ema50 = self._calc_ema(closes, 50)
         vol_ma = self._calc_ema(volumes, 20)
 
-        # 3. Mô phỏng khớp lệnh Vectorized
+        # 3. Trích xuất mốc thời gian nến (Audit Timestamps for Order Execution)
+        time_strs = None
+        if "time" in df.columns:
+            try:
+                raw_time = df["time"]
+                if not pd.api.types.is_datetime64_any_dtype(raw_time):
+                    first_val = float(raw_time.iloc[0]) if len(raw_time) > 0 else 0
+                    if first_val > 1e8:
+                        dt_series = pd.to_datetime(raw_time, unit="s")
+                    else:
+                        dt_series = pd.to_datetime(raw_time)
+                else:
+                    dt_series = raw_time
+                time_strs = dt_series.dt.strftime("%Y-%m-%d %H:%M").to_numpy()
+            except Exception:
+                time_strs = None
+        elif isinstance(df.index, pd.DatetimeIndex):
+            try:
+                time_strs = df.index.strftime("%Y-%m-%d %H:%M").to_numpy()
+            except Exception:
+                time_strs = None
+
+        if time_strs is None or len(time_strs) != n:
+            time_strs = [f"Bar #{idx}" for idx in range(n)]
+
+        # 4. Mô phỏng khớp lệnh Vectorized
         trades_pnl = []
         trade_records = []
         in_pos = False
@@ -370,6 +395,7 @@ class VectorizedBacktester:
         lot_size = 0.1
         total_comm = 0.0
         mult = get_symbol_multiplier(symbol)
+        entry_time_str = ""
 
         balance = self.initial_balance
         equity_curve = [balance]
@@ -387,14 +413,20 @@ class VectorizedBacktester:
                     if l <= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
+                        exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
+                            "trade_id": len(trade_records) + 1,
                             "side": "BUY",
                             "entry": entry_price,
                             "exit": sl_price,
+                            "sl": sl_price,
+                            "tp": tp_price,
                             "outcome": "SL",
                             "pnl": loss_pnl,
                             "volume": round(lot_size, 2),
                             "symbol": symbol,
+                            "entry_time": entry_time_str,
+                            "exit_time": exit_time_str,
                         })
                         balance += loss_pnl
                         total_comm += friction
@@ -402,14 +434,20 @@ class VectorizedBacktester:
                     elif h >= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
+                        exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
+                            "trade_id": len(trade_records) + 1,
                             "side": "BUY",
                             "entry": entry_price,
                             "exit": tp_price,
+                            "sl": sl_price,
+                            "tp": tp_price,
                             "outcome": "TP",
                             "pnl": win_pnl,
                             "volume": round(lot_size, 2),
                             "symbol": symbol,
+                            "entry_time": entry_time_str,
+                            "exit_time": exit_time_str,
                         })
                         balance += win_pnl
                         total_comm += friction
@@ -418,14 +456,20 @@ class VectorizedBacktester:
                     if h >= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
+                        exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
+                            "trade_id": len(trade_records) + 1,
                             "side": "SELL",
                             "entry": entry_price,
                             "exit": sl_price,
+                            "sl": sl_price,
+                            "tp": tp_price,
                             "outcome": "SL",
                             "pnl": loss_pnl,
                             "volume": round(lot_size, 2),
                             "symbol": symbol,
+                            "entry_time": entry_time_str,
+                            "exit_time": exit_time_str,
                         })
                         balance += loss_pnl
                         total_comm += friction
@@ -433,14 +477,20 @@ class VectorizedBacktester:
                     elif l <= tp_price:
                         win_pnl = (risk_amt * target_rr) - friction
                         trades_pnl.append(win_pnl)
+                        exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
+                            "trade_id": len(trade_records) + 1,
                             "side": "SELL",
                             "entry": entry_price,
                             "exit": tp_price,
+                            "sl": sl_price,
+                            "tp": tp_price,
                             "outcome": "TP",
                             "pnl": win_pnl,
                             "volume": round(lot_size, 2),
                             "symbol": symbol,
+                            "entry_time": entry_time_str,
+                            "exit_time": exit_time_str,
                         })
                         balance += win_pnl
                         total_comm += friction
@@ -480,15 +530,19 @@ class VectorizedBacktester:
                 if buy_cond:
                     in_pos = True
                     pos_type = 1
+                    entry_bar = i + 1 if fill_on_next_open and "open" in df.columns and i + 1 < n else i
                     entry_price = float(opens[i + 1]) if fill_on_next_open and "open" in df.columns and i + 1 < n else c
                     sl_price = entry_price - sl_dist
                     tp_price = entry_price + sl_dist * target_rr
+                    entry_time_str = time_strs[entry_bar] if entry_bar < len(time_strs) else ""
                 elif sell_cond:
                     in_pos = True
                     pos_type = -1
+                    entry_bar = i + 1 if fill_on_next_open and "open" in df.columns and i + 1 < n else i
                     entry_price = float(opens[i + 1]) if fill_on_next_open and "open" in df.columns and i + 1 < n else c
                     sl_price = entry_price + sl_dist
                     tp_price = entry_price - sl_dist * target_rr
+                    entry_time_str = time_strs[entry_bar] if entry_bar < len(time_strs) else ""
 
             equity_curve.append(balance)
 

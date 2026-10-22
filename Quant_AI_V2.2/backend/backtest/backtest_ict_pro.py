@@ -205,6 +205,11 @@ class EventDrivenBacktester:
                     trades_pnl.append(actual_pnl)
                     balance += actual_pnl
                     total_commission_paid += friction
+                    def _fmt_ts(val):
+                        if hasattr(val, "strftime"):
+                            return val.strftime("%Y-%m-%d %H:%M")
+                        return str(val) if val is not None else ""
+
                     trade_records.append({
                         "trade_id": len(trade_records) + 1,
                         "side": "BUY" if pos_type == 1 else "SELL",
@@ -216,8 +221,8 @@ class EventDrivenBacktester:
                         "pnl": round(actual_pnl, 2),
                         "volume": round(lot_size, 2),
                         "symbol": symbol,
-                        "entry_time": str(entry_time),
-                        "exit_time": str(row_time),
+                        "entry_time": _fmt_ts(entry_time),
+                        "exit_time": _fmt_ts(row_time),
                     })
                     in_pos = False
                     last_exit_bar = i
