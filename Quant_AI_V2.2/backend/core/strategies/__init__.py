@@ -14,7 +14,10 @@ from .base_strategy import BaseStrategy, StrategySignal, ChecklistItem, Checklis
 from .ict_strategy import ICTZonesProStrategy
 from .ema_stress_test import EMAStressTestStrategy
 from .wyckoff_vectorized import VectorizedBacktester, WyckoffMomentumStrategy
-from .custom_ict_fvg import CustomICTFVGStrategy
+try:
+    from .custom_ict_fvg import CustomICTFVGStrategy
+except ImportError:
+    CustomICTFVGStrategy = None
 from .strategy_loader import (
     discover_strategies,
     get_strategies_dir,

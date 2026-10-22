@@ -2219,6 +2219,11 @@ def sync_manual_copilot_quotes(window):
 
 def execute_manual_quant_order(window):
     """Executes the validated manual quant market order via ExecutionManager."""
+    if hasattr(window, "spinManualLot") and window.spinManualLot:
+        try:
+            window.spinManualLot.interpretText()
+        except Exception:
+            pass
     clean_sym = getattr(window, "current_sym", "XAUUSD").split("\n")[0].strip()
     is_buy = (getattr(window, "_manual_direction", "BUY") == "BUY")
     risk_pct = getattr(window, "_manual_risk_pct", 1.0)
@@ -2903,7 +2908,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     spin_lot.setSingleStep(0.01)
     spin_lot.setValue(0.20)
     spin_lot.setSuffix(" LOTS")
-    spin_lot.setFixedWidth(78)
+    spin_lot.setFixedWidth(86)
     spin_lot.setFixedHeight(20)
     spin_lot.setAlignment(Qt.AlignRight)
     spin_lot.setButtonSymbols(QDoubleSpinBox.NoButtons)
@@ -3323,6 +3328,16 @@ def setup_trading_plan_cards(window, is_dark=False):
     btn_r20.clicked.connect(lambda: _set_risk(2.0))
 
     # Signal wiring: SpinBox changes
+    def _on_lot_text_edited(txt):
+        try:
+            spin_lot.interpretText()
+            _recalculate_manual_lot_and_rr(window, from_user_lot_change=True)
+        except Exception:
+            pass
+
+    if hasattr(spin_lot, "lineEdit") and spin_lot.lineEdit():
+        spin_lot.lineEdit().textEdited.connect(_on_lot_text_edited)
+
     spin_lot.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window, from_user_lot_change=True))
     spin_sl.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))
     spin_tp.valueChanged.connect(lambda: _recalculate_manual_lot_and_rr(window))

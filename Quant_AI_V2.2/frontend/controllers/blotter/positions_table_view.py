@@ -68,8 +68,8 @@ class PositionsTableView:
             # Reconstruct dock header layout inside frameExecutions
             exec_layout = self.window.frameExecutions.layout()
             if exec_layout:
-                exec_layout.setContentsMargins(6, 4, 6, 4)
-                exec_layout.setSpacing(2)
+                exec_layout.setContentsMargins(0, 0, 0, 0)
+                exec_layout.setSpacing(0)
             if exec_layout and exec_layout.itemAt(0) and exec_layout.itemAt(0).layout():
                 header_layout = exec_layout.itemAt(0).layout()
                 while header_layout.count():
@@ -78,33 +78,36 @@ class PositionsTableView:
                     if w:
                         w.deleteLater()
 
-                header_layout.setContentsMargins(6, 2, 6, 2)
+                # Left margin 26px precisely aligns with the 26px width of toolbarChartDrawing
+                header_layout.setContentsMargins(26, 0, 6, 0)
                 header_layout.setSpacing(6)
                 header_layout.setAlignment(Qt.AlignVCenter)
 
                 # Real Trade Blotter Tabs
                 blotter_tabs = [
-                    ("POSITIONS", "active"),
+                    ("POSITIONS (0)", "active"),
                     ("ORDERS / DEALS", "history"),
-                    ("PENDING ORDERS", "pending"),
+                    ("PENDING ORDERS (0)", "pending"),
                 ]
                 self.blotter_buttons = {}
 
                 # Institutional summary badge in dock header (dynamically updated)
                 self.lbl_dock_summary = QLabel()
+                self.lbl_dock_summary.setFixedHeight(20)
+                self.lbl_dock_summary.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
                 self.lbl_dock_summary.setStyleSheet(
-                    "color:#64748b; font-family:Consolas, monospace; font-size:9px; padding-left: 14px;"
+                    "color:#64748b; font-family:Consolas, monospace; font-size:9px; padding-left: 14px; margin: 0px;"
                 )
 
                 for t_label, t_mode in blotter_tabs:
                     btn_t = QPushButton(t_label)
-                    btn_t.setFixedHeight(22)
+                    btn_t.setFixedHeight(20)
                     btn_t.setCursor(Qt.PointingHandCursor)
                     btn_t.clicked.connect(lambda checked=False, m=t_mode: self.render(m))
-                    header_layout.addWidget(btn_t)
+                    header_layout.addWidget(btn_t, 0, Qt.AlignVCenter)
                     self.blotter_buttons[t_mode] = btn_t
 
-                header_layout.addWidget(self.lbl_dock_summary)
+                header_layout.addWidget(self.lbl_dock_summary, 0, Qt.AlignVCenter)
                 header_layout.addStretch()
 
                 # Right action buttons: FILTERS & EXPORT CSV
@@ -117,11 +120,11 @@ class PositionsTableView:
                     btn_filters.setIconSize(QSize(11, 11))
                 btn_filters.setStyleSheet(
                     "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid #272d3b; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #ffffff; background-color: #141721; border-color: #3b4252; }"
                 )
                 self.btn_blotter_filters = btn_filters
-                header_layout.addWidget(btn_filters)
+                header_layout.addWidget(btn_filters, 0, Qt.AlignVCenter)
 
                 btn_export = QPushButton("EXPORT CSV")
                 btn_export.setFixedHeight(20)
@@ -132,11 +135,11 @@ class PositionsTableView:
                     btn_export.setIconSize(QSize(11, 11))
                 btn_export.setStyleSheet(
                     "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid #272d3b; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #ffffff; background-color: #141721; border-color: #3b4252; }"
                 )
                 self.btn_blotter_export = btn_export
-                header_layout.addWidget(btn_export)
+                header_layout.addWidget(btn_export, 0, Qt.AlignVCenter)
 
                 btn_flatten = QPushButton("FLATTEN ALL")
                 btn_flatten.setFixedHeight(20)
@@ -156,12 +159,12 @@ class PositionsTableView:
                 is_dark = getattr(self.controller, "is_dark_theme", False)
                 if is_dark:
                     btn_dock.setStyleSheet(
-                        "QPushButton#btnDockToggle { background-color: transparent; border: 1px solid #272d3b; border-radius: 2px; padding: 0px; margin: 0px; min-height: 20px; max-height: 20px; min-width: 20px; max-width: 20px; } "
+                        "QPushButton#btnDockToggle { background-color: transparent; border: 1px solid #272d3b; border-radius: 2px; padding: 0px; margin: 0px; min-height: 18px; max-height: 18px; min-width: 18px; max-width: 18px; } "
                         "QPushButton#btnDockToggle:hover { background-color: #1e293b; border-color: #475569; }"
                     )
                 else:
                     btn_dock.setStyleSheet(
-                        "QPushButton#btnDockToggle { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0px; margin: 0px; min-height: 20px; max-height: 20px; min-width: 20px; max-width: 20px; } "
+                        "QPushButton#btnDockToggle { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0px; margin: 0px; min-height: 18px; max-height: 18px; min-width: 18px; max-width: 18px; } "
                         "QPushButton#btnDockToggle:hover { background-color: #f1f5f9; border-color: #94a3b8; }"
                     )
                 collapse_svg = os.path.join(assets_dir, "dock_collapse.svg")
@@ -175,16 +178,25 @@ class PositionsTableView:
                     self.window.is_dock_collapsed = not getattr(self.window, "is_dock_collapsed", False)
                     if self.window.is_dock_collapsed:
                         self.window.tableExecutions.setVisible(False)
-                        self.window.frameExecutions.setMinimumHeight(28)
-                        self.window.frameExecutions.setFixedHeight(28)
+                        self.window.frameExecutions.setMinimumHeight(26)
+                        self.window.frameExecutions.setFixedHeight(26)
+                        if self.btn_blotter_filters:
+                            self.btn_blotter_filters.hide()
+                        if self.btn_blotter_export:
+                            self.btn_blotter_export.hide()
                         if os.path.exists(expand_svg):
                             btn_dock.setIcon(QIcon(expand_svg))
                     else:
                         self.window.tableExecutions.setVisible(True)
                         self.window.frameExecutions.setMinimumHeight(155)
                         self.window.frameExecutions.setFixedHeight(155)
+                        if self.btn_blotter_filters:
+                            self.btn_blotter_filters.show()
+                        if self.btn_blotter_export:
+                            self.btn_blotter_export.show()
                         if os.path.exists(collapse_svg):
                             btn_dock.setIcon(QIcon(collapse_svg))
+                    self._update_tab_styles()
 
                 btn_dock.clicked.connect(_toggle_dock)
                 self.window.btnDockToggle = btn_dock
@@ -200,6 +212,51 @@ class PositionsTableView:
         if hasattr(self.window, "layoutChartAndExec") and hasattr(self.window, "frameExecutions") and tab_live:
             self.window.layoutChartAndExec.removeWidget(self.window.frameExecutions)
             tab_live.layout().addWidget(self.window.frameExecutions)
+
+    def _update_tab_styles(self, mode: Optional[str] = None):
+        """Update tab button styles reflecting both active mode and dock collapsed/expanded state."""
+        if mode is None:
+            mode = getattr(self.controller, "active_blotter_mode", "active")
+        is_dark = getattr(self.controller, "is_dark_theme", False)
+        is_collapsed = getattr(self.window, "is_dock_collapsed", False)
+
+        for m_key, b_obj in self.blotter_buttons.items():
+            if m_key == mode:
+                if is_collapsed:
+                    # Clean flat underline accent when collapsed (no broken 3-sided box)
+                    accent_c = "#38bdf8" if is_dark else "#0284c7"
+                    text_c = "#ffffff" if is_dark else "#0f172a"
+                    b_obj.setStyleSheet(
+                        f"QPushButton {{ background-color: transparent; color: {text_c}; border: none; "
+                        f"border-bottom: 2px solid {accent_c}; font-family: Consolas, monospace; "
+                        "font-size: 9px; font-weight: bold; padding: 0 10px; margin: 0px; min-height: 20px; max-height: 20px; }"
+                    )
+                else:
+                    # Connected tab border when expanded into table below
+                    if is_dark:
+                        b_obj.setStyleSheet(
+                            "QPushButton { background-color: #12151d; color: #ffffff; border: 1px solid #272d3b; "
+                            "border-top: 2px solid #f8fafc; border-bottom: none; font-family: Consolas, monospace; "
+                            "font-size: 9px; font-weight: bold; padding: 0 12px; border-top-left-radius: 2px; border-top-right-radius: 2px; "
+                            "margin: 0px; min-height: 20px; max-height: 20px; }"
+                        )
+                    else:
+                        b_obj.setStyleSheet(
+                            "QPushButton { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
+                            "border-top: 2px solid #0f172a; border-bottom: none; font-family: Consolas, monospace; "
+                            "font-size: 9px; font-weight: bold; padding: 0 12px; border-top-left-radius: 2px; border-top-right-radius: 2px; "
+                            "margin: 0px; min-height: 20px; max-height: 20px; }"
+                        )
+            else:
+                color_inactive = "#94a3b8" if is_dark else "#64748b"
+                hover_bg = "#141721" if is_dark else "#e2e8f0"
+                hover_color = "#ffffff" if is_dark else "#0f172a"
+                b_obj.setStyleSheet(
+                    f"QPushButton {{ background-color: transparent; color: {color_inactive}; border: none; "
+                    "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; padding: 0 8px; margin: 0px; "
+                    "min-height: 20px; max-height: 20px; } "
+                    f"QPushButton:hover {{ color: {hover_color}; background-color: {hover_bg}; }}"
+                )
 
     def render(self, mode: Optional[str] = None):
         """Render active positions, history deals, or pending orders based on mode."""
@@ -217,61 +274,52 @@ class PositionsTableView:
                 pass
         is_dark = getattr(self.controller, "is_dark_theme", False)
         is_live = mt5.terminal_info() is not None
+        is_dock_col = getattr(self.window, "is_dock_collapsed", False)
 
-        # Tab button styles
-        for m_key, b_obj in self.blotter_buttons.items():
-            if m_key == mode:
-                if is_dark:
-                    b_obj.setStyleSheet(
-                        "QPushButton { background-color: #12151d; color: #ffffff; border: 1px solid #272d3b; "
-                        "border-top: 2px solid #f8fafc; border-bottom: none; font-family: Consolas, monospace; "
-                        "font-size: 9px; font-weight: bold; padding: 0 12px; border-top-left-radius: 2px; border-top-right-radius: 2px; }"
-                    )
-                else:
-                    b_obj.setStyleSheet(
-                        "QPushButton { background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; "
-                        "border-top: 2px solid #0f172a; border-bottom: none; font-family: Consolas, monospace; "
-                        "font-size: 9px; font-weight: bold; padding: 0 12px; border-top-left-radius: 2px; border-top-right-radius: 2px; }"
-                    )
-            else:
-                if is_dark:
-                    b_obj.setStyleSheet(
-                        "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid transparent; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; padding: 0 10px; } "
-                        "QPushButton:hover { color: #ffffff; background-color: #141721; }"
-                    )
-                else:
-                    b_obj.setStyleSheet(
-                        "QPushButton { background-color: transparent; color: #64748b; border: 1px solid transparent; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; padding: 0 10px; } "
-                        "QPushButton:hover { color: #0f172a; background-color: #e2e8f0; }"
-                    )
+        # Tab button styles reflecting mode & collapsed/expanded state
+        self._update_tab_styles(mode)
 
-        # Update FILTERS & EXPORT CSV buttons style
+        # Always synchronize live counts for POSITIONS and PENDING ORDERS
+        try:
+            cur_pos = mt5.positions_get() if is_live else None
+            n_pos = len(cur_pos) if cur_pos else 0
+            if hasattr(self, "blotter_buttons") and "active" in self.blotter_buttons:
+                self.blotter_buttons["active"].setText(f"POSITIONS ({n_pos})")
+
+            cur_orders = mt5.orders_get() if is_live else None
+            n_orders = len(cur_orders) if cur_orders else 0
+            if hasattr(self, "blotter_buttons") and "pending" in self.blotter_buttons:
+                self.blotter_buttons["pending"].setText(f"PENDING ORDERS ({n_orders})")
+        except Exception as e_cnt:
+            logger.debug(f"[Blotter] Live tab counts error: {e_cnt}")
+
+        # Update FILTERS & EXPORT CSV buttons style & visibility (hidden when dock is collapsed)
         if hasattr(self, "btn_blotter_filters") and self.btn_blotter_filters:
+            self.btn_blotter_filters.setVisible(not is_dock_col)
             if is_dark:
                 self.btn_blotter_filters.setStyleSheet(
                     "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid #272d3b; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #ffffff; background-color: #141721; border-color: #3b4252; }"
                 )
             else:
                 self.btn_blotter_filters.setStyleSheet(
                     "QPushButton { background-color: #ffffff; color: #475569; border: 1px solid #cbd5e1; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #0f172a; background-color: #e2e8f0; border-color: #94a3b8; }"
                 )
         if hasattr(self, "btn_blotter_export") and self.btn_blotter_export:
+            self.btn_blotter_export.setVisible(not is_dock_col)
             if is_dark:
                 self.btn_blotter_export.setStyleSheet(
                     "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid #272d3b; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #ffffff; background-color: #141721; border-color: #3b4252; }"
                 )
             else:
                 self.btn_blotter_export.setStyleSheet(
                     "QPushButton { background-color: #ffffff; color: #475569; border: 1px solid #cbd5e1; "
-                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; } "
+                    "font-family: Consolas, monospace; font-size: 8.5px; font-weight: 600; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                     "QPushButton:hover { color: #0f172a; background-color: #e2e8f0; border-color: #94a3b8; }"
                 )
 

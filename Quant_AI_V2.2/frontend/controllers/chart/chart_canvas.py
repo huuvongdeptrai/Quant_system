@@ -577,7 +577,7 @@ def setup_chart_ui(window):
     is_d_init = getattr(window, "is_dark_theme", False)
     tb_bg_init = "#050608" if is_d_init else "#f8fafc"
     tb_bdr_init = "#1c1c1c" if is_d_init else "#e2e8f0"
-    toolbar_draw.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg_init}; border-right: 1px solid {tb_bdr_init}; }}")
+    toolbar_draw.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg_init}; border-right: 1px solid {tb_bdr_init}; border-bottom: 1px solid {tb_bdr_init}; }}")
     tb_layout = QVBoxLayout(toolbar_draw)
     tb_layout.setContentsMargins(2, 4, 2, 4)
     tb_layout.setSpacing(4)
@@ -3798,7 +3798,7 @@ def update_chart_theme(window, is_dark: bool = False):
     if hasattr(window, "toolbarChartDrawing") and window.toolbarChartDrawing:
         tb_bg = "#050608" if is_dark else "#f8fafc"
         tb_border = "#1c1c1c" if is_dark else "#e2e8f0"
-        window.toolbarChartDrawing.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg}; border-right: 1px solid {tb_border}; }}")
+        window.toolbarChartDrawing.setStyleSheet(f"QFrame#toolbarChartDrawing {{ background-color: {tb_bg}; border-right: 1px solid {tb_border}; border-bottom: 1px solid {tb_border}; }}")
         if hasattr(window, "btnToolProfile") and window.btnToolProfile:
             window.btnToolProfile._is_dark = is_dark
             if hasattr(window, "_get_tool_btn_style"):

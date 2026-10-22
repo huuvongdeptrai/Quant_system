@@ -28,17 +28,18 @@ class KillSwitchHandler:
         btn = getattr(self.controller, "btn_blotter_flatten", None)
         if not btn:
             return
+        btn.setFixedHeight(20)
         is_dark = getattr(self.controller, "is_dark_theme", False)
         if is_dark:
             btn.setStyleSheet(
                 "QPushButton { background-color: #991b1b; color: #ffffff; border: 1px solid #7f1d1d; "
-                "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 8px; } "
+                "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                 "QPushButton:hover { background-color: #b91c1c; border-color: #991b1b; }"
             )
         else:
             btn.setStyleSheet(
                 "QPushButton { background-color: #dc2626; color: #ffffff; border: 1px solid #cbd5e1; "
-                "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 8px; } "
+                "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0 8px; margin: 0px; } "
                 "QPushButton:hover { background-color: #b91c1c; border-color: #94a3b8; }"
             )
 
