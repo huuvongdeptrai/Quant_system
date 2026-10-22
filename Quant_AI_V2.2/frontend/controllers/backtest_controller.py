@@ -125,32 +125,10 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "comboBtEngine"):
             combo = self.window.comboBtEngine
             combo.setFixedHeight(32)
-            combo.setFixedWidth(200)
+            combo.setFixedWidth(250)
             combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
             self._reload_strategy_combobox()
             combo.currentIndexChanged.connect(self._on_strategy_changed)
-
-        # Strategy Manager Micro-button (Placed adjacent to Strategy combobox)
-        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
-        self.btnBtManageStrat = QPushButton()
-        gear_svg = os.path.join(assets_dir, "tool_gear.svg")
-        if os.path.exists(gear_svg):
-            self.btnBtManageStrat.setIcon(QIcon(gear_svg))
-            self.btnBtManageStrat.setIconSize(QSize(13, 13))
-        self.btnBtManageStrat.setObjectName("btnBtManageStrat")
-        self.btnBtManageStrat.setFixedHeight(30)
-        self.btnBtManageStrat.setFixedWidth(26)
-        self.btnBtManageStrat.setToolTip("Open Strategy Manager...")
-        self.btnBtManageStrat.setStyleSheet(
-            "QPushButton#btnBtManageStrat {"
-            " background-color: #ffffff; border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 2px;"
-            " padding: 0px;"
-            "}"
-            "QPushButton#btnBtManageStrat:hover {"
-            " background-color: #f1f5f9; border-color: #0f172a;"
-            "}"
-        )
-        self.btnBtManageStrat.clicked.connect(self._open_strategy_manager)
 
         # 2b. Engine Mode Selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
         if hasattr(self.window, "comboBtMode"):
@@ -227,7 +205,7 @@ class BacktestWorkbenchController:
             self.spinBtComm.setFixedWidth(102)
 
         # Reorder layout to guarantee strict sequence:
-        # [Symbol ▾] [TF ▾] [Strategy ▾] [⚙] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
+        # [Symbol ▾] [TF ▾] [Strategy ▾] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
         if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
             layout = self.window.frameBtParams.layout()
             layout.insertWidget(0, self.comboBtSymbol)
@@ -235,10 +213,8 @@ class BacktestWorkbenchController:
                 layout.insertWidget(1, self.window.comboBtTf)
             if hasattr(self.window, "comboBtEngine"):
                 layout.insertWidget(2, self.window.comboBtEngine)
-            if hasattr(self, "btnBtManageStrat"):
-                layout.insertWidget(3, self.btnBtManageStrat)
             if hasattr(self, "comboBtMode"):
-                layout.insertWidget(4, self.comboBtMode)
+                layout.insertWidget(3, self.comboBtMode)
 
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
@@ -549,15 +525,12 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "btnImportStrat"):
             self.btn_import_strat = self.window.btnImportStrat
             self.btn_import_strat.setText("IMPORT")
-            import_svg = os.path.join(assets_dir, "icon_import.svg")
-            if os.path.exists(import_svg):
-                self.btn_import_strat.setIcon(QIcon(import_svg))
-                self.btn_import_strat.setIconSize(QSize(13, 13))
-            self.btn_import_strat.setFixedSize(72, 32)
-            self.btn_import_strat.setToolTip("Import Python Strategy file")
+            self.btn_import_strat.setIcon(QIcon())
+            self.btn_import_strat.setFixedSize(74, 32)
+            self.btn_import_strat.setToolTip("Open Strategy Manager & Import (.py)")
             self.btn_import_strat.setCursor(Qt.PointingHandCursor)
             if not getattr(self.btn_import_strat, "_has_click_connected", False):
-                self.btn_import_strat.clicked.connect(self._on_import_strategy_clicked)
+                self.btn_import_strat.clicked.connect(self._open_strategy_manager)
                 self.btn_import_strat._has_click_connected = True
 
         if hasattr(self.window, "btnExportReport"):
@@ -675,8 +648,9 @@ class BacktestWorkbenchController:
             self.window.btnRunBacktest.clicked.connect(self._on_run_clicked)
         if hasattr(self.window, "btnExportReport"):
             self.window.btnExportReport.clicked.connect(self._on_export_report_clicked)
-        if hasattr(self.window, "btnImportStrat"):
-            self.window.btnImportStrat.clicked.connect(self._open_import_dialog)
+        if hasattr(self.window, "btnImportStrat") and not getattr(self.window.btnImportStrat, "_has_click_connected", False):
+            self.window.btnImportStrat.clicked.connect(self._open_strategy_manager)
+            self.window.btnImportStrat._has_click_connected = True
 
         # Gán sự kiện kiểm thử độ bền hệ thống khi người dùng nhấn chuột
         if hasattr(self.window, "rowStress1"):
