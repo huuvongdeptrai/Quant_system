@@ -496,7 +496,8 @@ class WorkspaceHeaderController:
             except Exception:
                 badge_text = strat_id_str
 
-        self.btn_top_ind.setText(badge_text)
+        display_text = f"{badge_text} ▾" if not badge_text.endswith("▾") else badge_text
+        self.btn_top_ind.setText(display_text)
         self.btn_top_ind.setToolTip(f"Active Strategy: {badge_text}\nClick to switch strategy or configure indicators")
         self.window.active_strategy_id = strat_id_str
         self.window.current_strategy_name = badge_text
@@ -776,13 +777,14 @@ class WorkspaceHeaderController:
 
         # 5. IND Badge Button & Algo Control Pill (MT5 Flat resting state + Hover border)
         if hasattr(self, "btn_top_ind") and self.btn_top_ind:
-            ind_col = "#cbd5e1" if is_dark else "#334155"
+            ind_col = "#cbd5e1" if is_dark else "#475569"
+            border_col = "#1e293b" if is_dark else "#e2e8f0"
             hover_bg = "#141721" if is_dark else "#f1f5f9"
-            hover_col = "#38bdf8" if is_dark else "#0284c7"
+            hover_col = "#38bdf8" if is_dark else "#0f172a"
             hover_border = "#272d3b" if is_dark else "#cbd5e1"
             self.btn_top_ind.setStyleSheet(
-                f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid transparent; "
-                f"border-radius: 2px; padding: 0 8px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+                f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid {border_col}; "
+                f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
                 f"}} "
                 f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
                 f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"
@@ -2125,13 +2127,14 @@ class WorkspaceHeaderController:
         btn_ind.setFixedHeight(20)
         btn_ind.setCursor(Qt.PointingHandCursor)
         btn_ind.setToolTip("Configure Quantitative Strategy or Indicator Stack")
-        ind_col = "#cbd5e1" if is_dark else "#334155"
+        ind_col = "#cbd5e1" if is_dark else "#475569"
+        border_col = "#1e293b" if is_dark else "#e2e8f0"
         hover_bg = "#141721" if is_dark else "#f1f5f9"
-        hover_col = "#38bdf8" if is_dark else "#0284c7"
+        hover_col = "#38bdf8" if is_dark else "#0f172a"
         hover_border = "#272d3b" if is_dark else "#cbd5e1"
         btn_ind.setStyleSheet(
-            f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid transparent; "
-            f"border-radius: 2px; padding: 0 8px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+            f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid {border_col}; "
+            f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
             f"}} "
             f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
             f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"
@@ -2147,23 +2150,25 @@ class WorkspaceHeaderController:
         sep_strat_event = self._create_v_separator(is_dark)
         z2_layout.addWidget(sep_strat_event, 0, Qt.AlignVCenter)
 
-        # 3. Live Event Risk Badge (Enclosed Institutional Badge)
-        btn_event_risk = QPushButton("EVENT: CLEAR")
+        # 3. Live Event Risk Badge (Flat Ghost Label when CLEAR, Red Alert Box when IMPACT)
+        btn_event_risk = QPushButton("EVENT: ● CLEAR")
         btn_event_risk.setObjectName("btnEventRiskBadge")
         btn_event_risk.setFixedHeight(20)
         btn_event_risk.setCursor(Qt.PointingHandCursor)
         if is_dark:
-            event_bg = "#064e3b"
-            event_col = "#34d399"
-            event_border = "#059669"
-            event_h_bg = "#065f46"
+            event_bg = "transparent"
+            event_col = "#4ade80"
+            event_border = "transparent"
+            event_h_bg = "#064e3b"
             event_h_col = "#6ee7b7"
+            event_h_border = "#059669"
         else:
-            event_bg = "#dcfce7"
+            event_bg = "transparent"
             event_col = "#15803d"
-            event_border = "#86efac"
-            event_h_bg = "#bbf7d0"
+            event_border = "transparent"
+            event_h_bg = "#f0fdf4"
             event_h_col = "#166534"
+            event_h_border = "#bbf7d0"
 
         btn_event_risk.setStyleSheet(
             f"QPushButton#btnEventRiskBadge {{ "
@@ -2171,7 +2176,7 @@ class WorkspaceHeaderController:
             f"  color: {event_col}; "
             f"  border: 1px solid {event_border}; "
             f"  border-radius: 2px; "
-            f"  padding: 0 8px; "
+            f"  padding: 0 6px; "
             f"  margin: 0px; "
             f"  font-family: Consolas, monospace; "
             f"  font-size: 10px; "
@@ -2180,6 +2185,7 @@ class WorkspaceHeaderController:
             f"QPushButton#btnEventRiskBadge:hover {{ "
             f"  background-color: {event_h_bg}; "
             f"  color: {event_h_col}; "
+            f"  border: 1px solid {event_h_border}; "
             f"}}"
         )
         def _jump_to_calendar(chk=False):
@@ -2538,27 +2544,31 @@ class WorkspaceHeaderController:
                     border_col = "#991b1b"
                     hover_bg = "#5b1010"
                     hover_col = "#fca5a5"
+                    hover_border = "#dc2626"
                 else:
                     bg_col = "#fee2e2"
                     text_col = "#b91c1c"
                     border_col = "#fca5a5"
                     hover_bg = "#fecaca"
                     hover_col = "#991b1b"
+                    hover_border = "#ef4444"
                 self.btn_event_risk.setToolTip(f"High-impact news event active: {news_title}\nTrading pause active. Click to view Macro Calendar.")
             else:
-                self.btn_event_risk.setText("EVENT: CLEAR")
+                self.btn_event_risk.setText("EVENT: ● CLEAR")
                 if is_dark:
-                    bg_col = "#064e3b"
-                    text_col = "#34d399"
-                    border_col = "#059669"
-                    hover_bg = "#065f46"
+                    bg_col = "transparent"
+                    text_col = "#4ade80"
+                    border_col = "transparent"
+                    hover_bg = "#064e3b"
                     hover_col = "#6ee7b7"
+                    hover_border = "#059669"
                 else:
-                    bg_col = "#dcfce7"
+                    bg_col = "transparent"
                     text_col = "#15803d"
-                    border_col = "#86efac"
-                    hover_bg = "#bbf7d0"
+                    border_col = "transparent"
+                    hover_bg = "#f0fdf4"
                     hover_col = "#166534"
+                    hover_border = "#bbf7d0"
                 self.btn_event_risk.setToolTip(f"No active news blackout for {clean_sym}.\nClick to view Macro Calendar.")
 
             self.btn_event_risk.setStyleSheet(
@@ -2567,7 +2577,7 @@ class WorkspaceHeaderController:
                 f"  color: {text_col}; "
                 f"  border: 1px solid {border_col}; "
                 f"  border-radius: 2px; "
-                f"  padding: 0 8px; "
+                f"  padding: 0 6px; "
                 f"  margin: 0px; "
                 f"  font-family: Consolas, monospace; "
                 f"  font-size: 10px; "
@@ -2576,6 +2586,7 @@ class WorkspaceHeaderController:
                 f"QPushButton#btnEventRiskBadge:hover {{ "
                 f"  background-color: {hover_bg}; "
                 f"  color: {hover_col}; "
+                f"  border: 1px solid {hover_border}; "
                 f"}}"
             )
         except Exception:

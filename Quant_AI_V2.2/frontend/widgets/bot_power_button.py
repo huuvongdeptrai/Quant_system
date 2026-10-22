@@ -205,19 +205,19 @@ class AlgoControlPill(QFrame):
             self.lbl_action.setText("▶ RUN")
             if self.is_dark:
                 bg = "transparent" if not self._is_hovered else "#161d2d"
-                border = "transparent" if not self._is_hovered else "#475569"
+                border = "#1e293b" if not self._is_hovered else "#475569"
                 status_col = "#94a3b8" if not self._is_hovered else "#cbd5e1"
                 action_col = "#22c55e" if not self._is_hovered else "#4ade80"
-                sep_col = "rgba(255, 255, 255, 0.15)"
+                sep_col = "#1e293b" if not self._is_hovered else "#334155"
             else:
-                bg = "transparent" if not self._is_hovered else "#ffffff"
-                border = "transparent" if not self._is_hovered else "#cbd5e1"
+                bg = "transparent" if not self._is_hovered else "#f8fafc"
+                border = "#e2e8f0" if not self._is_hovered else "#cbd5e1"
                 status_col = "#64748b" if not self._is_hovered else "#334155"
                 action_col = "#15803d" if not self._is_hovered else "#166534"
-                sep_col = "#cbd5e1"
+                sep_col = "#e2e8f0" if not self._is_hovered else "#cbd5e1"
 
         self.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 3px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; }}"
         )
         self.lbl_status.setStyleSheet(
             f"color: {status_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 700; margin: 0px; padding: 0px;"
