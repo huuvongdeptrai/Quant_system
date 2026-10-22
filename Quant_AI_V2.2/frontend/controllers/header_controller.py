@@ -19,6 +19,19 @@ from frontend.widgets.bot_power_button import AlgoControlPill
 
 
 class WorkspaceHeaderController:
+
+    @staticmethod
+    def _create_v_separator(is_dark=False):
+        """Unified institutional 1px x 14px vertical separator."""
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFrameShadow(QFrame.Plain)
+        sep.setFixedWidth(1)
+        sep.setFixedHeight(14)
+        col = "#272d3b" if is_dark else "#cbd5e1"
+        sep.setStyleSheet(f"background-color: {col}; border: none; margin: 0px;")
+        return sep
+
     """Manages the top workspace ribbon, telemetry ticker, and frameless window controls."""
 
     def __init__(self, terminal):
@@ -63,10 +76,12 @@ class WorkspaceHeaderController:
                 pnl_color = lbl_col
 
         return (
-            f'<span style="color:{lbl_col}; font-size:9.5px; font-family:Consolas, monospace;">'
-            f'BALANCE: <b style="color:{val_col};">{bal_txt}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
-            f'EQUITY: <b style="color:{val_col};">{eq_txt}</b>&nbsp;&nbsp;<span style="color:{sep_col};">|</span>&nbsp;&nbsp;'
-            f'NET P&L: <b style="color:{pnl_color};">{pnl_txt}</b>'
+            f'<span style="color:{lbl_col}; font-size:9.5px; font-family:\'Segoe UI\', sans-serif; font-weight:600;">'
+            f'BAL: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{bal_txt}</b>&nbsp;&nbsp;'
+            f'<span style="color:{sep_col}; font-family:\'Segoe UI\', sans-serif; font-weight:300;">│</span>&nbsp;&nbsp;'
+            f'EQ: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{eq_txt}</b>&nbsp;&nbsp;'
+            f'<span style="color:{sep_col}; font-family:\'Segoe UI\', sans-serif; font-weight:300;">│</span>&nbsp;&nbsp;'
+            f'P&L: <b style="color:{pnl_color}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{pnl_txt}</b>'
             f'</span>'
         )
 
@@ -213,22 +228,9 @@ class WorkspaceHeaderController:
             except Exception:
                 pass
 
-            if not sub_title:
-                subtitles = {
-                    "XAUUSD": "Spot Gold",
-                    "XAGUSD": "Spot Silver",
-                    "BTCUSD": "Bitcoin",
-                    "ETHUSD": "Ethereum",
-                    "EURUSD": "Euro / Dollar",
-                    "GBPUSD": "Cable / Dollar",
-                    "USDJPY": "Dollar / Yen",
-                    "US30": "Dow Jones",
-                    "NAS100": "Nasdaq Tech",
-                }
-                sub_title = subtitles.get(clean_sym, "Spot Asset")
             self.lbl_top_sym.setText(
-                f'<b style="color:{sym_color}; font-family:Consolas, monospace; font-size:11.5px; font-weight:700;">{clean_sym}</b>&nbsp;&nbsp;'
-                f'<span style="color:{sub_color}; font-size:9.5px; font-family:\'Segoe UI\', sans-serif; font-weight:500;">{sub_title}</span>'
+                f'<b style="color:{sym_color}; font-family:Consolas, monospace; font-size:11px; font-weight:700;">{clean_sym}</b>&nbsp;'
+                f'<span style="color:{sub_color}; font-size:8px;">▼</span>'
             )
             if hasattr(self, "_update_event_risk_badge"):
                 self._update_event_risk_badge(clean_sym)
@@ -301,11 +303,11 @@ class WorkspaceHeaderController:
         strat_lower = strat_id_str.lower()
 
         if "wyckoff" in strat_lower:
-            badge_text = "Wyckoff · Momentum Pro v2.2"
+            badge_text = "Wyckoff · v2.2"
         elif "ema" in strat_lower:
-            badge_text = "EMA · Dual Cross Benchmark"
+            badge_text = "EMA Cross · Dual"
         elif "ict" in strat_lower:
-            badge_text = "ICT / SMC · Confluence Pro v4.2"
+            badge_text = "Confluence v4.2"
         else:
             try:
                 from backend.core.strategies.strategy_loader import discover_strategies
@@ -1829,34 +1831,40 @@ class WorkspaceHeaderController:
         is_dark = getattr(self, "is_dark_theme", False)
         sep_col = "#272d3b" if is_dark else "#cbd5e1"
 
-        # Chart Context Bar (Asset + Timeframe + Strategy): Strictly scoped to Tab 1 (Terminal)
-        self.chart_context_bar = QWidget()
-        self.chart_context_bar.setFixedHeight(24)
-        ctx_layout = QHBoxLayout(self.chart_context_bar)
-        ctx_layout.setContentsMargins(0, 0, 0, 0)
-        ctx_layout.setSpacing(8)
-        ctx_layout.setAlignment(Qt.AlignVCenter)
+        # =========================================================================
+        # 3-ZONE INSTITUTIONAL RIBBON ARCHITECTURE (SINGLE UNBROKEN ROW)
+        # Zone 1 (Left):   Chart Controls (Symbol Dropdown + M1..MN1 Fixed Strip)
+        # Zone 2 (Center): Semi-Auto Controls (ALGO Pill + Strategy Badge + Event Risk)
+        # Zone 3 (Right):  Account Telemetry (BAL | EQ | P&L) + Window Controls
+        # =========================================================================
 
-        # 1. Symbol Display: Active Asset
+        # --- ZONE 1: CHART CONTROLS ---
+        zone_chart = QWidget()
+        zone_chart.setFixedHeight(22)
+        z1_layout = QHBoxLayout(zone_chart)
+        z1_layout.setContentsMargins(0, 0, 0, 0)
+        z1_layout.setSpacing(6)
+        z1_layout.setAlignment(Qt.AlignVCenter)
+
+        # 1. Symbol Display: Clean Symbol Only (No 'Gold vs US Dollar' clutter)
         self.lbl_top_sym = QLabel()
         self.lbl_top_sym.setObjectName("lblTopSymbol")
-        self.lbl_top_sym.setFixedHeight(22)
-        ctx_layout.addWidget(self.lbl_top_sym)
+        self.lbl_top_sym.setFixedHeight(20)
+        self.lbl_top_sym.setAlignment(Qt.AlignVCenter)
+        z1_layout.addWidget(self.lbl_top_sym, 0, Qt.AlignVCenter)
         self._refresh_top_ticker()
 
         # Separator 1: Between Symbol and Timeframes
-        sep1 = QFrame()
-        sep1.setFixedWidth(1)
-        sep1.setFixedHeight(14)
-        sep1.setStyleSheet(f"background-color: {sep_col};")
-        ctx_layout.addWidget(sep1)
+        sep1 = self._create_v_separator(is_dark)
+        z1_layout.addWidget(sep1, 0, Qt.AlignVCenter)
 
-        # 2. Timeframe Discrete Buttons Strip (M1, M5, M15, H1, H4, D1 with 3px gap)
+        # 2. Timeframe Discrete Buttons Strip (Fixed 26px x 20px uniform dimensions)
         tf_bar = QWidget()
-        tf_bar.setFixedHeight(22)
+        tf_bar.setFixedHeight(20)
         tf_layout = QHBoxLayout(tf_bar)
         tf_layout.setContentsMargins(0, 0, 0, 0)
-        tf_layout.setSpacing(3)
+        tf_layout.setSpacing(2)
+        tf_layout.setAlignment(Qt.AlignVCenter)
 
         self.tf_buttons = {}
         tf_map = {
@@ -1876,27 +1884,47 @@ class WorkspaceHeaderController:
         for tf_name in ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"]:
             btn_tf = QPushButton(tf_name)
             btn_tf.setObjectName(f"btnTopTf_{tf_name}")
-            btn_tf.setFixedSize(28, 20)
+            btn_tf.setFixedSize(26, 20)
             btn_tf.setCursor(Qt.PointingHandCursor)
             btn_tf.clicked.connect(lambda chk=False, k=tf_name: _on_tf_click(k))
-            tf_layout.addWidget(btn_tf)
+            tf_layout.addWidget(btn_tf, 0, Qt.AlignVCenter)
             self.tf_buttons[tf_name] = btn_tf
 
         self._update_tf_button_styles(is_dark)
         self.window.update_tf_styles = self._update_tf_button_styles
-        ctx_layout.addWidget(tf_bar)
+        z1_layout.addWidget(tf_bar, 0, Qt.AlignVCenter)
 
-        # Separator 2: Between Timeframes and Indicator
-        sep2 = QFrame()
-        sep2.setFixedWidth(1)
-        sep2.setFixedHeight(14)
-        sep2.setStyleSheet(f"background-color: {sep_col};")
-        ctx_layout.addWidget(sep2)
+        self.chart_context_bar = zone_chart
+        h_layout.addWidget(zone_chart, 0, Qt.AlignVCenter)
 
-        # 3. Dynamic Strategy & Indicator Badge
+        # Stretch 1: Centers Zone 2 between left and right
+        h_layout.addStretch(1)
+
+        # --- ZONE 2: SEMI-AUTO SYSTEM CONTROLS ---
+        zone_algo = QWidget()
+        zone_algo.setFixedHeight(22)
+        z2_layout = QHBoxLayout(zone_algo)
+        z2_layout.setContentsMargins(0, 0, 0, 0)
+        z2_layout.setSpacing(6)
+        z2_layout.setAlignment(Qt.AlignVCenter)
+
+        # 1. ALGO State & Control Pill (Placed FIRST for maximum operational visibility)
+        btn_algo = AlgoControlPill(is_running=False, is_dark=is_dark)
+        btn_algo.setObjectName("btnAlgoTrading")
+        btn_algo.setFixedHeight(20)
+        btn_algo.clicked.connect(lambda: self.terminal._toggle_bot())
+        self.btn_algo_toggle = btn_algo
+        self.window.btn_algo_toggle = btn_algo
+        z2_layout.addWidget(btn_algo, 0, Qt.AlignVCenter)
+
+        # Separator: ALGO Pill -> Strategy Badge
+        sep_algo_strat = self._create_v_separator(is_dark)
+        z2_layout.addWidget(sep_algo_strat, 0, Qt.AlignVCenter)
+
+        # 2. Dynamic Strategy Badge (Clean Segoe UI typography, 20px uniform height)
         btn_ind = QPushButton()
         btn_ind.setObjectName("btnTopIndicator")
-        btn_ind.setFixedHeight(24)
+        btn_ind.setFixedHeight(20)
         btn_ind.setCursor(Qt.PointingHandCursor)
         btn_ind.setToolTip("Configure Quantitative Strategy or Indicator Stack")
         ind_bg = "transparent"
@@ -1906,8 +1934,8 @@ class WorkspaceHeaderController:
         hover_border = "#475569" if is_dark else "#cbd5e1"
         btn_ind.setStyleSheet(
             f"QPushButton#btnTopIndicator {{ background-color: {ind_bg}; color: {ind_col}; border: 1px solid transparent; "
-            f"border-radius: 3px; padding: 0 8px; font-family: Consolas, monospace; font-size: 9px; font-weight: bold; "
-            f"min-height: 24px; max-height: 24px; }} "
+            f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 600; "
+            f"min-height: 20px; max-height: 20px; }} "
             f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
             f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0f172a' if is_dark else '#e2e8f0'}; }}"
         )
@@ -1916,40 +1944,22 @@ class WorkspaceHeaderController:
         self.window.update_strategy_badge = self.update_strategy_badge
         self.update_strategy_badge()
         btn_ind.clicked.connect(self._show_strategy_and_indicators_menu)
-        ctx_layout.addWidget(btn_ind)
+        z2_layout.addWidget(btn_ind, 0, Qt.AlignVCenter)
 
-        # Separator 3: Between Indicator Badge and ALGO Control Pill
-        sep_algo = QFrame()
-        sep_algo.setFixedWidth(1)
-        sep_algo.setFixedHeight(14)
-        sep_algo.setStyleSheet(f"background-color: {sep_col};")
-        ctx_layout.addWidget(sep_algo)
+        # Separator: Strategy Badge -> Event Risk Badge
+        sep_strat_event = self._create_v_separator(is_dark)
+        z2_layout.addWidget(sep_strat_event, 0, Qt.AlignVCenter)
 
-        # 4. Institutional Flat ALGO State & Control Pill (24px)
-        btn_algo = AlgoControlPill(is_running=False, is_dark=is_dark)
-        btn_algo.setObjectName("btnAlgoTrading")
-        btn_algo.clicked.connect(lambda: self.terminal._toggle_bot())
-        self.btn_algo_toggle = btn_algo
-        self.window.btn_algo_toggle = btn_algo
-        ctx_layout.addWidget(btn_algo)
-
-        # Separator 4: Between ALGO Control Pill and Event Risk Badge
-        sep_event = QFrame()
-        sep_event.setFixedWidth(1)
-        sep_event.setFixedHeight(14)
-        sep_event.setStyleSheet(f"background-color: {sep_col};")
-        ctx_layout.addWidget(sep_event)
-
-        # 5. Live Event Risk Badge (Flat Color Contrast - No Box Border)
+        # 3. Live Event Risk Badge (Grouped seamlessly beside Algo controls)
         btn_event_risk = QPushButton("EVENT: CLEAR")
         btn_event_risk.setObjectName("btnEventRiskBadge")
-        btn_event_risk.setFixedHeight(22)
+        btn_event_risk.setFixedHeight(20)
         btn_event_risk.setCursor(Qt.PointingHandCursor)
         event_col = "#22c55e" if is_dark else "#15803d"
         event_h_col = "#4ade80" if is_dark else "#16a34a"
         btn_event_risk.setStyleSheet(
             f"QPushButton#btnEventRiskBadge {{ background: transparent; color: {event_col}; border: none; "
-            f"padding: 0 4px; font-family: Consolas, monospace; font-size: 9px; font-weight: 700; }} "
+            f"padding: 0 4px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 700; }} "
             f"QPushButton#btnEventRiskBadge:hover {{ background: transparent; color: {event_h_col}; }}"
         )
         def _jump_to_calendar(chk=False):
@@ -1959,9 +1969,18 @@ class WorkspaceHeaderController:
         btn_event_risk.clicked.connect(_jump_to_calendar)
         self.btn_event_risk = btn_event_risk
         self.window.btn_event_risk = btn_event_risk
-        ctx_layout.addWidget(btn_event_risk)
+        z2_layout.addWidget(btn_event_risk, 0, Qt.AlignVCenter)
 
-        h_layout.addWidget(self.chart_context_bar)
+        self.zone_algo = zone_algo
+        h_layout.addWidget(zone_algo, 0, Qt.AlignVCenter)
+
+        # Synchronize visibility of both Zone 1 & 2 when navigating away from Terminal
+        orig_set_visible = zone_chart.setVisible
+        def _chart_ctx_set_visible(v):
+            orig_set_visible(v)
+            if hasattr(self, "zone_algo") and self.zone_algo:
+                self.zone_algo.setVisible(v)
+        zone_chart.setVisible = _chart_ctx_set_visible
 
         # Dedicated Non-Terminal Workspace Branding (Shown on Stats, Backtest, Logs)
         self.lbl_header_app_title = QLabel("VECTRA TERMINAL v2.2")
@@ -1978,34 +1997,37 @@ class WorkspaceHeaderController:
         self.window.combo_top_tf = self.combo_top_tf
         self.btn_top_ind = btn_ind
 
-        # Maintain legacy stubs for compatibility (Panels fold via Edge Tabs on chart ribbon)
         self.btn_top_wl = None
         self.window.btn_top_wl = None
         self.btn_top_ticket = None
         self.window.btn_top_ticket = None
         self.window._update_panel_toggle_styles = self._update_panel_toggle_styles
 
-        # 4. SINGLE UNIFIED CENTER DRAGGING STRETCH
-        # Creates clean, balanced symmetry between left chart controls and right account telemetry
+        # Stretch 2: Pushes Zone 3 to the right edge
         h_layout.addStretch(1)
 
-        # Global MT5 Hotkeys are unified via Window QActions in _setup_native_mt5_menus (Zero Collision)
+        # --- ZONE 3: RIGHT-DOCKED ACCOUNT TELEMETRY ---
+        zone_acct = QWidget()
+        zone_acct.setFixedHeight(22)
+        z3_layout = QHBoxLayout(zone_acct)
+        z3_layout.setContentsMargins(0, 0, 0, 0)
+        z3_layout.setSpacing(6)
+        z3_layout.setAlignment(Qt.AlignVCenter)
 
-        # 5. Right-docked Account Telemetry (BAL | EQ | PnL - Account Capital Only)
         self.lbl_top_ticker = QLabel()
         self.lbl_top_ticker.setObjectName("lblTopTicker")
         self.lbl_top_ticker.setTextFormat(Qt.RichText)
-        self.lbl_top_ticker.setFixedHeight(22)
-        self.lbl_top_ticker.setMinimumWidth(230)
-        self.lbl_top_ticker.setAlignment(Qt.AlignCenter)
+        self.lbl_top_ticker.setFixedHeight(20)
+        self.lbl_top_ticker.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
         self.lbl_top_ticker.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.lbl_top_ticker.setStyleSheet(
-            "background: transparent; border: none; padding: 0 4px; font-family: Consolas, monospace; font-size: 9.5px;"
+            "background: transparent; border: none; padding: 0 4px; margin: 0px;"
         )
         self.lbl_top_ticker.setText(self._format_top_ticker(is_dark=is_dark))
-        h_layout.addWidget(self.lbl_top_ticker)
+        z3_layout.addWidget(self.lbl_top_ticker, 0, Qt.AlignVCenter)
+        h_layout.addWidget(zone_acct, 0, Qt.AlignVCenter)
 
-        self.top_separators = [sep1, sep2, sep_algo]
+        self.top_separators = [sep1, sep_algo_strat, sep_strat_event]
 
         # 6. Execution Mode State (Configured centrally in Tab 4 Settings)
         self.execution_mode = "SEMI-AUTO"

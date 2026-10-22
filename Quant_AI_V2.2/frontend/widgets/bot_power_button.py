@@ -133,26 +133,31 @@ class AlgoControlPill(QFrame):
         self._is_running = is_running
         self.is_dark = is_dark
         self._is_hovered = False
-        self.setFixedHeight(24)
+        self.setFixedHeight(20)
         self.setCursor(Qt.PointingHandCursor)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 0, 8, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(6, 0, 6, 0)
+        layout.setSpacing(5)
+        layout.setAlignment(Qt.AlignVCenter)
 
         self.lbl_status = QLabel()
         self.lbl_status.setAlignment(Qt.AlignCenter)
         self.lbl_status.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.lbl_sep = QLabel("|")
-        self.lbl_sep.setAlignment(Qt.AlignCenter)
-        self.lbl_sep.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+        self.sep_line = QFrame()
+        self.sep_line.setFixedWidth(1)
+        self.sep_line.setFixedHeight(12)
+        self.sep_line.setFrameShape(QFrame.VLine)
+        self.lbl_sep = self.sep_line
+
         self.lbl_action = QLabel()
         self.lbl_action.setAlignment(Qt.AlignCenter)
         self.lbl_action.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
-        layout.addWidget(self.lbl_status)
-        layout.addWidget(self.lbl_sep)
-        layout.addWidget(self.lbl_action)
+        layout.addWidget(self.lbl_status, 0, Qt.AlignVCenter)
+        layout.addWidget(self.sep_line, 0, Qt.AlignVCenter)
+        layout.addWidget(self.lbl_action, 0, Qt.AlignVCenter)
 
         self._update_style()
 
@@ -215,13 +220,12 @@ class AlgoControlPill(QFrame):
             f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 3px; }}"
         )
         self.lbl_status.setStyleSheet(
-            f"color: {status_col}; border: none; background: transparent; font-family: Consolas, monospace; font-size: 9px; font-weight: 700;"
+            f"color: {status_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 700; margin: 0px; padding: 0px;"
         )
-        self.lbl_sep.setStyleSheet(
-            f"color: {sep_col}; border: none; background: transparent; font-family: Consolas, monospace; font-size: 9px;"
-        )
+        if hasattr(self, 'sep_line') and self.sep_line:
+            self.sep_line.setStyleSheet(f"background-color: {sep_col}; border: none; margin: 0px;")
         self.lbl_action.setStyleSheet(
-            f"color: {action_col}; border: none; background: transparent; font-family: Consolas, monospace; font-size: 9px; font-weight: 800;"
+            f"color: {action_col}; border: none; background: transparent; font-family: 'Segoe UI', sans-serif; font-size: 9.5px; font-weight: 800; margin: 0px; padding: 0px;"
         )
 
     def mousePressEvent(self, event):
