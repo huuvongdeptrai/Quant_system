@@ -76,11 +76,11 @@ class WorkspaceHeaderController:
                 pnl_color = lbl_col
 
         return (
-            f'<span style="color:{lbl_col}; font-size:9.5px; font-family:\'Segoe UI\', sans-serif; font-weight:600;">'
+            f'<span style="color:{lbl_col}; font-size:10px; font-family:Consolas, monospace; font-weight:600;">'
             f'BAL: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{bal_txt}</b>&nbsp;&nbsp;'
-            f'<span style="color:{sep_col}; font-family:\'Segoe UI\', sans-serif; font-weight:300;">│</span>&nbsp;&nbsp;'
+            f'<span style="color:{sep_col}; font-family:Consolas, monospace; font-weight:300;">|</span>&nbsp;&nbsp;'
             f'EQ: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{eq_txt}</b>&nbsp;&nbsp;'
-            f'<span style="color:{sep_col}; font-family:\'Segoe UI\', sans-serif; font-weight:300;">│</span>&nbsp;&nbsp;'
+            f'<span style="color:{sep_col}; font-family:Consolas, monospace; font-weight:300;">|</span>&nbsp;&nbsp;'
             f'P&L: <b style="color:{pnl_color}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{pnl_txt}</b>'
             f'</span>'
         )
@@ -192,24 +192,24 @@ class WorkspaceHeaderController:
                 if is_dark:
                     btn_tf.setStyleSheet(
                         "QPushButton { background-color: #064e3b; color: #34d399; border: 1px solid #059669; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 0px; margin: 0px; }"
+                        "font-family: Consolas, monospace; font-size: 10px; font-weight: bold; border-radius: 2px; padding: 0px; margin: 0px; }"
                     )
                 else:
                     btn_tf.setStyleSheet(
                         "QPushButton { background-color: #0f172a; color: #ffffff; border: 1px solid #0f172a; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 0px; margin: 0px; }"
+                        "font-family: Consolas, monospace; font-size: 10px; font-weight: bold; border-radius: 2px; padding: 0px; margin: 0px; }"
                     )
             else:
                 if is_dark:
                     btn_tf.setStyleSheet(
                         "QPushButton { background-color: transparent; color: #94a3b8; border: 1px solid transparent; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; border-radius: 2px; padding: 0px; margin: 0px; } "
+                        "font-family: Consolas, monospace; font-size: 10px; font-weight: 600; border-radius: 2px; padding: 0px; margin: 0px; } "
                         "QPushButton:hover { color: #ffffff; background-color: #141721; border-color: #272d3b; }"
                     )
                 else:
                     btn_tf.setStyleSheet(
                         "QPushButton { background-color: transparent; color: #64748b; border: 1px solid transparent; "
-                        "font-family: Consolas, monospace; font-size: 9px; font-weight: 600; border-radius: 2px; padding: 0px; margin: 0px; } "
+                        "font-family: Consolas, monospace; font-size: 10px; font-weight: 600; border-radius: 2px; padding: 0px; margin: 0px; } "
                         "QPushButton:hover { color: #0f172a; background-color: #e2e8f0; border-color: #cbd5e1; }"
                     )
 
@@ -783,7 +783,7 @@ class WorkspaceHeaderController:
             hover_border = "#272d3b" if is_dark else "#cbd5e1"
             self.btn_top_ind.setStyleSheet(
                 f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid {border_col}; "
-                f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+                f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: Consolas, monospace; font-size: 10px; font-weight: 600; "
                 f"}} "
                 f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
                 f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"
@@ -797,7 +797,7 @@ class WorkspaceHeaderController:
         if hasattr(self, "lbl_top_ticker") and self.lbl_top_ticker:
             self.lbl_top_ticker.setMinimumWidth(230)
             self.lbl_top_ticker.setStyleSheet(
-                "background: transparent; border: none; padding: 0 4px; font-family: Consolas, monospace; font-size: 9.5px;"
+                "background: transparent; border: none; padding: 0 4px; font-family: Consolas, monospace; font-size: 10px;"
             )
             is_running = self.btn_bot_power.is_running() if hasattr(self, "btn_bot_power") else False
             self.lbl_top_ticker.setText(self._format_top_ticker(is_algo_active=is_running, is_dark=is_dark))
@@ -2133,7 +2133,7 @@ class WorkspaceHeaderController:
         hover_border = "#272d3b" if is_dark else "#cbd5e1"
         btn_ind.setStyleSheet(
             f"QPushButton#btnTopIndicator {{ background-color: transparent; color: {ind_col}; border: 1px solid {border_col}; "
-            f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; "
+            f"border-radius: 2px; padding: 0 6px; margin: 0px; font-family: Consolas, monospace; font-size: 10px; font-weight: 600; "
             f"}} "
             f"QPushButton#btnTopIndicator:hover {{ color: {hover_col}; border: 1px solid {hover_border}; background-color: {hover_bg}; }} "
             f"QPushButton#btnTopIndicator:pressed {{ background-color: {'#0c1a2e' if is_dark else '#e2e8f0'}; }}"

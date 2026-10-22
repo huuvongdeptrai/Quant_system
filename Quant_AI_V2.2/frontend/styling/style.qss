@@ -1181,14 +1181,86 @@ QSplitter::handle:hover {
 /* --------------------------------------------------------------------------
    BLUEPRINT LAYOUT REFINEMENTS (LIGHT THEME)
    -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+   TOP HEADER RIBBON - STRICT VERTICAL ALIGNMENT & UNIFIED CONSOLAS TYPOGRAPHY
+   -------------------------------------------------------------------------- */
+QFrame#topHeaderContainer QPushButton,
+QFrame#topHeaderContainer QLabel,
+QFrame#topHeaderContainer QFrame {
+    font-family: 'Consolas', monospace !important;
+    font-size: 10px !important;
+}
+
+QFrame#topHeaderContainer QPushButton {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+    margin: 0px !important;
+}
+
+QPushButton#lblTopSymbol {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0px 4px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+}
+
 QPushButton[objectName^="btnTopTf_"] {
-    min-height: 18px !important;
-    max-height: 18px !important;
-    min-width: 24px !important;
-    max-width: 24px !important;
+    min-height: 20px !important;
+    max-height: 20px !important;
+    min-width: 26px !important;
+    max-width: 26px !important;
     padding: 0px !important;
     margin: 0px !important;
-    font-size: 8px !important;
+    font-size: 10px !important;
+    font-family: 'Consolas', monospace !important;
+    font-weight: 600 !important;
+}
+
+QFrame#btnAlgoTrading {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    margin: 0px !important;
+}
+
+QFrame#btnAlgoTrading QLabel {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0px !important;
+    margin: 0px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    font-family: 'Consolas', monospace !important;
+}
+
+QPushButton#btnTopIndicator {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0px 6px !important;
+    margin: 0px !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    font-family: 'Consolas', monospace !important;
+}
+
+QPushButton#btnEventRiskBadge {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0px 6px !important;
+    margin: 0px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    font-family: 'Consolas', monospace !important;
+}
+
+QLabel#lblTopTicker {
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0px 4px !important;
+    margin: 0px !important;
+    font-size: 10px !important;
     font-family: 'Consolas', monospace !important;
 }
 
