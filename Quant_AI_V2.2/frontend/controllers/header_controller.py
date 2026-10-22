@@ -213,13 +213,185 @@ class WorkspaceHeaderController:
                         "QPushButton:hover { color: #0f172a; background-color: #e2e8f0; border-color: #cbd5e1; }"
                     )
 
+    def _update_top_symbol_style(self, is_dark=None):
+        """Institutional styling for top ribbon active symbol button."""
+        if is_dark is None:
+            is_dark = getattr(self, "is_dark_theme", False)
+        if not hasattr(self, "lbl_top_sym") or not self.lbl_top_sym:
+            return
+        if is_dark:
+            self.lbl_top_sym.setStyleSheet(
+                "QPushButton#lblTopSymbol { "
+                "  background-color: transparent; "
+                "  color: #f8fafc; "
+                "  border: 1px solid transparent; "
+                "  border-radius: 2px; "
+                "  padding: 0 4px; "
+                "  font-family: Consolas, monospace; "
+                "  font-size: 11px; "
+                "  font-weight: 700; "
+                "  text-align: center; "
+                "  min-height: 20px; "
+                "  max-height: 20px; "
+                "} "
+                "QPushButton#lblTopSymbol:hover { "
+                "  background-color: #141721; "
+                "  border: 1px solid #272d3b; "
+                "  color: #38bdf8; "
+                "} "
+                "QPushButton#lblTopSymbol:pressed { "
+                "  background-color: #0c1a2e; "
+                "  border: 1px solid #0284c7; "
+                "}"
+            )
+        else:
+            self.lbl_top_sym.setStyleSheet(
+                "QPushButton#lblTopSymbol { "
+                "  background-color: transparent; "
+                "  color: #0f172a; "
+                "  border: 1px solid transparent; "
+                "  border-radius: 2px; "
+                "  padding: 0 4px; "
+                "  font-family: Consolas, monospace; "
+                "  font-size: 11px; "
+                "  font-weight: 700; "
+                "  text-align: center; "
+                "  min-height: 20px; "
+                "  max-height: 20px; "
+                "} "
+                "QPushButton#lblTopSymbol:hover { "
+                "  background-color: #e2e8f0; "
+                "  border: 1px solid #cbd5e1; "
+                "  color: #0284c7; "
+                "} "
+                "QPushButton#lblTopSymbol:pressed { "
+                "  background-color: #cbd5e1; "
+                "  border: 1px solid #94a3b8; "
+                "}"
+            )
+
+    def _get_watchlist_symbols(self):
+        """Returns list of distinct asset symbols currently configured in Watchlist."""
+        symbols = []
+        wl = getattr(self.terminal, "watchlist", None) or getattr(self, "watchlist", None)
+        if wl and hasattr(wl, "get_all_symbols"):
+            try:
+                symbols = wl.get_all_symbols()
+            except Exception:
+                symbols = []
+        if not symbols and hasattr(self.window, "treeWatchlist") and self.window.treeWatchlist:
+            try:
+                tree = self.window.treeWatchlist
+                for i in range(tree.topLevelItemCount()):
+                    cat = tree.topLevelItem(i)
+                    for j in range(cat.childCount()):
+                        raw = cat.child(j).text(0)
+                        clean = raw.split("\n")[0].strip()
+                        if clean and clean not in symbols:
+                            symbols.append(clean)
+            except Exception:
+                pass
+        if not symbols:
+            symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD", "US500"]
+        return symbols
+
+    def _switch_symbol(self, sym):
+        """Switches active workspace asset, synchronizing Watchlist tree and Chart viewport."""
+        clean_sym = sym.split("\n")[0].strip()
+        if hasattr(self, "window"):
+            self.window.current_sym = clean_sym
+        self._refresh_top_ticker()
+
+        if hasattr(self.window, "treeWatchlist") and self.window.treeWatchlist:
+            tree = self.window.treeWatchlist
+            for i in range(tree.topLevelItemCount()):
+                cat = tree.topLevelItem(i)
+                for j in range(cat.childCount()):
+                    item = cat.child(j)
+                    if item.text(0).split("\n")[0].strip() == clean_sym:
+                        tree.setCurrentItem(item)
+                        break
+
+        if hasattr(self.window, "draw_and_analyze"):
+            self.window.draw_and_analyze(clean_sym)
+
+    def _show_symbol_quick_picker(self):
+        """Displays an institutional flat popup menu listing all assets currently in the Watchlist."""
+        if not hasattr(self, "lbl_top_sym") or not self.lbl_top_sym:
+            return
+
+        is_dark = getattr(self, "is_dark_theme", False)
+        menu = QMenu(self.lbl_top_sym)
+        menu.setObjectName("menuTopSymbolPicker")
+
+        bg_col = "#070a12" if is_dark else "#ffffff"
+        text_col = "#f8fafc" if is_dark else "#0f172a"
+        border_col = "#1e293b" if is_dark else "#cbd5e1"
+        hover_bg = "#161d31" if is_dark else "#f1f5f9"
+        active_col = "#38bdf8" if is_dark else "#0284c7"
+        sep_col = "#1e293b" if is_dark else "#e2e8f0"
+
+        menu.setStyleSheet(
+            f"QMenu#menuTopSymbolPicker {{ "
+            f"  background-color: {bg_col}; "
+            f"  border: 1px solid {border_col}; "
+            f"  border-radius: 3px; "
+            f"  padding: 4px; "
+            f"}} "
+            f"QMenu#menuTopSymbolPicker::item {{ "
+            f"  color: {text_col}; "
+            f"  font-family: Consolas, monospace; "
+            f"  font-size: 10px; "
+            f"  font-weight: 600; "
+            f"  padding: 5px 16px 5px 10px; "
+            f"  border-radius: 2px; "
+            f"}} "
+            f"QMenu#menuTopSymbolPicker::item:selected {{ "
+            f"  background-color: {hover_bg}; "
+            f"  color: {active_col}; "
+            f"}} "
+            f"QMenu#menuTopSymbolPicker::separator {{ "
+            f"  height: 1px; "
+            f"  background-color: {sep_col}; "
+            f"  margin: 3px 6px; "
+            f"}}"
+        )
+
+        symbols = self._get_watchlist_symbols()
+        curr_sym = getattr(self.window, "current_sym", "XAUUSD").split("\n")[0].strip()
+
+        for sym in symbols:
+            is_active = (sym == curr_sym)
+            label = f"✓  {sym}" if is_active else f"    {sym}"
+            action = menu.addAction(label)
+            if is_active:
+                f = action.font()
+                f.setBold(True)
+                action.setFont(f)
+            action.triggered.connect(lambda chk=False, s=sym: self._switch_symbol(s))
+
+        menu.addSeparator()
+        act_manage = menu.addAction("  ⚙ Manage Watchlist...")
+        def _open_watchlist():
+            if hasattr(self.window, "sidebar"):
+                self.window.sidebar.setVisible(True)
+                self.window.watchlist_collapsed = False
+                if hasattr(self.window, "mainSplitter"):
+                    total_w = max(400, self.window.mainSplitter.width() or 1440)
+                    sidebar_w = 260
+                    self.window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
+            if hasattr(self.terminal, "watchlist") and hasattr(self.terminal.watchlist, "open_search_modal"):
+                self.terminal.watchlist.open_search_modal()
+        act_manage.triggered.connect(_open_watchlist)
+
+        pos = self.lbl_top_sym.mapToGlobal(QPoint(0, self.lbl_top_sym.height() + 2))
+        menu.exec(pos)
+
     def _refresh_top_ticker(self):
         if hasattr(self, "lbl_top_sym"):
             raw_sym = getattr(self.window, "current_sym", "XAUUSD") if hasattr(self, "window") and getattr(self.window, "current_sym", None) else "XAUUSD"
             clean_sym = raw_sym.split("\n")[0].strip()
             is_dark = getattr(self, "is_dark_theme", False)
-            sym_color = "#ffffff" if is_dark else "#0f172a"
-            sub_color = "#94a3b8" if is_dark else "#64748b"
             sub_title = None
             try:
                 s_info = mt5.symbol_info(clean_sym)
@@ -228,10 +400,14 @@ class WorkspaceHeaderController:
             except Exception:
                 pass
 
-            self.lbl_top_sym.setText(
-                f'<b style="color:{sym_color}; font-family:Consolas, monospace; font-size:11px; font-weight:700;">{clean_sym}</b>&nbsp;'
-                f'<span style="color:{sub_color}; font-size:8px;">▼</span>'
-            )
+            self.lbl_top_sym.setText(clean_sym)
+            self._update_top_symbol_style(is_dark)
+            tooltip_txt = f"Active Asset: {clean_sym}"
+            if sub_title:
+                tooltip_txt += f" ({sub_title})"
+            tooltip_txt += "\nClick to switch asset from Watchlist\nScroll mouse wheel to quickly cycle"
+            self.lbl_top_sym.setToolTip(tooltip_txt)
+
             if hasattr(self, "_update_event_risk_badge"):
                 self._update_event_risk_badge(clean_sym)
         is_running = False
@@ -1846,11 +2022,34 @@ class WorkspaceHeaderController:
         z1_layout.setSpacing(6)
         z1_layout.setAlignment(Qt.AlignVCenter)
 
-        # 1. Symbol Display: Clean Symbol Only (No 'Gold vs US Dollar' clutter)
-        self.lbl_top_sym = QLabel()
+        # 1. Symbol Button: Clean Symbol Only (No 'Gold vs US Dollar' clutter, no '▼' icon)
+        # Interactive institutional quick asset picker connecting directly to Watchlist
+        self.lbl_top_sym = QPushButton()
         self.lbl_top_sym.setObjectName("lblTopSymbol")
         self.lbl_top_sym.setFixedHeight(20)
-        self.lbl_top_sym.setAlignment(Qt.AlignVCenter)
+        self.lbl_top_sym.setCursor(Qt.PointingHandCursor)
+        self.lbl_top_sym.clicked.connect(self._show_symbol_quick_picker)
+
+        # Fast wheel cycling through watchlist symbols
+        def _on_sym_wheel(event):
+            symbols = self._get_watchlist_symbols()
+            if not symbols:
+                return
+            curr = getattr(self.window, "current_sym", "XAUUSD").split("\n")[0].strip()
+            try:
+                idx = symbols.index(curr)
+            except ValueError:
+                idx = 0
+            delta = event.angleDelta().y()
+            if delta > 0:
+                new_idx = (idx - 1) % len(symbols)
+            else:
+                new_idx = (idx + 1) % len(symbols)
+            new_sym = symbols[new_idx]
+            if new_sym != curr:
+                self._switch_symbol(new_sym)
+
+        self.lbl_top_sym.wheelEvent = _on_sym_wheel
         z1_layout.addWidget(self.lbl_top_sym, 0, Qt.AlignVCenter)
         self._refresh_top_ticker()
 

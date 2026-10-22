@@ -81,14 +81,65 @@ def test_timeframe_buttons_uniform_fixed_dimensions(qapp):
 
 
 def test_clean_symbol_display_without_verbose_description(qapp):
-    """Verifies symbol display only shows symbol code (e.g. XAUUSD) and no long description."""
+    """Verifies symbol display only shows clean symbol code (e.g. XAUUSD), no long description, and NO '▼' icon."""
     win, header = _create_mock_header_controller()
 
     header._refresh_top_ticker()
     txt = header.lbl_top_sym.text()
-    assert "XAUUSD" in txt
+    assert txt == "XAUUSD"
+    assert "▼" not in txt
     assert "Gold vs US Dollar" not in txt
     assert "Spot Gold" not in txt
+    assert isinstance(header.lbl_top_sym, QPushButton)
+
+
+def test_quick_symbol_switch_from_watchlist(qapp):
+    """Verifies that selecting an asset switches current_sym and calls draw_and_analyze."""
+    win, header = _create_mock_header_controller()
+    win.draw_and_analyze = MagicMock()
+
+    # Mock watchlist returning symbols
+    mock_wl = MagicMock()
+    mock_wl.get_all_symbols.return_value = ["XAUUSD", "BTCUSD", "EURUSD"]
+    header.terminal.watchlist = mock_wl
+
+    symbols = header._get_watchlist_symbols()
+    assert "BTCUSD" in symbols
+
+    # Switch symbol to BTCUSD
+    header._switch_symbol("BTCUSD")
+    assert win.current_sym == "BTCUSD"
+    assert header.lbl_top_sym.text() == "BTCUSD"
+    assert "▼" not in header.lbl_top_sym.text()
+    win.draw_and_analyze.assert_called_once_with("BTCUSD")
+
+
+def test_quick_symbol_wheel_cycling(qapp):
+    """Verifies mouse wheel scrolling on symbol button cycles through watchlist symbols."""
+    win, header = _create_mock_header_controller()
+    win.draw_and_analyze = MagicMock()
+
+    mock_wl = MagicMock()
+    mock_wl.get_all_symbols.return_value = ["XAUUSD", "EURUSD", "GBPUSD"]
+    header.terminal.watchlist = mock_wl
+
+    # Simulate wheel event (delta < 0 -> next symbol)
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtCore import QPointF, QPoint
+
+    mock_event_down = MagicMock()
+    mock_event_down.angleDelta.return_value = QPoint(0, -120)
+
+    header.lbl_top_sym.wheelEvent(mock_event_down)
+    assert win.current_sym == "EURUSD"
+    assert header.lbl_top_sym.text() == "EURUSD"
+
+    # Delta > 0 -> previous symbol
+    mock_event_up = MagicMock()
+    mock_event_up.angleDelta.return_value = QPoint(0, 120)
+    header.lbl_top_sym.wheelEvent(mock_event_up)
+    assert win.current_sym == "XAUUSD"
+    assert header.lbl_top_sym.text() == "XAUUSD"
 
 
 def test_compact_account_telemetry_typography(qapp):
