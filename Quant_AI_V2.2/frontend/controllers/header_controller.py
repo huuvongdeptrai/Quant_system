@@ -496,8 +496,7 @@ class WorkspaceHeaderController:
             except Exception:
                 badge_text = strat_id_str
 
-        display_text = f"{badge_text} ▾" if not badge_text.endswith("▾") else badge_text
-        self.btn_top_ind.setText(display_text)
+        self.btn_top_ind.setText(badge_text)
         self.btn_top_ind.setToolTip(f"Active Strategy: {badge_text}\nClick to switch strategy or configure indicators")
         self.window.active_strategy_id = strat_id_str
         self.window.current_strategy_name = badge_text
@@ -2151,7 +2150,7 @@ class WorkspaceHeaderController:
         z2_layout.addWidget(sep_strat_event, 0, Qt.AlignVCenter)
 
         # 3. Live Event Risk Badge (Flat Ghost Label when CLEAR, Red Alert Box when IMPACT)
-        btn_event_risk = QPushButton("EVENT: ● CLEAR")
+        btn_event_risk = QPushButton("EVENT: CLEAR")
         btn_event_risk.setObjectName("btnEventRiskBadge")
         btn_event_risk.setFixedHeight(20)
         btn_event_risk.setCursor(Qt.PointingHandCursor)
@@ -2537,7 +2536,7 @@ class WorkspaceHeaderController:
         try:
             is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
             if is_impacted:
-                self.btn_event_risk.setText(f"EVENT: 🔴 {news_title[:12].upper()}")
+                self.btn_event_risk.setText(f"EVENT: {news_title[:12].upper()}")
                 if is_dark:
                     bg_col = "#450a0a"
                     text_col = "#f87171"
@@ -2554,7 +2553,7 @@ class WorkspaceHeaderController:
                     hover_border = "#ef4444"
                 self.btn_event_risk.setToolTip(f"High-impact news event active: {news_title}\nTrading pause active. Click to view Macro Calendar.")
             else:
-                self.btn_event_risk.setText("EVENT: ● CLEAR")
+                self.btn_event_risk.setText("EVENT: CLEAR")
                 if is_dark:
                     bg_col = "transparent"
                     text_col = "#4ade80"

@@ -185,8 +185,8 @@ class AlgoControlPill(QFrame):
         # Hover state: clean 1px border box appears
         if self._is_running:
             self.setToolTip("ALGO ENGINE: ACTIVE (Click to Halt | HotKey: F5)")
-            self.lbl_status.setText("● ACTIVE")
-            self.lbl_action.setText("■ HALT")
+            self.lbl_status.setText("ACTIVE")
+            self.lbl_action.setText("HALT")
             if self.is_dark:
                 bg = "#064e3b" if not self._is_hovered else "#065f46"
                 border = "transparent" if not self._is_hovered else "#059669"
@@ -201,8 +201,8 @@ class AlgoControlPill(QFrame):
                 sep_col = "#86efac"
         else:
             self.setToolTip("ALGO ENGINE: STANDBY (Click to Run | HotKey: F5)")
-            self.lbl_status.setText("○ STANDBY")
-            self.lbl_action.setText("▶ RUN")
+            self.lbl_status.setText("STANDBY")
+            self.lbl_action.setText("RUN")
             if self.is_dark:
                 bg = "transparent" if not self._is_hovered else "#161d2d"
                 border = "#1e293b" if not self._is_hovered else "#475569"
