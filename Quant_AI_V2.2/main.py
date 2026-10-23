@@ -215,6 +215,14 @@ class QuantTerminal(QObject):
         else:
             self.overlay = None
 
+        # Clamp effective minimum size and size hints to fit cleanly on 1080p and smaller screens
+        self.window.setMinimumSize(1024, 600)
+        self.window.minimumSizeHint = lambda: QSize(1024, 600)
+        if hasattr(self.window, "tabWidget"):
+            self.window.tabWidget.minimumSizeHint = lambda: QSize(800, 500)
+        if hasattr(self.window, "mainSplitter"):
+            self.window.mainSplitter.setChildrenCollapsible(True)
+
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()

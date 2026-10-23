@@ -38,6 +38,7 @@ class WatchlistManager(QObject):
         self._tick_throttle_timer.setInterval(40)  # 25 FPS UI throttle
         self._tick_throttle_timer.timeout.connect(self._flush_throttled_ticks)
         self._tick_throttle_timer.start(40)
+        self._is_flushing = False
 
         self.setup_ui()
         self.load_watchlist()
@@ -171,6 +172,7 @@ class WatchlistManager(QObject):
         self._sync_bot_symbols()
 
     def load_watchlist(self):
+        self._symbol_item_cache.clear()
         cat_map = {
             "COMMODITIES": "COMMODITIES",
             "CRYPTO PERPETUALS": "CRYPTO",
@@ -497,18 +499,25 @@ class WatchlistManager(QObject):
         if not self.tree:
             return
         self.check_account_changed()
-        # SC-09: Buffer incoming high-frequency ticks to avoid freezing Main UI thread
+        # SC-09: Purely buffer tick into dict; 40ms QTimer handles bounded 25 FPS UI updates (zero reentrancy)
         self._pending_ticks[sym] = (bid, ask)
-        if not self._tick_throttle_timer.isActive():
-            self._flush_throttled_ticks()
 
     def _flush_throttled_ticks(self):
-        if not self._pending_ticks or not self.tree:
+        if getattr(self, "_is_flushing", False) or not self.tree:
             return
-        ticks = self._pending_ticks
-        self._pending_ticks = {}
-        for sym, (bid, ask) in ticks.items():
-            self._update_symbol_quote(sym, bid, ask)
+        self._is_flushing = True
+        try:
+            if not self._pending_ticks:
+                return
+            ticks = dict(self._pending_ticks)
+            self._pending_ticks.clear()
+            for sym, (bid, ask) in ticks.items():
+                try:
+                    self._update_symbol_quote(sym, bid, ask)
+                except Exception as err:
+                    logger.debug(f"[Watchlist] Error updating quote for {sym}: {err}")
+        finally:
+            self._is_flushing = False
 
     def _get_tree_item_for_symbol(self, sym: str):
         if sym in self._symbol_item_cache:
@@ -516,16 +525,19 @@ class WatchlistManager(QObject):
             try:
                 if item.treeWidget() == self.tree:
                     return item
-            except RuntimeError:
-                pass
+            except (RuntimeError, Exception):
+                self._symbol_item_cache.pop(sym, None)
         for i in range(self.tree.topLevelItemCount()):
             cat = self.tree.topLevelItem(i)
             for j in range(cat.childCount()):
                 item = cat.child(j)
-                item_sym = item.text(0).split("\n")[0].strip()
-                if item_sym == sym:
-                    self._symbol_item_cache[sym] = item
-                    return item
+                try:
+                    item_sym = item.text(0).split("\n")[0].strip()
+                    if item_sym == sym:
+                        self._symbol_item_cache[sym] = item
+                        return item
+                except (RuntimeError, Exception):
+                    pass
         return None
 
     def _get_cached_yesterday_close(self, sym: str) -> float:

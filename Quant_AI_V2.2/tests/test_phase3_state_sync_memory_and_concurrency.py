@@ -166,6 +166,32 @@ def test_watchlist_tick_buffering_and_y_close_caching():
         assert mock_copy.call_count == 1
 
 
+def test_watchlist_flush_reentrancy_and_deleted_item_resilience():
+    """SC-09: _flush_throttled_ticks must be reentrancy-safe and never raise on deleted items."""
+    _app = QApplication.instance() or QApplication([])
+
+    mock_window = MagicMock()
+    mock_tree = QTreeWidget()
+    mock_window.treeWatchlist = mock_tree
+
+    with patch("frontend.controllers.watchlist.watchlist_controller.WatchlistStore"):
+        wm = WatchlistManager(mock_window)
+
+    wm._pending_ticks["XAUUSD"] = (2650.0, 2650.2)
+    # 1. Simulate reentrancy flag active: flush must return immediately without mutating buffer
+    wm._is_flushing = True
+    wm._flush_throttled_ticks()
+    assert "XAUUSD" in wm._pending_ticks
+
+    # 2. Reset flag and flush with error in item update: must catch cleanly without raising
+    wm._is_flushing = False
+    with patch.object(wm, "_update_symbol_quote", side_effect=RuntimeError("Internal C++ object deleted")):
+        wm._flush_throttled_ticks()
+
+    assert len(wm._pending_ticks) == 0
+    assert wm._is_flushing is False
+
+
 # ============================================================================
 # SC-12 TESTS: Chart Canvas Memory Leak LRU Eviction
 # ============================================================================
