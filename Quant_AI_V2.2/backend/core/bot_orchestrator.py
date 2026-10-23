@@ -248,17 +248,12 @@ class BotOrchestrator(QtCore.QObject):
         while self.is_running:
             # 1. Circuit Breaker Protection
             self._manage_circuit_breaker()
-            if self.circuit_guard.circuit_breaker_active:
-                for _ in range(50):
-                    if not self.is_running:
-                        break
-                    time.sleep(0.1)
-                continue
+            cb_active = self.circuit_guard.circuit_breaker_active
 
-            # 2. Position Guard (Trailing Stop & BE)
+            # 2. Position Guard (Trailing Stop & BE) - SC-03: Always maintain active in-trade defense
             self._manage_positions()
 
-            # 3. Pre-News Active Defense (T-15 min)
+            # 3. Pre-News Active Defense (T-15 min) - SC-03: Always protect open positions
             if self.news_filter_enabled and getattr(self, "news_defense_enabled", True) and hasattr(self, "event_risk"):
                 defense_actions = self.event_risk.evaluate_pre_news_defense()
                 for act in defense_actions:
@@ -271,6 +266,15 @@ class BotOrchestrator(QtCore.QObject):
                         f"🛡️ <b>[PRE-NEWS DEFENSE]</b>\n#{act['ticket']} {act['symbol']}: {act['action']} (+{act['r_multiple']}R) before '{act['news']}'",
                         category="sl_tp",
                     )
+
+            # SC-03: If Circuit Breaker is active, freeze NEW order evaluations only, while continuing position defense above
+            if cb_active:
+                poll_cycles = getattr(self, "poll_cycles", 15)
+                for _ in range(poll_cycles):
+                    if not self.is_running:
+                        break
+                    time.sleep(0.1)
+                continue
 
             # 4. Friday EOD Liquidation Shield
             if getattr(self, "close_friday", True):

@@ -112,6 +112,14 @@ class EventRiskEngine:
         Kiểm tra xem mã tài sản này có đang nằm trong khoảng ±pause_window_mins của tin tức đỏ không.
         Chỉ khóa các mã bị ảnh hưởng trực tiếp bởi quốc gia ra tin.
         """
+        # SC-04: Respect Manual Override from Macro Calendar Desk
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            if MacroContextBus.get_instance().get_manual_override():
+                return False, ""
+        except Exception:
+            pass
+
         self.refresh_events_if_needed()
         if not self._news_events_cache or self.pause_window_mins <= 0:
             return False, ""
@@ -143,6 +151,15 @@ class EventRiskEngine:
         if not getattr(self, "news_defense_enabled", True):
             return []
 
+        # SC-04: Respect Manual Override from Macro Calendar Desk
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            if MacroContextBus.get_instance().get_manual_override():
+                logger.info("[EventRisk] Pre-News Defense bypassed due to active manual override on Calendar Desk.")
+                return []
+        except Exception:
+            pass
+
         self.refresh_events_if_needed()
         if not self._news_events_cache or not self.exec_mgr:
             return []
@@ -169,6 +186,15 @@ class EventRiskEngine:
         defense_results = []
 
         for pos in positions:
+            # SC-04 & SC-06: Do NOT defend or modify user manual trades
+            pos_magic = getattr(pos, "magic", 0)
+            pos_comment = str(getattr(pos, "comment", "") or "").lower()
+            if "manual" in pos_comment:
+                continue
+            bot_magic = getattr(self.exec_mgr, "magic", 999999) if self.exec_mgr else 999999
+            if isinstance(pos_magic, (int, float)) and bot_magic is not None and int(pos_magic) != int(bot_magic):
+                continue
+
             sym = pos.symbol
             ticket = pos.ticket
 

@@ -73,6 +73,11 @@ class PositionGuard:
         offset_be = self.breakeven_pips * point * 10
         offset_tr = self.trailing_pips * point * 10
 
+        # SC-07: Institutional Break-Even Buffer
+        # Ensures that moving SL to Breakeven covers spread and broker commission so net realized PnL is non-negative.
+        spread_pts = (float(info.spread) * point) if (hasattr(info, "spread") and isinstance(info.spread, (int, float)) and info.spread > 0) else (10 * point)
+        be_buffer = max(spread_pts * 0.5, 5 * point)
+
         for pos in positions:
             # SC-01: Protect user manual trades & non-bot orders from automated trailing overwrites
             pos_magic = getattr(pos, "magic", 0)
@@ -95,7 +100,7 @@ class PositionGuard:
                     and current_sl < open_price
                     and profit_distance >= offset_be
                 ):
-                    new_sl = open_price + (2 * point)
+                    new_sl = open_price + be_buffer
 
                 if self.trailing_pips > 0 and profit_distance > 0:
                     potential_sl = current_price - offset_tr
@@ -108,7 +113,7 @@ class PositionGuard:
                     and (current_sl > open_price or current_sl == 0)
                     and profit_distance >= offset_be
                 ):
-                    new_sl = open_price - (2 * point)
+                    new_sl = open_price - be_buffer
 
                 if self.trailing_pips > 0 and profit_distance > 0:
                     potential_sl = current_price + offset_tr

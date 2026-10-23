@@ -1306,22 +1306,47 @@ def evaluate_manual_compliance(window, symbol=None):
     except Exception:
         pass
 
-    # 1. Daily Drawdown Check
+    # 1. Daily Drawdown Check (SC-05: Harmonized with CircuitBreakerGuard Single Source of Truth)
     max_daily_loss = float(cfg.get("max_daily_loss", 5000.0))
     max_drawdown = float(cfg.get("max_drawdown", 5.0))
     acc = mt5.account_info() if mt5.terminal_info() is not None else None
     if acc:
         equity = float(acc.equity)
         balance = float(acc.balance)
-        floating_loss = balance - equity
-        if max_daily_loss > 0 and floating_loss >= max_daily_loss:
-            checks["drawdown"] = {"passed": False, "msg": f"Loss -${floating_loss:.0f} >= -${max_daily_loss:.0f}", "val": "HALTED"}
+
+        # Retrieve start_of_day equity baseline and circuit breaker latch from database
+        cb_active = False
+        start_of_day_eq = balance
+        try:
+            from backend.database.db_manager import DatabaseManager
+            db = DatabaseManager()
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            saved_date = db.get_system_state("circuit_breaker_date", default="")
+            saved_active = db.get_system_state("circuit_breaker_active", default="False")
+            if saved_date == today_str and saved_active == "True":
+                cb_active = True
+
+            sod_str = db.get_system_state("start_of_day_equity", default="")
+            if sod_str:
+                sod_val = float(sod_str)
+                if sod_val > 0:
+                    start_of_day_eq = sod_val
+        except Exception:
+            pass
+
+        # Total daily loss includes both realized closed loss today and active floating drawdown
+        daily_loss = max(0.0, start_of_day_eq - equity)
+        dd_pct = (daily_loss / start_of_day_eq) * 100.0 if start_of_day_eq > 0 else 0.0
+
+        if cb_active:
+            checks["drawdown"] = {"passed": False, "msg": "Circuit Breaker Active (Trading Halted)", "val": "HALTED"}
+            block_reason = "CIRCUIT BREAKER ACTIVE"
+        elif max_daily_loss > 0 and daily_loss >= max_daily_loss:
+            checks["drawdown"] = {"passed": False, "msg": f"Loss -${daily_loss:.0f} >= -${max_daily_loss:.0f}", "val": "HALTED"}
             block_reason = "DAILY LOSS LIMIT EXCEEDED"
-        elif balance > 0 and max_drawdown > 0:
-            dd_pct = (floating_loss / balance) * 100.0
-            if dd_pct >= max_drawdown:
-                checks["drawdown"] = {"passed": False, "msg": f"DD {dd_pct:.1f}% >= {max_drawdown:.1f}%", "val": "HALTED"}
-                block_reason = "MAX DRAWDOWN BREACHED"
+        elif start_of_day_eq > 0 and max_drawdown > 0 and dd_pct >= max_drawdown:
+            checks["drawdown"] = {"passed": False, "msg": f"DD {dd_pct:.1f}% >= {max_drawdown:.1f}%", "val": "HALTED"}
+            block_reason = "MAX DRAWDOWN BREACHED"
 
     # 2. Event Risk Engine Check (News Filter via MacroContextBus)
     if not block_reason and cfg.get("news_defense_enabled", True):
