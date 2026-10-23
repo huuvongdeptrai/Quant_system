@@ -552,7 +552,7 @@ class CalendarManager:
             if is_active:
                 btn.setStyleSheet(
                     f"QPushButton {{ background-color: {act_bg}; color: {act_fg}; font-family: Consolas; "
-                    "font-size: 9px; font-weight: bold; border-radius: 2px; padding: 0 6px; border: none; }}"
+                    f"font-size: 9px; font-weight: bold; border-radius: 2px; padding: 0 6px; border: none; }}"
                 )
             else:
                 btn.setStyleSheet(

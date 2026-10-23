@@ -203,7 +203,6 @@ class QuantTerminal(QObject):
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
-            self.window.setMaximumSize(avail.width(), avail.height())
             self.window.setGeometry(avail)
         self.window.showMaximized()
 

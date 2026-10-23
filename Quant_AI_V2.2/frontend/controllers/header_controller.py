@@ -2307,11 +2307,6 @@ class WorkspaceHeaderController:
                 self.window.showNormal()
                 self._is_maximized = False
             else:
-                screen = self.window.screen()
-                if screen:
-                    avail = screen.availableGeometry()
-                    self.window.setMaximumSize(avail.width(), avail.height())
-                    self.window.setGeometry(avail)
                 self.window.showMaximized()
                 self._is_maximized = True
         btn_max.clicked.connect(toggle_maximize)
