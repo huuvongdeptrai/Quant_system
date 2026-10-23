@@ -23,7 +23,12 @@ from backend.infrastructure.brokers.mt5_safe import mt5
 COUNTRY_CURRENCY_MAP = {
     "US": "USD",
     "EU": "EUR",
+    "DE": "EUR",
+    "FR": "EUR",
+    "IT": "EUR",
+    "ES": "EUR",
     "GB": "GBP",
+    "UK": "GBP",
     "JP": "JPY",
     "AU": "AUD",
     "CA": "CAD",

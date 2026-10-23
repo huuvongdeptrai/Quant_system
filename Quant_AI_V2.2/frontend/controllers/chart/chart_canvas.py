@@ -3613,6 +3613,8 @@ def setup_chart_ui(window):
                 window.quant_terminal.lbl_top_ticker.setText(window.quant_terminal._format_top_ticker())
             if hasattr(window.quant_terminal, "update_sidebar_alert"):
                 window.quant_terminal.update_sidebar_alert(clean_sym)
+            if hasattr(window.quant_terminal, "macro_calendar") and hasattr(window.quant_terminal.macro_calendar, "set_current_symbol"):
+                window.quant_terminal.macro_calendar.set_current_symbol(clean_sym)
 
         # --- DRAW INDICATORS (setData pattern) ---
 

@@ -358,6 +358,7 @@ class WatchlistManager(QObject):
                     item.setToolTip(0, f"{sym}: Pending order active")
                 else:
                     item.setToolTip(0, f"{sym}: Flat (No orders)")
+                self.update_item_status(item, sym)
 
     def update_theme(self, is_dark: bool):
         self.is_dark = is_dark

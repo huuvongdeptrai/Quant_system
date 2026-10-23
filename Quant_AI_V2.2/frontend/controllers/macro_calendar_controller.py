@@ -514,6 +514,11 @@ class CalendarManager:
         self.lbl_qa_asset_impact.setWordWrap(True)
         qa_lay.addWidget(self.lbl_qa_asset_impact)
 
+        self.lbl_qa_watchlist_impact = QLabel("• Watchlist Impact: Select an event to check watchlist exposure.")
+        self.lbl_qa_watchlist_impact.setStyleSheet("font-size: 9.0px; color: #64748b; border: none;")
+        self.lbl_qa_watchlist_impact.setWordWrap(True)
+        qa_lay.addWidget(self.lbl_qa_watchlist_impact)
+
         r_lay.addWidget(self.frame_quant_action)
         r_lay.addStretch(1)
 
@@ -944,6 +949,59 @@ class CalendarManager:
         # Update countdown immediately
         self._on_clock_tick()
 
+    def _get_watchlist_symbols(self) -> list:
+        """Retrieves active watchlist symbols from WatchlistManager or MacroContextBus."""
+        if hasattr(self.window, "watchlist_manager") and hasattr(self.window.watchlist_manager, "get_all_symbols"):
+            syms = self.window.watchlist_manager.get_all_symbols()
+            if syms:
+                return syms
+        if hasattr(self.window, "quant_terminal") and hasattr(self.window.quant_terminal, "watchlist"):
+            if hasattr(self.window.quant_terminal.watchlist, "get_all_symbols"):
+                syms = self.window.quant_terminal.watchlist.get_all_symbols()
+                if syms:
+                    return syms
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            return list(MacroContextBus.get_instance()._profiles.keys())
+        except Exception:
+            return ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+    def _evaluate_asset_news_reaction(self, curr_sym: str, cntry: str, is_country_positive: bool):
+        """
+        Calculates directional impact and institutional advisory for target symbol.
+        Returns: (bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL', impact_message: str, color_hex: str)
+        """
+        sym = curr_sym.upper().replace("/", "").split(".")[0].strip()
+        cntry = cntry.upper()
+
+        cntry_to_ccy = {
+            "US": "USD", "EU": "EUR", "DE": "EUR", "FR": "EUR", "IT": "EUR",
+            "GB": "GBP", "UK": "GBP", "JP": "JPY", "CH": "CHF", "CA": "CAD",
+            "AU": "AUD", "NZ": "NZD",
+        }
+        ccy = cntry_to_ccy.get(cntry, cntry)
+
+        is_bullish = None
+        if ccy == "USD":
+            if sym.startswith("USD"):
+                is_bullish = is_country_positive
+            elif sym.endswith("USD") or "XAU" in sym or "XAG" in sym or "BTC" in sym or "ETH" in sym:
+                is_bullish = not is_country_positive
+            elif any(idx in sym for idx in ["US30", "NAS100", "SPX500"]):
+                is_bullish = is_country_positive
+        else:
+            if sym.startswith(ccy):
+                is_bullish = is_country_positive
+            elif sym.endswith(ccy):
+                is_bullish = not is_country_positive
+
+        if is_bullish is True:
+            return "BULLISH", f"• Tác động {sym}: Hỗ trợ đà tăng (Bullish). Ưu tiên setup Mua thuận xu hướng.", "#22c55e"
+        elif is_bullish is False:
+            return "BEARISH", f"• Tác động {sym}: Áp lực điều chỉnh giảm ngắn hạn. Không nhồi lệnh Mua khi chưa tạo đáy nến mới.", "#ef4444"
+        else:
+            return "NEUTRAL", f"• Tác động {sym}: Tác động gián tiếp qua tỷ giá chéo, duy trì kiểm soát rủi ro thông thường.", "#0284c7"
+
     def _update_quant_action_card(self, event: dict):
         """Populates Section 4 with clear quantitative assessment and target symbol impact."""
         if not hasattr(self, "lbl_qa_event_name") or not event:
@@ -967,29 +1025,24 @@ class CalendarManager:
             title_l = title.lower()
             if cntry.upper() == "US":
                 if "claims" in title_l or "unemploy" in title_l:
-                    is_usd_positive = (surprise < 0)
-                elif "cpi" in title_l or "ppi" in title_l or "inflation" in title_l:
-                    is_usd_positive = (surprise > 0)
-                elif "pmi" in title_l or "gdp" in title_l or "retail" in title_l:
-                    is_usd_positive = (surprise > 0)
+                    is_cntry_pos = (surprise < 0)
                 else:
-                    is_usd_positive = (surprise > 0)
+                    is_cntry_pos = (surprise > 0)
 
-                if is_usd_positive:
+                if is_cntry_pos:
                     eval_msg = "• Đánh giá AI: Số liệu khả quan hơn kỳ vọng -> Củng cố sức mạnh đồng USD."
-                    impact_msg = f"• Tác động {curr_sym}: Áp lực điều chỉnh giảm ngắn hạn. Không nhồi lệnh Mua khi chưa tạo đáy nến mới."
-                    color = "#ef4444"
                 elif surprise != 0:
                     eval_msg = "• Đánh giá AI: Số liệu thấp hơn dự báo -> USD chịu áp lực giảm, dòng vốn ưu tiên tài sản trú ẩn."
-                    impact_msg = f"• Tác động {curr_sym}: Hỗ trợ đà tăng (Bullish). Ưu tiên setup Mua theo xu hướng."
-                    color = "#22c55e"
                 else:
                     eval_msg = "• Đánh giá AI: Số liệu sát kỳ vọng thị trường -> Không gây sốc thanh khoản."
-                    impact_msg = f"• Tác động {curr_sym}: Biến động kỹ thuật bình thường, tuân thủ cấu trúc biểu đồ M15."
-                    color = "#0284c7"
             else:
+                is_cntry_pos = (surprise > 0)
                 eval_msg = f"• Đánh giá AI: Dữ liệu kinh tế {cntry} {'tích cực' if surprise > 0 else 'tiêu cực'} so với dự báo."
-                impact_msg = f"• Tác động {curr_sym}: Tác động gián tiếp qua tỷ giá chéo, duy trì kiểm soát rủi ro thông thường."
+
+            if surprise != 0:
+                _, impact_msg, color = self._evaluate_asset_news_reaction(curr_sym, cntry, is_cntry_pos)
+            else:
+                impact_msg = f"• Tác động {curr_sym}: Biến động kỹ thuật bình thường, tuân thủ cấu trúc biểu đồ M15."
                 color = "#0284c7"
         else:
             # Upcoming scheduled release
@@ -1001,6 +1054,30 @@ class CalendarManager:
         self.lbl_qa_ai_insight.setText(eval_msg)
         self.lbl_qa_asset_impact.setText(impact_msg)
         self.lbl_qa_asset_impact.setStyleSheet(f"font-size: 9.5px; color: {color}; font-weight: 600; border: none;")
+
+        # Multi-Asset Watchlist Exposure Audit
+        wl_symbols = self._get_watchlist_symbols()
+        impacted_syms = []
+        safe_syms = []
+        for s in wl_symbols:
+            clean_s = s.split(".")[0].strip()
+            if self.risk_engine.is_symbol_impacted_by_event(clean_s, cntry, title):
+                impacted_syms.append(clean_s)
+            else:
+                safe_syms.append(clean_s)
+
+        if impacted_syms:
+            impacted_str = ", ".join(impacted_syms)
+            safe_str = ", ".join(safe_syms[:5]) if safe_syms else "None"
+            wl_msg = (
+                f"• Cặp Watchlist bị ảnh hưởng ({len(impacted_syms)}): <b style='color:#f59e0b;'>{impacted_str}</b> (Khóa T-15m)<br>"
+                f"• Cặp an toàn ({len(safe_syms)}): <span style='color:#64748b;'>{safe_str}</span>"
+            )
+        else:
+            wl_msg = "• Watchlist: Không có cặp tiền nào trong danh sách theo dõi chịu tác động trực tiếp."
+
+        if hasattr(self, "lbl_qa_watchlist_impact") and self.lbl_qa_watchlist_impact:
+            self.lbl_qa_watchlist_impact.setText(wl_msg)
 
     def _on_clock_tick(self):
         """1-second timer tick for countdown and active defense monitoring (Pure UTC epoch)."""
