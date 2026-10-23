@@ -29,12 +29,14 @@ class CircuitBreakerGuard:
         max_daily_loss: float = 500.0,
         max_drawdown: float = 5.0,
         max_losing_streak: int = 3,
+        bot_magic: Optional[int] = 999999,
         log_callback: Optional[Callable[[str, str, str], None]] = None,
     ):
         self.db = db_manager
         self.max_daily_loss = max_daily_loss
         self.max_drawdown = max_drawdown
         self.max_losing_streak = max_losing_streak
+        self.bot_magic = bot_magic
         self.log_callback = log_callback
 
         self.start_of_day_equity = 0.0
@@ -67,6 +69,19 @@ class CircuitBreakerGuard:
             return False, 0
 
         exit_deals = [d for d in deals if d.entry == 1]
+        # SC-02: Isolate bot losing streak from discretionary manual trades (magic=0 or comment containing 'manual')
+        if self.bot_magic is not None:
+            filtered_deals = []
+            for d in exit_deals:
+                d_magic = getattr(d, "magic", 0)
+                d_comment = str(getattr(d, "comment", "") or "").lower()
+                if "manual" in d_comment:
+                    continue
+                if isinstance(d_magic, (int, float)) and int(d_magic) != int(self.bot_magic):
+                    continue
+                filtered_deals.append(d)
+            exit_deals = filtered_deals
+
         if not exit_deals:
             return False, 0
 

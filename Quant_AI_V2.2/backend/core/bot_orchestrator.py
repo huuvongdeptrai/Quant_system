@@ -124,6 +124,7 @@ class BotOrchestrator(QtCore.QObject):
             max_daily_loss=self.max_daily_loss,
             max_drawdown=self.max_drawdown,
             max_losing_streak=self.max_losing_streak,
+            bot_magic=getattr(self.exec_mgr, "magic", 999999),
             log_callback=self.log,
         )
 
@@ -133,6 +134,7 @@ class BotOrchestrator(QtCore.QObject):
             enable_trailing_stop=self.enable_trailing_stop,
             trailing_pips=self.trailing_pips,
             breakeven_pips=self.breakeven_pips,
+            bot_magic=getattr(self.exec_mgr, "magic", 999999),
             log_callback=self.log,
         )
 

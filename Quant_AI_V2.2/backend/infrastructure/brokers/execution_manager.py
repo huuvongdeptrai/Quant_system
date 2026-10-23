@@ -1,4 +1,5 @@
 import time
+from typing import Optional, List, Dict, Any
 from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
 
@@ -43,6 +44,7 @@ class ExecutionManager:
         sl_price: float,
         tp_price: float,
         comment: str = "VECTRA",
+        magic: Optional[int] = None,
         max_retries: int = 3,
     ) -> dict:
         """
@@ -112,6 +114,7 @@ class ExecutionManager:
 
             curr_deviation = self.slippage + (attempt - 1) * 10
 
+            target_magic = magic if magic is not None else (0 if "manual" in comment.lower() else self.magic)
             request = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": symbol,
@@ -121,7 +124,7 @@ class ExecutionManager:
                 "sl": sl_val,
                 "tp": tp_val,
                 "deviation": curr_deviation,
-                "magic": self.magic,
+                "magic": target_magic,
                 "comment": comment,
                 "type_time": mt5.ORDER_TIME_GTC,
                 "type_filling": self._get_fill_policy(symbol),
@@ -207,6 +210,7 @@ class ExecutionManager:
         sl_price: float,
         tp_price: float,
         comment: str = "VECTRA_Pending",
+        magic: Optional[int] = None,
         max_retries: int = 3,
     ) -> dict:
         """
@@ -275,6 +279,7 @@ class ExecutionManager:
                             f"[ExecutionManager] Gia dat cho {target_price} qua sat gia hien tai {curr_p} (StopsLevel: {min_dist})"
                         )
 
+            target_magic = magic if magic is not None else (0 if "manual" in comment.lower() else self.magic)
             request = {
                 "action": mt5.TRADE_ACTION_PENDING,
                 "symbol": symbol,
@@ -284,7 +289,7 @@ class ExecutionManager:
                 "sl": sl_val,
                 "tp": tp_val,
                 "deviation": self.slippage,
-                "magic": self.magic,
+                "magic": target_magic,
                 "comment": comment,
                 "type_time": mt5.ORDER_TIME_GTC,
                 "type_filling": self._get_fill_policy(symbol),
@@ -417,9 +422,11 @@ class ExecutionManager:
             "latency_ms": round(total_latency_ms, 2),
         }
 
-    def close_all_positions(self, symbol: str) -> list[str]:
+    def close_all_positions(self, symbol: str, bot_only: bool = True) -> list[str]:
         """
         Đóng toàn bộ vị thế của một mã (Panic Close / Chốt lời toàn bộ).
+        - bot_only=True: Chỉ đóng lệnh của Bot (magic khớp self.magic và không phải lệnh manual), bảo vệ lệnh tay của user.
+        - bot_only=False: Thanh lý mọi vị thế của symbol trên tài khoản.
         """
         positions = mt5.positions_get(symbol=symbol)
         if not positions:
@@ -430,6 +437,14 @@ class ExecutionManager:
         digits = info.digits if info else 2
 
         for pos in positions:
+            # SC-06: Protect user manual trades from accidental liquidation
+            pos_magic = getattr(pos, "magic", 0)
+            pos_comment = str(getattr(pos, "comment", "") or "").lower()
+            if bot_only:
+                if "manual" in pos_comment:
+                    continue
+                if isinstance(pos_magic, (int, float)) and self.magic is not None and int(pos_magic) != int(self.magic):
+                    continue
             tick = mt5.symbol_info_tick(symbol)
             if not tick:
                 results.append(f"Loi dong lenh {pos.ticket}: Khong co du lieu tick")

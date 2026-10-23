@@ -2398,7 +2398,8 @@ def execute_manual_quant_order(window):
                 volume=lot_size,
                 sl_price=sl_p,
                 tp_price=tp_p,
-                comment="VECTRA_Manual"
+                comment="VECTRA_Manual",
+                magic=0
             )
         else:
             # Pending order: BUY_LIMIT / SELL_LIMIT / BUY_STOP / SELL_STOP
@@ -2422,7 +2423,8 @@ def execute_manual_quant_order(window):
                 volume=lot_size,
                 sl_price=sl_p,
                 tp_price=tp_p,
-                comment="VECTRA_Manual_Pending"
+                comment="VECTRA_Manual_Pending",
+                magic=0
             )
     else:
         order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_p}

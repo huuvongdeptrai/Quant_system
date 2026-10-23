@@ -30,6 +30,7 @@ class PositionGuard:
         enable_trailing_stop: bool = False,
         trailing_pips: int = 0,
         breakeven_pips: int = 0,
+        bot_magic: Optional[int] = 999999,
         log_callback: Optional[Callable[[str, str, str], None]] = None,
     ):
         self.exec_mgr = execution_manager
@@ -37,6 +38,7 @@ class PositionGuard:
         self.enable_trailing_stop = enable_trailing_stop
         self.trailing_pips = trailing_pips
         self.breakeven_pips = breakeven_pips
+        self.bot_magic = bot_magic if bot_magic is not None else getattr(execution_manager, 'magic', 999999)
         self.log_callback = log_callback
 
     def _log(self, level: str, msg: str, color: str = "#8B949E") -> None:
@@ -72,6 +74,14 @@ class PositionGuard:
         offset_tr = self.trailing_pips * point * 10
 
         for pos in positions:
+            # SC-01: Protect user manual trades & non-bot orders from automated trailing overwrites
+            pos_magic = getattr(pos, "magic", 0)
+            pos_comment = str(getattr(pos, "comment", "") or "").lower()
+            if "manual" in pos_comment:
+                continue
+            if isinstance(pos_magic, (int, float)) and self.bot_magic is not None and int(pos_magic) != int(self.bot_magic):
+                continue
+
             is_buy = pos.type == 0
             open_price = pos.price_open
             current_price = pos.price_current
