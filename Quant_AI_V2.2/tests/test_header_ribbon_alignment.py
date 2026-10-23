@@ -164,6 +164,18 @@ def test_compact_account_telemetry_typography(qapp):
     assert "$97,519.79" in ticker_html
     assert "Consolas" in ticker_html or "monospace" in ticker_html
 
+    # Test with Account ID
+    ticker_with_acct = header._format_top_ticker(bal=96623.52, eq=96623.52, pnl=0.0, acct="316070")
+    assert "ACCT:" in ticker_with_acct
+    assert "#316070" in ticker_with_acct
+    assert "$96,623.52" in ticker_with_acct
+
+    # Test with OFFLINE
+    ticker_offline = header._format_top_ticker(bal=None, eq=None, acct="OFFLINE")
+    assert "[OFFLINE]" in ticker_offline
+    assert "BAL:" in ticker_offline
+    assert "--" in ticker_offline
+
 
 def test_algo_control_pill_standard_height_and_separator(qapp):
     """Verifies AlgoControlPill has 20px height and uses standard 1px vertical separator line."""

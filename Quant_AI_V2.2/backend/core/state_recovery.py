@@ -67,11 +67,32 @@ class StateRecoveryManager:
         # 4. Đối soát: Lệnh DB đánh dấu OPEN nhưng MT5 không còn (Đã cắn SL/TP khi offline)
         for ticket, trade in db_tickets.items():
             if ticket not in live_tickets:
-                # Đóng lệnh trong DB
-                self.db.record_close_trade(ticket=ticket, close_price=0.0, pnl=0.0)
+                # Tra cứu lịch sử Deals từ MT5 để khôi phục chính xác giá đóng và PnL thực tế
+                exit_price = 0.0
+                pnl = 0.0
+                try:
+                    deals = mt5.history_deals_get(position=ticket)
+                    if deals:
+                        exit_price = float(deals[-1].price or 0.0)
+                        def _get_v(obj, attr):
+                            v = getattr(obj, attr, 0.0)
+                            return float(v) if isinstance(v, (int, float)) else 0.0
+
+                        pnl = sum(
+                            _get_v(d, "profit")
+                            + _get_v(d, "commission")
+                            + _get_v(d, "swap")
+                            + _get_v(d, "fee")
+                            for d in deals
+                        )
+                except Exception as e_deal:
+                    logger.debug(f"[StateRecovery] Tra cứu Deals cho #{ticket} lỗi: {e_deal}")
+
+                # Đóng lệnh trong DB với giá trị thực
+                self.db.record_close_trade(ticket=ticket, close_price=exit_price, pnl=pnl)
                 reconciled_closed += 1
                 logger.info(
-                    f"[StateRecovery] Lệnh #{ticket} đã được đóng trên Broker trong lúc offline. Cập nhật CSDL thành CLOSED."
+                    f"[StateRecovery] Lệnh #{ticket} đã được đóng trên Broker trong lúc offline (@{exit_price}, PnL: ${pnl:+.2f}). Cập nhật CSDL thành CLOSED."
                 )
 
         # 5. Khôi phục trạng thái Circuit Breaker

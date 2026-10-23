@@ -143,8 +143,18 @@ class PositionGuard:
                     exit_price = 0.0
                     reason = "CLOSED"
                     if deals:
-                        pnl = sum(d.profit for d in deals)
-                        exit_price = deals[-1].price
+                        def _get_val(obj, attr):
+                            v = getattr(obj, attr, 0.0)
+                            return float(v) if isinstance(v, (int, float)) else 0.0
+
+                        pnl = sum(
+                            _get_val(d, "profit")
+                            + _get_val(d, "commission")
+                            + _get_val(d, "swap")
+                            + _get_val(d, "fee")
+                            for d in deals
+                        )
+                        exit_price = float(deals[-1].price or 0.0) if isinstance(getattr(deals[-1], "price", None), (int, float)) else 0.0
                         reason = getattr(deals[-1], "comment", "CLOSED") or "CLOSED"
 
                     self.db.record_close_trade(ticket=tk, close_price=exit_price, pnl=pnl)

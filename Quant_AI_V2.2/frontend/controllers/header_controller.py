@@ -49,7 +49,7 @@ class WorkspaceHeaderController:
             if hasattr(self, "terminal"):
                 setattr(self.terminal, name, value)
 
-    def _format_top_ticker(self, bal=None, eq=None, pnl=None, pnl_pct=0.0, max_dd=0.0, latency=None, is_algo_active=False, is_dark=None):
+    def _format_top_ticker(self, bal=None, eq=None, pnl=None, pnl_pct=0.0, max_dd=0.0, latency=None, is_algo_active=False, is_dark=None, acct=None):
         if is_dark is None:
             is_dark = getattr(self, "is_dark_theme", False)
 
@@ -75,8 +75,26 @@ class WorkspaceHeaderController:
                 pnl_txt = "--"
                 pnl_color = lbl_col
 
+        acct_prefix = ""
+        if acct:
+            if str(acct).upper() == "OFFLINE":
+                acct_val_col = "#ef4444" if is_dark else "#dc2626"
+                acct_prefix = (
+                    f'<b style="color:{acct_val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">[OFFLINE]</b>&nbsp;&nbsp;'
+                    f'<span style="color:{sep_col}; font-family:Consolas, monospace; font-weight:300;">|</span>&nbsp;&nbsp;'
+                )
+            else:
+                acct_str = f"#{acct}" if not str(acct).startswith("#") else str(acct)
+                acct_val_col = "#38bdf8" if is_dark else "#0284c7"
+                acct_prefix = (
+                    f'<span style="color:{lbl_col}; font-size:10px; font-family:Consolas, monospace; font-weight:600;">ACCT:</span> '
+                    f'<b style="color:{acct_val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{acct_str}</b>&nbsp;&nbsp;'
+                    f'<span style="color:{sep_col}; font-family:Consolas, monospace; font-weight:300;">|</span>&nbsp;&nbsp;'
+                )
+
         return (
             f'<span style="color:{lbl_col}; font-size:10px; font-family:Consolas, monospace; font-weight:600;">'
+            f'{acct_prefix}'
             f'BAL: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{bal_txt}</b>&nbsp;&nbsp;'
             f'<span style="color:{sep_col}; font-family:Consolas, monospace; font-weight:300;">|</span>&nbsp;&nbsp;'
             f'EQ: <b style="color:{val_col}; font-family:Consolas, monospace; font-size:10px; font-weight:700;">{eq_txt}</b>&nbsp;&nbsp;'
@@ -439,11 +457,12 @@ class WorkspaceHeaderController:
                         pnl=pnl,
                         pnl_pct=pnl_pct,
                         is_algo_active=is_running,
+                        acct=str(acc.login),
                     )
                 )
         else:
             if hasattr(self, "lbl_top_ticker"):
-                self.lbl_top_ticker.setText(self._format_top_ticker(is_algo_active=is_running))
+                self.lbl_top_ticker.setText(self._format_top_ticker(is_algo_active=is_running, acct="OFFLINE"))
 
         if hasattr(self, "lbl_bot_status") and self.lbl_bot_status:
             self.lbl_bot_status.setText(self._format_bottom_telemetry(getattr(self, "is_dark_theme", False)))
@@ -795,7 +814,7 @@ class WorkspaceHeaderController:
 
         # 6. Central Telemetry (Account info only: BAL, EQ, PnL) - Flat institutional header
         if hasattr(self, "lbl_top_ticker") and self.lbl_top_ticker:
-            self.lbl_top_ticker.setMinimumWidth(230)
+            self.lbl_top_ticker.setMinimumWidth(330)
             self.lbl_top_ticker.setStyleSheet(
                 "background: transparent; border: none; padding: 0 4px; font-family: Consolas, monospace; font-size: 10px;"
             )

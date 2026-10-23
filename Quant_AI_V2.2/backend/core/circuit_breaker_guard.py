@@ -99,13 +99,20 @@ class CircuitBreakerGuard:
 
         today = datetime.now().date()
         today_str = today.strftime("%Y-%m-%d")
+        acct_login = str(getattr(account, "login", "") or "")
 
-        if self.current_date != today:
+        saved_date = self.db.get_system_state("start_of_day_date", default="")
+        saved_equity = self.db.get_system_state("start_of_day_equity", default="")
+        saved_acct = self.db.get_system_state("start_of_day_account", default="")
+
+        # Account switch or new trading day requires fresh baseline anchoring
+        is_account_changed = bool(saved_acct and acct_login and saved_acct != acct_login)
+        is_new_day = (self.current_date != today or saved_date != today_str)
+
+        if is_new_day or is_account_changed or self.start_of_day_equity <= 0:
             self.current_date = today
-            saved_date = self.db.get_system_state("start_of_day_date", default="")
-            saved_equity = self.db.get_system_state("start_of_day_equity", default="")
 
-            if saved_date == today_str and saved_equity:
+            if not is_account_changed and saved_date == today_str and saved_equity:
                 try:
                     self.start_of_day_equity = float(saved_equity)
                 except (ValueError, TypeError):
@@ -114,19 +121,23 @@ class CircuitBreakerGuard:
                 self.start_of_day_equity = float(account.equity)
                 self.db.set_system_state("start_of_day_date", today_str)
                 self.db.set_system_state("start_of_day_equity", str(self.start_of_day_equity))
+                if acct_login:
+                    self.db.set_system_state("start_of_day_account", acct_login)
 
             cb_date = self.db.get_system_state("circuit_breaker_date", default="")
             cb_active = self.db.get_system_state("circuit_breaker_active", default="False")
-            if cb_date == today_str and cb_active == "True":
+            if not is_account_changed and cb_date == today_str and cb_active == "True":
                 self.circuit_breaker_active = True
                 self._circuit_breaker_alert_sent = True
             else:
                 self.circuit_breaker_active = False
                 self._circuit_breaker_alert_sent = False
                 self.db.set_system_state("circuit_breaker_active", "False")
+
+            acct_tag = f" (#{acct_login})" if acct_login else ""
             self._log(
                 "INFO",
-                f"Session starting equity: ${self.start_of_day_equity:,.2f}",
+                f"Session starting equity{acct_tag}: ${self.start_of_day_equity:,.2f}",
                 "#8B949E",
             )
 

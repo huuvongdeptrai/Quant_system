@@ -80,7 +80,11 @@ class TestStage8OptionsIntegration:
             assert curr == 20
             assert max_s == 25
 
-    def test_circuit_breaker_max_daily_loss(self):
+    def test_circuit_breaker_max_daily_loss(self, tmp_path):
+        from backend.database.db_manager import DatabaseManager
+        DatabaseManager.reset_instance()
+        test_db = DatabaseManager(db_path=str(tmp_path / "test_cb.db"))
+
         mock_strat = MagicMock()
         mock_risk = MagicMock()
         mock_exec = MagicMock()
@@ -98,10 +102,12 @@ class TestStage8OptionsIntegration:
             max_losing_streak=0,
         )
 
+        worker.db = test_db
+        worker.circuit_guard.db = test_db
         worker.db.set_system_state("circuit_breaker_active", "False")
         worker.db.set_system_state("circuit_breaker_date", "")
 
-        acc = MagicMock(equity=10000.0, balance=10000.0, margin=0, margin_free=10000.0)
+        acc = MagicMock(equity=10000.0, balance=10000.0, margin=0, margin_free=10000.0, login=999999)
         with patch.object(mt5, "account_info", return_value=acc), \
              patch("backend.core.circuit_breaker_guard.telegram_notifier.send_message") as mock_tg:
             worker._manage_circuit_breaker()
@@ -117,6 +123,8 @@ class TestStage8OptionsIntegration:
             # Subsequent checks on same day MUST NOT re-send alert (gửi đúng 1 lần duy nhất)
             worker._manage_circuit_breaker()
             assert mock_tg.call_count == 1
+
+        DatabaseManager.reset_instance()
 
     def test_max_open_trades_limit(self):
         mock_strat = MagicMock()

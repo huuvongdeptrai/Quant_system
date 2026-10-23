@@ -92,6 +92,20 @@ class QuantTerminal(QObject):
         acc_info = mt5.account_info()
         if term and getattr(term, "connected", False) and acc_info:
             logger.info(f"[QuantTerminal] Active MT5 session verified: #{acc_info.login} ({acc_info.server})")
+            try:
+                root_d = os.path.dirname(os.path.abspath(__file__))
+                cfg_p = os.path.join(root_d, "config", "ai_config.json")
+                if os.path.exists(cfg_p):
+                    with open(cfg_p, "r", encoding="utf-8") as f:
+                        cfg_data = json.load(f)
+                    if cfg_data.get("MT5_ACCOUNT") != acc_info.login:
+                        cfg_data["MT5_ACCOUNT"] = acc_info.login
+                        cfg_data["MT5_SERVER"] = acc_info.server
+                        with open(cfg_p, "w", encoding="utf-8") as f:
+                            json.dump(cfg_data, f, indent=4)
+                        logger.info(f"[QuantTerminal] Synchronized active MT5 account #{acc_info.login} to ai_config.json")
+            except Exception as e_cfg:
+                logger.debug(f"[QuantTerminal] Config sync error: {e_cfg}")
         else:
             try:
                 root_d = os.path.dirname(os.path.abspath(__file__))
@@ -581,13 +595,12 @@ class QuantTerminal(QObject):
             if hasattr(self, "dot_mt5"):
                 self.dot_mt5.setStyleSheet("background-color: #ef4444; border-radius: 3px;")
                 self.dot_mt5.setToolTip("FEED: DISCONNECTED")
-            if hasattr(self, "lbl_top_ticker"):
+            if hasattr(self, "header") and hasattr(self.header, "_refresh_top_ticker"):
+                self.header._refresh_top_ticker()
+            elif hasattr(self, "lbl_top_ticker"):
                 self.lbl_top_ticker.setText(
-                    self._format_top_ticker(bal=100000.0, eq=100000.0, pnl=0.0, pnl_pct=0.0, latency=0.0, is_algo_active=is_running)
+                    self._format_top_ticker(bal=None, eq=None, pnl=None, pnl_pct=0.0, latency=0.0, is_algo_active=is_running, acct="OFFLINE")
                 )
-
-            if hasattr(self.window, "labelStatus"):
-                delattr(self.window, "labelStatus")
             return
 
         if acc:
@@ -601,7 +614,9 @@ class QuantTerminal(QObject):
 
             pnl = acc.equity - acc.balance
             pnl_pct = (pnl / acc.balance * 100) if acc.balance > 0 else 0.0
-            if hasattr(self, "lbl_top_ticker"):
+            if hasattr(self, "header") and hasattr(self.header, "_refresh_top_ticker"):
+                self.header._refresh_top_ticker()
+            elif hasattr(self, "lbl_top_ticker"):
                 self.lbl_top_ticker.setText(
                     self._format_top_ticker(
                         bal=acc.balance,
@@ -610,6 +625,7 @@ class QuantTerminal(QObject):
                         pnl_pct=pnl_pct,
                         latency=1.2,
                         is_algo_active=is_running,
+                        acct=str(acc.login),
                     )
                 )
 
