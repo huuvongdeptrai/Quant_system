@@ -1,3 +1,4 @@
+import re
 import sys
 import os
 
@@ -217,7 +218,11 @@ class QuantTerminal(QObject):
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
-            self.window.setGeometry(avail)
+            w = min(1500, int(avail.width() * 0.9))
+            h = min(900, int(avail.height() * 0.9))
+            x = avail.x() + (avail.width() - w) // 2
+            y = avail.y() + (avail.height() - h) // 2
+            self.window.setGeometry(x, y, w, h)
         self.window.showMaximized()
 
 
@@ -322,7 +327,10 @@ class QuantTerminal(QObject):
 
         if os.path.exists(qss_path):
             with open(qss_path, "r", encoding="utf-8") as f:
-                self.window.setStyleSheet(f.read())
+                content_qss = f.read()
+                assets_dir = os.path.join(ROOT_DIR, "frontend", "assets").replace(chr(92), "/")
+                content_qss = re.sub(r'url\(["\']?(?:frontend/)?assets/([^"\'\)]+)["\']?\)', f'url("{assets_dir}/\\1")', content_qss)
+                self.window.setStyleSheet(content_qss)
 
         # Frameless window with blue glow border
         self.window.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
@@ -510,7 +518,10 @@ class QuantTerminal(QObject):
 
         if os.path.exists(qss_path):
             with open(qss_path, "r", encoding="utf-8") as f:
-                self.window.setStyleSheet(f.read())
+                content_qss = f.read()
+                assets_dir = os.path.join(ROOT_DIR, "frontend", "assets").replace(chr(92), "/")
+                content_qss = re.sub(r'url\(["\']?(?:frontend/)?assets/([^"\'\)]+)["\']?\)', f'url("{assets_dir}/\\1")', content_qss)
+                self.window.setStyleSheet(content_qss)
 
         # Update Tab 1 Macro Telemetry Strip
         if hasattr(self, "lbl_macro_telemetry") and self.lbl_macro_telemetry:

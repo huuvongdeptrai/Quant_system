@@ -862,7 +862,7 @@ def update_ai_reasoning(window, is_dark=None):
 
 def apply_playbook_cards_theme(window, is_dark: bool):
     """Apply strict institutional palette to the 3-Card Trading Plan Playbook."""
-    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets")
+    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
     if not os.path.exists(assets_dir):
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
@@ -2483,7 +2483,7 @@ def execute_manual_quant_order(window):
             from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
             dig = digits if "digits" in locals() else (2 if entry_p > 10 else 5)
             telegram_notifier.send_message(
-                f"🚀 <b>MANUAL ORDER FILLED: {dir_str} {clean_sym}</b>\n"
+                f"[EXEC] <b>MANUAL ORDER FILLED: {dir_str} {clean_sym}</b>\n"
                 f"Ticket: <b>#{ticket}</b>\n"
                 f"Volume: <b>{lot_size:.2f} Lots</b> @ <b>{entry_p:.{dig}f}</b>\n"
                 f"SL: <b>{sl_p:.{dig}f}</b> | TP: <b>{tp_p:.{dig}f}</b>",
@@ -2511,7 +2511,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     if not hasattr(window, "layoutAIArea"):
         return
 
-    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets")
+    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
     if not os.path.exists(assets_dir):
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 

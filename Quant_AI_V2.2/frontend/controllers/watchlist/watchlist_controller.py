@@ -96,7 +96,7 @@ class WatchlistManager(QObject):
 
         assets_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "frontend", "assets"
+            "assets"
         )
         if not os.path.exists(assets_dir):
             assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")

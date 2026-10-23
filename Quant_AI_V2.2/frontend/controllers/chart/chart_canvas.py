@@ -150,7 +150,7 @@ def setup_chart_ui(window):
     chart_layout.setContentsMargins(0, 0, 0, 0)
     chart_layout.setSpacing(0)
 
-    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets")
+    assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
     if not os.path.exists(assets_dir):
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
     window.current_tf = mt5.TIMEFRAME_H1
@@ -710,7 +710,7 @@ def setup_chart_ui(window):
                 QFrame#{self.objectName()} {{
                     background-color: transparent;
                     border: 1px solid transparent;
-                    border-radius: 5px;
+                    border-radius: 2px;
                 }}
                 QFrame#{self.objectName()}:hover {{
                     background-color: {bg_hover};
@@ -874,15 +874,9 @@ def setup_chart_ui(window):
                 QFrame#drawerCard {{
                     background-color: {bg_card};
                     border: 1px solid {border_card};
-                    border-radius: 8px;
+                    border-radius: 2px;
                 }}
             """)
-
-            shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(16)
-            shadow.setColor(QColor(0, 0, 0, 70 if not is_dark else 140))
-            shadow.setOffset(2, 6)
-            self.card.setGraphicsEffect(shadow)
 
             card_layout = QVBoxLayout(self.card)
             card_layout.setContentsMargins(10, 10, 10, 10)
@@ -906,7 +900,7 @@ def setup_chart_ui(window):
                     color: {'#94a3b8' if not is_dark else '#64748b'};
                     font-size: 14px;
                     font-weight: 700;
-                    border-radius: 9px;
+                    border-radius: 2px;
                 }}
                 QPushButton:hover {{
                     background-color: {'#f1f5f9' if not is_dark else '#1e293b'};
@@ -1079,7 +1073,7 @@ def setup_chart_ui(window):
     btn_profile.setToolTip("Market Profile Levels (vPOC, tPOC, VAH, VAL)")
     ic_candidates = [
         os.path.join(assets_dir, "tool_profile.svg"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets", "tool_profile.svg"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "tool_profile.svg"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "tool_profile.svg"),
         os.path.join(os.path.dirname(__file__), "assets", "tool_profile.svg"),
     ]
@@ -3914,7 +3908,7 @@ def update_chart_theme(window, is_dark: bool = False):
 
     # 8. Watchlist toggle button
     if hasattr(window, "btn_toggle_watchlist") and window.btn_toggle_watchlist:
-        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "frontend", "assets")
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
         if not os.path.exists(assets_dir):
             assets_dir = os.path.join(os.path.dirname(__file__), "assets")
         icon_name = "sidebar_toggle_dark.svg" if is_dark else "sidebar_toggle_light.svg"

@@ -265,9 +265,9 @@ class AccountManager:
 
             self.window.btnOpenLogin.setText("")
 
-            assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
             if not os.path.exists(assets_dir):
-                assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+                assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
             icon_path = os.path.join(assets_dir, "gear_icon.svg")
 
             if os.path.exists(icon_path):

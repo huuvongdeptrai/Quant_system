@@ -110,7 +110,7 @@ class AutoTradeControlWidget(QWidget):
             QWidget#cardAutoTrade {
                 background-color: #080b11;
                 border: 1px solid rgba(255, 255, 255, 0.07);
-                border-radius: 8px;
+                border-radius: 2px;
             }
         """)
 

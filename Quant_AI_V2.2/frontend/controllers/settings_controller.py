@@ -35,9 +35,9 @@ else:
 CONFIG_PATH = os.path.join(ROOT_DIR, "config", "settings.json")
 AI_CONFIG_PATH = os.path.join(ROOT_DIR, "config", "ai_config.json")
 
-ASSETS_DIR = os.path.join(CURRENT_DIR, "assets")
+ASSETS_DIR = os.path.join(ROOT_DIR, "frontend", "assets")
 if not os.path.exists(ASSETS_DIR):
-    ASSETS_DIR = os.path.join(ROOT_DIR, "frontend", "assets")
+    ASSETS_DIR = os.path.join(CURRENT_DIR, "assets")
 
 DEFAULTS = {
     "risk_per_trade": 1.0,

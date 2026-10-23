@@ -455,7 +455,7 @@ QCheckBox::indicator:hover {
 QCheckBox::indicator:checked {
     background-color: #0f172a;
     border: 1px solid #0f172a;
-    image: url(frontend/assets/check_icon.svg);
+    image: url("frontend/assets/check_icon.svg");
 }
 
 /* --------------------------------------------------------------------------
@@ -1187,95 +1187,95 @@ QSplitter::handle:hover {
 QFrame#topHeaderContainer QPushButton,
 QFrame#topHeaderContainer QLabel,
 QFrame#topHeaderContainer QFrame {
-    font-family: 'Consolas', monospace !important;
-    font-size: 10px !important;
+    font-family: 'Consolas', monospace;
+    font-size: 10px;
 }
 
 QFrame#topHeaderContainer QPushButton {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding-top: 0px !important;
-    padding-bottom: 0px !important;
-    margin: 0px !important;
+    min-height: 20px;
+    max-height: 20px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    margin: 0px;
 }
 
 QPushButton#lblTopSymbol {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px 4px !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px 4px;
+    font-size: 10px;
+    font-weight: 700;
 }
 
 QPushButton[objectName^="btnTopTf_"] {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    min-width: 26px !important;
-    max-width: 26px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    font-size: 10px !important;
-    font-family: 'Consolas', monospace !important;
-    font-weight: 600 !important;
+    min-height: 20px;
+    max-height: 20px;
+    min-width: 26px;
+    max-width: 26px;
+    padding: 0px;
+    margin: 0px;
+    font-size: 10px;
+    font-family: 'Consolas', monospace;
+    font-weight: 600;
 }
 
 QFrame#btnAlgoTrading {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
-    margin: 0px !important;
+    background: transparent;
+    border: 1px solid transparent;
+    min-height: 20px;
+    max-height: 20px;
+    margin: 0px;
 }
 
 QFrame#btnAlgoTrading:hover {
-    background: #141721 !important;
-    border: 1px solid #334155 !important;
+    background: #141721;
+    border: 1px solid #334155;
 }
 
 QFrame#btnAlgoTrading QLabel {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    font-family: 'Consolas', monospace !important;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px;
+    margin: 0px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Consolas', monospace;
 }
 
 QPushButton#btnTopIndicator {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px 4px !important;
-    margin: 0px !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    font-family: 'Consolas', monospace !important;
+    background: transparent;
+    border: 1px solid transparent;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px 4px;
+    margin: 0px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'Consolas', monospace;
 }
 
 QPushButton#btnTopIndicator:hover {
-    background: #141721 !important;
-    border: 1px solid #334155 !important;
+    background: #141721;
+    border: 1px solid #334155;
 }
 
 QPushButton#btnEventRiskBadge {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px 6px !important;
-    margin: 0px !important;
-    font-size: 10px !important;
-    font-weight: 700 !important;
-    font-family: 'Consolas', monospace !important;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px 6px;
+    margin: 0px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Consolas', monospace;
 }
 
 QLabel#lblTopTicker {
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px 4px !important;
-    margin: 0px !important;
-    font-size: 10px !important;
-    font-family: 'Consolas', monospace !important;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px 4px;
+    margin: 0px;
+    font-size: 10px;
+    font-family: 'Consolas', monospace;
 }
 
 QFrame#frameChartRibbon {
@@ -1289,18 +1289,18 @@ QFrame#toolbarChartDrawing {
 }
 
 QFrame#toolbarChartDrawing QPushButton {
-    min-width: 20px !important;
-    max-width: 20px !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    border: none !important;
-    background: transparent !important;
-    border-radius: 2px !important;
+    min-width: 20px;
+    max-width: 20px;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px;
+    margin: 0px;
+    border: none;
+    background: transparent;
+    border-radius: 2px;
 }
 QFrame#toolbarChartDrawing QPushButton:hover {
-    background-color: #e2e8f0 !important;
+    background-color: #e2e8f0;
 }
 
 QFrame#frameSidebarAccount {
@@ -1310,16 +1310,16 @@ QFrame#frameSidebarAccount {
 }
 
 QTableWidget#tableExecutions QPushButton {
-    min-height: 18px !important;
-    max-height: 18px !important;
-    min-width: 48px !important;
-    max-width: 54px !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    font-size: 8px !important;
-    font-family: 'Consolas', monospace !important;
-    font-weight: 600 !important;
-    border-radius: 2px !important;
+    min-height: 18px;
+    max-height: 18px;
+    min-width: 48px;
+    max-width: 54px;
+    padding: 0px;
+    margin: 0px;
+    font-size: 8px;
+    font-family: 'Consolas', monospace;
+    font-weight: 600;
+    border-radius: 2px;
 }
 
 
@@ -1453,14 +1453,14 @@ QLabel#lblSettingsSubTitle {
 
 /* 3-Card Trading Plan Playbook Buttons */
 QPushButton#btnApproveOrder {
-    min-height: 26px !important;
-    max-height: 26px !important;
-    padding: 2px 4px !important;
+    min-height: 26px;
+    max-height: 26px;
+    padding: 2px 4px;
 }
 QPushButton#btnModifyOrder, QPushButton#btnDiscardOrder {
-    min-height: 22px !important;
-    max-height: 22px !important;
-    padding: 1px 4px !important;
+    min-height: 22px;
+    max-height: 22px;
+    padding: 1px 4px;
 }
 
 /* Institutional Menus & Dialogs (Dark Theme) */
@@ -1533,7 +1533,7 @@ QDateEdit::down-arrow {
 QCalendarWidget {
     background-color: #101524;
     border: 1px solid #272d3b;
-    border-radius: 8px;
+    border-radius: 2px;
     font-family: 'Segoe UI', -apple-system, sans-serif;
 }
 
@@ -1601,7 +1601,7 @@ QCalendarWidget QMenu {
     background-color: #161d2d;
     color: #f8fafc;
     border: 1px solid #272d3b;
-    border-radius: 6px;
+    border-radius: 2px;
     padding: 4px;
 }
 

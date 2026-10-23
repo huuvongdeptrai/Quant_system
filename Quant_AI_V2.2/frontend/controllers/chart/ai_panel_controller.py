@@ -744,7 +744,7 @@ def _update_panel_with_result(window, result):
                 try:
                     from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
                     telegram_notifier.send_message(
-                        f"🚀 <b>ORDER FILLED: {strat_sig} {clean_sym}</b>\n"
+                        f"[EXEC] <b>ORDER FILLED: {strat_sig} {clean_sym}</b>\n"
                         f"Ticket: <b>#{ticket}</b> | Mode: <b>FULL-AUTO</b>\n"
                         f"Volume: <b>{lot_size:.2f} Lots</b> @ <b>{entry_val:.{digits}f}</b>\n"
                         f"SL: <b>{sl_val:.{digits}f}</b> | TP: <b>{tp_val:.{digits}f}</b>\n"
