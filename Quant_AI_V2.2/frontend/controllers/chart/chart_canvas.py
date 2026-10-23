@@ -3266,6 +3266,10 @@ def setup_chart_ui(window):
         if rates is not None and len(rates) > 0:
             if not hasattr(window, "_rates_cache"):
                 window._rates_cache = {}
+            # SC-12: Enforce LRU eviction cap (max 10 symbol frames) to prevent memory leak
+            if len(window._rates_cache) >= 10 and (sym, window.current_tf) not in window._rates_cache:
+                oldest_key = next(iter(window._rates_cache))
+                del window._rates_cache[oldest_key]
             c_str = time.strftime("%H:%M:%S")
             window._rates_cache[(sym, window.current_tf)] = (rates, time.time(), c_str)
             if hasattr(window, "offline_banner") and window.offline_banner:
@@ -3427,6 +3431,14 @@ def setup_chart_ui(window):
                 f'<b style="color:{diff_col};">{diff_str}</b>'
                 f'</span>'
             )
+
+        # SC-12: Explicitly clear and detach previous CandlestickItem to free QPicture buffer
+        if hasattr(window, "candlesticks") and window.candlesticks is not None:
+            try:
+                window.plot_widget.removeItem(window.candlesticks)
+            except Exception:
+                pass
+            window.candlesticks = None
 
         is_d = getattr(window, "is_dark_theme", False)
         window.candlesticks = CandlestickItem(window.chart_data_list, is_dark=is_d)

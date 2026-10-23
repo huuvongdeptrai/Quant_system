@@ -410,6 +410,14 @@ class ExecutionManager:
 
         if res and res.retcode == mt5.TRADE_RETCODE_DONE:
             action_desc = f"Da dong {close_volume} lot vi the #{ticket}" if is_partial else f"Da dong thanh cong vi the #{ticket}"
+            # SC-08: Synchronize remaining volume with DatabaseManager on partial close
+            if is_partial:
+                remaining_vol = round(float(pos.volume - close_volume), 2)
+                try:
+                    from backend.database.db_manager import DatabaseManager
+                    DatabaseManager().update_trade_volume(ticket, remaining_vol)
+                except Exception as e_db:
+                    logger.debug(f"[ExecutionManager] Partial close DB sync skipped: {e_db}")
             return {
                 "status": "success",
                 "msg": f"{action_desc} (Do tre: {total_latency_ms:.1f} ms)",

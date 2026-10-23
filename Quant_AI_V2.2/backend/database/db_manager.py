@@ -53,9 +53,14 @@ class DatabaseManager:
             cls._instance = None
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)
+        # SC-11: High-Concurrency SQLite WAL Pragmas & Busy Timeout
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=15.0)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode = WAL;")
         conn.execute("PRAGMA synchronous = NORMAL;")
+        conn.execute("PRAGMA busy_timeout = 15000;")
+        conn.execute("PRAGMA temp_store = MEMORY;")
+        conn.execute("PRAGMA read_uncommitted = 1;")
         return conn
 
     def _init_tables(self):
@@ -152,6 +157,24 @@ class DatabaseManager:
                 return True
             except Exception as e:
                 logger.error(f"[DatabaseManager] Lỗi lưu lệnh #{ticket}: {e}")
+                return False
+            finally:
+                conn.close()
+
+    def update_trade_volume(self, ticket: int, remaining_volume: float) -> bool:
+        """Cập nhật khối lượng còn lại của vị thế sau khi đóng một phần (SC-08: Partial Close)."""
+        with self._db_lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "UPDATE trades SET volume = ? WHERE ticket = ? AND status = 'OPEN'",
+                    (float(remaining_volume), ticket),
+                )
+                conn.commit()
+                return True
+            except Exception as e:
+                logger.error(f"[DatabaseManager] Lỗi cập nhật khối lượng lệnh #{ticket}: {e}")
                 return False
             finally:
                 conn.close()

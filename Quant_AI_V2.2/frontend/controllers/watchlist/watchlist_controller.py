@@ -30,6 +30,15 @@ class WatchlistManager(QObject):
         self.store = WatchlistStore()
         self.data_file = self.store.data_file
 
+        # SC-09: Throttling & Caching structures to prevent UI Thread Starvation
+        self._pending_ticks = {}
+        self._y_close_cache = {}
+        self._symbol_item_cache = {}
+        self._tick_throttle_timer = QTimer(self)
+        self._tick_throttle_timer.setInterval(40)  # 25 FPS UI throttle
+        self._tick_throttle_timer.timeout.connect(self._flush_throttled_ticks)
+        self._tick_throttle_timer.start(40)
+
         self.setup_ui()
         self.load_watchlist()
         self.refresh_all_status_icons()
@@ -488,64 +497,106 @@ class WatchlistManager(QObject):
         if not self.tree:
             return
         self.check_account_changed()
+        # SC-09: Buffer incoming high-frequency ticks to avoid freezing Main UI thread
+        self._pending_ticks[sym] = (bid, ask)
+        if not self._tick_throttle_timer.isActive():
+            self._flush_throttled_ticks()
 
+    def _flush_throttled_ticks(self):
+        if not self._pending_ticks or not self.tree:
+            return
+        ticks = self._pending_ticks
+        self._pending_ticks = {}
+        for sym, (bid, ask) in ticks.items():
+            self._update_symbol_quote(sym, bid, ask)
+
+    def _get_tree_item_for_symbol(self, sym: str):
+        if sym in self._symbol_item_cache:
+            item = self._symbol_item_cache[sym]
+            try:
+                if item.treeWidget() == self.tree:
+                    return item
+            except RuntimeError:
+                pass
         for i in range(self.tree.topLevelItemCount()):
             cat = self.tree.topLevelItem(i)
             for j in range(cat.childCount()):
                 item = cat.child(j)
                 item_sym = item.text(0).split("\n")[0].strip()
-                if item_sym != sym:
-                    continue
-                info = mt5.symbol_info(sym)
-                if not info:
-                    continue
-                item.setText(1, f"{bid:.{info.digits}f}")
+                if item_sym == sym:
+                    self._symbol_item_cache[sym] = item
+                    return item
+        return None
 
-                rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 1, 1)
-                if rates is not None and len(rates) > 0:
-                    y_close = rates[0]["close"]
-                    if y_close > 0:
-                        change_pts = bid - y_close
-                        pct_change = (change_pts / y_close) * 100
-                        prefix = "+" if change_pts > 0 else ("-" if change_pts < 0 else "")
-                        sym_u = sym.upper()
-                        abs_diff = abs(change_pts)
-                        if "JPY" in sym_u:
-                            pips_val = abs_diff * 100.0
-                        elif "XAU" in sym_u or "GOLD" in sym_u:
-                            pips_val = abs_diff * 10.0
-                        elif "XAG" in sym_u or "SILVER" in sym_u:
-                            pips_val = abs_diff * 100.0
-                        elif any(c in sym_u for c in ["BTC", "ETH", "SOL", "BNB", "US30", "NAS100", "SPX500", "GER"]):
-                            pips_val = abs_diff
-                        elif info.digits in (4, 5):
-                            pips_val = abs_diff * 10000.0
-                        elif info.digits == 3:
-                            pips_val = abs_diff * 100.0
-                        elif info.digits == 2:
-                            pips_val = abs_diff * 10.0
-                        else:
-                            pips_val = abs_diff * 10000.0 if abs_diff < 1.0 else abs_diff
+    def _get_cached_yesterday_close(self, sym: str) -> float:
+        import time
+        now = time.time()
+        cached = self._y_close_cache.get(sym)
+        if cached and (now - cached[1]) < 600:
+            return cached[0]
+        try:
+            rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 1, 1)
+            if rates is not None and len(rates) > 0 and rates[0]["close"] > 0:
+                y_close = float(rates[0]["close"])
+                self._y_close_cache[sym] = (y_close, now)
+                return y_close
+        except Exception:
+            pass
+        return 0.0
 
-                        if pips_val >= 1000:
-                            pips_text = f"{prefix}{pips_val:,.0f}"
-                        else:
-                            pips_text = f"{prefix}{pips_val:.1f}"
+    def _update_symbol_quote(self, sym: str, bid: float, ask: float):
+        item = self._get_tree_item_for_symbol(sym)
+        if not item:
+            return
+        info = mt5.symbol_info(sym)
+        if not info:
+            return
 
-                        item.setText(2, pips_text)
-                        item.setText(3, f"{prefix}{abs(pct_change):.2f}%")
-                        col = (
-                            QColor("#3FB950")
-                            if change_pts > 0
-                            else (
-                                QColor("#F23645")
-                                if change_pts < 0
-                                else QColor("#8B949E")
-                            )
-                        )
-                        item.setForeground(2, col)
-                        item.setForeground(3, col)
-                return
+        digits = info.digits if isinstance(getattr(info, "digits", None), int) else 2
+        item.setText(1, f"{bid:.{digits}f}")
+
+        y_close = self._get_cached_yesterday_close(sym)
+        if y_close > 0:
+            change_pts = bid - y_close
+            pct_change = (change_pts / y_close) * 100
+            prefix = "+" if change_pts > 0 else ("-" if change_pts < 0 else "")
+            sym_u = sym.upper()
+            abs_diff = abs(change_pts)
+            if "JPY" in sym_u:
+                pips_val = abs_diff * 100.0
+            elif "XAU" in sym_u or "GOLD" in sym_u:
+                pips_val = abs_diff * 10.0
+            elif "XAG" in sym_u or "SILVER" in sym_u:
+                pips_val = abs_diff * 100.0
+            elif any(c in sym_u for c in ["BTC", "ETH", "SOL", "BNB", "US30", "NAS100", "SPX500", "GER"]):
+                pips_val = abs_diff
+            elif digits in (4, 5):
+                pips_val = abs_diff * 10000.0
+            elif digits == 3:
+                pips_val = abs_diff * 100.0
+            elif digits == 2:
+                pips_val = abs_diff * 10.0
+            else:
+                pips_val = abs_diff * 10000.0 if abs_diff < 1.0 else abs_diff
+
+            if pips_val >= 1000:
+                pips_text = f"{prefix}{pips_val:,.0f}"
+            else:
+                pips_text = f"{prefix}{pips_val:.1f}"
+
+            item.setText(2, pips_text)
+            item.setText(3, f"{prefix}{abs(pct_change):.2f}%")
+            col = (
+                QColor("#3FB950")
+                if change_pts > 0
+                else (
+                    QColor("#F23645")
+                    if change_pts < 0
+                    else QColor("#8B949E")
+                )
+            )
+            item.setForeground(2, col)
+            item.setForeground(3, col)
 
 
 # Canonical alias
