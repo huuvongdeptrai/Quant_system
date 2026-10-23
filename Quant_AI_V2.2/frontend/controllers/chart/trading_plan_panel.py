@@ -1779,6 +1779,56 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         window.btnManualExecute.style().unpolish(window.btnManualExecute)
         window.btnManualExecute.style().polish(window.btnManualExecute)
 
+    # Update Macro Copilot Advisory Badge (Strictly non-intrusive, advisory only)
+    if hasattr(window, "lblManualCopilotBadge") and window.lblManualCopilotBadge:
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            bus = MacroContextBus.get_instance()
+            prof = bus.get_profile(clean_sym)
+            macro_bias = prof.directional_bias.upper()
+
+            if macro_bias == "BULLISH":
+                if is_buy:
+                    badge_t = "PRO-TREND (BULL)"
+                    b_color = "#22c55e" if is_d else "#15803d"
+                    b_bg = "#0d2818" if is_d else "#f0fdf4"
+                    b_bdr = "#15803d" if is_d else "#86efac"
+                else:
+                    badge_t = "⚠️ COUNTER-TREND (BULL)"
+                    b_color = "#f59e0b" if is_d else "#b45309"
+                    b_bg = "#241805" if is_d else "#fef3c7"
+                    b_bdr = "#b45309" if is_d else "#fcd34d"
+            elif macro_bias == "BEARISH":
+                if not is_buy:
+                    badge_t = "PRO-TREND (BEAR)"
+                    b_color = "#22c55e" if is_d else "#15803d"
+                    b_bg = "#0d2818" if is_d else "#f0fdf4"
+                    b_bdr = "#15803d" if is_d else "#86efac"
+                else:
+                    badge_t = "⚠️ COUNTER-TREND (BEAR)"
+                    b_color = "#f59e0b" if is_d else "#b45309"
+                    b_bg = "#241805" if is_d else "#fef3c7"
+                    b_bdr = "#b45309" if is_d else "#fcd34d"
+            else:
+                badge_t = "MACRO NEUTRAL"
+                b_color = "#94a3b8" if is_d else "#64748b"
+                b_bg = "#1e293b" if is_d else "#f1f5f9"
+                b_bdr = "#334155" if is_d else "#cbd5e1"
+
+            window.lblManualCopilotBadge.setText(badge_t)
+            window.lblManualCopilotBadge.setStyleSheet(
+                f"background-color: {b_bg}; color: {b_color}; border: 1px solid {b_bdr}; "
+                f"font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; "
+                f"border-radius: 2px; padding: 1px 5px;"
+            )
+            window.lblManualCopilotBadge.setToolTip(
+                f"Macro Directional Bias: {macro_bias}\n"
+                f"Regime: {prof.macro_regime}\n"
+                f"Advisory notice only. Manual orders preserve 100% human discretion."
+            )
+        except Exception:
+            pass
+
     # Also update chart lines (suppress manual preview lines when modifying an existing broker ticket)
     if getattr(window, "_show_manual_preview", True) and not getattr(window, "_modifying_ticket", None):
         _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
@@ -2755,10 +2805,15 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_md_badge = QLabel("MARKET DIRECT")
     lbl_md_badge.setObjectName("lblManualExecBadge")
     lbl_md_badge.setVisible(False)
+    lbl_copilot_badge = QLabel("MACRO ALIGNED")
+    lbl_copilot_badge.setObjectName("lblManualCopilotBadge")
+    lbl_copilot_badge.setFixedHeight(18)
     lbl_spd = QLabel("SPREAD: 14.0 PTS")
     lbl_spd.setObjectName("lblManualSpread")
     lbl_spd.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
     row_md_top.addWidget(lbl_md_title)
+    row_md_top.addSpacing(6)
+    row_md_top.addWidget(lbl_copilot_badge)
     row_md_top.addStretch()
     row_md_top.addWidget(lbl_spd)
     layout_m_dir.addLayout(row_md_top)
@@ -3274,6 +3329,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.sepManual3 = sep_m3
     window.lblManualHeaderTitle = lbl_md_title
     window.lblManualExecBadge = lbl_md_badge
+    window.lblManualCopilotBadge = lbl_copilot_badge
     window.btnManualBuy = btn_buy
     window.lblManualBuyText = lbl_buy_t
     window.lblManualAskPrice = lbl_ask_p

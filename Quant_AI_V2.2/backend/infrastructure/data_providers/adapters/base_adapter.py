@@ -36,7 +36,7 @@ class BaseContextAdapter(ABC):
         pass
 
     @abstractmethod
-    def evaluate_risk_rules(self, symbol: str, signal: str, context_report: Dict[str, Any]) -> Tuple[bool, str]:
+    def evaluate_risk_rules(self, symbol: str, signal: str, context_report: Dict[str, Any], trade_mode: str = "NORMAL") -> Tuple[bool, str]:
         """
         Kiểm tra các quy tắc rủi ro đặc thù của lớp tài sản (VD: Tin đỏ, Funding quá nhiệt, Token unlock).
         Returns: (is_allowed: bool, reason: str)

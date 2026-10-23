@@ -526,6 +526,32 @@ class BotOrchestrator(QtCore.QObject):
             return
         signal = gate_result["decision"]
 
+        # Quantitative Position Sizing & Mode Scaling (Scalp Pullback vs Pro-Trend)
+        trade_mode = gate_result.get("trade_mode", "NORMAL")
+        size_multiplier = float(gate_result.get("size_multiplier", 1.0))
+        tp_limit_r = gate_result.get("tp_limit_r")
+        effective_risk_pct = self.risk_per_trade * size_multiplier
+
+        if trade_mode == "SCALP_PULLBACK":
+            sl_dist = abs(entry_price - sl_price)
+            if sl_dist > 0 and tp_limit_r:
+                max_tp_dist = sl_dist * float(tp_limit_r)
+                if signal == "BUY":
+                    capped_tp = entry_price + max_tp_dist
+                    if tp_price > capped_tp:
+                        tp_price = capped_tp
+                elif signal == "SELL":
+                    capped_tp = entry_price - max_tp_dist
+                    if tp_price < capped_tp:
+                        tp_price = capped_tp
+
+            confidence_str = f"{confidence_str} | SCALP PULLBACK (Risk {effective_risk_pct:.2f}%, TP max {tp_limit_r}R)"
+            self.log(
+                "INFO",
+                f"[Scalp Pullback] {sym}: Risk scaled to {effective_risk_pct:.2f}% (x{size_multiplier}), TP capped at {tp_price:.2f} ({tp_limit_r}R)",
+                "#38BDF8",
+            )
+
         # Order Dispatching via TradeDispatcher
         self.trade_dispatcher.dispatch_market_order(
             symbol=sym,
@@ -533,7 +559,7 @@ class BotOrchestrator(QtCore.QObject):
             entry_price=entry_price,
             sl_price=sl_price,
             tp_price=tp_price,
-            risk_pct=self.risk_per_trade,
+            risk_pct=effective_risk_pct,
             strategy_name=self.strategy_name,
             confidence_str=confidence_str,
             sample_id=sample_id,

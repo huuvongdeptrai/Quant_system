@@ -636,7 +636,11 @@ class PreciousMetalsAdapter(BaseContextAdapter):
     # -------------------------------------------------------------
     # 9. Đánh giá quy tắc rủi ro của Vàng tại Decision Gate
     # -------------------------------------------------------------
-    def evaluate_risk_rules(self, symbol: str, signal: str, context_report: Dict[str, Any]) -> Tuple[bool, str]:
+    def evaluate_risk_rules(self, symbol: str, signal: str, context_report: Dict[str, Any], trade_mode: str = "NORMAL") -> Tuple[bool, str]:
+        # Cho phep lenh Scalp Pullback (50% lot, muc tieu 1.5R) danh phan ung tai vung can ky thuat
+        if trade_mode == "SCALP_PULLBACK":
+            return True, "Scalp Pullback mode active: Counter-trend technical reaction permitted with 50% risk."
+
         macro_bias = self.get_macro_bias(symbol)
         ry = context_report.get("Real_Yields", {})
         basket = context_report.get("Gold_ETF_Basket", {})

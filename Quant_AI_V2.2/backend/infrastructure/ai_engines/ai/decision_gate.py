@@ -242,6 +242,10 @@ class DecisionGate:
                 "combined_bias": "N/A",
                 "position": "N/A",
                 "price_info": {},
+                "trade_mode": "NORMAL",
+                "size_multiplier": 1.0,
+                "tp_limit_r": 2.5,
+                "be_trigger_r": 1.5,
             }
 
         tf = timeframe if timeframe else mt5.TIMEFRAME_H1
@@ -265,16 +269,28 @@ class DecisionGate:
             decision = "WAIT"
 
             reason = ""
+            trade_mode = "BLOCKED"
+            size_multiplier = 0.0
+            tp_limit_r = 0.0
+            be_trigger_r = 0.0
 
             if position == "AT_SUPPORT" and signal_from_strategy == "BUY":
 
                 decision = "BUY"
+                trade_mode = "NORMAL"
+                size_multiplier = 1.0
+                tp_limit_r = 2.5
+                be_trigger_r = 1.5
 
                 reason = f'[KT] Gia tai Ho tro {price_info["support"]:.2f}. Mua vao bien duoi.'
 
             elif position == "AT_RESISTANCE" and signal_from_strategy == "SELL":
 
                 decision = "SELL"
+                trade_mode = "NORMAL"
+                size_multiplier = 1.0
+                tp_limit_r = 2.5
+                be_trigger_r = 1.5
 
                 reason = f'[KT] Gia tai Khang cu {price_info["resistance"]:.2f}. Ban tai bien tren.'
 
@@ -298,6 +314,10 @@ class DecisionGate:
                 "combined_bias": "N/A",
                 "position": position,
                 "price_info": price_info,
+                "trade_mode": trade_mode,
+                "size_multiplier": size_multiplier,
+                "tp_limit_r": tp_limit_r,
+                "be_trigger_r": be_trigger_r,
             }
 
         # Lay Bias cho TREND va FULL mode
@@ -333,16 +353,28 @@ class DecisionGate:
             decision = "WAIT"
 
             reason = ""
+            trade_mode = "BLOCKED"
+            size_multiplier = 0.0
+            tp_limit_r = 0.0
+            be_trigger_r = 0.0
 
             if combined_bias == "BULLISH" and signal_from_strategy == "BUY":
 
                 decision = "BUY"
+                trade_mode = "NORMAL"
+                size_multiplier = 1.0
+                tp_limit_r = 2.5
+                be_trigger_r = 1.5
 
                 reason = f'[Trend] Xu huong TANG dong thuan. BUY tai {price_info["price"]:.2f}.'
 
             elif combined_bias == "BEARISH" and signal_from_strategy == "SELL":
 
                 decision = "SELL"
+                trade_mode = "NORMAL"
+                size_multiplier = 1.0
+                tp_limit_r = 2.5
+                be_trigger_r = 1.5
 
                 reason = f'[Trend] Xu huong GIAM dong thuan. SELL tai {price_info["price"]:.2f}.'
 
@@ -366,15 +398,23 @@ class DecisionGate:
                 "combined_bias": combined_bias,
                 "position": position,
                 "price_info": price_info,
+                "trade_mode": trade_mode,
+                "size_multiplier": size_multiplier,
+                "tp_limit_r": tp_limit_r,
+                "be_trigger_r": be_trigger_r,
             }
 
         # ======== CHE DO DAY DU (FULL) — Mac dinh ========
 
-        # Vi mo + HTF + Vi tri gia (Logic goc, giu nguyen)
+        # Vi mo + HTF + Vi tri gia + Xu ly Xung dot (Scalp Pullback)
 
         decision = "WAIT"
 
         reason = ""
+        trade_mode = "BLOCKED"
+        size_multiplier = 0.0
+        tp_limit_r = 0.0
+        be_trigger_r = 0.0
 
         if position == "MIDDLE":
 
@@ -389,6 +429,10 @@ class DecisionGate:
                 if signal_from_strategy == "BUY":
 
                     decision = "BUY"
+                    trade_mode = "NORMAL"
+                    size_multiplier = 1.0
+                    tp_limit_r = 2.5
+                    be_trigger_r = 1.5
 
                     reason = f'Xu huong {combined_bias} + Gia tai Ho tro {price_info["support"]:.2f}. Thuan chieu.'
 
@@ -400,9 +444,24 @@ class DecisionGate:
 
             elif combined_bias == "BEARISH":
 
-                decision = "WAIT"
+                if signal_from_strategy == "BUY":
 
-                reason = f"Xu huong BEARISH nhung gia tai Ho tro. Chua ro breakdown hay bounce."
+                    # SCALP PULLBACK: Bat hoi tai ho tro khi xu huong HTF/Macro giam
+                    decision = "BUY"
+                    trade_mode = "SCALP_PULLBACK"
+                    size_multiplier = 0.5
+                    tp_limit_r = 1.5
+                    be_trigger_r = 1.0
+                    reason = (
+                        f'[Scalp Pullback] Strategy BUY bat hoi tai Ho tro {price_info["support"]:.2f} '
+                        f'nguoc huong Macro BEARISH. Giam 50% lot, TP 1.5R, BE tai 1.0R.'
+                    )
+
+                else:
+
+                    decision = "WAIT"
+
+                    reason = f"Strategy ra SELL ngay tai Ho tro {price_info['support']:.2f}. Cho breakdown xac nhan."
 
         elif position == "AT_RESISTANCE":
 
@@ -411,6 +470,10 @@ class DecisionGate:
                 if signal_from_strategy == "SELL":
 
                     decision = "SELL"
+                    trade_mode = "NORMAL"
+                    size_multiplier = 1.0
+                    tp_limit_r = 2.5
+                    be_trigger_r = 1.5
 
                     reason = f'Xu huong {combined_bias} + Gia tai Khang cu {price_info["resistance"]:.2f}. Thuan chieu.'
 
@@ -422,9 +485,24 @@ class DecisionGate:
 
             elif combined_bias == "BULLISH":
 
-                decision = "WAIT"
+                if signal_from_strategy == "SELL":
 
-                reason = f"Xu huong BULLISH nhung gia tai Khang cu. Chua ro breakout hay rejection."
+                    # SCALP PULLBACK: Danh pullback tai khang cu khi xu huong HTF/Macro tang
+                    decision = "SELL"
+                    trade_mode = "SCALP_PULLBACK"
+                    size_multiplier = 0.5
+                    tp_limit_r = 1.5
+                    be_trigger_r = 1.0
+                    reason = (
+                        f'[Scalp Pullback] Strategy SELL dao chieu tai Khang cu {price_info["resistance"]:.2f} '
+                        f'nguoc huong Macro BULLISH. Giam 50% lot, TP 1.5R, BE tai 1.0R.'
+                    )
+
+                else:
+
+                    decision = "WAIT"
+
+                    reason = f"Strategy ra BUY ngay tai Khang cu {price_info['resistance']:.2f}. Cho breakout xac nhan."
 
         # Pre-Trade Compliance: Event Risk / News Blackout Gate
         if decision in ["BUY", "SELL"]:
@@ -435,6 +513,8 @@ class DecisionGate:
                 if not is_cleared:
                     logger.info(f"[DecisionGate] {symbol}: Blocked by Pre-Trade News Gate -> {news_msg}")
                     decision = "WAIT"
+                    trade_mode = "BLOCKED"
+                    size_multiplier = 0.0
                     reason = f"[NewsDefenseGate] {news_msg}"
             except Exception as e:
                 logger.warning(f"[DecisionGate] Error checking news compliance: {e}")
@@ -444,10 +524,15 @@ class DecisionGate:
             try:
                 adapter = AssetRegistry.get_adapter(symbol)
                 context_report = adapter.generate_context_report(symbol)
-                is_safe, risk_reason = adapter.evaluate_risk_rules(symbol, decision, context_report)
+                try:
+                    is_safe, risk_reason = adapter.evaluate_risk_rules(symbol, decision, context_report, trade_mode=trade_mode)
+                except TypeError:
+                    is_safe, risk_reason = adapter.evaluate_risk_rules(symbol, decision, context_report)
                 if not is_safe:
                     logger.info(f"[DecisionGate] {symbol}: Risk Rule Blocked -> {risk_reason}")
                     decision = "WAIT"
+                    trade_mode = "BLOCKED"
+                    size_multiplier = 0.0
                     reason = f"[AssetRiskGate] {risk_reason}"
             except Exception as e:
                 logger.warning(f"[DecisionGate] Error checking asset risk rules: {e}")
@@ -455,7 +540,7 @@ class DecisionGate:
         logger.info(
             f"[DecisionGate] {symbol}: GateMode=FULL, Strategy={signal_from_strategy}, "
             f"HTF={htf_bias}, Macro={macro_bias}, Combined={combined_bias}, "
-            f"Position={position} -> {decision}"
+            f"Position={position}, TradeMode={trade_mode} -> {decision}"
         )
 
         return {
@@ -466,4 +551,8 @@ class DecisionGate:
             "combined_bias": combined_bias,
             "position": position,
             "price_info": price_info,
+            "trade_mode": trade_mode,
+            "size_multiplier": size_multiplier,
+            "tp_limit_r": tp_limit_r,
+            "be_trigger_r": be_trigger_r,
         }
