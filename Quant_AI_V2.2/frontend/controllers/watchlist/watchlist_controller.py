@@ -49,24 +49,27 @@ class WatchlistManager(QObject):
 
         self.tree.setItemDelegate(WatchlistDelegate(self.tree))
         self.tree.setIconSize(QSize(0, 0))
-        self.tree.setColumnCount(4)
+        self.tree.setColumnCount(5)
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tree.setIndentation(4)
-        self.tree.setHeaderLabels(["SYMBOL", "BID", "PIPS", "%CHG"])
+        self.tree.setHeaderLabels(["SYMBOL", "BID", "PIPS", "%CHG", "MACRO"])
 
         self.tree.headerItem().setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
         self.tree.headerItem().setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
         self.tree.headerItem().setTextAlignment(3, Qt.AlignRight | Qt.AlignVCenter)
-        self.tree.header().setMinimumSectionSize(30)
+        self.tree.headerItem().setTextAlignment(4, Qt.AlignCenter | Qt.AlignVCenter)
+        self.tree.header().setMinimumSectionSize(25)
         self.tree.header().setSectionResizeMode(0, QHeaderView.Interactive)
         self.tree.header().setSectionResizeMode(1, QHeaderView.Interactive)
         self.tree.header().setSectionResizeMode(2, QHeaderView.Interactive)
         self.tree.header().setSectionResizeMode(3, QHeaderView.Interactive)
+        self.tree.header().setSectionResizeMode(4, QHeaderView.Interactive)
         self.tree.header().setStretchLastSection(True)
-        self.tree.setColumnWidth(0, 82)
-        self.tree.setColumnWidth(1, 70)
-        self.tree.setColumnWidth(2, 58)
-        self.tree.setColumnWidth(3, 56)
+        self.tree.setColumnWidth(0, 78)
+        self.tree.setColumnWidth(1, 62)
+        self.tree.setColumnWidth(2, 50)
+        self.tree.setColumnWidth(3, 46)
+        self.tree.setColumnWidth(4, 46)
 
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
@@ -263,11 +266,12 @@ class WatchlistManager(QObject):
         }
         sub = subtitles.get(sym, "")
         sym_display = f"{sym}\n{sub}" if sub else sym
-        child = QTreeWidgetItem([sym_display, "--", "--", "--"])
+        child = QTreeWidgetItem([sym_display, "--", "--", "--", "NEUT"])
 
         child.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
         child.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
         child.setTextAlignment(3, Qt.AlignRight | Qt.AlignVCenter)
+        child.setTextAlignment(4, Qt.AlignCenter | Qt.AlignVCenter)
 
         self.update_item_status(child, sym)
 
@@ -311,6 +315,19 @@ class WatchlistManager(QObject):
             item.setToolTip(0, f"{clean_sym}: Pending order active")
         else:
             item.setToolTip(0, f"{clean_sym}: No open orders")
+
+        # Update Column 4: Macro & Risk Status Badge from MacroContextBus
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            from PySide6.QtGui import QColor
+            prof = MacroContextBus.get_instance().get_profile(clean_sym)
+            item.setText(4, prof.badge_text)
+            item.setForeground(4, QColor(prof.badge_color))
+            item.setTextAlignment(4, Qt.AlignCenter | Qt.AlignVCenter)
+            next_t = prof.next_event_title if prof.next_event_title else "Clear"
+            item.setToolTip(4, f"{clean_sym}: {prof.directional_bias} | {prof.macro_regime} | Next: {next_t}")
+        except Exception:
+            pass
 
     def refresh_all_status_icons(self):
         if not self.tree:

@@ -1323,24 +1323,27 @@ def evaluate_manual_compliance(window, symbol=None):
                 checks["drawdown"] = {"passed": False, "msg": f"DD {dd_pct:.1f}% >= {max_drawdown:.1f}%", "val": "HALTED"}
                 block_reason = "MAX DRAWDOWN BREACHED"
 
-    # 2. Event Risk Engine Check (News Filter)
+    # 2. Event Risk Engine Check (News Filter via MacroContextBus)
     if not block_reason and cfg.get("news_defense_enabled", True):
         try:
-            from backend.core.event_risk_engine import EventRiskEngine
-            ere = getattr(window, "_event_risk_engine", None)
-            if not ere:
-                ere = EventRiskEngine(pause_window_mins=int(cfg.get("news_defense_mins", 15)))
-                window._event_risk_engine = ere
-            is_impacted, news_title = ere.check_news_impact_for_symbol(clean_sym)
-            if is_impacted:
-                p_mins = int(cfg.get("news_defense_mins", 15))
+            from backend.core.macro_context_bus import MacroContextBus
+            bus = MacroContextBus.get_instance()
+            is_passed, status_val, msg = bus.check_pre_trade_news_compliance(clean_sym)
+            if not is_passed:
                 checks["news"] = {
                     "passed": False,
-                    "msg": f"Red Event: {news_title} (±{p_mins}m Blackout Window)",
+                    "msg": msg,
                     "val": "BLOCKED",
-                    "event": news_title,
+                    "event": "News Lockout",
                 }
-                block_reason = f"NEWS: {news_title[:14].upper()}"
+                block_reason = "NEWS BLACKOUT LOCK"
+            elif status_val == "OVERRIDE":
+                checks["news"] = {
+                    "passed": True,
+                    "msg": msg,
+                    "val": "PASS",
+                    "event": "Manual Override",
+                }
             else:
                 checks["news"] = {
                     "passed": True,
@@ -1735,15 +1738,21 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         c_info = checks.get(chk_key, {})
         c_pass = c_info.get("passed", True)
         if v_widget:
-            v_widget.setText(c_info.get("val", "PASS"))
-            v_widget.setToolTip(c_info.get("msg", ""))
-            v_widget.setStyleSheet(
-                f"color: {bull_c if c_pass else bear_c}; font-family: Consolas, monospace; "
-                f"font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
-            )
+            try:
+                v_widget.setText(c_info.get("val", "PASS"))
+                v_widget.setToolTip(c_info.get("msg", ""))
+                v_widget.setStyleSheet(
+                    f"color: {bull_c if c_pass else bear_c}; font-family: Consolas, monospace; "
+                    f"font-size: 8.5px; font-weight: bold; border: none; background: transparent;"
+                )
+            except RuntimeError:
+                pass
         row_lbl = getattr(window, lbl_val_name.replace("Val", ""), None)
         if row_lbl:
-            row_lbl.setToolTip(c_info.get("msg", ""))
+            try:
+                row_lbl.setToolTip(c_info.get("msg", ""))
+            except RuntimeError:
+                pass
 
     # Update execute button with exact price or modification target
     dir_str = getattr(window, "_manual_direction", "BUY")
@@ -2596,6 +2605,43 @@ def setup_trading_plan_cards(window, is_dark=False):
     card_order_layout.addWidget(sep2_sub)
 
     card_order_layout.addLayout(_make_row("VOLUME", "--", "lblSizeVal"))
+
+    # CARD 2.5: AI PRE-TRADE COMPLIANCE GATE (Unified with Manual Copilot)
+    card_ai_comp = QFrame()
+    card_ai_comp.setObjectName("cardAICompliance")
+    layout_ai_comp = QVBoxLayout(card_ai_comp)
+    layout_ai_comp.setContentsMargins(4, 4, 4, 4)
+    layout_ai_comp.setSpacing(2)
+
+    lbl_ac_title = QLabel("PRE-TRADE COMPLIANCE GATE")
+    lbl_ac_title.setObjectName("lblAIGateTitle")
+    layout_ai_comp.addWidget(lbl_ac_title)
+
+    def _make_ai_gate_check_row(title, obj_key):
+        r = QHBoxLayout()
+        r.setContentsMargins(0, 0, 0, 0)
+        lbl_t = QLabel(title)
+        lbl_t.setObjectName(f"{obj_key}Title")
+        lbl_v = QLabel("PASS")
+        lbl_v.setObjectName(f"{obj_key}Val")
+        lbl_v.setAlignment(Qt.AlignRight)
+        lbl_t.setStyleSheet("border: none; background: transparent;")
+        lbl_v.setStyleSheet("border: none; background: transparent;")
+        setattr(window, f"{obj_key}Title", lbl_t)
+        setattr(window, f"{obj_key}Val", lbl_v)
+        r.addWidget(lbl_t)
+        r.addStretch()
+        r.addWidget(lbl_v)
+        return r
+
+    layout_ai_comp.addLayout(_make_ai_gate_check_row("Daily Drawdown (< 4%)", "lblAIGateCheck1"))
+    layout_ai_comp.addLayout(_make_ai_gate_check_row("News Defense (±15m)", "lblAIGateCheck2"))
+    layout_ai_comp.addLayout(_make_ai_gate_check_row("Max Open Trades (≤ 3)", "lblAIGateCheck3"))
+    layout_ai_comp.addLayout(_make_ai_gate_check_row("Spread Check", "lblAIGateCheck4"))
+
+    sep_ai_comp = QFrame()
+    sep_ai_comp.setFrameShape(QFrame.HLine)
+    sep_ai_comp.setFixedHeight(1)
 
     # CARD 3: OPERATOR APPROVAL GATE (Streamlined & Bug-Free)
     card_gate = QFrame()

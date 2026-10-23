@@ -470,10 +470,16 @@ class BotOrchestrator(QtCore.QObject):
             df = pd.DataFrame(rates)
             df["time"] = pd.to_datetime(df["time"], unit="s")
 
-            from backend.infrastructure.data_providers.asset_registry import AssetRegistry
             try:
-                adapter = AssetRegistry.get_adapter(sym)
-                macro_ctx = {"macro_bias": adapter.get_macro_bias(sym) if hasattr(adapter, "get_macro_bias") else "NEUTRAL"}
+                from backend.core.macro_context_bus import MacroContextBus
+                bus = MacroContextBus.get_instance()
+                prof = bus.get_profile(sym)
+                macro_ctx = {
+                    "macro_bias": prof.directional_bias,
+                    "macro_regime": prof.macro_regime,
+                    "news_blackout": prof.news_blackout,
+                    "event_risk_level": prof.event_risk_level,
+                }
             except Exception:
                 macro_ctx = {}
 

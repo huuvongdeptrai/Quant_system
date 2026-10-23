@@ -217,7 +217,7 @@ class CalendarManager:
         filters_spec = [
             ("ALL", "ALL RELEASES"),
             ("HIGH", "HIGH IMPACT (TIER 2)"),
-            ("TARGET", f"TARGET: {self._current_symbol}"),
+            ("TARGET", f"ACTIVE: {self._current_symbol}"),
         ]
 
         for key, text in filters_spec:
@@ -530,7 +530,7 @@ class CalendarManager:
             return
         self._current_symbol = sym.upper().split(".")[0].split("\n")[0].strip()
         if "TARGET" in self.filter_buttons:
-            self.filter_buttons["TARGET"].setText(f"TARGET: {self._current_symbol}")
+            self.filter_buttons["TARGET"].setText(f"ACTIVE: {self._current_symbol}")
         if hasattr(self, "card_confluence"):
             self.card_confluence.findChild(QLabel).setText(f"4. TARGET BIAS ({self._current_symbol})")
         if self._current_filter == "TARGET":
@@ -1051,11 +1051,10 @@ class CalendarManager:
                 self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
 
     def _handle_force_defense(self):
-        """Immediately triggers pre-news active position defense via EventRiskEngine."""
+        """Immediately triggers pre-news active position defense via MacroContextBus."""
         try:
-            from backend.core.event_risk_engine import EventRiskEngine
-            ere = getattr(self.window, "_event_risk_engine", None) or EventRiskEngine()
-            results = ere.evaluate_pre_news_defense()
+            from backend.core.macro_context_bus import MacroContextBus
+            results = MacroContextBus.get_instance().trigger_force_defense()
             self.lbl_lockout_status.setText(f"DEFENSE TRIGGERED: {len(results)} POSITIONS SECURED")
             self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         except Exception as e:
@@ -1064,6 +1063,12 @@ class CalendarManager:
     def _handle_override_toggle(self, checked):
         """Toggles semi-auto manual lockout override."""
         self._override_active = checked
+        try:
+            from backend.core.macro_context_bus import MacroContextBus
+            MacroContextBus.get_instance().set_manual_override(checked)
+        except Exception as e:
+            logger.debug(f"[MacroCalendar] Bus override error: {e}")
+
         if checked:
             self.lbl_override_note.setText("OVERRIDE ACTIVE: MANUAL TRADING UNLOCKED")
             self.lbl_override_note.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8.5px; font-weight: bold; border: none;")

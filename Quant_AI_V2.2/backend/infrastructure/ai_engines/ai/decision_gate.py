@@ -175,13 +175,19 @@ class DecisionGate:
         return atr
 
     def _get_macro_bias(self, symbol="XAUUSD"):
-        """Lấy trạng thái vĩ mô định lượng động theo lớp tài sản từ AssetRegistry."""
+        """Lấy trạng thái vĩ mô định lượng động từ MacroContextBus."""
         try:
-            adapter = AssetRegistry.get_adapter(symbol)
-            return adapter.get_macro_bias(symbol)
-        except Exception as e:
-            logger.warning(f"Fallback macro bias for {symbol}: {e}")
-            return "NEUTRAL"
+            from backend.core.macro_context_bus import MacroContextBus
+            bus = MacroContextBus.get_instance()
+            prof = bus.get_profile(symbol)
+            return prof.directional_bias
+        except Exception:
+            try:
+                adapter = AssetRegistry.get_adapter(symbol)
+                return adapter.get_macro_bias(symbol)
+            except Exception as e:
+                logger.warning(f"Fallback macro bias for {symbol}: {e}")
+                return "NEUTRAL"
 
     def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL"):
         """
@@ -420,7 +426,20 @@ class DecisionGate:
 
                 reason = f"Xu huong BULLISH nhung gia tai Khang cu. Chua ro breakout hay rejection."
 
-        # Kiểm tra thêm quy tắc rủi ro đặc thù của Lớp tài sản (Asset-Specific Risk Rules)
+        # Pre-Trade Compliance: Event Risk / News Blackout Gate
+        if decision in ["BUY", "SELL"]:
+            try:
+                from backend.core.macro_context_bus import MacroContextBus
+                bus = MacroContextBus.get_instance()
+                is_cleared, status_val, news_msg = bus.check_pre_trade_news_compliance(symbol)
+                if not is_cleared:
+                    logger.info(f"[DecisionGate] {symbol}: Blocked by Pre-Trade News Gate -> {news_msg}")
+                    decision = "WAIT"
+                    reason = f"[NewsDefenseGate] {news_msg}"
+            except Exception as e:
+                logger.warning(f"[DecisionGate] Error checking news compliance: {e}")
+
+        # Kiem tra them quy tac rui ro dac thu cua Lop tai san (Asset-Specific Risk Rules)
         if decision in ["BUY", "SELL"]:
             try:
                 adapter = AssetRegistry.get_adapter(symbol)

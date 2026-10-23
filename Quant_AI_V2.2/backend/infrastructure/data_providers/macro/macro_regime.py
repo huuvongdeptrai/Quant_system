@@ -185,3 +185,32 @@ class MacroRegimeEngine:
         _MACRO_CACHE["report"] = report
         _MACRO_CACHE["timestamp"] = now
         return report
+
+    def get_current_regime(self):
+        """Unified convenience method returning normalized bias and macro metrics."""
+        try:
+            m = self.get_market_state()
+            mon = self.get_monetary_state()
+            dxy_trend = m.get("dxy_trend", "Sideway")
+            d_u = str(dxy_trend).upper()
+            bias = "BULLISH" if "BULL" in d_u else ("BEARISH" if "BEAR" in d_u else "NEUTRAL")
+            return {
+                "bias": bias,
+                "vix": float(m.get("vix", 20.0)),
+                "dxy": float(m.get("dxy", 104.0)),
+                "dxy_trend": d_u,
+                "monetary_state": mon.get("state", "Neutral"),
+                "market_state": m.get("state", "Neutral"),
+                "us10y": float(mon.get("us10y", 4.3)),
+            }
+        except Exception as err:
+            logger.debug(f"[MacroRegime] get_current_regime fallback: {err}")
+            return {
+                "bias": "NEUTRAL",
+                "vix": 20.0,
+                "dxy": 104.0,
+                "dxy_trend": "NEUTRAL",
+                "monetary_state": "Neutral",
+                "market_state": "Neutral",
+                "us10y": 4.3,
+            }

@@ -76,4 +76,15 @@ class WatchlistDelegate(QStyledItemDelegate):
                 painter.setPen(default_color)
             painter.drawText(rect, Qt.AlignRight | Qt.AlignVCenter, item_text)
 
+        elif col == 4:
+            # Ultra-compact Macro / Risk state badge (BULL, BEAR, T-14m, LOCK, NEUT)
+            rect = option.rect
+            badge_text = item_text or "NEUT"
+            fg = index.data(Qt.ForegroundRole)
+            color_obj = fg if isinstance(fg, QColor) else (fg.color() if isinstance(fg, QBrush) else QColor("#64748b"))
+
+            painter.setFont(QFont("Consolas", 8, QFont.Bold))
+            painter.setPen(color_obj)
+            painter.drawText(rect, Qt.AlignCenter | Qt.AlignVCenter, badge_text)
+
         painter.restore()

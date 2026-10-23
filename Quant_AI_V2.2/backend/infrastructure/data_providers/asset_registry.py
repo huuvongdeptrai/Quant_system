@@ -8,6 +8,8 @@ from typing import Dict
 from backend.infrastructure.data_providers.adapters.base_adapter import BaseContextAdapter
 from backend.infrastructure.data_providers.adapters.precious_metals_adapter import PreciousMetalsAdapter
 from backend.infrastructure.data_providers.adapters.crypto_adapter import CryptoContextAdapter
+from backend.infrastructure.data_providers.adapters.forex_adapter import ForexContextAdapter
+from backend.infrastructure.data_providers.adapters.equity_adapter import EquityIndexAdapter
 
 
 class AssetClass(Enum):
@@ -29,13 +31,14 @@ class AssetRegistry:
         if not cls._adapters:
             metals = PreciousMetalsAdapter()
             crypto = CryptoContextAdapter()
+            forex = ForexContextAdapter()
+            equity = EquityIndexAdapter()
             cls._adapters = {
                 AssetClass.COMMODITY_PRECIOUS: metals,
                 AssetClass.CRYPTO: crypto,
-                # Forex và Hàng hóa tạm thời kế thừa macro vĩ mô từ PreciousMetals
-                AssetClass.FOREX: metals,
+                AssetClass.FOREX: forex,
+                AssetClass.EQUITY_INDEX: equity,
                 AssetClass.COMMODITY_ENERGY: metals,
-                AssetClass.EQUITY_INDEX: metals,
             }
 
     @classmethod
