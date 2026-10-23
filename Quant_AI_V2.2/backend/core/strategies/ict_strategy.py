@@ -608,7 +608,31 @@ class ICTZonesProStrategy(BaseStrategy):
 
         volatility = macro_context.get("volatility_risk") or macro_context.get("volatility", "LOW")
         macro_bias = macro_context.get("bias") or macro_context.get("macro_bias", "NEUTRAL")
+        news_lockout = macro_context.get("news_lockout", False) or macro_context.get("news_blackout", False)
 
+        # Chốt chặn 3: Cầu dao Sự kiện (Event Circuit Breaker)
+        if news_lockout:
+            event_name = macro_context.get("active_event") or macro_context.get("next_event_title") or "High-Impact Event"
+            return StrategySignal(
+                strategy_id=self.strategy_id,
+                strategy_name=self.name,
+                action="HOLD",
+                signal="HOLD",
+                entry_price=entry,
+                sl=0.0,
+                tp1=0.0,
+                tp2=0.0,
+                confidence=0.0,
+                score=0.0,
+                checklist=[],
+                metadata={
+                    "strategy": "ICT_Zones_Pro",
+                    "reason": f"NEWS_BLACKOUT_ACTIVE: {event_name}",
+                    "news_locked": True,
+                },
+            )
+
+        # Chốt chặn 2: Ngưỡng Xác nhận Biến động (Volatility Sizing Filter)
         if volatility == "HIGH":
             min_conf = self.min_confluence + 2
         elif volatility == "MEDIUM":
@@ -616,8 +640,11 @@ class ICTZonesProStrategy(BaseStrategy):
         else:
             min_conf = self.min_confluence
 
+        allow_counter_trend = macro_context.get("allow_counter_trend", True)
+
         if l_score >= min_conf and in_killzone:
-            if macro_bias != "BEARISH":  # CORE 2 CHẶN LỆNH BUY NẾU VĨ MÔ LÀ BEARISH
+            is_counter_trend = (macro_bias == "BEARISH")
+            if not is_counter_trend or allow_counter_trend:
                 # Structural SL (Mép dưới OB - 0.5 ATR)
                 sl = float(l_btm - atr * 0.5)
                 risk = entry - sl
@@ -625,13 +652,15 @@ class ICTZonesProStrategy(BaseStrategy):
                     risk = 0.0001
 
                 action = "BUY"
-                confidence = float(min(1.0, l_score / 6.0))
-                rr = 2.0
+                raw_conf = float(min(1.0, l_score / 6.0))
+                confidence = raw_conf * (0.8 if is_counter_trend else 1.0)
+                rr = 1.5 if is_counter_trend else 2.0
                 tp1 = float(entry + risk * rr)
                 tp2 = float(entry + risk * (rr * 2.0))
 
         elif s_score >= min_conf and in_killzone:
-            if macro_bias != "BULLISH":  # CORE 2 CHẶN LỆNH SELL NẾU VĨ MÔ LÀ BULLISH
+            is_counter_trend = (macro_bias == "BULLISH")
+            if not is_counter_trend or allow_counter_trend:
                 # Structural SL (Mép trên OB + 0.5 ATR)
                 sl = float(s_top + atr * 0.5)
                 risk = sl - entry
@@ -639,8 +668,9 @@ class ICTZonesProStrategy(BaseStrategy):
                     risk = 0.0001
 
                 action = "SELL"
-                confidence = float(min(1.0, s_score / 6.0))
-                rr = 2.0
+                raw_conf = float(min(1.0, s_score / 6.0))
+                confidence = raw_conf * (0.8 if is_counter_trend else 1.0)
+                rr = 1.5 if is_counter_trend else 2.0
                 tp1 = float(entry - risk * rr)
                 tp2 = float(entry - risk * (rr * 2.0))
 

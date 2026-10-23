@@ -189,7 +189,7 @@ class DecisionGate:
                 logger.warning(f"Fallback macro bias for {symbol}: {e}")
                 return "NEUTRAL"
 
-    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL"):
+    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None):
         """
 
         Diem vao chinh: kiem duyet tin hieu tu Strategy.
@@ -250,11 +250,23 @@ class DecisionGate:
 
         tf = timeframe if timeframe else mt5.TIMEFRAME_H1
 
-        price_info = self._get_price_position(symbol, timeframe=tf)
+        price_info = self._get_price_position(symbol, timeframe=tf, rates=rates)
 
         if not price_info:
 
-            return {"decision": "WAIT", "reason": "Khong lay duoc du lieu gia"}
+            return {
+                "decision": "WAIT",
+                "reason": "Khong lay duoc du lieu gia",
+                "trade_mode": "BLOCKED",
+                "size_multiplier": 0.0,
+                "tp_limit_r": 0.0,
+                "be_trigger_r": 0.0,
+                "htf_bias": "N/A",
+                "macro_bias": "N/A",
+                "combined_bias": "N/A",
+                "position": "N/A",
+                "price_info": {},
+            }
 
         position = price_info["position"]
 

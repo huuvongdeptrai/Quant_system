@@ -198,24 +198,13 @@ class AIAnalyzerThread(QtCore.QThread):
                     df = pd.DataFrame(self.rates)
                     if "time" in df.columns:
                         df["time"] = pd.to_datetime(df["time"], unit="s")
-                    macro_ctx = {"volatility_risk": "LOW", "bias": "NEUTRAL"}
                     try:
-                        from backend.infrastructure.data_providers.asset_registry import AssetRegistry
-                        adapter = AssetRegistry.get_adapter(self.sym)
-                        if adapter and hasattr(adapter, "get_macro_bias"):
-                            b_val = adapter.get_macro_bias(self.sym)
-                            macro_ctx["bias"] = b_val
-                            macro_ctx["macro_bias"] = b_val
-
-                        macro_eng = MacroRegimeEngine()
-                        m_state = macro_eng.get_market_state()
-                        if m_state:
-                            vix = float(m_state.get("vix", 18.0))
-                            macro_ctx["volatility_risk"] = "HIGH" if vix > 25.0 else ("MEDIUM" if vix > 18.0 else "LOW")
-                            macro_ctx["vix"] = vix
-                            macro_ctx["dxy_trend"] = m_state.get("dxy_trend", "NEUTRAL")
+                        from backend.core.macro_context_bus import MacroContextBus
+                        bus = MacroContextBus.get_instance()
+                        macro_ctx = bus.get_macro_context(self.sym)
                     except Exception as e_m:
-                        logger.debug(f"[AIAnalysisThread] Macro context assembly: {e_m}")
+                        logger.debug(f"[AIAnalysisThread] MacroContextBus assembly: {e_m}")
+                        macro_ctx = {"volatility_risk": "LOW", "bias": "NEUTRAL", "macro_bias": "NEUTRAL"}
 
                     strat_id = getattr(self, "strategy_id", None)
                     from backend.core.strategies import get_strategy_instance
@@ -224,6 +213,7 @@ class AIAnalyzerThread(QtCore.QThread):
                     res_strat = strat_inst.analyze(df, macro_ctx)
                     result["_strategy_res"] = res_strat
                     result["_strategy_name"] = strat_display
+                    result["_macro_context"] = macro_ctx
             except Exception as e_strat:
                 logger.debug(f"[AIAnalysisThread] Strategy analysis: {e_strat}")
 
@@ -670,6 +660,35 @@ def _update_panel_with_result(window, result):
 
             lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct=risk_pct)
 
+            # Decision Gate & News Compliance Verification
+            gate_res = None
+            gate_mode = getattr(window, "gate_mode", "FULL")
+            rates_in_win = getattr(window, "_last_rates", None)
+
+            if hasattr(window, "decision_gate") and window.decision_gate:
+                gate_res = window.decision_gate.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode)
+            elif mt5.terminal_info() is not None or rates_in_win is not None:
+                from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
+                dg = DecisionGate()
+                gate_res = dg.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, rates=rates_in_win)
+
+            if gate_res and gate_res.get("decision") == "WAIT":
+                from backend.core.event_bus import event_bus
+                event_bus.log_event.emit("", "WARNING", f"FULL-AUTO Intercepted by Gate: {gate_res.get('reason')}", "#f59e0b")
+                window._last_executed_signal = sig_key
+                return
+
+            if gate_res and gate_res.get("trade_mode") == "SCALP_PULLBACK":
+                size_multiplier = float(gate_res.get("size_multiplier", 0.5))
+                lot_size = max(0.01, round(lot_size * size_multiplier, 2))
+                tp_limit_r = gate_res.get("tp_limit_r", 1.5)
+                if tp_limit_r:
+                    max_tp_dist = sl_pts * float(tp_limit_r)
+                    if is_buy:
+                        tp_val = min(tp_val, entry_val + max_tp_dist)
+                    else:
+                        tp_val = max(tp_val, entry_val - max_tp_dist)
+
             exec_mgr = None
             if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
                 exec_mgr = window.quant_terminal.exec_mgr
@@ -781,6 +800,28 @@ def _update_panel_with_result(window, result):
 
             window._active_proposal_sig = sig_key
             status_val = "WAITING OPERATOR APPROVAL"
+
+            # Check Decision Gate for Scalp Pullback metadata
+            gate_res = None
+            gate_mode = getattr(window, "gate_mode", "FULL")
+            rates_in_win = getattr(window, "_last_rates", None)
+            if hasattr(window, "decision_gate") and window.decision_gate:
+                gate_res = window.decision_gate.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode)
+            elif mt5.terminal_info() is not None or rates_in_win is not None:
+                from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
+                dg = DecisionGate()
+                gate_res = dg.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, rates=rates_in_win)
+
+            if gate_res and gate_res.get("trade_mode") == "SCALP_PULLBACK":
+                tp_limit_r = gate_res.get("tp_limit_r", 1.5)
+                sl_pts = abs(entry_val - sl_val)
+                max_tp_dist = sl_pts * float(tp_limit_r)
+                if strat_sig == "BUY":
+                    tp_val = min(tp_val, entry_val + max_tp_dist)
+                else:
+                    tp_val = max(tp_val, entry_val - max_tp_dist)
+                ai_model = f"{strat_name} ({strat_sig} - SCALP PULLBACK)"
+                chk2 = f"SCALP PULLBACK: Capped {tp_limit_r}R (50% Vol)"
 
             kwargs_order = {
                 "sym": clean_sym,

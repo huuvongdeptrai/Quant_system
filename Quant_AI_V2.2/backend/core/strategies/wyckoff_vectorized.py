@@ -198,23 +198,46 @@ class WyckoffMomentumStrategy(BaseStrategy):
 
         volatility = macro_context.get("volatility_risk", "LOW")
         macro_bias = macro_context.get("bias", "NEUTRAL")
+        news_lockout = macro_context.get("news_lockout", False) or macro_context.get("news_blackout", False)
 
-        if buy_cond and macro_bias != "BEARISH":
+        if news_lockout:
+            event_name = macro_context.get("active_event") or macro_context.get("next_event_title") or "High-Impact Event"
+            return {
+                "signal": "HOLD",
+                "action": "HOLD",
+                "reason": f"NEWS_BLACKOUT_ACTIVE: {event_name}",
+                "entry_price": 0.0,
+                "sl": 0.0,
+                "tp": 0.0,
+                "confidence": 0.0,
+                "checklist": [],
+                "metadata": {"news_locked": True},
+            }
+
+        allow_counter_trend = macro_context.get("allow_counter_trend", True)
+
+        if buy_cond and (macro_bias != "BEARISH" or allow_counter_trend):
+            is_counter = (macro_bias == "BEARISH")
             action = "BUY"
             sl = entry_price - sl_dist
-            tp1 = entry_price + sl_dist * self.target_rr
-            tp2 = entry_price + sl_dist * (self.target_rr * 1.5)
-            confidence = 0.88 if volatility != "HIGH" else 0.75
-            chk1 = "Mark-up Phase (EMA20 > EMA50)"
+            rr = 1.5 if is_counter else self.target_rr
+            tp1 = entry_price + sl_dist * rr
+            tp2 = entry_price + sl_dist * (rr * 1.5)
+            raw_conf = 0.88 if volatility != "HIGH" else 0.75
+            confidence = raw_conf * (0.8 if is_counter else 1.0)
+            chk1 = "Mark-up Phase (EMA20 > EMA50)" if not is_counter else "Counter-Trend Spring Reaction"
             chk2 = "EMA20 Pullback Confirmed"
             chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA)"
-        elif sell_cond and macro_bias != "BULLISH":
+        elif sell_cond and (macro_bias != "BULLISH" or allow_counter_trend):
+            is_counter = (macro_bias == "BULLISH")
             action = "SELL"
             sl = entry_price + sl_dist
-            tp1 = entry_price - sl_dist * self.target_rr
-            tp2 = entry_price - sl_dist * (self.target_rr * 1.5)
-            confidence = 0.88 if volatility != "HIGH" else 0.75
-            chk1 = "Mark-down Phase (EMA20 < EMA50)"
+            rr = 1.5 if is_counter else self.target_rr
+            tp1 = entry_price - sl_dist * rr
+            tp2 = entry_price - sl_dist * (rr * 1.5)
+            raw_conf = 0.88 if volatility != "HIGH" else 0.75
+            confidence = raw_conf * (0.8 if is_counter else 1.0)
+            chk1 = "Mark-down Phase (EMA20 < EMA50)" if not is_counter else "Counter-Trend Upthrust Reaction"
             chk2 = "EMA20 Retest Confirmed"
             chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA)"
         else:

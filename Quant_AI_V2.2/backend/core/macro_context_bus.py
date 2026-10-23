@@ -254,3 +254,25 @@ class MacroContextBus:
             return True, "OVERRIDE", f"News Lockout Bypassed: {prof.next_event_title} (Manual Override Active)"
 
         return False, "BLOCKED", f"News Defense: Locked ({prof.next_event_title} Blackout ?15m)"
+
+    def get_macro_context(self, symbol: str) -> Dict[str, Any]:
+        """
+        Returns a standardized dictionary representation of the symbol's macro context,
+        ready for strategy ingestion (ICT, Wyckoff, AI Analyzer, etc.).
+        """
+        prof = self.get_profile(symbol)
+        return {
+            "symbol": prof.symbol,
+            "macro_bias": prof.directional_bias,
+            "bias": prof.directional_bias,
+            "macro_regime": prof.macro_regime,
+            "volatility_risk": prof.event_risk_level,
+            "volatility": prof.event_risk_level,
+            "news_lockout": prof.is_lockout_active,
+            "news_blackout": prof.news_blackout,
+            "active_event": prof.next_event_title,
+            "next_event_title": prof.next_event_title,
+            "seconds_to_event": prof.seconds_to_event,
+            "manual_override": prof.manual_override_lock,
+            "badge_text": prof.badge_text,
+        }

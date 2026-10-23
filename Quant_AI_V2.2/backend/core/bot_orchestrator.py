@@ -473,13 +473,7 @@ class BotOrchestrator(QtCore.QObject):
             try:
                 from backend.core.macro_context_bus import MacroContextBus
                 bus = MacroContextBus.get_instance()
-                prof = bus.get_profile(sym)
-                macro_ctx = {
-                    "macro_bias": prof.directional_bias,
-                    "macro_regime": prof.macro_regime,
-                    "news_blackout": prof.news_blackout,
-                    "event_risk_level": prof.event_risk_level,
-                }
+                macro_ctx = bus.get_macro_context(sym)
             except Exception:
                 macro_ctx = {}
 
