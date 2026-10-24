@@ -950,20 +950,32 @@ class WorkspaceHeaderController:
                     font-size: 11px;
                     font-weight: 500;
                     border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item {
                     background: transparent;
                     color: #94a3b8;
                     padding: 3px 8px;
                     border-radius: 2px;
+                    border: none;
+                    outline: none;
+                }
+                QMenuBar#nativeMenuBar::item:focus {
+                    background: transparent;
+                    border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item:selected {
                     background-color: #1e293b;
                     color: #ffffff;
+                    border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item:pressed {
                     background-color: #0284c7;
                     color: #ffffff;
+                    border: none;
+                    outline: none;
                 }
             """)
         else:
@@ -975,20 +987,32 @@ class WorkspaceHeaderController:
                     font-size: 11px;
                     font-weight: 500;
                     border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item {
                     background: transparent;
                     color: #334155;
                     padding: 3px 8px;
                     border-radius: 2px;
+                    border: none;
+                    outline: none;
+                }
+                QMenuBar#nativeMenuBar::item:focus {
+                    background: transparent;
+                    border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item:selected {
                     background-color: #e2e8f0;
                     color: #0f172a;
+                    border: none;
+                    outline: none;
                 }
                 QMenuBar#nativeMenuBar::item:pressed {
                     background-color: #cbd5e1;
                     color: #0f172a;
+                    border: none;
+                    outline: none;
                 }
             """)
 
@@ -2001,6 +2025,7 @@ class WorkspaceHeaderController:
         # Native QMenuBar matching MT5 Desktop exactly
         native_mb = QMenuBar()
         native_mb.setObjectName("nativeMenuBar")
+        native_mb.setFocusPolicy(Qt.NoFocus)
         self.native_menu_bar = native_mb
         self._apply_native_menu_bar_theme(is_dark)
 

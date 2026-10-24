@@ -670,7 +670,8 @@ def test_margin_adequacy_pre_check_blocks_insufficient_margin(qapp):
     with patch("backend.infrastructure.brokers.mt5_safe.mt5.account_info", return_value=mock_acc), \
          patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
          patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)), \
-         patch("backend.infrastructure.brokers.mt5_safe.mt5.order_calc_margin", return_value=205000.0):
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.order_calc_margin", return_value=205000.0), \
+         patch("backend.database.db_manager.DatabaseManager.get_system_state", side_effect=lambda k, default="": "5000.0" if k == "start_of_day_equity" else default):
         passed, checks, block_reason = evaluate_manual_compliance(win, "XAUUSD")
         assert passed is False
         assert "INSUFFICIENT MARGIN" in block_reason

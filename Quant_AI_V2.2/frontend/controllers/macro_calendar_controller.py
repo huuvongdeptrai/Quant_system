@@ -268,6 +268,7 @@ class CalendarManager:
 
     def _setup_main_splitter(self):
         """Constructs 70:30 horizontal split: Economic Calendar on Left + Compact Defense Desk on Right."""
+        is_d = getattr(self.window, "is_dark_theme", False)
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setObjectName("calendarSplitter")
         self.main_splitter.setHandleWidth(4)
@@ -299,7 +300,7 @@ class CalendarManager:
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setShowGrid(False)
-        self.table.setAlternatingRowColors(False)
+        self.table.setAlternatingRowColors(True)
         self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         hdr = self.table.horizontalHeader()
@@ -321,7 +322,19 @@ class CalendarManager:
         self.table.setColumnWidth(7, 85)
 
         self.table.itemSelectionChanged.connect(self._on_table_selection_changed)
+        # Sticky Date Header Ribbon above table
+        self.lbl_sticky_date = QLabel("ACTIVE VIEW: WEEKLY CALENDAR")
+        self.lbl_sticky_date.setFixedHeight(20)
+        self.lbl_sticky_date.setStyleSheet(
+            "QLabel { background-color: #0b0f19; color: #38bdf8; font-family: Consolas, monospace; "
+            "font-size: 9.5px; font-weight: bold; padding-left: 8px; border-bottom: 1px solid rgba(56, 189, 248, 0.2); margin: 0; }"
+            if is_d else
+            "QLabel { background-color: #f1f5f9; color: #0284c7; font-family: Consolas, monospace; "
+            "font-size: 9.5px; font-weight: bold; padding-left: 8px; border-bottom: 1px solid #cbd5e1; margin: 0; }"
+        )
+        l_lay.addWidget(self.lbl_sticky_date)
         l_lay.addWidget(self.table)
+        self.table.verticalScrollBar().valueChanged.connect(self._on_table_scroll)
         self.main_splitter.addWidget(self.left_container)
 
         # --- RIGHT PANE (30%): Compact Event Risk & Semi-Auto Defense Desk ---
@@ -336,6 +349,25 @@ class CalendarManager:
         self.main_splitter.setSizes([950, 380])
 
         self.root_layout.addWidget(self.main_splitter, stretch=1)
+
+    def _on_table_scroll(self, value=0):
+        """Dynamically pins active date to the sticky ribbon as user scrolls."""
+        if not hasattr(self, "lbl_sticky_date") or not self.lbl_sticky_date:
+            return
+        row = self.table.rowAt(4)
+        if row < 0:
+            row = 0
+        for r in range(row, -1, -1):
+            item = self.table.item(r, 0)
+            if item:
+                d_obj = item.data(Qt.UserRole + 1)
+                if d_obj:
+                    weekday_str = WEEKDAYS_EN[d_obj.weekday()]
+                    date_str = d_obj.strftime("%d/%m/%Y")
+                    is_today = (d_obj == datetime.date.today())
+                    today_tag = " · [TODAY]" if is_today else ""
+                    self.lbl_sticky_date.setText(f"ACTIVE VIEW: {weekday_str} · {date_str}{today_tag}")
+                    break
 
     def _setup_defense_desk_ui(self):
         """Constructs right-hand semi-auto defense desk and countdown monitor with strict vertical budget."""
@@ -635,6 +667,9 @@ class CalendarManager:
         elif "RECESSION" in raw_eco:
             eco_badge = "RECESSION"
             eco_bg = "#ef4444"
+        elif "STAGFLATION" in raw_eco:
+            eco_badge = "STAGFLATION"
+            eco_bg = "#f59e0b"
         else:
             eco_badge = "RECOVERY"
             eco_bg = "#0284c7"
@@ -644,15 +679,15 @@ class CalendarManager:
             f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
             f"background-color: {eco_bg}; color: #ffffff;"
         )
-        # Clarify economic cycle drivers with clear economic terms
+        # Clarify economic cycle drivers with institutional economic terms
         if eco_badge == "RECESSION":
-            clear_eco = "PMI Thu hẹp & Thất nghiệp gia tăng"
+            clear_eco = "PMI Contraction & Labor Softening"
         elif eco_badge == "GROWTH":
-            clear_eco = "PMI Mở rộng & Thị trường lao động vững"
+            clear_eco = "PMI Expansion & Robust Employment"
         elif eco_badge == "STAGFLATION":
-            clear_eco = "Lạm phát cao & Tăng trưởng suy giảm"
+            clear_eco = "High Inflation & Slowing Growth"
         else:
-            clear_eco = "PMI Ổn định & Tuyển dụng hồi phục"
+            clear_eco = "PMI Stabilizing & Labor Rebound"
         self.lbl_economic_metrics.setText(f"CYCLE: {eco_badge}  ·  {clear_eco}")
 
         # 4. Target Asset Confluence Calculation
@@ -702,15 +737,15 @@ class CalendarManager:
         if gold_score >= 1.0:
             bias_text = "BULLISH"
             bias_bg = "#22c55e"
-            desc_text = f"ƯU TIÊN MUA ({sym})  ·  Lãi suất thực giảm & Cầu trú ẩn hỗ trợ"
+            desc_text = f"LONG BIAS ({sym})  ·  Falling Real Yields & Haven Demand"
         elif gold_score <= -1.0:
             bias_text = "BEARISH"
             bias_bg = "#ef4444"
-            desc_text = f"ÁP LỰC BÁN ({sym})  ·  DXY tăng mạnh & Lãi suất thắt chặt"
+            desc_text = f"SHORT BIAS ({sym})  ·  Rising DXY & Monetary Tightening"
         else:
             bias_text = "NEUTRAL"
             bias_bg = "#0284c7"
-            desc_text = f"TRUNG LẬP ({sym})  ·  Cung cầu cân bằng, thị trường tích lũy"
+            desc_text = f"NEUTRAL ({sym})  ·  Balanced Supply & Consolidation"
 
         if hasattr(self, "badge_confluence_state"):
             self.badge_confluence_state.setText(bias_text)
@@ -788,11 +823,24 @@ class CalendarManager:
             # Col 2: IMPACT (PRESERVES HIGH / MED / LOW with dimmed colors for past)
             t.setCellWidget(row, 2, self._impact_badge(e.get("impact", 0), is_past=is_past))
 
-            # Col 3: EVENT RELEASE
-            lbl_title = QLabel(f" {e.get('title', '')}")
-            lbl_title.setStyleSheet(f"font-size: 10.5px; font-weight: {'400' if is_past else '500'}; color: {text_alpha};")
-            lbl_title.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-            t.setCellWidget(row, 3, lbl_title)
+            # Col 3: EVENT RELEASE with Dotted Leader Line
+            w_col3 = QWidget()
+            lay_col3 = QHBoxLayout(w_col3)
+            lay_col3.setContentsMargins(4, 0, 4, 0)
+            lay_col3.setSpacing(6)
+
+            lbl_title = QLabel(e.get("title", ""))
+            lbl_title.setStyleSheet(f"font-size: 10.5px; font-weight: {'400' if is_past else '500'}; color: {text_alpha}; background: transparent; border: none;")
+            lay_col3.addWidget(lbl_title)
+
+            dot_line = QFrame()
+            dot_line.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            dot_line.setFixedHeight(10)
+            dot_color = "rgba(255, 255, 255, 0.12)" if is_d else "rgba(0, 0, 0, 0.14)"
+            dot_line.setStyleSheet(f"border: none; border-bottom: 1px dotted {dot_color}; margin-bottom: 4px; background: transparent;")
+            lay_col3.addWidget(dot_line)
+
+            t.setCellWidget(row, 3, w_col3)
 
             # Col 4, 5, 6: Actual, Forecast, Previous
             actual = str(e.get("actual", "-")) if e.get("actual") not in ("None", "", None) else "-"
@@ -828,15 +876,21 @@ class CalendarManager:
             t.setCellWidget(row, 6, self._cell(previous, color=text_alpha, font="Consolas", align=Qt.AlignRight))
             t.setCellWidget(row, 7, self._cell(surprise_text, color=surprise_col, bold=True, font="Consolas", align=Qt.AlignRight))
 
-            # Store event dict on row item 0
+            # Store event dict and date on row item 0
             item = QTableWidgetItem()
             item.setData(Qt.UserRole, e)
+            item.setData(Qt.UserRole + 1, event_date)
             t.setItem(row, 0, item)
 
         if today_row != -1:
             item = t.item(today_row, 0)
             if item:
                 t.scrollToItem(item, QAbstractItemView.PositionAtTop)
+        elif t.rowCount() > 0:
+            item = t.item(0, 0)
+            if item:
+                t.scrollToItem(item, QAbstractItemView.PositionAtTop)
+        self._on_table_scroll(0)
 
     def _auto_select_next_event(self):
         """Prioritizes the next upcoming Tier-2 event for the active target asset (XAUUSD)."""
@@ -879,8 +933,30 @@ class CalendarManager:
             t.selectRow(best_target_row)
         elif best_any_row != -1:
             t.selectRow(best_any_row)
-        elif t.rowCount() > 1:
-            t.selectRow(1)
+        else:
+            self._set_weekend_standby_desk()
+
+    def _set_weekend_standby_desk(self):
+        """Displays institutional weekend / holiday standby state when all releases for the week have passed."""
+        self._selected_event = None
+        self.lbl_next_event_title.setText("WEEKEND STANDBY · ALL RELEASES CONCLUDED")
+        self.lbl_next_event_time.setText("SCHEDULED: MONDAY MARKET REOPEN")
+        self.lbl_countdown_val.setText("STANDBY")
+        self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
+        self.lbl_lockout_status.setText("STATUS: NO UPCOMING RELEASES THIS WEEK")
+        self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+        self.badge_target_relevance.setText("STANDBY")
+        self.badge_target_relevance.setStyleSheet(
+            "background-color: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); "
+            "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+        )
+        self.lbl_desk_assets.setText("AFFECTED ASSETS: NONE · NORMAL PROTOCOL")
+        self.lbl_qa_event_name.setText("EVENT: WEEKEND STANDBY")
+        self.lbl_qa_surprise.setText("SCHEDULE: MARKET OPENS MONDAY 05:00 UTC+7")
+        self.lbl_qa_ai_insight.setText("• AI Assessment: Macro trading window is clear for the weekend. All scheduled weekly releases concluded.")
+        self.lbl_qa_asset_impact.setText(f"• Target Impact ({self._current_symbol}): Weekend holding risk applies. Mind Sunday open gaps.")
+        self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #64748b; font-weight: 600; border: none;")
+        self.lbl_qa_watchlist_impact.setText("• WATCHLIST EXPOSURE: <span style='color:#22c55e;'>NONE · ALL ASSETS CLEAR</span>")
 
     def _on_table_selection_changed(self):
         """Updates right-hand defense desk when an event row is clicked."""
@@ -913,9 +989,11 @@ class CalendarManager:
         self._last_next_event_utc = sort_key
         if sort_key > 0:
             time_str = timezone_manager.format_utc_ts(sort_key, "%H:%M")
+            date_str = timezone_manager.format_utc_ts(sort_key, "%a %d/%m").upper()
+            self.lbl_next_event_time.setText(f"SCHEDULED: {date_str} {time_str} ({timezone_manager.short_label})")
         else:
             time_str = event.get("time", "")
-        self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} ({timezone_manager.short_label})")
+            self.lbl_next_event_time.setText(f"SCHEDULED: {time_str} ({timezone_manager.short_label})")
 
         # Target relevance badge
         curr_sym = self._current_symbol.upper()
@@ -939,7 +1017,7 @@ class CalendarManager:
         if cur:
             affected.append(f"{cur} PAIRS")
         if cntry.upper() == "US":
-            affected.extend(["XAUUSD (GOLD)", "US30", "NAS100", "BTCUSD"])
+            affected.extend(["XAUUSD", "US30", "NAS100", "BTCUSD"])
 
         self.lbl_desk_assets.setText("AFFECTED ASSETS: " + (", ".join(affected) if affected else f"{cntry} DOMESTIC"))
 
@@ -996,11 +1074,11 @@ class CalendarManager:
                 is_bullish = not is_country_positive
 
         if is_bullish is True:
-            return "BULLISH", f"• Tác động {sym}: Hỗ trợ đà tăng (Bullish). Ưu tiên setup Mua thuận xu hướng.", "#22c55e"
+            return "BULLISH", f"• Target Impact ({sym}): Bullish momentum supported. Favor trend-following long setups.", "#22c55e"
         elif is_bullish is False:
-            return "BEARISH", f"• Tác động {sym}: Áp lực điều chỉnh giảm ngắn hạn. Không nhồi lệnh Mua khi chưa tạo đáy nến mới.", "#ef4444"
+            return "BEARISH", f"• Target Impact ({sym}): Downside corrective pressure. Exercise caution on long positions.", "#ef4444"
         else:
-            return "NEUTRAL", f"• Tác động {sym}: Tác động gián tiếp qua tỷ giá chéo, duy trì kiểm soát rủi ro thông thường.", "#0284c7"
+            return "NEUTRAL", f"• Target Impact ({sym}): Cross-rate technical flow absorbed. Normal risk controls apply.", "#0284c7"
 
     def _update_quant_action_card(self, event: dict):
         """Populates Section 4 with clear quantitative assessment and target symbol impact."""
@@ -1030,25 +1108,26 @@ class CalendarManager:
                     is_cntry_pos = (surprise > 0)
 
                 if is_cntry_pos:
-                    eval_msg = "• Đánh giá AI: Số liệu khả quan hơn kỳ vọng -> Củng cố sức mạnh đồng USD."
+                    eval_msg = "• AI Assessment: Higher-than-expected print reinforces USD strength and applies downward pressure on Gold."
                 elif surprise != 0:
-                    eval_msg = "• Đánh giá AI: Số liệu thấp hơn dự báo -> USD chịu áp lực giảm, dòng vốn ưu tiên tài sản trú ẩn."
+                    eval_msg = "• AI Assessment: Lower-than-expected print weakens USD, channeling safe-haven flows into Gold."
                 else:
-                    eval_msg = "• Đánh giá AI: Số liệu sát kỳ vọng thị trường -> Không gây sốc thanh khoản."
+                    eval_msg = "• AI Assessment: Figures aligned with market consensus. Neutral liquidity shock."
             else:
                 is_cntry_pos = (surprise > 0)
-                eval_msg = f"• Đánh giá AI: Dữ liệu kinh tế {cntry} {'tích cực' if surprise > 0 else 'tiêu cực'} so với dự báo."
+                status_word = "positive" if surprise > 0 else "negative"
+                eval_msg = f"• AI Assessment: {cntry} economic data printed {status_word} relative to consensus forecast."
 
             if surprise != 0:
                 _, impact_msg, color = self._evaluate_asset_news_reaction(curr_sym, cntry, is_cntry_pos)
             else:
-                impact_msg = f"• Tác động {curr_sym}: Biến động kỹ thuật bình thường, tuân thủ cấu trúc biểu đồ M15."
+                impact_msg = f"• Target Impact ({curr_sym}): Normal price action. Respects prevailing M15 chart structure."
                 color = "#0284c7"
         else:
             # Upcoming scheduled release
-            self.lbl_qa_surprise.setText(f"DỰ BÁO: {forecast or 'Chưa có'}  |  KỲ TRƯỚC: {prev or '--'}")
-            eval_msg = "• Đánh giá AI: Sự kiện đang được giám sát chặt chẽ trong cửa sổ rủi ro."
-            impact_msg = f"• Kịch bản {curr_sym}: Tự động kích hoạt khiên T-15M khi đồng hồ đếm ngược bước vào 15 phút trước giờ tin."
+            self.lbl_qa_surprise.setText(f"FORECAST: {forecast or 'N/A'}  |  PREVIOUS: {prev or '--'}")
+            eval_msg = "• AI Assessment: Event monitored within active volatility and liquidity window."
+            impact_msg = f"• Action Protocol ({curr_sym}): Automated T-15M defense shield arms 15 minutes prior to release."
             color = "#f59e0b"
 
         self.lbl_qa_ai_insight.setText(eval_msg)
@@ -1067,14 +1146,13 @@ class CalendarManager:
                 safe_syms.append(clean_s)
 
         if impacted_syms:
-            impacted_str = ", ".join(impacted_syms)
-            safe_str = ", ".join(safe_syms[:5]) if safe_syms else "None"
-            wl_msg = (
-                f"• Cặp Watchlist bị ảnh hưởng ({len(impacted_syms)}): <b style='color:#f59e0b;'>{impacted_str}</b> (Khóa T-15m)<br>"
-                f"• Cặp an toàn ({len(safe_syms)}): <span style='color:#64748b;'>{safe_str}</span>"
-            )
+            badges_html = " ".join([f"<span style='background-color:rgba(245,158,11,0.15); color:#f59e0b; padding:1px 5px; border:1px solid rgba(245,158,11,0.3); border-radius:2px; font-family:Consolas; font-weight:bold;'>[{s}]</span>" for s in impacted_syms])
+            wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#f59e0b; font-size:8.5px;'>· T-15M LOCK</span>"
+            if safe_syms and len(safe_syms) > 0:
+                safe_badges = " ".join([f"<span style='color:#64748b; font-family:Consolas;'>[{s}]</span>" for s in safe_syms[:4]])
+                wl_msg += f"<br>• UNEXPOSED: {safe_badges}"
         else:
-            wl_msg = "• Watchlist: Không có cặp tiền nào trong danh sách theo dõi chịu tác động trực tiếp."
+            wl_msg = "• WATCHLIST EXPOSURE: <span style='color:#22c55e;'>NONE · ALL ASSETS CLEAR</span>"
 
         if hasattr(self, "lbl_qa_watchlist_impact") and self.lbl_qa_watchlist_impact:
             self.lbl_qa_watchlist_impact.setText(wl_msg)
@@ -1117,8 +1195,19 @@ class CalendarManager:
                 self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         else:
             abs_past = abs(diff_sec)
-            mins_past = abs_past // 60
-            self.lbl_countdown_val.setText(f"T + {mins_past:02d}M AGO")
+            if abs_past < 3600:
+                mins_past = max(1, abs_past // 60)
+                time_past_str = f"{mins_past}M AGO"
+            elif abs_past < 86400:
+                hrs_past = abs_past // 3600
+                mins_past = (abs_past % 3600) // 60
+                time_past_str = f"{hrs_past}H {mins_past}M AGO"
+            else:
+                days_past = abs_past // 86400
+                hrs_past = (abs_past % 86400) // 3600
+                time_past_str = f"{days_past}D {hrs_past}H AGO"
+
+            self.lbl_countdown_val.setText(time_past_str)
             self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
             if abs_past <= 900 and impact == 2 and not self._override_active:
                 self.lbl_lockout_status.setText("STATUS: POST-NEWS SPREAD RECOVERY")
@@ -1193,6 +1282,7 @@ class CalendarManager:
             item = QTableWidgetItem()
             item.setBackground(QColor(bg))
             item.setFlags(Qt.NoItemFlags)
+            item.setData(Qt.UserRole + 1, date_obj)
             t.setItem(row, col, item)
 
     def _country_badge(self, country: str, is_past: bool = False):
@@ -1266,6 +1356,27 @@ class CalendarManager:
         self._update_filter_button_styles(is_dark)
         bg = "#101524" if is_dark else "#ffffff"
         border = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
+
+        if is_dark:
+            self.table.setStyleSheet(
+                "QTableWidget#tableEconomicCalendar { background-color: #070a12; alternate-background-color: #0e1320; border: none; } "
+                "QTableWidget#tableEconomicCalendar::item:selected { background-color: rgba(2, 132, 199, 0.25); }"
+            )
+            if hasattr(self, "lbl_sticky_date") and self.lbl_sticky_date:
+                self.lbl_sticky_date.setStyleSheet(
+                    "QLabel { background-color: #0b0f19; color: #38bdf8; font-family: Consolas, monospace; "
+                    "font-size: 9.5px; font-weight: bold; padding-left: 8px; border-bottom: 1px solid rgba(56, 189, 248, 0.2); margin: 0; }"
+                )
+        else:
+            self.table.setStyleSheet(
+                "QTableWidget#tableEconomicCalendar { background-color: #ffffff; alternate-background-color: #f8fafc; border: none; } "
+                "QTableWidget#tableEconomicCalendar::item:selected { background-color: rgba(2, 132, 199, 0.15); }"
+            )
+            if hasattr(self, "lbl_sticky_date") and self.lbl_sticky_date:
+                self.lbl_sticky_date.setStyleSheet(
+                    "QLabel { background-color: #f1f5f9; color: #0284c7; font-family: Consolas, monospace; "
+                    "font-size: 9.5px; font-weight: bold; padding-left: 8px; border-bottom: 1px solid #cbd5e1; margin: 0; }"
+                )
 
         for card in [self.card_market, self.card_monetary, self.card_economic, self.card_confluence]:
             if card:

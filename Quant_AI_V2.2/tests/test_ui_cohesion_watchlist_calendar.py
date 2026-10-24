@@ -71,7 +71,7 @@ def test_quant_action_card_displays_watchlist_exposure(qapp):
         wl_text = ctrl.lbl_qa_watchlist_impact.text()
         assert "XAUUSD" in wl_text
         assert "EURUSD" in wl_text
-        assert "Khóa T-15m" in wl_text
+        assert "T-15M" in wl_text
 
         # Event 2: German Manufacturing PMI (Impacts EURUSD directly, not XAUUSD)
         de_event = {
