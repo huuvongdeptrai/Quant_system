@@ -140,79 +140,15 @@ class AnalysisEngine:
 
             support = min([r["low"] for r in rates[-50:]])
 
-        # Lay danh sach swing highs / lows cho cau truc thi truong
-
-        swing_highs = []
-
-        swing_lows = []
-
-        for i in range(2, len(rates) - 2):
-
-            high = rates[i]["high"]
-
-            low = rates[i]["low"]
-
-            if (
-                high > rates[i - 1]["high"]
-                and high > rates[i - 2]["high"]
-                and high > rates[i + 1]["high"]
-                and high > rates[i + 2]["high"]
-            ):
-
-                swing_highs.append(high)
-
-            if (
-                low < rates[i - 1]["low"]
-                and low < rates[i - 2]["low"]
-                and low < rates[i + 1]["low"]
-                and low < rates[i + 2]["low"]
-            ):
-
-                swing_lows.append(low)
-
-        # 3. Cau truc thi truong & Xu huong Ngan han (Toan hoc tat dinh - Pure Python Math)
-
-        structure = "Sideways"
-
-        math_trend = "Sideways"
-
-        last_shs = swing_highs[-2:] if len(swing_highs) >= 2 else []
-
-        last_sls = swing_lows[-2:] if len(swing_lows) >= 2 else []
-
-        if len(last_shs) == 2 and len(last_sls) == 2:
-
-            if last_shs[1] > last_shs[0] and last_sls[1] > last_sls[0]:
-
-                structure = "Bullish (Higher Highs, Higher Lows)"
-
-                if current_price > ema:
-
-                    math_trend = "Bullish"
-
-            elif last_shs[1] < last_shs[0] and last_sls[1] < last_sls[0]:
-
-                structure = "Bearish (Lower Highs, Lower Lows)"
-
-                if current_price < ema:
-
-                    math_trend = "Bearish"
-
-            elif last_shs[1] < last_shs[0] and last_sls[1] > last_sls[0]:
-
-                structure = "Contraction (Convergence / Triangle)"
-
-            else:
-
-                structure = "Expansion (Megaphone)"
-
-        elif current_price > (ema * 1.002):
-
-            math_trend = "Bullish"
-
-        elif current_price < (ema * 0.998):
-
-            math_trend = "Bearish"
+        # 3. Cau truc thi truong & Xu huong Ngan han chuan hoa (MarketStructureEngine)
+        from backend.core.market_structure import MarketStructureEngine
+        struct_res = MarketStructureEngine.analyze_market_structure(
+            rates, current_price=current_price, ema_period=50
+        )
+        structure = struct_res.structure_label
+        math_trend = struct_res.trend.capitalize()
+        swing_highs = struct_res.swing_highs
+        swing_lows = struct_res.swing_lows
 
         # 4. Trích xuất đặc trưng Vi cấu trúc & Dòng lệnh (Microstructure & Order Flow)
         micro_data = {}
@@ -244,6 +180,10 @@ class AnalysisEngine:
             "ema_position": ema_position,
             "structure": structure,
             "math_trend": math_trend,
+            "bos_detected": struct_res.bos_detected,
+            "bos_direction": struct_res.bos_direction,
+            "swing_highs": swing_highs,
+            "swing_lows": swing_lows,
             "vol_confirmed": (
                 bool(sr_info.get("vol_confirmed", False)) if sr_info else False
             ),

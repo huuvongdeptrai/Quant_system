@@ -71,38 +71,28 @@ class DecisionGate:
         # Tinh toan Bias tung khung
 
         def get_single_tf_bias(rates):
-
-            if rates is None or len(rates) < 65:  # Can it nhat 50 cho EMA + 14 cho ATR
-
+            if rates is None or len(rates) < 15:
                 return "NEUTRAL"
 
-            closes = [r["close"] for r in rates]
+            if len(rates) >= 65:
+                closes = [r["close"] for r in rates]
+                highs = [r["high"] for r in rates]
+                lows = [r["low"] for r in rates]
+                ema50 = self._ema(closes, 50)
+                atr14 = self._atr(highs, lows, closes, 14)
+                current_close = closes[-1]
+                buffer_zone = 0.5 * atr14
+                if current_close > (ema50 + buffer_zone):
+                    return "BULLISH"
+                elif current_close < (ema50 - buffer_zone):
+                    return "BEARISH"
+                else:
+                    return "NEUTRAL"
 
-            highs = [r["high"] for r in rates]
-
-            lows = [r["low"] for r in rates]
-
-            # Tinh EMA 50 va ATR 14
-
-            ema50 = self._ema(closes, 50)
-
-            atr14 = self._atr(highs, lows, closes, 14)
-
-            current_close = closes[-1]
-
-            buffer_zone = 0.5 * atr14
-
-            if current_close > (ema50 + buffer_zone):
-
-                return "BULLISH"
-
-            elif current_close < (ema50 - buffer_zone):
-
-                return "BEARISH"
-
-            else:
-
-                return "NEUTRAL"  # Sideway / Whipsaw
+            # Adaptive market structure fallback for low candle buffers (15 to 64 bars)
+            from backend.core.market_structure import MarketStructureEngine
+            struct = MarketStructureEngine.analyze_market_structure(rates, ema_period=min(50, max(5, len(rates) // 2)))
+            return "BULLISH" if struct.trend == "BULLISH" else ("BEARISH" if struct.trend == "BEARISH" else "NEUTRAL")
 
         d1_bias = get_single_tf_bias(d1_rates)
 

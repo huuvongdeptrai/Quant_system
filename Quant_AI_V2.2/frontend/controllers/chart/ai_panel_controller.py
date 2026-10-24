@@ -1005,89 +1005,22 @@ def _run_analysis(window, sym, force=False):
 
         valid_supports = []
 
-        swing_highs = []
-
-        swing_lows = []
-
-        for i in range(2, len(sub_rates) - 2):
-
-            high = sub_rates[i]["high"]
-
-            low = sub_rates[i]["low"]
-
-            if (
-                high > sub_rates[i - 1]["high"]
-                and high > sub_rates[i - 2]["high"]
-                and high > sub_rates[i + 1]["high"]
-                and high > sub_rates[i + 2]["high"]
-            ):
-
-                swing_highs.append(high)
-
-            if (
-                low < sub_rates[i - 1]["low"]
-                and low < sub_rates[i - 2]["low"]
-                and low < sub_rates[i + 1]["low"]
-                and low < sub_rates[i + 2]["low"]
-            ):
-
-                swing_lows.append(low)
-
         from backend.infrastructure.ai_engines.ai.sr_calculator import calculate_sr_levels
+        from backend.core.market_structure import MarketStructureEngine
 
         sr_info = calculate_sr_levels(sub_rates, current_price=current_price)
-
         if sr_info:
-
             resistance = sr_info["resistance"]
-
             support = sr_info["support"]
-
         else:
-
             resistance = max([r["high"] for r in sub_rates[-50:]])
-
             support = min([r["low"] for r in sub_rates[-50:]])
 
-        closes = [r["close"] for r in sub_rates]
-
-        period = min(50, len(closes))
-
-        alpha = 2 / (period + 1)
-
-        ema = sum(closes[:period]) / period
-
-        for price in closes[period:]:
-
-            ema = (price - ema) * alpha + ema
-
-        math_trend = "SIDEWAYS"
-
-        if len(swing_highs) >= 2 and len(swing_lows) >= 2:
-
-            if (
-                swing_highs[-1] > swing_highs[-2]
-                and swing_lows[-1] > swing_lows[-2]
-                and current_price > ema
-            ):
-
-                math_trend = "BULLISH"
-
-            elif (
-                swing_highs[-1] < swing_highs[-2]
-                and swing_lows[-1] < swing_lows[-2]
-                and current_price < ema
-            ):
-
-                math_trend = "BEARISH"
-
-        elif current_price > ema * 1.002:
-
-            math_trend = "BULLISH"
-
-        elif current_price < ema * 0.998:
-
-            math_trend = "BEARISH"
+        struct_res = MarketStructureEngine.analyze_market_structure(
+            sub_rates, current_price=current_price, ema_period=50
+        )
+        math_trend = struct_res.trend.capitalize()
+        ema = struct_res.ema_anchor
 
         tech_data = {
             "current_price": current_price,
@@ -1095,8 +1028,10 @@ def _run_analysis(window, sym, force=False):
             "support": support,
             "math_trend": math_trend,
             "ema_50": round(ema, 2),
-            "ema_position": "ABOVE EMA 50" if current_price > ema else "BELOW EMA 50",
-            "structure": f"Volume-Validated (KC: {resistance:.2f}, HT: {support:.2f})",
+            "ema_position": struct_res.ema_position.replace("_", " "),
+            "structure": struct_res.structure_label,
+            "bos_detected": struct_res.bos_detected,
+            "bos_direction": struct_res.bos_direction,
         }
 
     d1_rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 0, 60)

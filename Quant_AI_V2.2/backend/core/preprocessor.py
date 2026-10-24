@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pytz
 from datetime import datetime
+from backend.core.market_structure import MarketStructureEngine, MarketStructureResult
 
 
 class DataPreprocessor:
@@ -20,6 +21,25 @@ class DataPreprocessor:
 
     def __init__(self):
         pass
+
+    def detect_market_structure(
+        self,
+        rates_data: Any,
+        current_price: Optional[float] = None,
+        ema_period: int = 50,
+        order: int = 2,
+    ) -> MarketStructureResult:
+        """
+        Public system-level market structure and trend detector.
+        Provides deterministic fractal swings, Higher Highs/Lows, BOS/MSS, and trend classification.
+        """
+        return MarketStructureEngine.analyze_market_structure(
+            rates_data,
+            current_price=current_price,
+            ema_period=ema_period,
+            order=order,
+        )
+
 
     def _calculate_garman_klass_vol(self, df: pd.DataFrame, window: int = 14) -> float:
         """
@@ -179,7 +199,7 @@ class DataPreprocessor:
     def process_technical_data(self, rates_data, broker_timezone="Europe/Kyiv") -> Optional[Dict[str, Any]]:
         # 1. Chuyển đổi Data thô sang DataFrame
         df = pd.DataFrame(rates_data)
-        if len(df) < 50:
+        if len(df) < 15:
             return None
 
         for col in ["open", "high", "low", "close"]:
@@ -238,11 +258,16 @@ class DataPreprocessor:
         else:
             rsi_label = "TRUNG TÍNH"
 
-        trend_label = (
-            "TĂNG (Uptrend)"
-            if current["EMA20"] > current["EMA50"]
-            else "GIẢM (Downtrend)"
+        # 4. Nhận diện Vi cấu trúc và Xu hướng Hệ thống (Fractal Swings & Price Action Geometry)
+        struct_res = MarketStructureEngine.analyze_market_structure(
+            df, current_price=float(current["close"]), ema_period=50
         )
+        if struct_res.trend == "BULLISH":
+            trend_label = "TĂNG (Uptrend)"
+        elif struct_res.trend == "BEARISH":
+            trend_label = "GIẢM (Downtrend)"
+        else:
+            trend_label = "ĐI NGANG (Sideways)"
 
         # 5. Phân tích Cấu trúc S/R chuẩn Wyckoff Volume-Validated
         try:
@@ -323,4 +348,15 @@ class DataPreprocessor:
             "cvd_pressure": cvd_data["cvd_pressure"],
             "ema50_z_score": ema50_z,
             "microstructure_summary": micro_summary,
+            # --- System Market Structure & Geometry Features ---
+            "market_structure": struct_res.to_dict(),
+            "structure": struct_res.structure_label,
+            "structure_label": struct_res.structure_label,
+            "math_trend": struct_res.trend.capitalize(),
+            "bos_detected": struct_res.bos_detected,
+            "bos_direction": struct_res.bos_direction,
+            "bos_level": struct_res.bos_level,
+            "swing_highs": struct_res.swing_highs,
+            "swing_lows": struct_res.swing_lows,
+            "structure_confidence": struct_res.confidence,
         }
