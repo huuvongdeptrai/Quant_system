@@ -162,6 +162,7 @@ class BotOrchestrator(QtCore.QObject):
 
         self.ai_engine = None
         self._wake_event = threading.Event()
+        self._last_spread_warning_ts = {}
         if self.strategy_name == "AI":
             from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
 
@@ -400,12 +401,21 @@ class BotOrchestrator(QtCore.QObject):
 
             spread_ok, curr_spread, max_s = self.event_risk.check_spread_normalization(sym)
             if not spread_ok:
-                self.log(
-                    "WARNING",
-                    f"SPREAD EXPANDED [{sym}]: Current spread {curr_spread} > Max safe {max_s}. Waiting for liquidity...",
-                    "#F59E0B",
-                )
+                now_mono = time.monotonic()
+                last_warn = getattr(self, "_last_spread_warning_ts", {}).get(sym, 0.0)
+                if now_mono - last_warn >= 60.0:
+                    if not hasattr(self, "_last_spread_warning_ts"):
+                        self._last_spread_warning_ts = {}
+                    self._last_spread_warning_ts[sym] = now_mono
+                    self.log(
+                        "WARNING",
+                        f"SPREAD EXPANDED [{sym}]: Current spread {curr_spread} > Max safe {max_s}. Waiting for liquidity...",
+                        "#F59E0B",
+                    )
                 return
+            else:
+                if hasattr(self, "_last_spread_warning_ts") and sym in self._last_spread_warning_ts:
+                    self._last_spread_warning_ts.pop(sym, None)
 
         # 3. Capacity & Position Gating
         clean_target = sym.split(".")[0].replace("/", "").upper()
@@ -568,7 +578,11 @@ class BotOrchestrator(QtCore.QObject):
     def stop(self) -> None:
         """Gracefully halts worker thread loop and sends notification."""
         self.is_running = False
+        self.wake_up()
         self.log("INFO", "Safe bot shutdown routine initiated...", "#8B949E")
-        telegram_notifier.send_message(
-            "🔴 <b>[VECTRA V2.2]</b> Bot stopped."
-        )
+        try:
+            telegram_notifier.send_message(
+                "🔴 <b>[VECTRA V2.2]</b> Bot stopped."
+            )
+        except Exception as e:
+            logger.debug(f"[BotOrchestrator] Stop notification: {e}")

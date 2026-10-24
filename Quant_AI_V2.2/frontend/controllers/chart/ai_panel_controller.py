@@ -56,6 +56,7 @@ class AIAnalyzerThread(QtCore.QThread):
     ):
 
         super().__init__(parent)
+        self.setObjectName(f"AIAnalyzerThread_{sym}")
 
         self.sym = sym
 

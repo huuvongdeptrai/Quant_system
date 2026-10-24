@@ -31,6 +31,10 @@ class InitWorker(QThread):
     progress = Signal(int, str)
     init_done = Signal()
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("InitWorkerThread")
+
     def run(self):
         try:
             # Bước 1: Khởi tạo cấu hình cốt lõi

@@ -65,6 +65,10 @@ class SessionFilter:
         if self.close_friday and now.weekday() == 4 and now.hour >= 21:
             return False, "FRIDAY_EOD"
 
+        # Weekend closure for non-crypto assets (Forex/Metals/Indices closed Saturday & Sunday until Sydney open 22:00 UTC)
+        if now.weekday() == 5 or (now.weekday() == 6 and now.hour < 22):
+            return False, "WEEKEND_CLOSED"
+
         if not self.allowed_sessions:
             return True, "ALL"
 

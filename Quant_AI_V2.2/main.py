@@ -1043,6 +1043,7 @@ class QuantTerminal(QObject):
                 self.bot_worker.trade_mode = self.window.comboBias.currentData()
 
             self.bot_thread = QThread()
+            self.bot_thread.setObjectName("BotOrchestratorThread")
 
             self.bot_worker.moveToThread(self.bot_thread)
 
@@ -1164,14 +1165,20 @@ class QuantTerminal(QObject):
             self.stats.refresh()
 
     def closeEvent(self, event):
-        if self._tick_timer.isActive():
+        if hasattr(self, "_tick_timer") and self._tick_timer.isActive():
             self._tick_timer.stop()
         if self.bot_thread and self.bot_thread.isRunning():
             if self.bot_worker:
                 self.bot_worker.stop()
             if self.bot_thread:
                 self.bot_thread.quit()
-                self.bot_thread.wait(1000)
+                if not self.bot_thread.wait(3000):
+                    logger.warning("[QuantTerminal] Bot thread did not terminate within 3s, terminating...")
+                    self.bot_thread.terminate()
+                    self.bot_thread.wait(1000)
+            self.bot_thread = None
+            self.bot_worker = None
+
         # Cho phep cac luong AI hoan tat truoc khi giai phong de tranh warning
         if hasattr(self.window, "_active_ai_threads") and self.window._active_ai_threads:
             for t in list(self.window._active_ai_threads):
@@ -1179,7 +1186,10 @@ class QuantTerminal(QObject):
                     if hasattr(t, "stop"):
                         t.stop()
                     t.quit()
-                    t.wait(500)
+                    if not t.wait(2000):
+                        t.terminate()
+                        t.wait(500)
+            self.window._active_ai_threads.clear()
         elif (
             hasattr(self.window, "ai_thread")
             and self.window.ai_thread
@@ -1188,7 +1198,17 @@ class QuantTerminal(QObject):
             if hasattr(self.window.ai_thread, "stop"):
                 self.window.ai_thread.stop()
             self.window.ai_thread.quit()
-            self.window.ai_thread.wait(500)
+            if not self.window.ai_thread.wait(2000):
+                self.window.ai_thread.terminate()
+                self.window.ai_thread.wait(500)
+
+        # Cho phep init_worker hoan tat neu dong ung dung ngay khi mo
+        if hasattr(self, "init_worker") and self.init_worker and self.init_worker.isRunning():
+            self.init_worker.quit()
+            if not self.init_worker.wait(2000):
+                self.init_worker.terminate()
+                self.init_worker.wait(500)
+
         if event:
             event.accept()
 
@@ -1214,6 +1234,8 @@ if __name__ == "__main__":
     terminal = QuantTerminal(with_overlay=True)
 
     worker = InitWorker()
+    worker.setObjectName("InitWorkerThread")
+    terminal.init_worker = worker
     if terminal.overlay:
         worker.progress.connect(terminal.overlay.update_progress)
         worker.init_done.connect(lambda: terminal.overlay.fade_out_and_destroy(350))
