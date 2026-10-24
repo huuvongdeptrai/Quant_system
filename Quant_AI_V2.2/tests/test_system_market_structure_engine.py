@@ -196,3 +196,22 @@ class TestDecisionGateAdaptiveLookback:
         bias = gate._get_htf_bias("XAUUSD", d1_rates=d1_rates, h4_rates=h4_rates)
         assert bias in ("BULLISH", "BEARISH", "NEUTRAL")
         assert bias == "BULLISH"
+
+
+class TestICTAdaptiveLookback:
+    """Test ICTZonesProStrategy with adaptive lookback on small bar counts (D1, W1)."""
+
+    def test_ict_adaptive_lookback_on_small_buffer(self):
+        from backend.core.strategies.ict_strategy import ICTZonesProStrategy
+        strat = ICTZonesProStrategy()
+        for count in [20, 35, 60]:
+            dates = pd.date_range("2026-10-20 00:00", periods=count, freq="1D")
+            prices = 2700 + np.cumsum(np.linspace(1, 2, count))
+            df = pd.DataFrame({
+                "time": dates,
+                "open": prices, "high": prices + 2, "low": prices - 1, "close": prices + 1,
+                "tick_volume": 300,
+            })
+            res = strat.analyze(df)
+            assert res.checklist[0].value != "Awaiting Clear Trend"
+            assert res.checklist[0].value in ("Bullish Bias Confirmed", "Bearish Bias Confirmed", "Bullish Structure Confirmed")

@@ -112,8 +112,17 @@ class ICTZonesProStrategy(BaseStrategy):
 
     def _calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+        n = len(df)
 
-        # Chỉ báo ATR 14
+        # Adaptive rolling periods (thích ứng linh hoạt khi dữ liệu ít như khung D1, W1)
+        rolling_period = min(50, max(10, n // 2))
+        fast_period = min(20, max(5, rolling_period // 2))
+        mom_period = min(self.momentum_period, max(5, n // 3))
+        vol_period = min(100, max(10, n - 1))
+        atr_window = min(14, max(3, n // 4))
+        sweep_window = min(self.sweep_len, max(3, n // 5))
+
+        # Chỉ báo ATR
         df["prev_close"] = df["close"].shift(1)
         df["tr"] = np.maximum(
             df["high"] - df["low"],
@@ -122,12 +131,12 @@ class ICTZonesProStrategy(BaseStrategy):
                 (df["low"] - df["prev_close"]).abs(),
             ),
         )
-        df["atr"] = df["tr"].rolling(window=14).mean()
+        df["atr"] = df["tr"].rolling(window=atr_window, min_periods=1).mean()
 
         # Momentum Z-Score
         df["price_change"] = df["close"].diff()
-        df["avg_change"] = df["price_change"].rolling(self.momentum_period).mean()
-        df["std_change"] = df["price_change"].rolling(self.momentum_period).std()
+        df["avg_change"] = df["price_change"].rolling(mom_period, min_periods=1).mean()
+        df["std_change"] = df["price_change"].rolling(mom_period, min_periods=1).std()
         df["momentum_z"] = np.where(
             df["std_change"] != 0,
             (df["price_change"] - df["avg_change"]) / df["std_change"],
@@ -140,26 +149,28 @@ class ICTZonesProStrategy(BaseStrategy):
             def fast_pct_rank(x):
                 return (np.count_nonzero(x <= x[-1]) / len(x)) * 100.0 if len(x) > 0 else 50.0
 
-            df["vol_pct_rank"] = df[vol_col].rolling(100).apply(fast_pct_rank, raw=True)
+            df["vol_pct_rank"] = df[vol_col].rolling(vol_period, min_periods=1).apply(fast_pct_rank, raw=True)
         else:
             df["vol_pct_rank"] = 50.0
 
-        # Xu hướng SMA
-        df["sma20"] = df["close"].rolling(20).mean()
-        df["sma50"] = df["close"].rolling(50).mean()
+        # Xu hướng SMA thích ứng động
+        df["sma20"] = df["close"].rolling(fast_period, min_periods=1).mean()
+        df["sma50"] = df["close"].rolling(rolling_period, min_periods=1).mean()
         df["bias"] = np.where(
             df["sma20"] > df["sma50"], 1, np.where(df["sma20"] < df["sma50"], -1, 0)
         )
 
         # Quét đỉnh đáy
-        df["prev_sw_high"] = df["high"].rolling(self.sweep_len).max().shift(1)
-        df["prev_sw_low"] = df["low"].rolling(self.sweep_len).min().shift(1)
+        df["prev_sw_high"] = df["high"].rolling(sweep_window, min_periods=1).max().shift(1)
+        df["prev_sw_low"] = df["low"].rolling(sweep_window, min_periods=1).min().shift(1)
 
         return df
 
     def analyze(self, df: pd.DataFrame, macro_context: Dict[str, Any] = None) -> StrategySignal:
         macro_context = macro_context or {}
-        if len(df) < max(self.momentum_period, 100) + 10:
+        # Ngưỡng an toàn tối thiểu (Adaptive Lookback Buffer: chấp nhận từ 15 nến trở lên)
+        min_required_bars = 15
+        if len(df) < min_required_bars:
             return StrategySignal(
                 strategy_id=self.strategy_id,
                 strategy_name=self.name,
