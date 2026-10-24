@@ -138,6 +138,14 @@ class ModifyOrderDialog(QDialog):
         form_layout.addWidget(self.spin_tp, 1, 1)
 
         main_layout.addWidget(form_frame)
+
+        self.lbl_error = QLabel("")
+        self.lbl_error.setFont(QFont("Segoe UI", 8, QFont.Bold))
+        self.lbl_error.setStyleSheet("color: #ef4444; padding: 2px 0px; background: transparent;")
+        self.lbl_error.setWordWrap(True)
+        self.lbl_error.setVisible(False)
+        main_layout.addWidget(self.lbl_error)
+
         main_layout.addStretch()
 
         # Bottom Button Bar
@@ -156,6 +164,10 @@ class ModifyOrderDialog(QDialog):
         self.btn_modify.setFixedSize(86, 26)
         self.btn_modify.setCursor(Qt.PointingHandCursor)
         self.btn_modify.clicked.connect(self.accept)
+
+        self.spin_sl.valueChanged.connect(self._validate_stops)
+        self.spin_tp.valueChanged.connect(self._validate_stops)
+        self._validate_stops()
 
         btn_layout.addWidget(self.btn_cancel)
         btn_layout.addWidget(self.btn_modify)
@@ -206,6 +218,11 @@ class ModifyOrderDialog(QDialog):
                 QPushButton#btnModify:hover {
                     background-color: #059669;
                 }
+                QPushButton#btnModify:disabled {
+                    background-color: #1e2433;
+                    color: #475569;
+                    border-color: #1e2433;
+                }
                 """
             )
         else:
@@ -254,6 +271,37 @@ class ModifyOrderDialog(QDialog):
             self.lbl_open_val.setStyleSheet("color: #b91c1c;" if not self.is_dark else "color: #ef4444;")
 
         self.btn_modify.setObjectName("btnModify")
+
+    def _validate_stops(self):
+        """
+        Xac thuc logic Stop Loss & Take Profit phia Client truoc khi gui lenh:
+        - BUY: SL < current_price; TP > current_price (neu khac 0).
+        - SELL: SL > current_price; TP < current_price (neu khac 0).
+        - Loai bo ma loi san 10016 (TRADE_RETCODE_INVALID_STOPS).
+        """
+        sl = self.spin_sl.value()
+        tp = self.spin_tp.value()
+        err = None
+
+        if self.order_type == "BUY":
+            if sl > 0 and sl >= self.current_price:
+                err = f"BUY Stop Loss ({sl:.{self.digits}f}) must be below current price ({self.current_price:.{self.digits}f})"
+            elif tp > 0 and tp <= self.current_price:
+                err = f"BUY Take Profit ({tp:.{self.digits}f}) must be above current price ({self.current_price:.{self.digits}f})"
+        elif self.order_type == "SELL":
+            if sl > 0 and sl <= self.current_price:
+                err = f"SELL Stop Loss ({sl:.{self.digits}f}) must be above current price ({self.current_price:.{self.digits}f})"
+            elif tp > 0 and tp >= self.current_price:
+                err = f"SELL Take Profit ({tp:.{self.digits}f}) must be below current price ({self.current_price:.{self.digits}f})"
+
+        if err:
+            self.lbl_error.setText(err)
+            self.lbl_error.setVisible(True)
+            self.btn_modify.setEnabled(False)
+        else:
+            self.lbl_error.setText("")
+            self.lbl_error.setVisible(False)
+            self.btn_modify.setEnabled(True)
 
     def get_values(self) -> tuple[float, float]:
         """Returns tuple of (StopLoss, TakeProfit)."""

@@ -330,7 +330,11 @@ def generate_signals(df):
         from frontend.controllers.backtest_controller import BacktestWorkbenchController
 
         app = QApplication.instance() or QApplication([])
-        ui_file = QFile("frontend/quant_ai.ui")
+        import os
+        ui_path = "frontend/quant_ai.ui"
+        if not os.path.exists(ui_path):
+            ui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "quant_ai.ui")
+        ui_file = QFile(ui_path)
         ui_file.open(QFile.ReadOnly)
         loader = QUiLoader()
         win = loader.load(ui_file)
@@ -369,7 +373,11 @@ def generate_signals(df):
         from frontend.controllers.backtest_controller import BacktestWorkbenchController
 
         app = QApplication.instance() or QApplication([])
-        ui_file = QFile("frontend/quant_ai.ui")
+        import os
+        ui_path = "frontend/quant_ai.ui"
+        if not os.path.exists(ui_path):
+            ui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "quant_ai.ui")
+        ui_file = QFile(ui_path)
         ui_file.open(QFile.ReadOnly)
         loader = QUiLoader()
         win = loader.load(ui_file)

@@ -138,3 +138,51 @@ def test_trading_plan_lot_realtime_text_sync(qapp):
 
     # Real-time textEdited must have parsed 0.60 and updated button
     assert "0.60 LOTS" in win.btnManualExecute.text()
+
+
+def test_blotter_in_place_row_updates_prevents_widget_churn(qapp):
+    """Verifies that consecutive quote updates on active positions update cells in-place without destroying widgets."""
+    win, view = _create_mock_blotter_window()
+    tbl = win.tableExecutions
+
+    p1 = MagicMock(
+        time=1700000000,
+        ticket=99901,
+        symbol="XAUUSD",
+        type=0,  # BUY
+        volume=1.0,
+        price_open=2000.0,
+        price_current=2005.0,
+        profit=500.0,
+        comment="TestStrategy",
+        sl=1990.0,
+        tp=2020.0
+    )
+    mock_info = MagicMock(digits=2)
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info", return_value=MagicMock(connected=True)), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[p1]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.orders_get", return_value=[]), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_info):
+
+        # Initial full render
+        view.render("active")
+        assert tbl.rowCount() == 1
+        assert tbl.item(0, 7).text() == "2005.00"
+        assert tbl.item(0, 8).text() == "+$500.00"
+
+        # Capture initial action widget reference in column 9
+        initial_action_widget = tbl.cellWidget(0, 9)
+        assert initial_action_widget is not None
+
+        # Next quote tick: price rises to 2008.0, profit rises to 800.0
+        p1.price_current = 2008.0
+        p1.profit = 800.0
+
+        view.render("active")
+
+        # In-place update must NOT destroy or replace cellWidget
+        second_action_widget = tbl.cellWidget(0, 9)
+        assert second_action_widget is initial_action_widget, "Action cell widget must be preserved in-place"
+        assert tbl.item(0, 7).text() == "2008.00"
+        assert tbl.item(0, 8).text() == "+$800.00"

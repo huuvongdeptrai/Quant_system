@@ -29,6 +29,9 @@ class PositionsTableView:
         self.btn_blotter_filters = None
         self.btn_blotter_export = None
         self.btn_blotter_flatten = None
+        self._last_mode = None
+        self._last_active_tickets = None
+        self._last_theme = None
 
     def setup_ui(self):
         """Setup institutional MT5-style Trade Blotter layout, dock header tabs, and toggle button."""
@@ -325,7 +328,6 @@ class PositionsTableView:
 
         self.controller._apply_flatten_btn_style()
 
-        tbl.clear()
         mono_font = QFont("Consolas", 9)
         clr_sym = QColor("#ffffff" if is_dark else "#0f172a")
         clr_strat = QColor("#cbd5e1" if is_dark else "#334155")
@@ -336,29 +338,6 @@ class PositionsTableView:
         clr_def = QColor("#cbd5e1" if is_dark else "#334155")
 
         if mode == "active":
-            headers = ["TIME", "TICKET", "SYMBOL", "STRATEGY", "SIDE", "VOLUME", "ENTRY", "CURRENT", "PROFIT", "ACTION"]
-            tbl.setColumnCount(len(headers))
-            for col_idx, h_text in enumerate(headers):
-                item = QTableWidgetItem(h_text)
-                if col_idx in (5, 6, 7, 8):
-                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignCenter)
-                tbl.setHorizontalHeaderItem(col_idx, item)
-
-            tbl.setColumnWidth(0, 95)
-            tbl.setColumnWidth(1, 90)
-            tbl.setColumnWidth(2, 85)
-            tbl.setColumnWidth(3, 210)
-            tbl.setColumnWidth(4, 70)
-            tbl.setColumnWidth(5, 90)
-            tbl.setColumnWidth(6, 110)
-            tbl.setColumnWidth(7, 110)
-            tbl.setColumnWidth(8, 120)
-            tbl.setColumnWidth(9, 130)
-            tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-            tbl.horizontalHeader().setStretchLastSection(True)
-
             pos_records = []
             total_exposure = 0.0
             total_unrealized = 0.0
@@ -396,6 +375,69 @@ class PositionsTableView:
                 for p in pos_records:
                     total_exposure += p.get("volume", 0.0)
                     total_unrealized += p.get("pnl_val", 0.0)
+
+            current_tickets = [p["ticket"] for p in pos_records]
+            can_in_place_update = (
+                getattr(self, "_last_mode", None) == "active"
+                and getattr(self, "_last_theme", None) == is_dark
+                and getattr(self, "_last_active_tickets", None) == current_tickets
+                and tbl.rowCount() == len(pos_records)
+                and tbl.columnCount() == 10
+            )
+
+            if can_in_place_update:
+                for row, p in enumerate(pos_records):
+                    item_curr = tbl.item(row, 7)
+                    if item_curr:
+                        item_curr.setText(p["current"])
+                    item_pnl = tbl.item(row, 8)
+                    if item_pnl:
+                        item_pnl.setText(p["pnl_str"])
+                        item_pnl.setForeground(clr_pnl_pos if p["pnl_val"] >= 0 else clr_pnl_neg)
+
+                if hasattr(self, "blotter_buttons") and "active" in self.blotter_buttons:
+                    self.blotter_buttons["active"].setText(f"POSITIONS ({len(pos_records)})")
+
+                if hasattr(self, "lbl_blotter_empty") and self.lbl_blotter_empty:
+                    self.lbl_blotter_empty.setVisible(len(pos_records) == 0)
+
+                exp_col = "#f8fafc" if is_dark else "#0f172a"
+                pnl_col = "#10b981" if is_dark else "#15803d" if total_unrealized >= 0 else ("#ef4444" if is_dark else "#b91c1c")
+                pnl_fmt = f"+${total_unrealized:,.2f}" if total_unrealized >= 0 else f"-${abs(total_unrealized):,.2f}"
+                if self.lbl_dock_summary:
+                    self.lbl_dock_summary.setText(
+                        f'EXPOSURE: <b style="color:{exp_col};">{total_exposure:.2f} LOTS</b> &nbsp;·&nbsp; '
+                        f'UNREALIZED P&L: <b style="color:{pnl_col};">{pnl_fmt}</b>'
+                    )
+                return
+
+            self._last_mode = "active"
+            self._last_theme = is_dark
+            self._last_active_tickets = current_tickets
+            tbl.clear()
+
+            headers = ["TIME", "TICKET", "SYMBOL", "STRATEGY", "SIDE", "VOLUME", "ENTRY", "CURRENT", "PROFIT", "ACTION"]
+            tbl.setColumnCount(len(headers))
+            for col_idx, h_text in enumerate(headers):
+                item = QTableWidgetItem(h_text)
+                if col_idx in (5, 6, 7, 8):
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                else:
+                    item.setTextAlignment(Qt.AlignCenter)
+                tbl.setHorizontalHeaderItem(col_idx, item)
+
+            tbl.setColumnWidth(0, 95)
+            tbl.setColumnWidth(1, 90)
+            tbl.setColumnWidth(2, 85)
+            tbl.setColumnWidth(3, 210)
+            tbl.setColumnWidth(4, 70)
+            tbl.setColumnWidth(5, 90)
+            tbl.setColumnWidth(6, 110)
+            tbl.setColumnWidth(7, 110)
+            tbl.setColumnWidth(8, 120)
+            tbl.setColumnWidth(9, 130)
+            tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+            tbl.horizontalHeader().setStretchLastSection(True)
 
             tbl.setRowCount(len(pos_records))
             for row, p in enumerate(pos_records):
@@ -444,13 +486,13 @@ class PositionsTableView:
                 if is_dark:
                     btn_mod.setStyleSheet(
                         "QPushButton#btnRowModify { background-color: #141721; border: 1px solid #334155; color: #cbd5e1; "
-                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px !important; margin: 0px !important; min-height: 20px !important; } "
+                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px; margin: 0px; min-height: 20px; } "
                         "QPushButton#btnRowModify:hover { background-color: #1e293b; color: #ffffff; border-color: #475569; }"
                     )
                 else:
                     btn_mod.setStyleSheet(
                         "QPushButton#btnRowModify { background-color: #ffffff; border: 1px solid #cbd5e1; color: #334155; "
-                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px !important; margin: 0px !important; min-height: 20px !important; } "
+                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px; margin: 0px; min-height: 20px; } "
                         "QPushButton#btnRowModify:hover { background-color: #f1f5f9; color: #0f172a; border-color: #94a3b8; }"
                     )
                 btn_mod.clicked.connect(lambda chk=False, pinfo=p: self.controller._modify_single_position(pinfo))
@@ -462,13 +504,13 @@ class PositionsTableView:
                 if is_dark:
                     btn_cls.setStyleSheet(
                         "QPushButton#btnRowClose { background-color: #2a0d10; border: 1px solid #272d3b; color: #dc2626; "
-                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px !important; margin: 0px !important; min-height: 20px !important; } "
+                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px; margin: 0px; min-height: 20px; } "
                         "QPushButton#btnRowClose:hover { background-color: #450a0a; color: #ffffff; border-color: #475569; }"
                     )
                 else:
                     btn_cls.setStyleSheet(
                         "QPushButton#btnRowClose { background-color: #ffffff; border: 1px solid #cbd5e1; color: #dc2626; "
-                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px !important; margin: 0px !important; min-height: 20px !important; } "
+                        "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 0px 4px; margin: 0px; min-height: 20px; } "
                         "QPushButton#btnRowClose:hover { background-color: #fef2f2; color: #b91c1c; border-color: #94a3b8; }"
                     )
                 btn_cls.clicked.connect(lambda chk=False, t=p["ticket"]: self.controller._close_single_position(t))
@@ -497,6 +539,10 @@ class PositionsTableView:
                 )
 
         elif mode == "history":
+            self._last_mode = "history"
+            self._last_theme = is_dark
+            self._last_active_tickets = None
+            tbl.clear()
             headers = ["TIME", "TICKET", "SYMBOL", "STRATEGY", "SIDE", "VOLUME", "CLOSE PRICE", "COMMISSION", "PROFIT", "STATUS"]
             tbl.setColumnCount(len(headers))
             for col_idx, h_text in enumerate(headers):
@@ -595,6 +641,10 @@ class PositionsTableView:
                 )
 
         elif mode == "pending":
+            self._last_mode = "pending"
+            self._last_theme = is_dark
+            self._last_active_tickets = None
+            tbl.clear()
             headers = ["TIME", "TICKET", "SYMBOL", "STRATEGY", "ORDER TYPE", "VOLUME", "PRICE", "SL", "TP", "STATUS"]
             tbl.setColumnCount(len(headers))
             for col_idx, h_text in enumerate(headers):

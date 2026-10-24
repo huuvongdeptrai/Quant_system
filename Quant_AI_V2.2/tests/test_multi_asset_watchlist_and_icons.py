@@ -154,6 +154,8 @@ class TestMultiAssetWatchlistAndIcons:
 
         # Verify assets exist
         assets_dir = "frontend/assets"
+        if not os.path.exists(assets_dir):
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "assets")
         for icon_name in ["icon_import.svg", "icon_folder.svg", "tool_gear.svg", "check_vector_emerald.svg"]:
             p = os.path.join(assets_dir, icon_name)
             assert os.path.exists(p), f"Asset {icon_name} must exist"

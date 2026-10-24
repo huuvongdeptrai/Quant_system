@@ -36,6 +36,54 @@ class ExecutionManager:
         else:
             return mt5.ORDER_FILLING_RETURN
 
+    def normalize_volume(self, symbol: str, volume: float) -> float:
+        """
+        Chuan hoa khoi luong theo thong so san (volume_min, volume_max, volume_step).
+        Dap ung tieu chuan QuantConnect LEAN / MetaTrader 5 API specification:
+        - Quantize ve boi so cua volume_step.
+        - Gioi han trong khoang [volume_min, volume_max].
+        - Loai bo loi so hoc dau phay dong (float precision error).
+        """
+        info = mt5.symbol_info(symbol)
+        try:
+            vol = float(volume)
+        except (TypeError, ValueError):
+            return 0.01
+
+        def _safe_float(val, default):
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                return float(val)
+            try:
+                if isinstance(val, str):
+                    return float(val)
+            except (ValueError, TypeError):
+                pass
+            return default
+
+        vol_min = _safe_float(getattr(info, "volume_min", None), 0.01) if info else 0.01
+        vol_max = _safe_float(getattr(info, "volume_max", None), 100.0) if info else 100.0
+        vol_step = _safe_float(getattr(info, "volume_step", None), 0.01) if info else 0.01
+
+        if vol_step <= 0:
+            vol_step = 0.01
+        if vol_min <= 0:
+            vol_min = vol_step
+        if vol_max < vol_min:
+            vol_max = 100.0
+
+        step_str = f"{vol_step:.8f}".rstrip("0")
+        digits = len(step_str.split(".")[1]) if "." in step_str else 0
+
+        steps_count = round(vol / vol_step)
+        normalized = round(steps_count * vol_step, digits)
+
+        if normalized < vol_min:
+            normalized = vol_min
+        elif normalized > vol_max:
+            normalized = vol_max
+
+        return round(float(normalized), digits)
+
     def execute_market_order(
         self,
         symbol: str,
@@ -91,6 +139,7 @@ class ExecutionManager:
             order_type = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
             price = tick.ask if is_buy else tick.bid
             price = round(float(price), digits)
+            norm_volume = self.normalize_volume(symbol, volume)
 
             # Làm tròn SL/TP theo digits của sàn
             sl_val = round(float(sl_price), digits) if sl_price > 0 else 0.0
@@ -118,7 +167,7 @@ class ExecutionManager:
             request = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": symbol,
-                "volume": float(volume),
+                "volume": norm_volume,
                 "type": order_type,
                 "price": price,
                 "sl": sl_val,
@@ -164,7 +213,7 @@ class ExecutionManager:
 
                 return {
                     "status": "success",
-                    "msg": f"Da khop lenh {'BUY' if is_buy else 'SELL'} {volume} {symbol} tai gia {price} (Do tre: {total_latency_ms:.1f} ms)",
+                    "msg": f"Da khop lenh {'BUY' if is_buy else 'SELL'} {norm_volume} {symbol} tai gia {price} (Do tre: {total_latency_ms:.1f} ms)",
                     "ticket": result.order,
                     "latency_ms": round(total_latency_ms, 2),
                     "retries": attempt - 1,
@@ -265,6 +314,7 @@ class ExecutionManager:
             point = info.point if info and info.point > 0 else 0.01
 
             target_price = round(float(price), digits)
+            norm_volume = self.normalize_volume(symbol, volume)
             sl_val = round(float(sl_price), digits) if sl_price > 0 else 0.0
             tp_val = round(float(tp_price), digits) if tp_price > 0 else 0.0
 
@@ -283,7 +333,7 @@ class ExecutionManager:
             request = {
                 "action": mt5.TRADE_ACTION_PENDING,
                 "symbol": symbol,
-                "volume": float(volume),
+                "volume": norm_volume,
                 "type": mt5_order_type,
                 "price": target_price,
                 "sl": sl_val,
@@ -319,11 +369,11 @@ class ExecutionManager:
 
             if result.retcode in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED):
                 logger.info(
-                    f"[ExecutionManager] Dat lenh cho {clean_type_str} {volume} {symbol} @ {target_price} thanh cong #{result.order} sau {total_latency_ms:.2f} ms."
+                    f"[ExecutionManager] Dat lenh cho {clean_type_str} {norm_volume} {symbol} @ {target_price} thanh cong #{result.order} sau {total_latency_ms:.2f} ms."
                 )
                 return {
                     "status": "success",
-                    "msg": f"Da dat lenh cho {clean_type_str} {volume} {symbol} tai gia {target_price} (Ticket #{result.order})",
+                    "msg": f"Da dat lenh cho {clean_type_str} {norm_volume} {symbol} tai gia {target_price} (Ticket #{result.order})",
                     "ticket": result.order,
                     "price": target_price,
                     "latency_ms": round(total_latency_ms, 2),
@@ -389,8 +439,23 @@ class ExecutionManager:
         close_price = tick.bid if is_buy else tick.ask
         close_price = round(float(close_price), digits)
 
-        close_volume = float(volume) if volume and 0 < volume <= pos.volume else pos.volume
-        is_partial = (close_volume < pos.volume)
+        if volume is not None and 0 < float(volume) < pos.volume:
+            norm_close = self.normalize_volume(sym, volume)
+            min_step = 0.01
+            if info:
+                val_min = getattr(info, "volume_min", None)
+                if isinstance(val_min, (int, float)) and not isinstance(val_min, bool) and val_min > 0:
+                    min_step = float(val_min)
+            remaining = self.normalize_volume(sym, pos.volume - norm_close)
+            if norm_close >= pos.volume or remaining < min_step:
+                close_volume = pos.volume
+                is_partial = False
+            else:
+                close_volume = norm_close
+                is_partial = True
+        else:
+            close_volume = pos.volume
+            is_partial = False
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -412,7 +477,7 @@ class ExecutionManager:
             action_desc = f"Da dong {close_volume} lot vi the #{ticket}" if is_partial else f"Da dong thanh cong vi the #{ticket}"
             # SC-08: Synchronize remaining volume with DatabaseManager on partial close
             if is_partial:
-                remaining_vol = round(float(pos.volume - close_volume), 2)
+                remaining_vol = self.normalize_volume(sym, pos.volume - close_volume)
                 try:
                     from backend.database.db_manager import DatabaseManager
                     DatabaseManager().update_trade_volume(ticket, remaining_vol)

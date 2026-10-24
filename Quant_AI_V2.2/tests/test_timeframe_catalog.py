@@ -36,7 +36,11 @@ def test_timeframe_constants_availability():
 
 def test_quant_ai_ui_combo_bt_timeframes():
     """Verify quant_ai.ui has the full chronological list of timeframes in comboBtTf."""
-    with open("frontend/quant_ai.ui", "r", encoding="utf-8") as f:
+    import os
+    ui_path = "frontend/quant_ai.ui"
+    if not os.path.exists(ui_path):
+        ui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "quant_ai.ui")
+    with open(ui_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     expected_tfs = [
