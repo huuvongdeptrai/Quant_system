@@ -1,9 +1,9 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 import pandas as pd
 import numpy as np
 import pytz
 from datetime import datetime
-from backend.core.market_structure import MarketStructureEngine, MarketStructureResult
+from backend.core.market_structure import MarketStructureEngine, MarketStructureResult, SwingPoint
 
 
 class DataPreprocessor:
@@ -39,6 +39,17 @@ class DataPreprocessor:
             ema_period=ema_period,
             order=order,
         )
+
+    def detect_fractal_swings(
+        self,
+        rates_data: Any,
+        order: int = 2,
+    ) -> Tuple[List[SwingPoint], List[SwingPoint]]:
+        """
+        Trích xuất các điểm đảo chiều Fractal Swings (mặc định 5 nến: order=2).
+        Trả về cặp danh sách: (swing_highs, swing_lows).
+        """
+        return MarketStructureEngine.detect_swings(rates_data, order=order)
 
 
     def _calculate_garman_klass_vol(self, df: pd.DataFrame, window: int = 14) -> float:

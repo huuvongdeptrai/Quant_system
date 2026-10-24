@@ -163,6 +163,21 @@ class TestDataPreprocessorIntegration:
         assert res is not None
         assert res["trend"] in ("TĂNG (Uptrend)", "GIẢM (Downtrend)", "ĐI NGANG (Sideways)")
 
+    def test_preprocessor_detect_fractal_swings_and_structure(self):
+        """Ensure public methods detect_fractal_swings and detect_market_structure work."""
+        prep = DataPreprocessor()
+        rates = [
+            {"time": 1700000000 + i * 900, "open": 2700.0 + i, "high": 2702.0 + i, "low": 2699.0 + i, "close": 2701.0 + i, "tick_volume": 150}
+            for i in range(40)
+        ]
+        shs, sls = prep.detect_fractal_swings(rates, order=2)
+        assert isinstance(shs, list)
+        assert isinstance(sls, list)
+
+        struct = prep.detect_market_structure(rates)
+        assert isinstance(struct, MarketStructureResult)
+        assert struct.trend in ("BULLISH", "BEARISH", "SIDEWAYS")
+
 
 class TestDecisionGateAdaptiveLookback:
     """Test DecisionGate _get_htf_bias with adaptive lookback."""
