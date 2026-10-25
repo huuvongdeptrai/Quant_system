@@ -134,6 +134,8 @@ class QuantTerminal(QObject):
         self.blotter = BlotterController(self)
         self.nav = NavigationController(self)
         self.header = HeaderController(self)
+        from frontend.controllers.system_tray_manager import SystemTrayManager
+        self.tray_manager = SystemTrayManager(self)
 
 
         self._setup_navigation_rail()
@@ -616,6 +618,9 @@ class QuantTerminal(QObject):
                 self.dot_mt5.setToolTip("FEED: DISCONNECTED")
             if hasattr(self, "header") and hasattr(self.header, "_refresh_top_ticker"):
                 self.header._refresh_top_ticker()
+            if hasattr(self, "tray_manager") and self.tray_manager:
+                open_cnt = len(self.blotter.get_open_positions()) if hasattr(self, "blotter") else 0
+                self.tray_manager.update_bot_status(is_active=True, open_positions=open_cnt)
             elif hasattr(self, "lbl_top_ticker"):
                 self.lbl_top_ticker.setText(
                     self._format_top_ticker(bal=None, eq=None, pnl=None, pnl_pct=0.0, latency=0.0, is_algo_active=is_running, acct="OFFLINE")
@@ -1175,6 +1180,191 @@ from backend.core.engine_config import BotRunConfig, get_timeframe_name
             self.btnStart.style().polish(self.btnStart)
         if hasattr(self, "header") and hasattr(self.header, "_refresh_top_ticker"):
             self.header._refresh_top_ticker()
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            open_cnt = len(self.blotter.get_open_positions()) if hasattr(self, "blotter") else 0
+            self.tray_manager.update_bot_status(is_active=False, open_positions=open_cnt)
+
+    def minimize_to_tray(self):
+        """Minimizes dashboard to system tray for headless background execution."""
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            self.tray_manager.minimize_to_tray()
+        else:
+            self.window.hide()
+
+    def _build_active_bot_config(self):
+        """Gathers active GUI parameters into an immutable BotRunConfig schema."""
+        from backend.core.engine_config import BotRunConfig, resolve_mt5_timeframe
+        
+        cfg_d = {}
+        try:
+            with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
+                cfg_d = json.load(f_cfg)
+        except Exception:
+            cfg_d = {}
+
+        # Timeframe
+        tf_setting = cfg_d.get("timeframe", 15)
+        if tf_setting == "FOLLOW_CHART":
+            tf = getattr(self.window, "current_tf", mt5.TIMEFRAME_M15)
+        else:
+            tf = resolve_mt5_timeframe(tf_setting)
+
+        # Strategy
+        strategy = None
+        if hasattr(self.window, "comboStrategy") and self.window.comboStrategy.currentData():
+            strategy = self.window.comboStrategy.currentData()
+        if not strategy:
+            strategy = cfg_d.get("strategy", "builtin_ict_pro")
+
+        # AI Model
+        try:
+            import shiboken6
+            ai_model = (
+                self.window.comboAIModel.currentText()
+                if hasattr(self.window, "comboAIModel")
+                and self.window.comboAIModel is not None
+                and shiboken6.isValid(self.window.comboAIModel)
+                and self.window.comboAIModel.count() > 0
+                else "qwen2.5"
+            )
+        except Exception:
+            ai_model = "qwen2.5"
+
+        gate_mode = (
+            self.window.comboGateMode.currentData()
+            if (hasattr(self.window, "comboGateMode") and self.window.comboGateMode.currentData())
+            else "FULL"
+        )
+        trade_mode = (
+            self.window.comboBias.currentData()
+            if hasattr(self.window, "comboBias") and self.window.comboBias.currentData()
+            else "AUTO"
+        )
+        exec_mode = (
+            self.window.comboExecutionMode.currentData()
+            if hasattr(self.window, "comboExecutionMode") and self.window.comboExecutionMode.currentData()
+            else "SEMI-AUTO"
+        )
+
+        news_filter = (
+            self.window.chkNewsFilter.isChecked()
+            if hasattr(self.window, "chkNewsFilter")
+            else True
+        )
+        news_pause_mins = (
+            self.window.spinNewsPause.value()
+            if hasattr(self.window, "spinNewsPause")
+            else 30
+        )
+        slippage = (
+            self.window.spinSlippage.value()
+            if hasattr(self.window, "spinSlippage")
+            else 20
+        )
+        r_risk = (
+            self.window.spinRiskPerTrade.value()
+            if hasattr(self.window, "spinRiskPerTrade")
+            else float(cfg_d.get("risk_per_trade", 1.0))
+        )
+        r_max_daily_loss = (
+            self.window.spinMaxDailyLoss.value()
+            if hasattr(self.window, "spinMaxDailyLoss")
+            else float(cfg_d.get("max_daily_loss", 500.0))
+        )
+        r_maxdd = (
+            self.window.spinMaxDrawdown.value()
+            if hasattr(self.window, "spinMaxDrawdown")
+            else float(cfg_d.get("max_drawdown", 5.0))
+        )
+        r_maxloss = (
+            self.window.spinMaxLosingStreak.value()
+            if hasattr(self.window, "spinMaxLosingStreak")
+            else int(cfg_d.get("max_losing_streak", 3))
+        )
+        r_max_open_trades = (
+            self.window.spinMaxOpenTrades.value()
+            if hasattr(self.window, "spinMaxOpenTrades")
+            else int(cfg_d.get("max_open_trades", 3))
+        )
+        close_friday = (
+            self.window.chkCloseFriday.isChecked()
+            if hasattr(self.window, "chkCloseFriday")
+            else bool(cfg_d.get("close_friday", True))
+        )
+        max_spread = (
+            self.window.spinMaxSpread.value()
+            if hasattr(self.window, "spinMaxSpread")
+            else int(cfg_d.get("max_spread", 25))
+        )
+        enable_ts = (
+            self.window.chkEnableTrailing.isChecked()
+            if hasattr(self.window, "chkEnableTrailing")
+            else bool(cfg_d.get("enable_trailing_stop", False))
+        )
+        r_trail = (
+            self.window.spinTrailingPips.value()
+            if hasattr(self.window, "spinTrailingPips")
+            else int(cfg_d.get("trailing_pips", 0))
+        )
+        r_be = (
+            self.window.spinBreakevenPips.value()
+            if hasattr(self.window, "spinBreakevenPips")
+            else int(cfg_d.get("breakeven_pips", 0))
+        )
+        news_defense_enabled = (
+            self.window.chkNewsDefense.isChecked()
+            if hasattr(self.window, "chkNewsDefense")
+            else bool(cfg_d.get("news_defense_enabled", True))
+        )
+        news_defense_mins = (
+            self.window.spinNewsDefenseMins.value()
+            if hasattr(self.window, "spinNewsDefenseMins")
+            else int(cfg_d.get("news_defense_mins", 15))
+        )
+        news_defense_be_r = (
+            self.window.spinNewsDefenseR.value()
+            if hasattr(self.window, "spinNewsDefenseR")
+            else float(cfg_d.get("news_defense_be_r", 1.5))
+        )
+
+        allowed_sessions = []
+        if hasattr(self.window, "chkSessionAsian") and self.window.chkSessionAsian.isChecked():
+            allowed_sessions.append("ASIAN")
+        if hasattr(self.window, "chkSessionLondon") and self.window.chkSessionLondon.isChecked():
+            allowed_sessions.append("LONDON")
+        if hasattr(self.window, "chkSessionNY") and self.window.chkSessionNY.isChecked():
+            allowed_sessions.append("NY")
+
+        active_symbols = self.watchlist.get_all_symbols() if self.watchlist else []
+        if not active_symbols:
+            active_symbols = ["XAUUSD"]
+
+        return BotRunConfig.from_dict({
+            "symbols": active_symbols,
+            "timeframe": tf,
+            "strategy_id": strategy,
+            "ai_model_name": ai_model,
+            "gate_mode": gate_mode,
+            "trade_mode": trade_mode,
+            "execution_mode": exec_mode,
+            "risk_per_trade": r_risk,
+            "max_daily_loss": r_max_daily_loss,
+            "max_drawdown": r_maxdd,
+            "max_losing_streak": r_maxloss,
+            "max_open_trades": r_max_open_trades,
+            "max_spread": max_spread,
+            "slippage": slippage,
+            "close_friday": close_friday,
+            "trailing_pips": r_trail,
+            "breakeven_pips": r_be,
+            "enable_trailing_stop": enable_ts,
+            "news_filter_enabled": news_filter,
+            "news_pause_mins": news_pause_mins,
+            "news_defense_enabled": news_defense_enabled,
+            "defense_window_mins": news_defense_mins,
+            "news_defense_be_r": news_defense_be_r,
+            "allowed_sessions": allowed_sessions,
+        })
 
     def _on_tab_changed(self, index):
 
@@ -1183,6 +1373,12 @@ from backend.core.engine_config import BotRunConfig, get_timeframe_name
             self.stats.refresh()
 
     def closeEvent(self, event):
+        # Prevent accidental trade disconnection if bot is actively running
+        if self.bot_thread and self.bot_thread.isRunning():
+            if hasattr(self, "tray_manager") and self.tray_manager and self.tray_manager.tray_icon:
+                event.ignore()
+                self.tray_manager.minimize_to_tray()
+                return
         if hasattr(self, "_tick_timer") and self._tick_timer.isActive():
             self._tick_timer.stop()
         if self.bot_thread and self.bot_thread.isRunning():

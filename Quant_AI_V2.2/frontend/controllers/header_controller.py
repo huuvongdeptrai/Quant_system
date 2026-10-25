@@ -1229,6 +1229,64 @@ class WorkspaceHeaderController:
         elif hasattr(self.window, "btnEmergencyKill"):
             self.window.btnEmergencyKill.click()
 
+    def _run_in_background(self):
+        """Ctrl+Shift+B: Minimizes dashboard to system tray and enters background headless execution."""
+        term = getattr(self, "terminal", None) or getattr(self.window, "quant_terminal", None)
+        if term and hasattr(term, "tray_manager") and term.tray_manager:
+            term.tray_manager.minimize_to_tray()
+        else:
+            self.window.hide()
+
+    def _export_vps_profile(self):
+        """Ctrl+Shift+E: Exports active configuration into a deployable JSON profile for headless VPS execution."""
+        import os
+        import json
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from backend.core.engine_config import BotRunConfig
+
+        term = getattr(self, "terminal", None) or getattr(self.window, "quant_terminal", None)
+        default_dir = os.path.join(os.getcwd(), "config")
+        os.makedirs(default_dir, exist_ok=True)
+        default_path = os.path.join(default_dir, "vps_profile.json")
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.window,
+            "Export VPS Headless Profile",
+            default_path,
+            "JSON Configuration (*.json)",
+        )
+        if not file_path:
+            return
+
+        cfg_dict = {}
+        if term and hasattr(term, "_build_active_bot_config"):
+            bot_cfg = term._build_active_bot_config()
+            cfg_dict = bot_cfg.to_dict()
+        else:
+            try:
+                with open("config/settings.json", "r", encoding="utf-8") as f:
+                    cfg_dict = json.load(f)
+            except Exception:
+                cfg_dict = BotRunConfig().to_dict()
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f_out:
+                json.dump(cfg_dict, f_out, indent=2)
+
+            QMessageBox.information(
+                self.window,
+                "VPS Profile Exported",
+                f"Configuration exported successfully to:\n{file_path}\n\n"
+                f"To run 24/7 on your VPS without GUI, execute:\n"
+                f"python run_headless.py --config {os.path.basename(file_path)}",
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self.window,
+                "Export Error",
+                f"Failed to export VPS profile: {e}",
+            )
+
     def _reset_default_layout(self):
         """Window -> Default Layout: Restores institutional 3-pane proportions."""
         if hasattr(self.window, "sidebar"):
@@ -1597,6 +1655,16 @@ class WorkspaceHeaderController:
 
         menu.addSeparator()
 
+        act_tray = menu.addAction("Run in Background (Tray Mode)")
+        act_tray.setShortcut(QKeySequence("Ctrl+Shift+B"))
+        act_tray.triggered.connect(self._run_in_background)
+
+        act_vps = menu.addAction("Export VPS Headless Profile...")
+        act_vps.setShortcut(QKeySequence("Ctrl+Shift+E"))
+        act_vps.triggered.connect(self._export_vps_profile)
+
+        menu.addSeparator()
+
         act_journal = menu.addAction("Journal")
         act_journal.setShortcut(QKeySequence("Ctrl+L"))
         act_journal.triggered.connect(self._trigger_journal)
@@ -1876,6 +1944,10 @@ class WorkspaceHeaderController:
         act_strat = _reg_action(m_tools, "Strategy Manager...", "Ctrl+Shift+S", self._open_strategy_manager_dialog)
         m_tools.addAction(act_bt)
         act_kill = _reg_action(m_tools, "Close All Positions", "Ctrl+Shift+K", self._trigger_kill_switch)
+
+        m_tools.addSeparator()
+        act_tray = _reg_action(m_tools, "Run in Background (Tray Mode)", "Ctrl+Shift+B", self._run_in_background)
+        act_vps = _reg_action(m_tools, "Export VPS Headless Profile...", "Ctrl+Shift+E", self._export_vps_profile)
 
         m_tools.addSeparator()
         m_tools.addAction(act_journal)
