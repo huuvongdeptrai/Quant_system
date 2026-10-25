@@ -208,3 +208,92 @@ def test_drawer_close_clears_unsubmitted_manual_draft_preview(qapp):
     assert win.line_order_sl.isVisible() is False
     assert win.line_order_tp.isVisible() is False
     win.close()
+
+
+def test_drawer_close_reopen_preserves_trend_and_checklist(qapp):
+    """
+    Verifies that when AI analysis identifies a trend (e.g. Bullish/Bearish Bias Confirmed)
+    in standby mode, closing the drawer and reopening it does NOT clobber the trend or checklist.
+    """
+    from backend.core.strategies import ChecklistItem, ChecklistStatus
+
+    win = _create_test_window()
+    win.show()
+    win._plan_mode = "ai"
+
+    chk = [
+        ChecklistItem("Trend Structure", "Bullish Bias Confirmed", ChecklistStatus.PASSED),
+        ChecklistItem("Liquidity Sweep", "Awaiting Asian Sweep", ChecklistStatus.PENDING),
+        ChecklistItem("Order Blocks & FVG", "Awaiting Mitigation", ChecklistStatus.PENDING),
+    ]
+
+    # Standby analysis completes with trend identified
+    update_order_proposal_html(
+        win,
+        sym="XAUUSD",
+        has_signal=False,
+        signal_type="HOLD",
+        model_name="ICT",
+        grade="STATUS: STANDBY",
+        chk1="Bullish Bias Confirmed",
+        checklist=chk,
+    )
+
+    assert win.lblChk1Val.text() == "Bullish Bias Confirmed"
+    assert win.lblModelGrade.text() == "STATUS: STANDBY"
+
+    # Close drawer
+    win._close_ai_drawer()
+
+    # Reopen drawer
+    win._open_ai_drawer()
+
+    # Must preserve trend structure and standby grade without clobbering to default
+    assert win.lblChk1Val.text() == "Bullish Bias Confirmed"
+    assert win.lblModelGrade.text() == "STATUS: STANDBY"
+    win.close()
+
+
+def test_tab_switch_to_manual_and_back_preserves_trend_and_checklist(qapp):
+    """
+    Verifies that switching to Manual tab and then back to AI tab does NOT lose
+    the calculated trend or checklist.
+    """
+    from backend.core.strategies import ChecklistItem, ChecklistStatus
+
+    win = _create_test_window()
+    win.show()
+    win._plan_mode = "ai"
+
+    chk = [
+        ChecklistItem("Trend Structure", "Bearish Bias Confirmed", ChecklistStatus.PASSED),
+        ChecklistItem("Liquidity Sweep", "Awaiting Asian Sweep", ChecklistStatus.PENDING),
+        ChecklistItem("Order Blocks & FVG", "Awaiting Mitigation", ChecklistStatus.PENDING),
+    ]
+
+    update_order_proposal_html(
+        win,
+        sym="XAUUSD",
+        has_signal=False,
+        signal_type="HOLD",
+        model_name="ICT",
+        grade="STATUS: STANDBY",
+        chk1="Bearish Bias Confirmed",
+        checklist=chk,
+    )
+
+    assert win.lblChk1Val.text() == "Bearish Bias Confirmed"
+
+    # Switch to manual mode
+    win._switch_plan_mode("manual")
+    assert win._plan_mode == "manual"
+
+    # Switch back to AI mode
+    win._switch_plan_mode("ai")
+    assert win._plan_mode == "ai"
+
+    # Must retain Bearish Bias Confirmed
+    assert win.lblChk1Val.text() == "Bearish Bias Confirmed"
+    assert win.lblModelGrade.text() == "STATUS: STANDBY"
+    win.close()
+

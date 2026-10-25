@@ -327,16 +327,31 @@ def setup_chart_ui(window):
                         live_ticket=sig.get("live_ticket", None),
                         live_volume=sig.get("live_volume", None),
                         live_profit=sig.get("live_profit", 0.0),
+                        is_pending_order=sig.get("is_pending_order", False),
+                        pending_ticket=sig.get("pending_ticket", None),
                         model_name=sig.get("model_name", None),
                         grade=sig.get("grade", None),
+                        chk1=sig.get("chk1", None),
+                        chk2=sig.get("chk2", None),
+                        chk3=sig.get("chk3", None),
                         status=sig.get("status", "LIVE POSITION IN MARKET"),
                         checklist=sig.get("checklist", None),
+                        digits=sig.get("digits", None),
                     )
                 else:
                     update_order_proposal_html(
-                        window, sym=clean_curr, has_signal=False,
+                        window,
+                        sym=clean_curr,
+                        has_signal=False,
+                        signal_type=sig.get("signal_type", "HOLD") if sig else "HOLD",
                         model_name=sig.get("model_name", None) if sig else None,
+                        grade=sig.get("grade", "STATUS: STANDBY") if sig else "STATUS: STANDBY",
+                        chk1=sig.get("chk1", None) if sig else None,
+                        chk2=sig.get("chk2", None) if sig else None,
+                        chk3=sig.get("chk3", None) if sig else None,
                         checklist=sig.get("checklist", None) if sig else None,
+                        status=sig.get("status", "SCANNING_STANDBY") if sig else "SCANNING_STANDBY",
+                        digits=sig.get("digits", None) if sig else None,
                     )
         except Exception:
             pass
