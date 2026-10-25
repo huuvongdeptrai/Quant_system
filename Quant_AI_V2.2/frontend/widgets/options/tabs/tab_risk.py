@@ -2,6 +2,7 @@
 Tab 1: Risk Limits & Safeguards Configuration Widget.
 Responsible for user configuration of position sizing risks, maximum daily drawdown,
 and consecutive loss circuit breakers.
+Compact MT5-style institutional layout.
 """
 
 from PySide6.QtWidgets import (
@@ -18,7 +19,7 @@ class RiskSettingsTab(QWidget):
         super().__init__(parent)
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 125) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -30,29 +31,20 @@ class RiskSettingsTab(QWidget):
         r_lay.addWidget(lbl)
 
         if hasattr(widget, "setFixedHeight"):
-            widget.setFixedHeight(24)
+            widget.setFixedHeight(23)
         r_lay.addWidget(widget, 1)
         return row
 
     def _setup_ui(self):
         layout_main = QVBoxLayout(self)
-        layout_main.setContentsMargins(14, 12, 14, 12)
-        layout_main.setSpacing(10)
+        layout_main.setContentsMargins(8, 8, 8, 8)
+        layout_main.setSpacing(8)
 
-        lbl_desc = QLabel("Account risk limits, daily loss threshold, and maximum drawdown safeguards.")
-        lbl_desc.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
-        layout_main.addWidget(lbl_desc)
-
-        cols = QWidget()
-        cols_lay = QHBoxLayout(cols)
-        cols_lay.setContentsMargins(0, 0, 0, 0)
-        cols_lay.setSpacing(14)
-
-        # Left Column: Position & Drawdown
-        grp_pos = QGroupBox("POSITION && DRAWDOWN LIMITS")
+        # 1. Position & Drawdown Limits
+        grp_pos = QGroupBox("POSITION & DRAWDOWN LIMITS")
         lay_pos = QVBoxLayout(grp_pos)
-        lay_pos.setContentsMargins(10, 14, 10, 10)
-        lay_pos.setSpacing(8)
+        lay_pos.setContentsMargins(8, 10, 8, 8)
+        lay_pos.setSpacing(6)
 
         self.spinRiskPerTrade = QDoubleSpinBox()
         self.spinRiskPerTrade.setRange(0.1, 10.0)
@@ -72,11 +64,11 @@ class RiskSettingsTab(QWidget):
         lay_pos.addWidget(self._create_row("Max Equity DD:", self.spinMaxDrawdown))
         lay_pos.addWidget(self._create_row("Max Positions:", self.spinMaxOpenTrades))
 
-        # Right Column: Daily Loss & Circuit Breaker
-        grp_daily = QGroupBox("DAILY PROTECTION && CIRCUIT BREAKER")
+        # 2. Daily Loss & Circuit Breaker
+        grp_daily = QGroupBox("DAILY PROTECTION & CIRCUIT BREAKER")
         lay_daily = QVBoxLayout(grp_daily)
-        lay_daily.setContentsMargins(10, 14, 10, 10)
-        lay_daily.setSpacing(8)
+        lay_daily.setContentsMargins(8, 10, 8, 8)
+        lay_daily.setSpacing(6)
 
         self.spinMaxDailyLoss = QDoubleSpinBox()
         self.spinMaxDailyLoss.setRange(50.0, 50000.0)
@@ -94,9 +86,8 @@ class RiskSettingsTab(QWidget):
         lay_daily.addWidget(self._create_row("Max Loss Streak:", self.spinMaxLosingStreak))
         lay_daily.addWidget(self._create_row("Daily Loss Action:", self.chkEnforceDailyHalt))
 
-        cols_lay.addWidget(grp_pos)
-        cols_lay.addWidget(grp_daily)
-        layout_main.addWidget(cols)
+        layout_main.addWidget(grp_pos)
+        layout_main.addWidget(grp_daily)
         layout_main.addStretch()
 
     def load_values(self, data: Dict[str, Any], defaults: Dict[str, Any]) -> None:

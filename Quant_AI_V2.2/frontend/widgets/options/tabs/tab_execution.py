@@ -2,11 +2,12 @@
 Tab 2: Execution Strategy & Trade Parameters Configuration Widget.
 Responsible for user configuration of strategy selection, timeframe, trading sessions,
 slippage tolerance, trailing stops, and pre-news defense.
+Compact MT5-style institutional layout with sleek sub-tab segmented navigation.
 """
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QSpinBox,
-    QDoubleSpinBox, QCheckBox, QGroupBox
+    QDoubleSpinBox, QCheckBox, QGroupBox, QTabWidget
 )
 from typing import Dict, Any
 from loguru import logger
@@ -19,7 +20,7 @@ class ExecutionSettingsTab(QWidget):
         super().__init__(parent)
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 125) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 140) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -31,34 +32,26 @@ class ExecutionSettingsTab(QWidget):
         r_lay.addWidget(lbl)
 
         if hasattr(widget, "setFixedHeight"):
-            widget.setFixedHeight(24)
+            widget.setFixedHeight(23)
         r_lay.addWidget(widget, 1)
         return row
 
     def _setup_ui(self):
         layout_main = QVBoxLayout(self)
-        layout_main.setContentsMargins(14, 10, 14, 10)
-        layout_main.setSpacing(8)
+        layout_main.setContentsMargins(4, 4, 4, 4)
+        layout_main.setSpacing(4)
 
-        lbl_desc = QLabel("Automated execution strategy, session filtering, and risk defense protocols.")
-        lbl_desc.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
-        layout_main.addWidget(lbl_desc)
+        # Sub-Tab Navigation Bar (MT5 Sub-Tabs Pattern)
+        self.subTabWidget = QTabWidget()
+        self.subTabWidget.setObjectName("executionSubTabWidget")
 
-        cols = QWidget()
-        cols_lay = QHBoxLayout(cols)
-        cols_lay.setContentsMargins(0, 0, 0, 0)
-        cols_lay.setSpacing(14)
-
-        # Left Column: Order Config & Sessions
-        col_left = QWidget()
-        lay_left = QVBoxLayout(col_left)
-        lay_left.setContentsMargins(0, 0, 0, 0)
-        lay_left.setSpacing(10)
-
-        grp_order = QGroupBox("ORDER && STRATEGY CONFIG")
-        lay_order = QVBoxLayout(grp_order)
-        lay_order.setContentsMargins(10, 14, 10, 10)
-        lay_order.setSpacing(8)
+        # ----------------------------------------------------------------------
+        # Sub-Tab 1: Strategy & Mode
+        # ----------------------------------------------------------------------
+        tab_strat = QWidget()
+        lay_strat = QVBoxLayout(tab_strat)
+        lay_strat.setContentsMargins(8, 10, 8, 8)
+        lay_strat.setSpacing(8)
 
         self.comboStrategy = QComboBox()
         try:
@@ -96,64 +89,52 @@ class ExecutionSettingsTab(QWidget):
         self.comboExecutionMode.addItem("Semi-Auto (Operator)", "SEMI-AUTO")
         self.comboExecutionMode.addItem("Manual (Alerts Only)", "MANUAL")
 
-        lay_order.addWidget(self._create_row("Active Strategy:", self.comboStrategy))
-        lay_order.addWidget(self._create_row("Trading Timeframe:", self.comboTradingTimeframe))
-        lay_order.addWidget(self._create_row("Execution Mode:", self.comboExecutionMode))
-
-        grp_sessions = QGroupBox("TRADING SESSIONS && SCHEDULE")
-        lay_sessions = QVBoxLayout(grp_sessions)
-        lay_sessions.setContentsMargins(10, 14, 10, 10)
-        lay_sessions.setSpacing(8)
-
-        self.chkSessionAsian = QCheckBox("Enabled (Tokyo)")
-        self.chkSessionLondon = QCheckBox("Enabled (London)")
-        self.chkSessionNY = QCheckBox("Enabled (New York)")
-        self.chkCloseFriday = QCheckBox("Close on Friday EOD")
-
-        lay_sessions.addWidget(self._create_row("Asian Session:", self.chkSessionAsian))
-        lay_sessions.addWidget(self._create_row("London Session:", self.chkSessionLondon))
-        lay_sessions.addWidget(self._create_row("New York Session:", self.chkSessionNY))
-        lay_sessions.addWidget(self._create_row("Weekend Risk:", self.chkCloseFriday))
-
-        lay_left.addWidget(grp_order)
-        lay_left.addWidget(grp_sessions)
-
-        # Right Column: Safety Tolerance & Dynamic Defense
-        col_right = QWidget()
-        lay_right = QVBoxLayout(col_right)
-        lay_right.setContentsMargins(0, 0, 0, 0)
-        lay_right.setSpacing(10)
-
-        grp_safety = QGroupBox("SAFETY TOLERANCE")
-        lay_safety = QVBoxLayout(grp_safety)
-        lay_safety.setContentsMargins(10, 14, 10, 10)
-        lay_safety.setSpacing(8)
-
         self.spinSignalExpiry = QSpinBox()
         self.spinSignalExpiry.setRange(10, 600)
         self.spinSignalExpiry.setSingleStep(5)
         self.spinSignalExpiry.setSuffix(" sec")
         self.spinSignalExpiry.setValue(60)
 
+        lay_strat.addWidget(self._create_row("Active Strategy:", self.comboStrategy))
+        lay_strat.addWidget(self._create_row("Trading Timeframe:", self.comboTradingTimeframe))
+        lay_strat.addWidget(self._create_row("Execution Mode:", self.comboExecutionMode))
+        lay_strat.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
+        lay_strat.addStretch()
+
+        # ----------------------------------------------------------------------
+        # Sub-Tab 2: Trading Sessions
+        # ----------------------------------------------------------------------
+        tab_sess = QWidget()
+        lay_sess = QVBoxLayout(tab_sess)
+        lay_sess.setContentsMargins(8, 10, 8, 8)
+        lay_sess.setSpacing(8)
+
+        self.chkSessionAsian = QCheckBox("Enabled (Tokyo)")
+        self.chkSessionLondon = QCheckBox("Enabled (London)")
+        self.chkSessionNY = QCheckBox("Enabled (New York)")
+        self.chkCloseFriday = QCheckBox("Close on Friday EOD")
+
+        lay_sess.addWidget(self._create_row("Asian Session:", self.chkSessionAsian))
+        lay_sess.addWidget(self._create_row("London Session:", self.chkSessionLondon))
+        lay_sess.addWidget(self._create_row("New York Session:", self.chkSessionNY))
+        lay_sess.addWidget(self._create_row("Weekend Risk:", self.chkCloseFriday))
+        lay_sess.addStretch()
+
+        # ----------------------------------------------------------------------
+        # Sub-Tab 3: Protection & Defense
+        # ----------------------------------------------------------------------
+        tab_def = QWidget()
+        lay_def = QVBoxLayout(tab_def)
+        lay_def.setContentsMargins(8, 10, 8, 8)
+        lay_def.setSpacing(6)
+
         self.spinMaxSpread = QSpinBox()
         self.spinMaxSpread.setRange(1, 200)
-        self.spinMaxSpread.setSuffix(" points")
+        self.spinMaxSpread.setSuffix(" pts")
 
         self.spinSlippage = QSpinBox()
         self.spinSlippage.setRange(1, 100)
-        self.spinSlippage.setSuffix(" points")
-
-        lay_safety.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
-        lay_safety.addWidget(self._create_row("Max Spread Limit:", self.spinMaxSpread))
-        lay_safety.addWidget(self._create_row("Slippage Tolerance:", self.spinSlippage))
-
-        grp_defense = QGroupBox("DYNAMIC SL && RISK DEFENSE")
-        lay_defense = QVBoxLayout(grp_defense)
-        lay_defense.setContentsMargins(10, 14, 10, 10)
-        lay_defense.setSpacing(8)
-
-        self.chkEnableTrailing = QCheckBox("Enable Trailing Stop")
-        self.chkNewsDefense = QCheckBox("Active Defense")
+        self.spinSlippage.setSuffix(" pts")
 
         self.spinBreakevenPips = QSpinBox()
         self.spinBreakevenPips.setRange(0, 100)
@@ -177,18 +158,23 @@ class ExecutionSettingsTab(QWidget):
         self.spinNewsDefenseR.setValue(1.5)
         self.spinNewsDefenseR.setSuffix(" R")
 
-        lay_defense.addWidget(self._create_row("BE Offset:", self.spinBreakevenPips))
-        lay_defense.addWidget(self._create_row("TS Distance:", self.spinTrailingPips))
-        lay_defense.addWidget(self._create_row("Defense Window:", self.spinNewsDefenseMins))
-        lay_defense.addWidget(self._create_row("BE Threshold (R):", self.spinNewsDefenseR))
+        # Hidden proxies for legacy compatibility
+        self.chkEnableTrailing = QCheckBox("Enable Trailing Stop")
+        self.chkNewsDefense = QCheckBox("Active Defense")
 
-        lay_right.addWidget(grp_safety)
-        lay_right.addWidget(grp_defense)
+        lay_def.addWidget(self._create_row("Max Spread Limit:", self.spinMaxSpread))
+        lay_def.addWidget(self._create_row("Slippage Tolerance:", self.spinSlippage))
+        lay_def.addWidget(self._create_row("BE Offset:", self.spinBreakevenPips))
+        lay_def.addWidget(self._create_row("TS Distance:", self.spinTrailingPips))
+        lay_def.addWidget(self._create_row("Defense Window:", self.spinNewsDefenseMins))
+        lay_def.addWidget(self._create_row("BE Threshold (R):", self.spinNewsDefenseR))
+        lay_def.addStretch()
 
-        cols_lay.addWidget(col_left)
-        cols_lay.addWidget(col_right)
-        layout_main.addWidget(cols)
-        layout_main.addStretch()
+        self.subTabWidget.addTab(tab_strat, "Strategy & Mode")
+        self.subTabWidget.addTab(tab_sess, "Sessions")
+        self.subTabWidget.addTab(tab_def, "Protection & Defense")
+
+        layout_main.addWidget(self.subTabWidget)
 
     def load_values(self, data: Dict[str, Any], defaults: Dict[str, Any]) -> None:
         """Populates execution controls from settings dictionary."""

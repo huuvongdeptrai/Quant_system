@@ -26,7 +26,8 @@ class OptionsDialog(QDialog):
     def __init__(self, parent=None, manager=None):
         super().__init__(parent)
         self.manager = manager
-        self.setWindowTitle("System Options & Configurations")
+        self.setWindowTitle("Options")
+        self.setFixedSize(540, 410)
         self.setWindowFlags(
             Qt.Dialog
             | Qt.WindowTitleHint
@@ -45,8 +46,8 @@ class OptionsDialog(QDialog):
 
     def _setup_ui(self):
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(12, 10, 12, 10)
-        root_layout.setSpacing(8)
+        root_layout.setContentsMargins(10, 8, 10, 8)
+        root_layout.setSpacing(6)
 
         # Tab Widget
         self.tabWidget = QTabWidget()
@@ -167,6 +168,19 @@ class OptionsDialog(QDialog):
             QTabWidget::pane {{
                 background-color: #ffffff; border-top: 1px solid #cbd5e1;
                 border-bottom: none; border-left: none; border-right: none; top: -1px;
+            }}
+            QTabWidget#executionSubTabWidget::pane {{
+                background-color: #fafbfc; border: 1px solid #e2e8f0;
+                border-radius: 2px; top: -1px;
+            }}
+            QTabWidget#executionSubTabWidget QTabBar::tab {{
+                background-color: #f1f5f9; color: #64748b; font-family: 'Segoe UI', sans-serif;
+                font-size: 10px; font-weight: 500; padding: 3px 12px; margin-right: 2px;
+                border: 1px solid #e2e8f0; border-bottom: none; border-radius: 2px 2px 0 0;
+            }}
+            QTabWidget#executionSubTabWidget QTabBar::tab:selected {{
+                background-color: #fafbfc; color: #0f172a; font-weight: 600;
+                border-bottom: 1px solid #fafbfc;
             }}
             QTabBar::tab {{
                 background-color: transparent; color: #64748b; font-family: 'Segoe UI', sans-serif;

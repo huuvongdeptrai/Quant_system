@@ -2,6 +2,7 @@
 Tab 3: Broker Bridge & MT5 Gateway Telemetry Configuration Widget.
 Responsible for monitoring MetaTrader 5 account connection, gateway latency,
 execution permissions, and real-time tick telemetry.
+Compact MT5-style institutional layout.
 """
 
 from PySide6.QtWidgets import (
@@ -23,7 +24,7 @@ class BrokerSettingsTab(QWidget):
         self.on_ping_callback = on_ping_callback
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 125) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -35,29 +36,20 @@ class BrokerSettingsTab(QWidget):
         r_lay.addWidget(lbl)
 
         if hasattr(widget, "setFixedHeight"):
-            widget.setFixedHeight(24)
+            widget.setFixedHeight(23)
         r_lay.addWidget(widget, 1)
         return row
 
     def _setup_ui(self):
         layout_main = QVBoxLayout(self)
-        layout_main.setContentsMargins(14, 12, 14, 12)
-        layout_main.setSpacing(10)
+        layout_main.setContentsMargins(8, 8, 8, 8)
+        layout_main.setSpacing(8)
 
-        lbl_desc = QLabel("MetaTrader 5 terminal gateway, bridge telemetry, and execution permissions.")
-        lbl_desc.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
-        layout_main.addWidget(lbl_desc)
-
-        cols = QWidget()
-        cols_lay = QHBoxLayout(cols)
-        cols_lay.setContentsMargins(0, 0, 0, 0)
-        cols_lay.setSpacing(14)
-
-        # Left Column: Connection & Telemetry
-        grp_conn = QGroupBox("GATEWAY CONNECTION && TELEMETRY")
+        # 1. Gateway Connection & Telemetry
+        grp_conn = QGroupBox("GATEWAY CONNECTION & TELEMETRY")
         lay_conn = QVBoxLayout(grp_conn)
-        lay_conn.setContentsMargins(10, 14, 10, 10)
-        lay_conn.setSpacing(8)
+        lay_conn.setContentsMargins(8, 10, 8, 8)
+        lay_conn.setSpacing(6)
 
         self.lblGatewayAccount = QLineEdit("Offline")
         self.lblGatewayAccount.setReadOnly(True)
@@ -86,11 +78,11 @@ class BrokerSettingsTab(QWidget):
         lay_conn.addWidget(self._create_row("Bridge Gateway:", self.lblGatewayBridge))
         lay_conn.addWidget(self._create_row("Connection Ping:", self.btnPing))
 
-        # Right Column: Terminal Permissions & Routing
+        # 2. Terminal Execution Permissions
         grp_perm = QGroupBox("TERMINAL EXECUTION PERMISSIONS")
         lay_perm = QVBoxLayout(grp_perm)
-        lay_perm.setContentsMargins(10, 14, 10, 10)
-        lay_perm.setSpacing(8)
+        lay_perm.setContentsMargins(8, 10, 8, 8)
+        lay_perm.setSpacing(6)
 
         self.chkAlgoTrading = QCheckBox("Allow Algo Trading (EA)")
         self.chkAlgoTrading.setChecked(True)
@@ -98,22 +90,11 @@ class BrokerSettingsTab(QWidget):
         self.chkWebRequest = QCheckBox("Allow WebRequest API")
         self.chkWebRequest.setChecked(True)
 
-        ro_routing = QLineEdit("STP DMA")
-        ro_routing.setReadOnly(True)
-        ro_routing.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; }")
-
-        ro_sync = QLineEdit("Real-time")
-        ro_sync.setReadOnly(True)
-        ro_sync.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; }")
-
         lay_perm.addWidget(self._create_row("Automated Trading:", self.chkAlgoTrading))
         lay_perm.addWidget(self._create_row("Market WebRequest:", self.chkWebRequest))
-        lay_perm.addWidget(self._create_row("Order Routing:", ro_routing))
-        lay_perm.addWidget(self._create_row("Tick Telemetry:", ro_sync))
 
-        cols_lay.addWidget(grp_conn)
-        cols_lay.addWidget(grp_perm)
-        layout_main.addWidget(cols)
+        layout_main.addWidget(grp_conn)
+        layout_main.addWidget(grp_perm)
         layout_main.addStretch()
 
     def refresh_telemetry(self) -> None:
@@ -130,19 +111,12 @@ class BrokerSettingsTab(QWidget):
                 self.lblGatewayServer.setText(str(server))
                 self.lblGatewayBridge.setText("Connected (1.1 ms)")
                 self.lblGatewayLatency.setText("1.1 ms")
-                is_allowed = getattr(term, "trade_allowed", True)
-                self.lblGatewayAlgo.setText("ENABLED" if is_allowed else "DISABLED")
+                self.lblGatewayAlgo.setText("ENABLED" if getattr(term, "trade_allowed", True) else "BLOCKED")
             else:
                 self.lblGatewayAccount.setText("Offline")
-                self.lblGatewayBridge.setText("Offline")
-        except (AttributeError, RuntimeError) as err:
-            logger.debug(f"[BrokerSettingsTab] Telemetry poll failed: {err}")
-            self.lblGatewayAccount.setText("Offline")
-            self.lblGatewayBridge.setText("Offline")
-
-    def get_values(self) -> Dict[str, Any]:
-        """Extracts broker permission states."""
-        return {
-            "algo_trading_allowed": self.chkAlgoTrading.isChecked(),
-            "webrequest_allowed": self.chkWebRequest.isChecked(),
-        }
+                self.lblGatewayServer.setText("No Connection")
+                self.lblGatewayBridge.setText("Disconnected")
+                self.lblGatewayLatency.setText("--")
+                self.lblGatewayAlgo.setText("OFFLINE")
+        except Exception as err:
+            logger.debug(f"[BrokerSettingsTab] Telemetry error: {err}")

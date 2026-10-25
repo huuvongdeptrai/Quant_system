@@ -2,6 +2,7 @@
 Tab 4: Telegram Notifications & Event Subscriptions Configuration Widget.
 Responsible for Telegram bot API credentials, test message dispatching,
 and event alerting filters (fills, SL/TP hits, circuit breaker halts).
+Compact MT5-style institutional layout.
 """
 
 from PySide6.QtWidgets import (
@@ -23,7 +24,7 @@ class NotificationSettingsTab(QWidget):
         self.on_test_callback = on_test_callback
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 125) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -35,79 +36,63 @@ class NotificationSettingsTab(QWidget):
         r_lay.addWidget(lbl)
 
         if hasattr(widget, "setFixedHeight"):
-            widget.setFixedHeight(24)
+            widget.setFixedHeight(23)
         r_lay.addWidget(widget, 1)
         return row
 
     def _setup_ui(self):
         layout_main = QVBoxLayout(self)
-        layout_main.setContentsMargins(14, 12, 14, 12)
-        layout_main.setSpacing(10)
+        layout_main.setContentsMargins(8, 8, 8, 8)
+        layout_main.setSpacing(8)
 
-        lbl_desc = QLabel("Telegram bot alerts, execution event broadcasting, and audio notifications.")
-        lbl_desc.setStyleSheet("color: #64748b; font-family: 'Segoe UI', sans-serif; font-size: 11px;")
-        layout_main.addWidget(lbl_desc)
-
-        cols = QWidget()
-        cols_lay = QHBoxLayout(cols)
-        cols_lay.setContentsMargins(0, 0, 0, 0)
-        cols_lay.setSpacing(14)
-
-        # Left Column: Telegram Credentials & Test
+        # 1. Telegram Bot Integration
         grp_tg = QGroupBox("TELEGRAM BOT INTEGRATION")
         lay_tg = QVBoxLayout(grp_tg)
-        lay_tg.setContentsMargins(10, 14, 10, 10)
-        lay_tg.setSpacing(8)
+        lay_tg.setContentsMargins(8, 10, 8, 8)
+        lay_tg.setSpacing(6)
 
         self.editTgToken = QLineEdit()
         self.editTgToken.setEchoMode(QLineEdit.Password)
-        self.editTgToken.setPlaceholderText("Token from @BotFather")
+        self.editTgToken.setPlaceholderText("Paste BotFather API Token")
 
         self.editTgChatId = QLineEdit()
-        self.editTgChatId.setPlaceholderText("-100...")
+        self.editTgChatId.setPlaceholderText("Target Chat / Channel ID")
 
-        ro_fmt = QLineEdit("HTML")
-        ro_fmt.setReadOnly(True)
-        ro_fmt.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #475569; }")
-
-        self.btnTgTest = QPushButton("Test Telegram Bot")
-        self.btnTgTest.setCursor(Qt.PointingHandCursor)
+        self.btnTest = QPushButton("Verify Dispatch")
+        self.btnTest.setCursor(Qt.PointingHandCursor)
         if self.on_test_callback:
-            self.btnTgTest.clicked.connect(self.on_test_callback)
+            self.btnTest.clicked.connect(self.on_test_callback)
 
-        lay_tg.addWidget(self._create_row("Telegram Token:", self.editTgToken))
-        lay_tg.addWidget(self._create_row("Channel / Chat ID:", self.editTgChatId))
-        lay_tg.addWidget(self._create_row("Message Format:", ro_fmt))
-        lay_tg.addWidget(self._create_row("Connection Test:", self.btnTgTest))
+        lay_tg.addWidget(self._create_row("Bot API Token:", self.editTgToken))
+        lay_tg.addWidget(self._create_row("Chat ID:", self.editTgChatId))
+        lay_tg.addWidget(self._create_row("Test Message:", self.btnTest))
 
-        # Right Column: Event Subscriptions & Audio
-        grp_alerts = QGroupBox("EVENT ALERTS && AUDIO FX")
-        lay_alerts = QVBoxLayout(grp_alerts)
-        lay_alerts.setContentsMargins(10, 14, 10, 10)
-        lay_alerts.setSpacing(8)
+        # 2. Event Alert Subscriptions
+        grp_sub = QGroupBox("EVENT ALERT SUBSCRIPTIONS")
+        lay_sub = QVBoxLayout(grp_sub)
+        lay_sub.setContentsMargins(8, 10, 8, 8)
+        lay_sub.setSpacing(6)
 
-        self.chkAlertFills = QCheckBox("Notify on trade fills")
-        self.chkAlertSL = QCheckBox("Notify on SL / TP hit")
-        self.chkAlertRisk = QCheckBox("Notify on circuit breach")
-        self.chkSoundFx = QCheckBox("Play execution sound FX")
+        self.chkAlertFills = QCheckBox("Order Fills & Execution")
+        self.chkAlertSL = QCheckBox("Stop Loss & TP Triggers")
+        self.chkAlertRisk = QCheckBox("Circuit Breaker & Drawdown Halts")
+        self.chkSoundFx = QCheckBox("Audio Alerts & Sound FX")
 
-        lay_alerts.addWidget(self._create_row("Order Fills:", self.chkAlertFills))
-        lay_alerts.addWidget(self._create_row("TP / SL Hit:", self.chkAlertSL))
-        lay_alerts.addWidget(self._create_row("Risk Circuit Halt:", self.chkAlertRisk))
-        lay_alerts.addWidget(self._create_row("Audio Sound FX:", self.chkSoundFx))
+        lay_sub.addWidget(self._create_row("Order Execution:", self.chkAlertFills))
+        lay_sub.addWidget(self._create_row("Stop Loss & TP:", self.chkAlertSL))
+        lay_sub.addWidget(self._create_row("Circuit Breaker:", self.chkAlertRisk))
+        lay_sub.addWidget(self._create_row("Sound Effects:", self.chkSoundFx))
 
-        cols_lay.addWidget(grp_tg)
-        cols_lay.addWidget(grp_alerts)
-        layout_main.addWidget(cols)
+        layout_main.addWidget(grp_tg)
+        layout_main.addWidget(grp_sub)
         layout_main.addStretch()
 
     def load_values(self, data: Dict[str, Any], defaults: Dict[str, Any], fallback_token: str = "", fallback_chat: str = "") -> None:
-        """Populates notification control widgets from settings dictionary."""
-        tg_token = data.get("telegram_bot_token", "") or fallback_token
-        tg_chat_id = data.get("telegram_chat_id", "") or fallback_chat
-
-        self.editTgToken.setText(str(tg_token))
-        self.editTgChatId.setText(str(tg_chat_id))
+        """Populates notification controls from settings dictionary."""
+        tok = data.get("telegram_bot_token", fallback_token)
+        cid = data.get("telegram_chat_id", fallback_chat)
+        self.editTgToken.setText(tok)
+        self.editTgChatId.setText(cid)
 
         self.chkAlertFills.setChecked(bool(data.get("alert_fills", defaults["alert_fills"])))
         self.chkAlertSL.setChecked(bool(data.get("alert_sl_tp", defaults["alert_sl_tp"])))
@@ -126,19 +111,20 @@ class NotificationSettingsTab(QWidget):
         }
 
     def test_telegram_dispatch(self) -> Tuple[bool, str]:
-        """Dispatches a test notification and updates status."""
-        tok = self.editTgToken.text().strip()
-        cid = self.editTgChatId.text().strip()
-        if not cid:
-            return False, "Missing Chat ID"
+        """Sends test verification payload to Telegram endpoint."""
+        token = self.editTgToken.text().strip()
+        chat_id = self.editTgChatId.text().strip()
+        if not token or not chat_id:
+            return False, "Error: Bot Token and Chat ID cannot be empty."
 
-        if tok:
-            telegram_notifier.bot_token = tok
-        telegram_notifier.chat_id = cid
-
-        try:
-            telegram_notifier.send_message("🔔 <b>[Quant System]</b> Test notification dispatched from Options.")
-            return True, f"Telegram test sent to {cid}"
-        except Exception as e:
-            logger.debug(f"[NotificationSettingsTab] Telegram test error: {e}")
-            return False, f"Telegram Error: {e}"
+        telegram_notifier.bot_token = token
+        telegram_notifier.chat_id = chat_id
+        success = telegram_notifier.send_message(
+            "<b>[VECTRA] System Options Telemetry Test</b>\n"
+            "Status: Gateway Online\n"
+            "Configuration: Dispatched successfully.",
+            category="info"
+        )
+        if success:
+            return True, "Telegram alert sent successfully!"
+        return False, "Failed to send Telegram alert. Verify API credentials."
