@@ -59,10 +59,10 @@ class OptionsDialog(QDialog):
         self.tab_broker = BrokerSettingsTab(self, on_ping_callback=self._on_ping_clicked)
         self.tab_notification = NotificationSettingsTab(self, on_test_callback=self._on_telegram_test_clicked)
 
-        self.tabWidget.addTab(self.tab_risk, "Risk Management")
-        self.tabWidget.addTab(self.tab_execution, "Execution Strategy")
-        self.tabWidget.addTab(self.tab_broker, "Broker Bridge")
-        self.tabWidget.addTab(self.tab_notification, "Notifications")
+        self.tabWidget.addTab(self.tab_risk, "Risk")
+        self.tabWidget.addTab(self.tab_execution, "Execution")
+        self.tabWidget.addTab(self.tab_broker, "Broker")
+        self.tabWidget.addTab(self.tab_notification, "Alerts")
 
         root_layout.addWidget(self.tabWidget)
 

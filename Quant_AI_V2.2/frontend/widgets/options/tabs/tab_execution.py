@@ -20,7 +20,7 @@ class ExecutionSettingsTab(QWidget):
         super().__init__(parent)
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 140) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 120) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -82,12 +82,12 @@ class ExecutionSettingsTab(QWidget):
         self.comboTradingTimeframe.addItem("D1 (Daily)", 1440)
         self.comboTradingTimeframe.addItem("W1 (Weekly)", 10080)
         self.comboTradingTimeframe.addItem("MN1 (Monthly)", 43200)
-        self.comboTradingTimeframe.addItem("Follow Chart TF", "FOLLOW_CHART")
+        self.comboTradingTimeframe.addItem("Chart TF", "FOLLOW_CHART")
 
         self.comboExecutionMode = QComboBox()
-        self.comboExecutionMode.addItem("Full-Auto (STP)", "FULL-AUTO")
-        self.comboExecutionMode.addItem("Semi-Auto (Operator)", "SEMI-AUTO")
-        self.comboExecutionMode.addItem("Manual (Alerts Only)", "MANUAL")
+        self.comboExecutionMode.addItem("Full Auto", "FULL-AUTO")
+        self.comboExecutionMode.addItem("Semi Auto", "SEMI-AUTO")
+        self.comboExecutionMode.addItem("Manual (Alerts)", "MANUAL")
 
         self.spinSignalExpiry = QSpinBox()
         self.spinSignalExpiry.setRange(10, 600)
@@ -95,9 +95,9 @@ class ExecutionSettingsTab(QWidget):
         self.spinSignalExpiry.setSuffix(" sec")
         self.spinSignalExpiry.setValue(60)
 
-        lay_strat.addWidget(self._create_row("Active Strategy:", self.comboStrategy))
-        lay_strat.addWidget(self._create_row("Trading Timeframe:", self.comboTradingTimeframe))
-        lay_strat.addWidget(self._create_row("Execution Mode:", self.comboExecutionMode))
+        lay_strat.addWidget(self._create_row("Strategy:", self.comboStrategy))
+        lay_strat.addWidget(self._create_row("Timeframe:", self.comboTradingTimeframe))
+        lay_strat.addWidget(self._create_row("Mode:", self.comboExecutionMode))
         lay_strat.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
         lay_strat.addStretch()
 
@@ -109,15 +109,15 @@ class ExecutionSettingsTab(QWidget):
         lay_sess.setContentsMargins(8, 10, 8, 8)
         lay_sess.setSpacing(8)
 
-        self.chkSessionAsian = QCheckBox("Enabled (Tokyo)")
-        self.chkSessionLondon = QCheckBox("Enabled (London)")
-        self.chkSessionNY = QCheckBox("Enabled (New York)")
-        self.chkCloseFriday = QCheckBox("Close on Friday EOD")
+        self.chkSessionAsian = QCheckBox("Active")
+        self.chkSessionLondon = QCheckBox("Active")
+        self.chkSessionNY = QCheckBox("Active")
+        self.chkCloseFriday = QCheckBox("Close before weekend")
 
-        lay_sess.addWidget(self._create_row("Asian Session:", self.chkSessionAsian))
-        lay_sess.addWidget(self._create_row("London Session:", self.chkSessionLondon))
-        lay_sess.addWidget(self._create_row("New York Session:", self.chkSessionNY))
-        lay_sess.addWidget(self._create_row("Weekend Risk:", self.chkCloseFriday))
+        lay_sess.addWidget(self._create_row("Tokyo (Asia):", self.chkSessionAsian))
+        lay_sess.addWidget(self._create_row("London:", self.chkSessionLondon))
+        lay_sess.addWidget(self._create_row("New York:", self.chkSessionNY))
+        lay_sess.addWidget(self._create_row("Friday Close:", self.chkCloseFriday))
         lay_sess.addStretch()
 
         # ----------------------------------------------------------------------
@@ -162,17 +162,17 @@ class ExecutionSettingsTab(QWidget):
         self.chkEnableTrailing = QCheckBox("Enable Trailing Stop")
         self.chkNewsDefense = QCheckBox("Active Defense")
 
-        lay_def.addWidget(self._create_row("Max Spread Limit:", self.spinMaxSpread))
-        lay_def.addWidget(self._create_row("Slippage Tolerance:", self.spinSlippage))
-        lay_def.addWidget(self._create_row("BE Offset:", self.spinBreakevenPips))
-        lay_def.addWidget(self._create_row("TS Distance:", self.spinTrailingPips))
-        lay_def.addWidget(self._create_row("Defense Window:", self.spinNewsDefenseMins))
-        lay_def.addWidget(self._create_row("BE Threshold (R):", self.spinNewsDefenseR))
+        lay_def.addWidget(self._create_row("Max Spread:", self.spinMaxSpread))
+        lay_def.addWidget(self._create_row("Max Slippage:", self.spinSlippage))
+        lay_def.addWidget(self._create_row("Breakeven:", self.spinBreakevenPips))
+        lay_def.addWidget(self._create_row("Trailing Stop:", self.spinTrailingPips))
+        lay_def.addWidget(self._create_row("News Defense:", self.spinNewsDefenseMins))
+        lay_def.addWidget(self._create_row("BE Target (R):", self.spinNewsDefenseR))
         lay_def.addStretch()
 
-        self.subTabWidget.addTab(tab_strat, "Strategy & Mode")
+        self.subTabWidget.addTab(tab_strat, "Strategy")
         self.subTabWidget.addTab(tab_sess, "Sessions")
-        self.subTabWidget.addTab(tab_def, "Protection & Defense")
+        self.subTabWidget.addTab(tab_def, "Defense")
 
         layout_main.addWidget(self.subTabWidget)
 

@@ -24,7 +24,7 @@ class NotificationSettingsTab(QWidget):
         self.on_test_callback = on_test_callback
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 120) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -46,7 +46,7 @@ class NotificationSettingsTab(QWidget):
         layout_main.setSpacing(8)
 
         # 1. Telegram Bot Integration
-        grp_tg = QGroupBox("TELEGRAM BOT INTEGRATION")
+        grp_tg = QGroupBox("Telegram Bot")
         lay_tg = QVBoxLayout(grp_tg)
         lay_tg.setContentsMargins(8, 10, 8, 8)
         lay_tg.setSpacing(6)
@@ -58,30 +58,30 @@ class NotificationSettingsTab(QWidget):
         self.editTgChatId = QLineEdit()
         self.editTgChatId.setPlaceholderText("Target Chat / Channel ID")
 
-        self.btnTest = QPushButton("Verify Dispatch")
+        self.btnTest = QPushButton("Send Test")
         self.btnTest.setCursor(Qt.PointingHandCursor)
         if self.on_test_callback:
             self.btnTest.clicked.connect(self.on_test_callback)
 
-        lay_tg.addWidget(self._create_row("Bot API Token:", self.editTgToken))
+        lay_tg.addWidget(self._create_row("Bot Token:", self.editTgToken))
         lay_tg.addWidget(self._create_row("Chat ID:", self.editTgChatId))
-        lay_tg.addWidget(self._create_row("Test Message:", self.btnTest))
+        lay_tg.addWidget(self._create_row("Test Bot:", self.btnTest))
 
         # 2. Event Alert Subscriptions
-        grp_sub = QGroupBox("EVENT ALERT SUBSCRIPTIONS")
+        grp_sub = QGroupBox("Alert Events")
         lay_sub = QVBoxLayout(grp_sub)
         lay_sub.setContentsMargins(8, 10, 8, 8)
         lay_sub.setSpacing(6)
 
-        self.chkAlertFills = QCheckBox("Order Fills & Execution")
-        self.chkAlertSL = QCheckBox("Stop Loss & TP Triggers")
-        self.chkAlertRisk = QCheckBox("Circuit Breaker & Drawdown Halts")
-        self.chkSoundFx = QCheckBox("Audio Alerts & Sound FX")
+        self.chkAlertFills = QCheckBox("Notify on order fill")
+        self.chkAlertSL = QCheckBox("Notify on SL / TP hit")
+        self.chkAlertRisk = QCheckBox("Notify on risk halt")
+        self.chkSoundFx = QCheckBox("Play sound on triggers")
 
-        lay_sub.addWidget(self._create_row("Order Execution:", self.chkAlertFills))
-        lay_sub.addWidget(self._create_row("Stop Loss & TP:", self.chkAlertSL))
-        lay_sub.addWidget(self._create_row("Circuit Breaker:", self.chkAlertRisk))
-        lay_sub.addWidget(self._create_row("Sound Effects:", self.chkSoundFx))
+        lay_sub.addWidget(self._create_row("Order Fills:", self.chkAlertFills))
+        lay_sub.addWidget(self._create_row("SL / TP Hits:", self.chkAlertSL))
+        lay_sub.addWidget(self._create_row("Risk Halts:", self.chkAlertRisk))
+        lay_sub.addWidget(self._create_row("Audio Alerts:", self.chkSoundFx))
 
         layout_main.addWidget(grp_tg)
         layout_main.addWidget(grp_sub)

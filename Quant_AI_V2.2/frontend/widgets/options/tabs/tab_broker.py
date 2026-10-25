@@ -24,7 +24,7 @@ class BrokerSettingsTab(QWidget):
         self.on_ping_callback = on_ping_callback
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 120) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -46,7 +46,7 @@ class BrokerSettingsTab(QWidget):
         layout_main.setSpacing(8)
 
         # 1. Gateway Connection & Telemetry
-        grp_conn = QGroupBox("GATEWAY CONNECTION & TELEMETRY")
+        grp_conn = QGroupBox("Connection")
         lay_conn = QVBoxLayout(grp_conn)
         lay_conn.setContentsMargins(8, 10, 8, 8)
         lay_conn.setSpacing(6)
@@ -63,7 +63,7 @@ class BrokerSettingsTab(QWidget):
         for w_ro in [self.lblGatewayAccount, self.lblGatewayServer, self.lblGatewayBridge]:
             w_ro.setStyleSheet("QLineEdit { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 2px; padding: 0 8px; font-family: Consolas, monospace; }")
 
-        self.btnPing = QPushButton("Ping MT5 Connection")
+        self.btnPing = QPushButton("Test Ping")
         self.btnPing.setCursor(Qt.PointingHandCursor)
         if self.on_ping_callback:
             self.btnPing.clicked.connect(self.on_ping_callback)
@@ -73,25 +73,25 @@ class BrokerSettingsTab(QWidget):
         self.lblGatewayAlgo = QLabel("ENABLED")
         self.lblGatewayAlgo.setVisible(False)
 
-        lay_conn.addWidget(self._create_row("MT5 Account:", self.lblGatewayAccount))
-        lay_conn.addWidget(self._create_row("Broker Server:", self.lblGatewayServer))
-        lay_conn.addWidget(self._create_row("Bridge Gateway:", self.lblGatewayBridge))
-        lay_conn.addWidget(self._create_row("Connection Ping:", self.btnPing))
+        lay_conn.addWidget(self._create_row("Account:", self.lblGatewayAccount))
+        lay_conn.addWidget(self._create_row("Server:", self.lblGatewayServer))
+        lay_conn.addWidget(self._create_row("Gateway:", self.lblGatewayBridge))
+        lay_conn.addWidget(self._create_row("Ping:", self.btnPing))
 
         # 2. Terminal Execution Permissions
-        grp_perm = QGroupBox("TERMINAL EXECUTION PERMISSIONS")
+        grp_perm = QGroupBox("Permissions")
         lay_perm = QVBoxLayout(grp_perm)
         lay_perm.setContentsMargins(8, 10, 8, 8)
         lay_perm.setSpacing(6)
 
-        self.chkAlgoTrading = QCheckBox("Allow Algo Trading (EA)")
+        self.chkAlgoTrading = QCheckBox("Allow automated trading")
         self.chkAlgoTrading.setChecked(True)
 
-        self.chkWebRequest = QCheckBox("Allow WebRequest API")
+        self.chkWebRequest = QCheckBox("Allow WebRequest URLs")
         self.chkWebRequest.setChecked(True)
 
-        lay_perm.addWidget(self._create_row("Automated Trading:", self.chkAlgoTrading))
-        lay_perm.addWidget(self._create_row("Market WebRequest:", self.chkWebRequest))
+        lay_perm.addWidget(self._create_row("Algo Trading:", self.chkAlgoTrading))
+        lay_perm.addWidget(self._create_row("WebRequest:", self.chkWebRequest))
 
         layout_main.addWidget(grp_conn)
         layout_main.addWidget(grp_perm)

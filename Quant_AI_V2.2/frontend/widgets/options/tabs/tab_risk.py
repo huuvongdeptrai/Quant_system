@@ -19,7 +19,7 @@ class RiskSettingsTab(QWidget):
         super().__init__(parent)
         self._setup_ui()
 
-    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 150) -> QWidget:
+    def _create_row(self, label_text: str, widget: QWidget, label_width: int = 120) -> QWidget:
         row = QWidget()
         r_lay = QHBoxLayout(row)
         r_lay.setContentsMargins(0, 0, 0, 0)
@@ -41,7 +41,7 @@ class RiskSettingsTab(QWidget):
         layout_main.setSpacing(8)
 
         # 1. Position & Drawdown Limits
-        grp_pos = QGroupBox("POSITION & DRAWDOWN LIMITS")
+        grp_pos = QGroupBox("Position Limits")
         lay_pos = QVBoxLayout(grp_pos)
         lay_pos.setContentsMargins(8, 10, 8, 8)
         lay_pos.setSpacing(6)
@@ -58,14 +58,14 @@ class RiskSettingsTab(QWidget):
 
         self.spinMaxOpenTrades = QSpinBox()
         self.spinMaxOpenTrades.setRange(1, 20)
-        self.spinMaxOpenTrades.setSuffix(" positions")
+        self.spinMaxOpenTrades.setSuffix(" trades")
 
-        lay_pos.addWidget(self._create_row("Risk Per Trade:", self.spinRiskPerTrade))
-        lay_pos.addWidget(self._create_row("Max Equity DD:", self.spinMaxDrawdown))
-        lay_pos.addWidget(self._create_row("Max Positions:", self.spinMaxOpenTrades))
+        lay_pos.addWidget(self._create_row("Risk / Trade:", self.spinRiskPerTrade))
+        lay_pos.addWidget(self._create_row("Max Drawdown:", self.spinMaxDrawdown))
+        lay_pos.addWidget(self._create_row("Max Trades:", self.spinMaxOpenTrades))
 
         # 2. Daily Loss & Circuit Breaker
-        grp_daily = QGroupBox("DAILY PROTECTION & CIRCUIT BREAKER")
+        grp_daily = QGroupBox("Daily Protection")
         lay_daily = QVBoxLayout(grp_daily)
         lay_daily.setContentsMargins(8, 10, 8, 8)
         lay_daily.setSpacing(6)
@@ -77,14 +77,14 @@ class RiskSettingsTab(QWidget):
 
         self.spinMaxLosingStreak = QSpinBox()
         self.spinMaxLosingStreak.setRange(1, 20)
-        self.spinMaxLosingStreak.setSuffix(" trades")
+        self.spinMaxLosingStreak.setSuffix(" losses")
 
-        self.chkEnforceDailyHalt = QCheckBox("Halt trading on breach")
+        self.chkEnforceDailyHalt = QCheckBox("Stop trading on breach")
         self.chkEnforceDailyHalt.setChecked(True)
 
-        lay_daily.addWidget(self._create_row("Max Daily Loss:", self.spinMaxDailyLoss))
+        lay_daily.addWidget(self._create_row("Daily Loss Limit:", self.spinMaxDailyLoss))
         lay_daily.addWidget(self._create_row("Max Loss Streak:", self.spinMaxLosingStreak))
-        lay_daily.addWidget(self._create_row("Daily Loss Action:", self.chkEnforceDailyHalt))
+        lay_daily.addWidget(self._create_row("Auto Halt:", self.chkEnforceDailyHalt))
 
         layout_main.addWidget(grp_pos)
         layout_main.addWidget(grp_daily)
