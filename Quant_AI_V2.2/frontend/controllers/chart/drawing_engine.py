@@ -10,9 +10,12 @@ Provides TradingView-grade interactive chart annotations:
 """
 
 import math
-from PySide6.QtCore import Qt, QObject, QEvent, QPointF
+from PySide6.QtCore import Qt, QObject, QEvent, QPointF, QRectF
 from PySide6.QtGui import QFont, QCursor
-from PySide6.QtWidgets import QGraphicsRectItem
+from PySide6.QtWidgets import (
+    QGraphicsRectItem, QApplication, QLineEdit, QTextEdit,
+    QPlainTextEdit, QSpinBox, QDoubleSpinBox
+)
 import pyqtgraph as pg
 from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
@@ -51,7 +54,18 @@ class ChartDrawingEngine(QObject):
         self.btn_profile = None
 
         # Install event filter on viewport to intercept mouse events before ViewBox
-        self.plot_widget.viewport().installEventFilter(self)
+        # Hover & Selection state for single object deletion
+        self.hovered_drawing = None
+        self.selected_drawing = None
+
+        # Install event filter on viewport to intercept mouse events before ViewBox,
+        # as well as plot_widget and window to reliably capture Delete / Escape keypresses
+        if hasattr(self.plot_widget, "viewport") and self.plot_widget.viewport():
+            self.plot_widget.viewport().installEventFilter(self)
+        if hasattr(self.plot_widget, "installEventFilter"):
+            self.plot_widget.installEventFilter(self)
+        if hasattr(window, "installEventFilter"):
+            window.installEventFilter(self)
 
     def set_toolbar_buttons(self, btn_cross, btn_trend, btn_rect, btn_ruler, btn_gear, btn_clear=None, btn_profile=None):
         self.btn_crosshair = btn_cross
@@ -69,6 +83,12 @@ class ChartDrawingEngine(QObject):
             new_mode = self.MODE_CROSSHAIR
 
         self._cancel_active_drag()
+        if hasattr(self, "selected_drawing") and self.selected_drawing:
+            self._set_highlight(self.selected_drawing, False)
+            self.selected_drawing = None
+        if hasattr(self, "hovered_drawing") and self.hovered_drawing:
+            self._set_highlight(self.hovered_drawing, False)
+            self.hovered_drawing = None
         self.mode = new_mode
 
         if new_mode == self.MODE_CROSSHAIR:
@@ -132,6 +152,8 @@ class ChartDrawingEngine(QObject):
                 except Exception:
                     pass
         self.user_drawings.clear()
+        self.hovered_drawing = None
+        self.selected_drawing = None
         self.clear_ruler()
 
     def toggle_fvg(self, checked: bool):
@@ -275,69 +297,262 @@ class ChartDrawingEngine(QObject):
                     logger.debug(f"[DrawingEngine] Non-critical addItem(va_region) error: {err}")
             self.window.va_region.setVisible(va_fill_vis)
 
-    def eventFilter(self, obj, event):
-        """Intercept mouse events on plot_widget viewport for interactive drawing tools."""
+    def _find_drawing_at(self, scene_pos: QPointF, threshold_px: float = 9.0):
+        """Finds the topmost user drawing within threshold_px of scene_pos."""
+        if not self.user_drawings or not hasattr(self.plot_widget, 'plotItem'):
+            return None
+
         try:
-            if not hasattr(self, "plot_widget") or self.plot_widget is None:
-                return False
-            if obj != self.plot_widget.viewport():
+            vb = self.plot_widget.plotItem.vb
+            mx = scene_pos.x()
+            my = scene_pos.y()
+
+            for d in reversed(self.user_drawings):
+                d_type = d.get('type')
+                coords = d.get('coords')
+                if not coords:
+                    continue
+
+                if d_type == 'trendline':
+                    x1, y1, x2, y2 = coords
+                    p1 = vb.mapViewToScene(QPointF(x1, y1))
+                    p2 = vb.mapViewToScene(QPointF(x2, y2))
+                    x1_s, y1_s = p1.x(), p1.y()
+                    x2_s, y2_s = p2.x(), p2.y()
+
+                    dx = x2_s - x1_s
+                    dy = y2_s - y1_s
+                    len_sq = dx * dx + dy * dy
+                    if len_sq < 1e-6:
+                        dist = math.hypot(mx - x1_s, my - y1_s)
+                    else:
+                        t = ((mx - x1_s) * dx + (my - y1_s) * dy) / len_sq
+                        t = max(0.0, min(1.0, t))
+                        proj_x = x1_s + t * dx
+                        proj_y = y1_s + t * dy
+                        dist = math.hypot(mx - proj_x, my - proj_y)
+
+                    if dist <= threshold_px:
+                        return d
+
+                elif d_type == 'rectangle':
+                    left_x, bot_y, w, h = coords
+                    top_y = bot_y + h
+                    right_x = left_x + w
+                    p_tl = vb.mapViewToScene(QPointF(left_x, top_y))
+                    p_br = vb.mapViewToScene(QPointF(right_x, bot_y))
+                    rect = QRectF(p_tl, p_br).normalized()
+                    if rect.adjusted(-threshold_px, -threshold_px, threshold_px, threshold_px).contains(scene_pos):
+                        return d
+        except Exception as err:
+            logger.debug(f"[DrawingEngine] Error finding drawing at scene_pos: {err}")
+
+        return None
+
+    def _set_highlight(self, d, is_highlighted: bool = True):
+        """Applies or removes visual highlight styling on a drawing record."""
+        if not d:
+            return
+        try:
+            is_d = getattr(self.window, 'is_dark_theme', False)
+            d_type = d.get('type')
+            items = d.get('items', [])
+
+            if d_type == 'trendline' and len(items) >= 3:
+                line_item, start_dot, end_dot = items[0], items[1], items[2]
+                if is_highlighted:
+                    hi_color = '#38bdf8' if is_d else '#1d4ed8'
+                    line_item.setPen(pg.mkPen(color=hi_color, width=3.5, style=Qt.SolidLine))
+                    dot_pen = pg.mkPen('#ffffff', width=1.5)
+                    dot_brush = pg.mkBrush(hi_color)
+                    start_dot.setSymbolBrush(dot_brush)
+                    start_dot.setSymbolPen(dot_pen)
+                    start_dot.setSymbolSize(9)
+                    end_dot.setSymbolBrush(dot_brush)
+                    end_dot.setSymbolPen(dot_pen)
+                    end_dot.setSymbolSize(9)
+                else:
+                    norm_color = '#38bdf8' if is_d else '#2563eb'
+                    line_item.setPen(pg.mkPen(color=norm_color, width=2.0, style=Qt.SolidLine))
+                    dot_pen = pg.mkPen('#ffffff', width=1)
+                    dot_brush = pg.mkBrush(norm_color)
+                    start_dot.setSymbolBrush(dot_brush)
+                    start_dot.setSymbolPen(dot_pen)
+                    start_dot.setSymbolSize(6)
+                    end_dot.setSymbolBrush(dot_brush)
+                    end_dot.setSymbolPen(dot_pen)
+                    end_dot.setSymbolSize(6)
+
+            elif d_type == 'rectangle' and items:
+                rect_item = items[0]
+                if is_highlighted:
+                    rect_item.setPen(pg.mkPen(color=pg.mkColor(251, 191, 36, 255), width=2.5, style=Qt.SolidLine))
+                    rect_item.setBrush(pg.mkBrush(245, 158, 11, 80))
+                else:
+                    rect_item.setPen(pg.mkPen(color=pg.mkColor(245, 158, 11, 180), width=1.2, style=Qt.SolidLine))
+                    rect_item.setBrush(pg.mkBrush(245, 158, 11, 45))
+        except Exception as err:
+            logger.debug(f"[DrawingEngine] Error toggling drawing highlight: {err}")
+
+    def _delete_drawing(self, target):
+        """Removes a specific drawing annotation from plot and storage."""
+        if not target:
+            return
+        for it in target.get('items', []):
+            try:
+                self.plot_widget.removeItem(it)
+            except Exception as err:
+                logger.debug(f"[DrawingEngine] Non-critical removeItem error: {err}")
+        if target in self.user_drawings:
+            self.user_drawings.remove(target)
+        if self.selected_drawing == target:
+            self.selected_drawing = None
+        if self.hovered_drawing == target:
+            self.hovered_drawing = None
+        if self.mode == self.MODE_CROSSHAIR:
+            self.plot_widget.viewport().setCursor(Qt.ArrowCursor)
+        else:
+            self.plot_widget.viewport().setCursor(Qt.CrossCursor)
+
+    def eventFilter(self, obj, event):
+        """Intercept mouse and key events for interactive drawing tools."""
+        try:
+            if not hasattr(self, 'plot_widget') or self.plot_widget is None:
                 return False
         except (RuntimeError, AttributeError):
             return False
 
         ev_type = event.type()
 
-        # Handle Escape / Delete keys
+        # Handle Escape / Delete / Backspace keys on any of our filtered widgets
         if ev_type == QEvent.Type.KeyPress:
+            # Safety check: if user is typing in a text field or spinbox, don't intercept Delete
+            focus_w = QApplication.focusWidget()
+            if isinstance(focus_w, (QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox)):
+                return False
+
             if event.key() == Qt.Key_Escape:
                 self._cancel_active_drag()
                 self.clear_ruler()
+                if self.selected_drawing:
+                    self._set_highlight(self.selected_drawing, False)
+                    self.selected_drawing = None
+                if self.hovered_drawing:
+                    self._set_highlight(self.hovered_drawing, False)
+                    self.hovered_drawing = None
                 self.set_mode(self.MODE_CROSSHAIR)
                 return True
+
             elif event.key() in (Qt.Key_Delete, Qt.Key_Backspace):
-                if self.user_drawings:
-                    last_d = self.user_drawings.pop()
-                    for it in last_d.get("items", []):
-                        try:
-                            self.plot_widget.removeItem(it)
-                        except Exception as err:
-                            logger.debug(f"[DrawingEngine] Non-critical removeItem error: {err}")
-                self.clear_ruler()
-                return True
-
-        # In Crosshair mode: pass all mouse events to ViewBox for normal panning/zooming
-        if self.mode == self.MODE_CROSSHAIR:
-            return False
-
-        # In Drawing or Ruler mode: intercept left clicks and drags
-        if ev_type == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton:
-                pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
-                scene_pos = self.plot_widget.mapToScene(pos)
-                if self.plot_widget.plotItem.vb.sceneBoundingRect().contains(scene_pos):
-                    view_pos = self.plot_widget.plotItem.vb.mapSceneToView(scene_pos)
-                    self.drag_start = (view_pos.x(), view_pos.y())
+                target = self.selected_drawing or self.hovered_drawing
+                if target:
+                    self._delete_drawing(target)
+                    return True
+                elif self.ruler_items:
                     self.clear_ruler()
                     return True
-            elif event.button() == Qt.MouseButton.RightButton:
-                self._cancel_active_drag()
-                self.clear_ruler()
-                self.set_mode(self.MODE_CROSSHAIR)
-                return True
+                elif self.user_drawings:
+                    last_d = self.user_drawings[-1]
+                    self._delete_drawing(last_d)
+                    return True
 
-        elif ev_type == QEvent.Type.MouseMove:
+        # Mouse events are only handled when coming from plot_widget.viewport()
+        try:
+            vp = self.plot_widget.viewport() if hasattr(self.plot_widget, 'viewport') else None
+            if vp is not None and obj != vp:
+                return False
+        except (RuntimeError, AttributeError):
+            return False
+            return False
+
+        if ev_type == QEvent.Type.MouseMove:
+            pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+            scene_pos = self.plot_widget.mapToScene(pos)
+
+            # 1. If currently dragging in drawing or ruler mode:
             if self.drag_start is not None:
-                pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
-                scene_pos = self.plot_widget.mapToScene(pos)
                 view_pos = self.plot_widget.plotItem.vb.mapSceneToView(scene_pos)
                 x1, y1 = self.drag_start
                 x2, y2 = view_pos.x(), view_pos.y()
                 self._update_live_preview(x1, y1, x2, y2)
                 return True
 
+            # 2. When NOT dragging (hover inspection):
+            if hasattr(self.plot_widget, 'plotItem') and self.plot_widget.plotItem.vb.sceneBoundingRect().contains(scene_pos):
+                hovered = self._find_drawing_at(scene_pos)
+                if hovered != self.hovered_drawing:
+                    if self.hovered_drawing and self.hovered_drawing != self.selected_drawing:
+                        self._set_highlight(self.hovered_drawing, False)
+                    self.hovered_drawing = hovered
+                    if self.hovered_drawing:
+                        self._set_highlight(self.hovered_drawing, True)
+                        self.plot_widget.viewport().setCursor(Qt.PointingHandCursor)
+                    else:
+                        if not self.selected_drawing:
+                            if self.mode == self.MODE_CROSSHAIR:
+                                self.plot_widget.viewport().setCursor(Qt.ArrowCursor)
+                            else:
+                                self.plot_widget.viewport().setCursor(Qt.CrossCursor)
+            else:
+                if self.hovered_drawing and self.hovered_drawing != self.selected_drawing:
+                    self._set_highlight(self.hovered_drawing, False)
+                    self.hovered_drawing = None
+
+            # Pass event through so crosshair coordinates update
+            return False
+
+        elif ev_type == QEvent.Type.MouseButtonPress:
+            pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+            scene_pos = self.plot_widget.mapToScene(pos)
+            in_bounds = (
+                hasattr(self.plot_widget, 'plotItem')
+                and self.plot_widget.plotItem.vb.sceneBoundingRect().contains(scene_pos)
+            )
+
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Ensure plot_widget has keyboard focus so Delete key works immediately
+                if hasattr(self.plot_widget, 'setFocus'):
+                    self.plot_widget.setFocus()
+
+                # In Crosshair mode: click on drawing selects it, click on empty deselects
+                if self.mode == self.MODE_CROSSHAIR:
+                    if in_bounds:
+                        clicked_drawing = self._find_drawing_at(scene_pos)
+                        if clicked_drawing:
+                            if self.selected_drawing and self.selected_drawing != clicked_drawing:
+                                self._set_highlight(self.selected_drawing, False)
+                            self.selected_drawing = clicked_drawing
+                            self._set_highlight(clicked_drawing, True)
+                            self.plot_widget.viewport().setCursor(Qt.PointingHandCursor)
+                            return True  # Consume click so chart doesn't pan when selecting
+                        else:
+                            if self.selected_drawing:
+                                self._set_highlight(self.selected_drawing, False)
+                                self.selected_drawing = None
+                    return False  # Let ViewBox handle panning
+
+                # In Drawing or Ruler mode:
+                elif in_bounds:
+                    view_pos = self.plot_widget.plotItem.vb.mapSceneToView(scene_pos)
+                    self.drag_start = (view_pos.x(), view_pos.y())
+                    self.clear_ruler()
+                    return True
+
+            elif event.button() == Qt.MouseButton.RightButton:
+                self._cancel_active_drag()
+                self.clear_ruler()
+                if self.selected_drawing:
+                    self._set_highlight(self.selected_drawing, False)
+                    self.selected_drawing = None
+                if self.hovered_drawing:
+                    self._set_highlight(self.hovered_drawing, False)
+                    self.hovered_drawing = None
+                self.set_mode(self.MODE_CROSSHAIR)
+                return True
+
         elif ev_type == QEvent.Type.MouseButtonRelease:
             if event.button() == Qt.MouseButton.LeftButton and self.drag_start is not None:
-                pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
                 scene_pos = self.plot_widget.mapToScene(pos)
                 view_pos = self.plot_widget.plotItem.vb.mapSceneToView(scene_pos)
                 x1, y1 = self.drag_start
@@ -346,12 +561,12 @@ class ChartDrawingEngine(QObject):
                 self._commit_drawing(x1, y1, x2, y2)
                 self._cancel_active_drag()
 
-                # After drawing a trendline or rectangle, return to crosshair mode
-                if self.mode in (self.MODE_TRENDLINE, self.MODE_RECTANGLE):
-                    self.set_mode(self.MODE_CROSSHAIR)
+                # Keep tool active in drawing mode so user can draw multiple lines/zones!
+                # To exit drawing mode, user presses Escape, Right-clicks, or clicks Crosshair button.
                 return True
 
         return False
+
 
     def _update_live_preview(self, x1, y1, x2, y2):
         is_d = getattr(self.window, "is_dark_theme", False)
@@ -451,10 +666,13 @@ class ChartDrawingEngine(QObject):
         if dist_x < 0.5 and dist_y < 0.00005:
             return
 
+        is_d = getattr(self.window, "is_dark_theme", False)
+        base_color = "#38bdf8" if is_d else "#2563eb"
+
         if self.mode == self.MODE_TRENDLINE:
             # Permanent crisp Trendline with subtle endpoint dots
             line_item = pg.PlotCurveItem(
-                pen=pg.mkPen(color="#2563eb", width=2.0, style=Qt.SolidLine)
+                pen=pg.mkPen(color=base_color, width=2.0, style=Qt.SolidLine)
             )
             line_item.setData([x1, x2], [y1, y2])
             self.plot_widget.addItem(line_item, ignoreBounds=True)
@@ -463,7 +681,7 @@ class ChartDrawingEngine(QObject):
                 pen=None,
                 symbol="o",
                 symbolSize=6,
-                symbolBrush=pg.mkBrush("#2563eb"),
+                symbolBrush=pg.mkBrush(base_color),
                 symbolPen=pg.mkPen("#ffffff", width=1)
             )
             start_dot.setData([x1], [y1])
@@ -473,7 +691,7 @@ class ChartDrawingEngine(QObject):
                 pen=None,
                 symbol="o",
                 symbolSize=6,
-                symbolBrush=pg.mkBrush("#2563eb"),
+                symbolBrush=pg.mkBrush(base_color),
                 symbolPen=pg.mkPen("#ffffff", width=1)
             )
             end_dot.setData([x2], [y2])
