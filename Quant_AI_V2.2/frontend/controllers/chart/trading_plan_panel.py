@@ -1836,7 +1836,7 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
             window.btnManualExecute.setToolTip(f"Commit modification for MT5 #{mod_ticket}")
         elif passed:
             window.btnManualExecute.setEnabled(True)
-            window.btnManualExecute.setText(f"{action_label} {lot:.2f} LOTS @ {entry_p:.{digits}f}")
+            window.btnManualExecute.setText(f"{action_label} {lot:.2f} LOTS {entry_p:.{digits}f}")
             window.btnManualExecute.setToolTip(f"Send institutional {action_label} order with {risk_pct}% risk")
         else:
             window.btnManualExecute.setEnabled(False)
@@ -3354,7 +3354,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     layout_m_action.setContentsMargins(4, 2, 4, 2)
     layout_m_action.setSpacing(4)
 
-    btn_m_exec = QPushButton("BUY 0.20 LOTS @ 2650.50")
+    btn_m_exec = QPushButton("BUY 0.20 LOTS 2650.50")
     btn_m_exec.setObjectName("btnManualExecute")
     btn_m_exec.setFixedHeight(32)
     btn_m_exec.setCursor(Qt.PointingHandCursor)
