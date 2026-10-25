@@ -15,6 +15,9 @@ from backend.infrastructure.data_providers.adapters.base_adapter import BaseCont
 
 _CRYPTO_CACHE: Dict[str, Any] = {"report": None, "timestamp": 0}
 CACHE_TTL_SECONDS = 180  # 3 minutes cache TTL for crypto
+_BINANCE_FAIL_CACHE: Dict[str, float] = {"failed_at": 0.0}
+_FNG_FAIL_CACHE: Dict[str, float] = {"failed_at": 0.0}
+FAIL_COOLDOWN_SECONDS = 300.0  # 5 minutes network failure cooldown
 
 
 class CryptoContextAdapter(BaseContextAdapter):
@@ -25,6 +28,7 @@ class CryptoContextAdapter(BaseContextAdapter):
     def _get_binance_funding_rate(self, symbol: str) -> Dict[str, Any]:
         """
         Fetch 8h Funding Rate from Binance Public Futures API.
+        Resilient against ISP DNS blocks with rapid 1.5s timeout and 300s failure cooldown.
         """
         clean = symbol.upper().replace("/", "").replace("_", "")
         # Map common symbols to USDT pairs
@@ -37,9 +41,18 @@ class CryptoContextAdapter(BaseContextAdapter):
         else:
             pair = "BTCUSDT"
 
+        now_ts = time.time()
+        if (now_ts - _BINANCE_FAIL_CACHE.get("failed_at", 0.0)) < FAIL_COOLDOWN_SECONDS:
+            return {
+                "pair": pair,
+                "funding_rate_pct": 0.0100,
+                "status": "NORMAL (Cooldown Fallback)",
+                "bias": "NEUTRAL",
+            }
+
         url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={pair}&limit=1"
         try:
-            res = self.session.get(url, timeout=3.5)
+            res = self.session.get(url, timeout=1.5)
             if res.status_code == 200:
                 data = res.json()
                 if data and len(data) > 0:
@@ -59,8 +72,10 @@ class CryptoContextAdapter(BaseContextAdapter):
                         "status": status,
                         "bias": bias,
                     }
+            _BINANCE_FAIL_CACHE["failed_at"] = time.time()
         except Exception as err:
-            logger.debug(f"[CryptoAdapter] Binance funding rate fetch error: {err}")
+            _BINANCE_FAIL_CACHE["failed_at"] = time.time()
+            logger.debug(f"[CryptoAdapter] Binance funding rate fetch error (cooldown {int(FAIL_COOLDOWN_SECONDS)}s): {err}")
 
         # Fallback an toàn khi offline hoặc không có mạng
         return {
@@ -73,18 +88,25 @@ class CryptoContextAdapter(BaseContextAdapter):
     def _get_fear_and_greed_index(self) -> Dict[str, Any]:
         """
         Fetch Crypto Fear & Greed Index from alternative.me.
+        Resilient against network latency with 1.5s timeout and 300s failure cooldown.
         """
+        now_ts = time.time()
+        if (now_ts - _FNG_FAIL_CACHE.get("failed_at", 0.0)) < FAIL_COOLDOWN_SECONDS:
+            return {"value": 55, "sentiment": "Neutral (Cooldown Fallback)"}
+
         url = "https://api.alternative.me/fng/?limit=1"
         try:
-            res = self.session.get(url, timeout=3.0)
+            res = self.session.get(url, timeout=1.5)
             if res.status_code == 200:
                 data = res.json().get("data", [])
                 if data:
                     val = int(data[0].get("value", 50))
                     classification = data[0].get("value_classification", "Neutral")
                     return {"value": val, "sentiment": classification}
+            _FNG_FAIL_CACHE["failed_at"] = time.time()
         except Exception as err:
-            logger.debug(f"[CryptoAdapter] Fear & Greed Index fetch error: {err}")
+            _FNG_FAIL_CACHE["failed_at"] = time.time()
+            logger.debug(f"[CryptoAdapter] Fear & Greed Index fetch error (cooldown {int(FAIL_COOLDOWN_SECONDS)}s): {err}")
         return {"value": 55, "sentiment": "Neutral / Greed (Fallback)"}
 
     def generate_context_report(self, symbol: str = "BTCUSD") -> Dict[str, Any]:

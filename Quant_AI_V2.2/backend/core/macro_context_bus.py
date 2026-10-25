@@ -59,6 +59,7 @@ class MacroContextBus:
         self._event_risk_engine = EventRiskEngine()
         self._macro_regime = MacroRegimeEngine()
         self._data_lock = threading.Lock()
+        self._pending_symbols: set = set()
 
     @classmethod
     def get_instance(cls) -> "MacroContextBus":
@@ -228,18 +229,79 @@ class MacroContextBus:
 
         return self._profiles
 
-    def get_profile(self, symbol: str) -> SymbolMacroProfile:
-        """Instant O(1) profile lookup from in-memory cache."""
+    def _trigger_async_refresh(self, clean_sym: str) -> None:
+        """Schedules asynchronous profile calculation in background thread without blocking callers."""
+        with self._data_lock:
+            if clean_sym in self._pending_symbols:
+                return
+            self._pending_symbols.add(clean_sym)
+
+        def _worker():
+            try:
+                prof = self.refresh_symbol_profile(clean_sym)
+                with self._data_lock:
+                    existing = self._profiles.get(clean_sym)
+                    if existing is not None:
+                        existing.asset_class = prof.asset_class
+                        existing.directional_bias = prof.directional_bias
+                        existing.macro_regime = prof.macro_regime
+                        existing.news_blackout = prof.news_blackout
+                        existing.event_risk_level = prof.event_risk_level
+                        existing.next_event_title = prof.next_event_title
+                        existing.seconds_to_event = prof.seconds_to_event
+                        existing.timestamp = prof.timestamp
+                        self._update_badge(existing)
+                    else:
+                        self._profiles[clean_sym] = prof
+            except Exception as e:
+                logger.debug(f"[MacroContextBus] Background profile compute error for {clean_sym}: {e}")
+            finally:
+                with self._data_lock:
+                    self._pending_symbols.discard(clean_sym)
+
+        t = threading.Thread(target=_worker, name=f"MacroProfileWorker-{clean_sym}", daemon=True)
+        t.start()
+
+    def get_profile(self, symbol: str, sync_fallback: bool = False) -> SymbolMacroProfile:
+        """Instant O(1) profile lookup from in-memory cache without blocking GUI/callers."""
         clean_sym = symbol.upper().split(".")[0].replace("/", "").strip()
         with self._data_lock:
             prof = self._profiles.get(clean_sym)
+            if prof is not None:
+                return prof
 
-        if not prof:
+        if sync_fallback:
             prof = self.refresh_symbol_profile(clean_sym)
             with self._data_lock:
                 self._profiles[clean_sym] = prof
+            return prof
 
-        return prof
+        try:
+            asset_cls = AssetRegistry.identify(clean_sym).value
+        except Exception:
+            asset_cls = "FOREX"
+
+        default_prof = SymbolMacroProfile(
+            symbol=clean_sym,
+            asset_class=asset_cls,
+            badge_text="NEUT",
+            badge_color="#64748b",
+            directional_bias="NEUTRAL",
+            macro_regime="NEUTRAL",
+            news_blackout=False,
+            event_risk_level="LOW",
+            next_event_title="",
+            seconds_to_event=999999.0,
+            manual_override_lock=self._manual_override_lock,
+            force_defense_active=self._force_defense_active,
+            timestamp=time.time(),
+        )
+        self._update_badge(default_prof)
+        with self._data_lock:
+            self._profiles[clean_sym] = default_prof
+
+        self._trigger_async_refresh(clean_sym)
+        return default_prof
 
     def check_pre_trade_news_compliance(self, symbol: str) -> Tuple[bool, str, str]:
         """

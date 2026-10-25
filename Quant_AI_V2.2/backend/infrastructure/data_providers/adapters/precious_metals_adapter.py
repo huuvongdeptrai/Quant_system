@@ -24,8 +24,10 @@ _METALS_CACHE: Dict[str, Any] = {
     "timestamp": 0,
     "batch_df": None,
     "batch_ts": 0,
+    "failed_at": 0.0,
 }
 CACHE_TTL_SECONDS = 300  # 5 minutes cache TTL
+FAIL_COOLDOWN_SECONDS = 180.0  # 3 minutes cooldown if yfinance fails
 
 
 class PreciousMetalsAdapter(BaseContextAdapter):
@@ -55,16 +57,24 @@ class PreciousMetalsAdapter(BaseContextAdapter):
         ):
             return _METALS_CACHE["batch_df"]
 
+        if (now_ts - _METALS_CACHE.get("failed_at", 0.0)) < FAIL_COOLDOWN_SECONDS:
+            return {"close": pd.DataFrame(), "volume": pd.DataFrame()}
+
         try:
-            tickers = ["GLD", "IAU", "GDX", "TIP", "^TNX", "^IRX", "^VIX", "DX-Y.NYB"]
-            df = yf.download(tickers, period="1mo", progress=False)
+            import contextlib
+            tickers = ["GLD", "IAU", "GDX", "TIP", "^TNX", "^IRX", "^VIX", "UUP"]
+            with open(os.devnull, "w") as devnull, contextlib.redirect_stderr(devnull), contextlib.redirect_stdout(devnull):
+                df = yf.download(tickers, period="1mo", progress=False, timeout=5)
             if not df.empty and "Close" in df:
                 res = {"close": df["Close"], "volume": df.get("Volume", pd.DataFrame())}
                 _METALS_CACHE["batch_df"] = res
                 _METALS_CACHE["batch_ts"] = now_ts
                 return res
+            else:
+                _METALS_CACHE["failed_at"] = now_ts
         except Exception as e:
-            logger.warning(f"Batch macro download error: {e}")
+            _METALS_CACHE["failed_at"] = now_ts
+            logger.debug(f"[PreciousMetalsAdapter] Batch macro download error: {e}")
 
         return {"close": pd.DataFrame(), "volume": pd.DataFrame()}
 
@@ -84,7 +94,7 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             if "TIP" in close_df.columns and not close_df["TIP"].dropna().empty:
                 tip_hist = close_df["TIP"].dropna()
             else:
-                tip_hist = yf.Ticker("TIP").history(period="1mo")["Close"].dropna()
+                tip_hist = pd.Series(dtype=float)
 
             if tip_hist.empty or len(tip_hist) < 5:
                 return {
@@ -159,9 +169,8 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             vol_df = batch.get("volume", pd.DataFrame())
 
             if close_df.empty or "GLD" not in close_df.columns:
-                df = yf.download(["GLD", "IAU", "GDX"], period="1mo", progress=False)
-                close_df = df["Close"]
-                vol_df = df["Volume"]
+                close_df = pd.DataFrame()
+                vol_df = pd.DataFrame()
 
             funds: Dict[str, Dict[str, Any]] = {}
             for ticker in ["GLD", "IAU", "GDX"]:
@@ -362,12 +371,14 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             if "^VIX" in close_df.columns and not close_df["^VIX"].dropna().empty:
                 vix_hist = close_df["^VIX"].dropna()
             else:
-                vix_hist = yf.Ticker("^VIX").history(period="1mo")["Close"].dropna()
+                vix_hist = pd.Series(dtype=float)
 
-            if "DX-Y.NYB" in close_df.columns and not close_df["DX-Y.NYB"].dropna().empty:
+            if "UUP" in close_df.columns and not close_df["UUP"].dropna().empty:
+                dxy_hist = close_df["UUP"].dropna()
+            elif "DX-Y.NYB" in close_df.columns and not close_df["DX-Y.NYB"].dropna().empty:
                 dxy_hist = close_df["DX-Y.NYB"].dropna()
             else:
-                dxy_hist = yf.Ticker("DX-Y.NYB").history(period="1mo")["Close"].dropna()
+                dxy_hist = pd.Series(dtype=float)
 
             if vix_hist.empty or dxy_hist.empty:
                 return {"state": "UNKNOWN", "vix": 0, "dxy": 0, "dxy_trend": "SIDEWAYS", "reason": "No data"}
@@ -400,7 +411,7 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             if "^TNX" in close_df.columns and not close_df["^TNX"].dropna().empty:
                 tnx_hist = close_df["^TNX"].dropna()
             else:
-                tnx_hist = yf.Ticker("^TNX").history(period="1mo")["Close"].dropna()
+                tnx_hist = pd.Series(dtype=float)
 
             if tnx_hist.empty:
                 return {"state": "UNKNOWN", "us10y": 0, "reason": "No data"}
@@ -450,7 +461,7 @@ class PreciousMetalsAdapter(BaseContextAdapter):
     # 5. Lịch kinh tế TradingView & Telegram Scraper
     # -------------------------------------------------------------
     def _fetch_economic_events(self, days_back=30) -> list:
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         start = now - datetime.timedelta(days=days_back)
         params = {
             "from": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
