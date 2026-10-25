@@ -50,10 +50,10 @@ class WatchlistManager(QObject):
 
     def setup_ui(self):
         if hasattr(self.window, "sidebar"):
-            self.window.sidebar.setMinimumWidth(280)
-            self.window.sidebar.setMaximumWidth(340)
+            self.window.sidebar.setMinimumWidth(290)
+            self.window.sidebar.setMaximumWidth(350)
             if self.window.sidebar.layout():
-                self.window.sidebar.layout().setContentsMargins(4, 4, 4, 4)
+                self.window.sidebar.layout().setContentsMargins(2, 4, 2, 4)
         if hasattr(self.window, "watchlistTitle"):
             self.window.watchlistTitle.setText("WATCHLIST")
 
@@ -61,7 +61,7 @@ class WatchlistManager(QObject):
         self.tree.setIconSize(QSize(0, 0))
         self.tree.setColumnCount(5)
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.tree.setIndentation(4)
+        self.tree.setIndentation(6)
         self.tree.setHeaderLabels(["SYMBOL", "BID", "PIPS", "%CHG", "MACRO"])
 
         self.tree.headerItem().setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
@@ -76,10 +76,10 @@ class WatchlistManager(QObject):
         self.tree.header().setSectionResizeMode(4, QHeaderView.Interactive)
         self.tree.header().setStretchLastSection(True)
         self.tree.setColumnWidth(0, 78)
-        self.tree.setColumnWidth(1, 62)
-        self.tree.setColumnWidth(2, 50)
-        self.tree.setColumnWidth(3, 46)
-        self.tree.setColumnWidth(4, 46)
+        self.tree.setColumnWidth(1, 64)
+        self.tree.setColumnWidth(2, 48)
+        self.tree.setColumnWidth(3, 48)
+        self.tree.setColumnWidth(4, 52)
 
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
@@ -263,6 +263,7 @@ class WatchlistManager(QObject):
             self.tree.addTopLevelItem(cat_item)
             cat_item.setFirstColumnSpanned(True)
             cat_item.setExpanded(True)
+            cat_item.setFont(0, QFont("Segoe UI", 9, QFont.Bold))
 
         subtitles = {
             "XAUUSD": "Gold Spot",

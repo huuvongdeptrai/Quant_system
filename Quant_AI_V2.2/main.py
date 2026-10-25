@@ -350,18 +350,18 @@ class QuantTerminal(QObject):
 
         # Live Alerts card will be configured in _setup_sidebar_alerts
 
-        # Show institutional watchlist sidebar by default (width: 260px)
+        # Show institutional watchlist sidebar by default (width: 295px)
         if hasattr(self.window, "sidebar"):
-            self.window.sidebar.setMinimumWidth(240)
-            self.window.sidebar.setMaximumWidth(320)
+            self.window.sidebar.setMinimumWidth(290)
+            self.window.sidebar.setMaximumWidth(350)
             self.window.sidebar.setVisible(True)
             if self.window.sidebar.layout():
-                self.window.sidebar.layout().setContentsMargins(2, 2, 2, 2)
+                self.window.sidebar.layout().setContentsMargins(2, 4, 2, 4)
         if hasattr(self.window, "mainSplitter"):
             self.window.mainSplitter.setStretchFactor(0, 0)
             self.window.mainSplitter.setStretchFactor(1, 1)
             total_w = max(400, self.window.mainSplitter.width() or 1440)
-            sidebar_w = 260
+            sidebar_w = 295
             self.window.mainSplitter.setSizes([sidebar_w, max(100, total_w - sidebar_w)])
         if hasattr(self.window, "chartSplitter"):
             self.window.chartSplitter.setSizes([900, 340])

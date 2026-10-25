@@ -3,7 +3,7 @@ Watchlist Custom Item Delegate.
 Renders monospace financial quotes, sub-labels, badge styling, and price changes.
 """
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QRect
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from PySide6.QtGui import QColor, QFont, QPainter, QBrush, QFontMetrics
 
@@ -61,8 +61,8 @@ class WatchlistDelegate(QStyledItemDelegate):
                 painter.drawText(x, rect.top() + 27, elided_sub)
 
         elif col in (1, 2, 3):
-            pad_r = -8 if col == 1 else -4
-            rect = option.rect.adjusted(0, 0, pad_r, 0)
+            # Uniform right alignment padding (-4px) perfectly matching QHeaderView section padding
+            rect = option.rect.adjusted(0, 0, -4, 0)
             painter.setFont(QFont("Consolas", 9, QFont.Bold if col == 1 else QFont.Normal))
             fg = index.data(Qt.ForegroundRole)
             if fg and isinstance(fg, (QColor, QBrush)):
@@ -77,14 +77,34 @@ class WatchlistDelegate(QStyledItemDelegate):
             painter.drawText(rect, Qt.AlignRight | Qt.AlignVCenter, item_text)
 
         elif col == 4:
-            # Ultra-compact Macro / Risk state badge (BULL, BEAR, T-14m, LOCK, NEUT)
+            # Institutional Micro-Badge Container (Flat, 2px radius, subtle tint)
             rect = option.rect
             badge_text = item_text or "NEUT"
             fg = index.data(Qt.ForegroundRole)
             color_obj = fg if isinstance(fg, QColor) else (fg.color() if isinstance(fg, QBrush) else QColor("#64748b"))
 
+            badge_w = 42
+            badge_h = 18
+            bx = rect.left() + (rect.width() - badge_w) // 2
+            by = rect.top() + (rect.height() - badge_h) // 2
+            box_rect = QRect(bx, by, badge_w, badge_h)
+
+            bg_col = QColor(color_obj)
+            bg_col.setAlpha(26 if is_dark else 22)
+            border_col = QColor(color_obj)
+            border_col.setAlpha(70 if is_dark else 65)
+
+            painter.setBrush(QBrush(bg_col))
+            painter.setPen(border_col)
+            painter.drawRoundedRect(box_rect, 2, 2)
+
             painter.setFont(QFont("Consolas", 8, QFont.Bold))
             painter.setPen(color_obj)
-            painter.drawText(rect, Qt.AlignCenter | Qt.AlignVCenter, badge_text)
+            painter.drawText(box_rect, Qt.AlignCenter, badge_text)
+
+        # Subtle row bottom divider line
+        divider_color = QColor(255, 255, 255, 12 if is_dark else 18)
+        painter.setPen(divider_color)
+        painter.drawLine(option.rect.left(), option.rect.bottom(), option.rect.right(), option.rect.bottom())
 
         painter.restore()
