@@ -178,7 +178,7 @@ class IndicatorDialog(QDialog):
         super().__init__(parent)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.resize(680, 520)
+        self.resize(650, 480)
 
         self.on_change = on_change
         self.active_indicators = active_indicators if active_indicators is not None else {}
@@ -203,7 +203,7 @@ class IndicatorDialog(QDialog):
         self._apply_dialog_theme()
 
     def _init_ui(self):
-        self.resize(720, 520)
+        self.resize(650, 480)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -404,13 +404,13 @@ class IndicatorDialog(QDialog):
             self.card_layout.addWidget(empty_lbl)
 
     def _create_indicator_card(self, ind_id, meta):
-        """Creates a single ultra-clean flat row (height 38px, thin divider 1px #f1f5f9)."""
+        """Creates a single ultra-clean flat row (height 36px, thin divider 1px #E2E8F0)."""
         row = QFrame()
         row.setObjectName("dlgRow")
-        row.setFixedHeight(38)
+        row.setFixedHeight(36)
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(14, 0, 16, 0)
-        row_layout.setSpacing(10)
+        row_layout.setSpacing(12)
         row_layout.setAlignment(Qt.AlignVCenter)
 
         # Left: Checkbox + Indicator Name
@@ -426,41 +426,34 @@ class IndicatorDialog(QDialog):
 
         row_layout.addStretch()
 
-        # Middle: Concise 3-5 word description in subtle muted gray
+        # Middle: Concise 3-5 word description in high-contrast crisp typography
         desc_text = meta.get("short_desc", meta["description"])
         lbl_desc = QLabel(desc_text)
         lbl_desc.setObjectName("dlgRowDesc")
         lbl_desc.setFont(QFont("Segoe UI", 8))
         row_layout.addWidget(lbl_desc)
 
-        # Target Pane Badge: OVERLAY vs SUB-PANE
+        # Target Pane Badge: Subtle monochrome institutional pill (No neon / candy colors)
         pane_type = meta.get("pane", "main")
         is_sub = (pane_type == "sub")
         badge_pane_text = "SUB-PANE" if is_sub else "OVERLAY"
         lbl_pane = QLabel(badge_pane_text)
         lbl_pane.setObjectName("dlgRowPaneBadge")
         lbl_pane.setFont(QFont("Consolas", 7, QFont.Bold))
-        lbl_pane.setFixedSize(58, 16)
+        lbl_pane.setFixedSize(62, 17)
         lbl_pane.setAlignment(Qt.AlignCenter)
         if self.is_dark:
-            p_bg = "rgba(139, 92, 246, 0.15)" if is_sub else "rgba(56, 189, 248, 0.12)"
-            p_fg = "#c084fc" if is_sub else "#38bdf8"
-            p_border = "rgba(139, 92, 246, 0.3)" if is_sub else "rgba(56, 189, 248, 0.25)"
+            p_bg = "#161B26"
+            p_fg = "#94A3B8"
+            p_border = "#272D3B"
         else:
-            p_bg = "#f5f3ff" if is_sub else "#f0f9ff"
-            p_fg = "#7e22ce" if is_sub else "#0284c7"
-            p_border = "#ddd6fe" if is_sub else "#bae6fd"
+            p_bg = "#F1F5F9"
+            p_fg = "#334155"
+            p_border = "#CBD5E1"
         lbl_pane.setStyleSheet(f"background-color: {p_bg}; color: {p_fg}; border: 1px solid {p_border}; border-radius: 2px;")
         row_layout.addWidget(lbl_pane)
 
-        # Right: Category tag in muted gray text
-        badge_text = meta.get("badge", meta["category"])
-        lbl_cat = QLabel(badge_text)
-        lbl_cat.setObjectName("dlgRowCat")
-        lbl_cat.setFont(QFont("Segoe UI", 8))
-        lbl_cat.setFixedWidth(80)
-        lbl_cat.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        row_layout.addWidget(lbl_cat)
+        # Redundant category label removed (Category is already displayed in left sidebar)
 
         return row
 
@@ -549,7 +542,7 @@ class IndicatorDialog(QDialog):
                     padding: 4px;
                 }
                 QListWidget#dlgSidebar::item {
-                    padding: 7px 12px;
+                    padding: 8px 12px;
                     border-radius: 2px;
                     margin: 1px 0;
                 }
@@ -575,15 +568,15 @@ class IndicatorDialog(QDialog):
                     border-bottom: 1px solid #1E293B;
                 }
                 QFrame#dlgRow:hover {
-                    background-color: #111622;
+                    background-color: #141722;
                 }
                 QCheckBox#dlgRowCheckbox {
-                    color: #F1F5F9;
+                    color: #F8FAFC;
                     spacing: 8px;
                 }
                 QCheckBox#dlgRowCheckbox::indicator {
-                    width: 15px;
-                    height: 15px;
+                    width: 14px;
+                    height: 14px;
                     border-radius: 2px;
                     border: 1px solid #334155;
                     background-color: #161B26;
@@ -593,19 +586,16 @@ class IndicatorDialog(QDialog):
                     border-color: #38BDF8;
                 }
                 QLabel#dlgRowDesc {
-                    color: #94A3B8;
-                }
-                QLabel#dlgRowCat {
-                    color: #64748B;
+                    color: #CBD5E1;
                 }
                 QWidget#dlgBottomBar {
-                    background-color: #10141F;
+                    background-color: #0E121B;
                     border-top: 1px solid #1E293B;
                 }
                 QPushButton#dlgBtnReset {
-                    background-color: #18181B;
-                    color: #A1A1AA;
-                    border: 1px solid #27272A;
+                    background-color: #161B26;
+                    color: #CBD5E1;
+                    border: 1px solid #272D3B;
                     border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
@@ -616,7 +606,7 @@ class IndicatorDialog(QDialog):
                     color: #FFFFFF;
                 }
                 QLabel#dlgActiveCount {
-                    color: #64748B;
+                    color: #94A3B8;
                 }
                 QPushButton#dlgBtnApply {
                     background-color: #0284C7;
@@ -626,6 +616,7 @@ class IndicatorDialog(QDialog):
                     font-family: 'Segoe UI';
                     font-size: 11px;
                     font-weight: bold;
+                    padding: 0 16px;
                 }
                 QPushButton#dlgBtnApply:hover {
                     background-color: #0369A1;
@@ -662,7 +653,7 @@ class IndicatorDialog(QDialog):
                     color: #EF4444;
                 }
                 QLineEdit#dlgSearchBar {
-                    background-color: #F8FAFC;
+                    background-color: #FFFFFF;
                     color: #0F172A;
                     border: 1px solid #CBD5E1;
                     border-radius: 2px;
@@ -674,7 +665,7 @@ class IndicatorDialog(QDialog):
                     border: 1px solid #0F172A;
                 }
                 QFrame#dlgDivider, QFrame#dlgVDivider {
-                    background-color: #E2E8F0;
+                    background-color: #CBD5E1;
                 }
                 QListWidget#dlgSidebar {
                     background-color: #F8FAFC;
@@ -682,22 +673,23 @@ class IndicatorDialog(QDialog):
                     outline: none;
                     font-family: 'Segoe UI';
                     font-size: 11px;
-                    color: #475569;
+                    color: #334155;
                     padding: 4px;
                 }
                 QListWidget#dlgSidebar::item {
-                    padding: 7px 12px;
+                    padding: 8px 12px;
                     border-radius: 2px;
                     margin: 1px 0;
                 }
                 QListWidget#dlgSidebar::item:hover {
-                    background-color: #F1F5F9;
-                    color: #0F172A;
-                }
-                QListWidget#dlgSidebar::item:selected {
                     background-color: #E2E8F0;
                     color: #0F172A;
-                    font-weight: bold;
+                    font-weight: 500;
+                }
+                QListWidget#dlgSidebar::item:selected {
+                    background-color: #0F172A;
+                    color: #FFFFFF;
+                    font-weight: 600;
                 }
                 QScrollArea#dlgScrollArea {
                     background-color: #FFFFFF;
@@ -709,7 +701,7 @@ class IndicatorDialog(QDialog):
                 QFrame#dlgRow {
                     background-color: transparent;
                     border: none;
-                    border-bottom: 1px solid #F1F5F9;
+                    border-bottom: 1px solid #E2E8F0;
                 }
                 QFrame#dlgRow:hover {
                     background-color: #F8FAFC;
@@ -719,41 +711,43 @@ class IndicatorDialog(QDialog):
                     spacing: 8px;
                 }
                 QCheckBox#dlgRowCheckbox::indicator {
-                    width: 15px;
-                    height: 15px;
+                    width: 14px;
+                    height: 14px;
                     border-radius: 2px;
-                    border: 1px solid #CBD5E1;
-                    background-color: #F8FAFC;
+                    border: 1px solid #94A3B8;
+                    background-color: #FFFFFF;
+                }
+                QCheckBox#dlgRowCheckbox::indicator:hover {
+                    border-color: #475569;
                 }
                 QCheckBox#dlgRowCheckbox::indicator:checked {
                     background-color: #0F172A;
                     border-color: #0F172A;
                 }
                 QLabel#dlgRowDesc {
-                    color: #64748B;
-                }
-                QLabel#dlgRowCat {
-                    color: #94A3B8;
+                    color: #334155;
                 }
                 QWidget#dlgBottomBar {
                     background-color: #F8FAFC;
-                    border-top: 1px solid #E2E8F0;
+                    border-top: 1px solid #CBD5E1;
                 }
                 QPushButton#dlgBtnReset {
                     background-color: #FFFFFF;
-                    color: #475569;
+                    color: #334155;
                     border: 1px solid #CBD5E1;
                     border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
+                    font-weight: 500;
                     padding: 0 12px;
                 }
                 QPushButton#dlgBtnReset:hover {
                     background-color: #F1F5F9;
+                    border-color: #94A3B8;
                     color: #0F172A;
                 }
                 QLabel#dlgActiveCount {
-                    color: #64748B;
+                    color: #0F172A;
                 }
                 QPushButton#dlgBtnApply {
                     background-color: #0F172A;
@@ -762,7 +756,7 @@ class IndicatorDialog(QDialog):
                     border-radius: 2px;
                     font-family: 'Segoe UI';
                     font-size: 11px;
-                    font-weight: bold;
+                    font-weight: 600;
                     padding: 0 16px;
                 }
                 QPushButton#dlgBtnApply:hover {
@@ -770,7 +764,7 @@ class IndicatorDialog(QDialog):
                     border-color: #1E293B;
                 }
                 QLabel#dlgEmptyLabel {
-                    color: #94A3B8;
+                    color: #64748B;
                     font-family: 'Segoe UI';
                     font-size: 12px;
                 }
