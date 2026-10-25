@@ -873,7 +873,7 @@ class QuantTerminal(QObject):
             from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
 
             from backend.core.bot_worker import DEFAULT_LOOKBACK_BARS
-from backend.core.engine_config import BotRunConfig, get_timeframe_name
+            from backend.core.engine_config import BotRunConfig, get_timeframe_name
 
             risk_mgr = RiskManager(default_risk_pct=1.0)
 
