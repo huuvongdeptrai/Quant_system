@@ -128,6 +128,9 @@ class CalendarManager:
         # 1. ROW 1: 4-Pillar Macro Matrix (Clean, no verbose description fluff)
         self._setup_macro_matrix_row()
 
+        # 1.5. ROW 1.5: Session Timeline Bar (Bloomberg ECON / Sierra Chart Benchmark)
+        self._setup_timeline_bar()
+
         # 2. ROW 2: Compact Controls & Wire Intel Action Strip
         self._setup_controls_wire_row()
 
@@ -142,34 +145,34 @@ class CalendarManager:
         fg_muted = "#94a3b8" if is_d else "#64748b"
 
         self.cards_frame = QFrame()
-        self.cards_frame.setFixedHeight(48)
+        self.cards_frame.setFixedHeight(68)
         self.cards_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         h_lay = QHBoxLayout(self.cards_frame)
         h_lay.setContentsMargins(0, 0, 0, 0)
         h_lay.setSpacing(5)
 
-        # Helper to create compact card
+        # Helper to create high-density institutional macro card
         def _make_card(title_text):
             card = QFrame()
             card.setStyleSheet(
-                f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 2px 6px; }}"
+                f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 8px; }}"
             )
             lay = QVBoxLayout(card)
             lay.setContentsMargins(2, 2, 2, 2)
-            lay.setSpacing(1)
+            lay.setSpacing(3)
 
             top = QHBoxLayout()
             lbl_title = QLabel(title_text)
-            lbl_title.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+            lbl_title.setStyleSheet(f"color: {fg_muted}; font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px; border: none;")
             badge = QLabel("CALCULATING")
-            badge.setStyleSheet("font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; border: none;")
+            badge.setStyleSheet("font-family: Consolas; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 2px; border: none;")
             top.addWidget(lbl_title)
             top.addStretch()
             top.addWidget(badge)
             lay.addLayout(top)
 
             lbl_metrics = QLabel("--")
-            lbl_metrics.setStyleSheet("font-family: Consolas; font-size: 10.5px; font-weight: bold; border: none;")
+            lbl_metrics.setStyleSheet("font-family: Consolas; font-size: 11.5px; font-weight: bold; border: none;")
             lay.addWidget(lbl_metrics)
             return card, badge, lbl_metrics
 
@@ -190,6 +193,121 @@ class CalendarManager:
         h_lay.addWidget(self.card_confluence)
 
         self.root_layout.addWidget(self.cards_frame)
+
+    def _setup_timeline_bar(self):
+        """Session Timeline Bar (Bloomberg ECON / Sierra Chart Benchmark).
+        Visualizes current UTC trading session progress with real-time next-event countdown ticker."""
+        from PySide6.QtWidgets import QProgressBar
+
+        is_d = getattr(self.window, "is_dark_theme", False)
+        bg = "#0b0f19" if is_d else "#f1f5f9"
+        border = "rgba(255, 255, 255, 0.08)" if is_d else "#cbd5e1"
+        fg_muted = "#94a3b8" if is_d else "#64748b"
+
+        self.frame_timeline = QFrame()
+        self.frame_timeline.setFixedHeight(40)
+        self.frame_timeline.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.frame_timeline.setStyleSheet(
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 2px 8px; }}"
+        )
+        tl_lay = QVBoxLayout(self.frame_timeline)
+        tl_lay.setContentsMargins(6, 2, 6, 2)
+        tl_lay.setSpacing(2)
+
+        # Header: Timeline Tag (Left) + Next Event Live Indicator (Right)
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(6)
+
+        lbl_tl_tag = QLabel("SESSION TIMELINE (UTC)")
+        lbl_tl_tag.setStyleSheet(f"color: {fg_muted}; font-family: Consolas, monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.6px; border: none;")
+        top_row.addWidget(lbl_tl_tag)
+        top_row.addStretch()
+
+        self.lbl_next_event_strip = QLabel("▶ SCANNING FOR UPCOMING RELEASES...")
+        self.lbl_next_event_strip.setStyleSheet("color: #38bdf8; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;")
+        top_row.addWidget(self.lbl_next_event_strip)
+        tl_lay.addLayout(top_row)
+
+        # Flat Progress Bar track (0 to 1440 minutes in a day)
+        self.timeline_bar = QProgressBar()
+        self.timeline_bar.setFixedHeight(4)
+        self.timeline_bar.setRange(0, 1440)
+        self.timeline_bar.setTextVisible(False)
+        chunk_col = "#22c55e"
+        track_bg = "rgba(255, 255, 255, 0.08)" if is_d else "rgba(0, 0, 0, 0.08)"
+        self.timeline_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {track_bg};
+                border: none;
+                border-radius: 0px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {chunk_col};
+                border-radius: 0px;
+            }}
+        """)
+        tl_lay.addWidget(self.timeline_bar)
+
+        # Sub-tick time markers
+        ticks_row = QHBoxLayout()
+        ticks_row.setContentsMargins(0, 0, 0, 0)
+        ticks_labels = ["00:00", "06:00", "12:00 UTC", "18:00", "24:00"]
+        for idx, lbl in enumerate(ticks_labels):
+            l = QLabel(lbl)
+            l.setStyleSheet("color: #475569; font-family: Consolas, monospace; font-size: 8px; border: none;")
+            if idx > 0 and idx < len(ticks_labels) - 1:
+                ticks_row.addStretch()
+            ticks_row.addWidget(l)
+            if idx == 0:
+                ticks_row.addStretch()
+        tl_lay.addLayout(ticks_row)
+
+        self.root_layout.addWidget(self.frame_timeline)
+        self._update_timeline()
+
+    def _update_timeline(self):
+        """Updates the visual session progress and the next high-impact countdown strip."""
+        if not hasattr(self, "timeline_bar") or not hasattr(self, "lbl_next_event_strip"):
+            return
+
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        self.timeline_bar.setValue(now_utc.hour * 60 + now_utc.minute)
+
+        now_ts = now_utc.timestamp()
+        upcoming = [
+            e for e in getattr(self, "_raw_events", [])
+            if e.get("sort_key", 0.0) > (now_ts - 30) and e.get("impact", 0) >= 1
+        ]
+        upcoming.sort(key=lambda x: x.get("sort_key", 0.0))
+
+        if upcoming:
+            nxt = upcoming[0]
+            sort_key = nxt.get("sort_key", 0.0)
+            diff = max(0, int(sort_key - now_ts))
+            hrs = diff // 3600
+            mins = (diff % 3600) // 60
+            secs = diff % 60
+            impact = nxt.get("impact", 0)
+            impact_tag = "HIGH" if impact == 2 else "MED"
+            impact_col = "#ef4444" if impact == 2 else "#f59e0b"
+
+            from backend.core.timezone_manager import timezone_manager
+            time_str = timezone_manager.format_utc_ts(sort_key, "%H:%M")
+            title = nxt.get("title", "")[:32]
+            cntry = nxt.get("country", "")
+
+            self.lbl_next_event_strip.setText(
+                f"▶ NEXT {impact_tag}: {time_str} · {title} ({cntry}) · T−{hrs:02d}:{mins:02d}:{secs:02d}"
+            )
+            self.lbl_next_event_strip.setStyleSheet(
+                f"color: {impact_col}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;"
+            )
+        else:
+            self.lbl_next_event_strip.setText("▶ NO UPCOMING HIGH-IMPACT RELEASES IN THIS SESSION")
+            self.lbl_next_event_strip.setStyleSheet(
+                "color: #22c55e; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;"
+            )
 
     def _setup_controls_wire_row(self):
         """Unified compact row merging filters, wire alert status, and sync indicator."""
@@ -313,13 +431,13 @@ class CalendarManager:
         hdr.setSectionResizeMode(6, QHeaderView.Fixed)
         hdr.setSectionResizeMode(7, QHeaderView.Fixed)
 
-        self.table.setColumnWidth(0, 80)
-        self.table.setColumnWidth(1, 52)
-        self.table.setColumnWidth(2, 70)
-        self.table.setColumnWidth(4, 75)
-        self.table.setColumnWidth(5, 75)
-        self.table.setColumnWidth(6, 75)
-        self.table.setColumnWidth(7, 85)
+        self.table.setColumnWidth(0, 85)
+        self.table.setColumnWidth(1, 55)
+        self.table.setColumnWidth(2, 72)
+        self.table.setColumnWidth(4, 85)
+        self.table.setColumnWidth(5, 85)
+        self.table.setColumnWidth(6, 85)
+        self.table.setColumnWidth(7, 95)
 
         self.table.itemSelectionChanged.connect(self._on_table_selection_changed)
         # Sticky Date Header Ribbon above table
@@ -343,10 +461,10 @@ class CalendarManager:
         self._setup_defense_desk_ui()
         self.main_splitter.addWidget(self.right_container)
 
-        # 70:30 Split Proportions
-        self.main_splitter.setStretchFactor(0, 7)
-        self.main_splitter.setStretchFactor(1, 3)
-        self.main_splitter.setSizes([950, 380])
+        # 68:32 Golden Split Proportions (Balanced horizontal density)
+        self.main_splitter.setStretchFactor(0, 68)
+        self.main_splitter.setStretchFactor(1, 32)
+        self.main_splitter.setSizes([880, 420])
 
         self.root_layout.addWidget(self.main_splitter, stretch=1)
 
@@ -551,8 +669,7 @@ class CalendarManager:
         self.lbl_qa_watchlist_impact.setWordWrap(True)
         qa_lay.addWidget(self.lbl_qa_watchlist_impact)
 
-        r_lay.addWidget(self.frame_quant_action)
-        r_lay.addStretch(1)
+        r_lay.addWidget(self.frame_quant_action, stretch=1)
 
     def set_filter(self, filter_key):
         """Applies active filter mode (ALL, HIGH, TARGET)."""
@@ -629,7 +746,7 @@ class CalendarManager:
         market_badge = "RISK-OFF" if is_risk_off else "RISK-ON"
         self.badge_market_state.setText(market_badge)
         self.badge_market_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
             f"background-color: {'#ef4444' if is_risk_off else '#22c55e'}; color: #ffffff;"
         )
         self.lbl_market_metrics.setText(f"VIX: {vix:.2f}  ·  DXY: {dxy:.2f} {dxy_trend}")
@@ -653,7 +770,7 @@ class CalendarManager:
 
         self.badge_monetary_state.setText(mon_badge)
         self.badge_monetary_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
             f"background-color: {mon_bg}; color: #ffffff;"
         )
         self.lbl_monetary_metrics.setText(f"US10Y: {us10y:.3f}%  ·  5D: {sign}{d5:.3f}%")
@@ -676,7 +793,7 @@ class CalendarManager:
 
         self.badge_economic_state.setText(eco_badge)
         self.badge_economic_state.setStyleSheet(
-            f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
+            f"font-family: Consolas; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
             f"background-color: {eco_bg}; color: #ffffff;"
         )
         # Clarify economic cycle drivers with institutional economic terms
@@ -750,7 +867,7 @@ class CalendarManager:
         if hasattr(self, "badge_confluence_state"):
             self.badge_confluence_state.setText(bias_text)
             self.badge_confluence_state.setStyleSheet(
-                f"font-family: Consolas; font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 2px; "
+                f"font-family: Consolas; font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 2px; "
                 f"background-color: {bias_bg}; color: #ffffff;"
             )
             self.lbl_confluence_metrics.setText(desc_text)
@@ -799,12 +916,13 @@ class CalendarManager:
 
             row = t.rowCount()
             t.insertRow(row)
-            t.setRowHeight(row, 24)
+            t.setRowHeight(row, 22)
 
             # ACCURATE PAST CHECK: Event is in the past if sort_key was > 60 seconds ago in UTC epoch
             is_past = (sort_key < (now_utc_ts - 60))
 
-            text_alpha = "#64748b" if is_past else ("#f8fafc" if is_d else "#0f172a")
+            # Dim past events with higher contrast separation
+            text_alpha = ("#475569" if is_d else "#94a3b8") if is_past else ("#f8fafc" if is_d else "#0f172a")
 
             # Col 0: Synchronized Timezone Event Time
             from backend.core.timezone_manager import timezone_manager
@@ -876,6 +994,14 @@ class CalendarManager:
             t.setCellWidget(row, 6, self._cell(previous, color=text_alpha, font="Consolas", align=Qt.AlignRight))
             t.setCellWidget(row, 7, self._cell(surprise_text, color=surprise_col, bold=True, font="Consolas", align=Qt.AlignRight))
 
+            # Highlight upcoming HIGH impact rows with subtle red tint
+            impact_level = e.get("impact", 0)
+            if impact_level == 2 and not is_past:
+                for col_idx in range(8):
+                    w = t.cellWidget(row, col_idx)
+                    if w:
+                        w.setStyleSheet("background-color: rgba(239, 68, 68, 0.08);")
+
             # Store event dict and date on row item 0
             item = QTableWidgetItem()
             item.setData(Qt.UserRole, e)
@@ -891,6 +1017,7 @@ class CalendarManager:
             if item:
                 t.scrollToItem(item, QAbstractItemView.PositionAtTop)
         self._on_table_scroll(0)
+        self._update_timeline()
 
     def _auto_select_next_event(self):
         """Prioritizes the next upcoming Tier-2 event for the active target asset (XAUUSD)."""
@@ -1159,6 +1286,7 @@ class CalendarManager:
 
     def _on_clock_tick(self):
         """1-second timer tick for countdown and active defense monitoring (Pure UTC epoch)."""
+        self._update_timeline()
         if not hasattr(self, "lbl_countdown_val"):
             return
 
