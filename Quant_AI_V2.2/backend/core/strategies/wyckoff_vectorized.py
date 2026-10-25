@@ -68,10 +68,11 @@ def get_symbol_multiplier(symbol: str) -> float:
 class WyckoffMomentumStrategy(BaseStrategy):
     """
     Chiến lược Wyckoff Trend Momentum & Volume Expansion (Real-time Matrix Engine).
-    Hội tụ 3 điều kiện định lượng:
-    1. Cấu trúc xu hướng (Mark-up: EMA20 > EMA50 / Mark-down: EMA20 < EMA50)
-    2. Kiểm định hồi quy động (Pullback / Retest kiểm định đường EMA20)
-    3. Bùng nổ khối lượng hấp thụ (Volume >= 1.1x Volume MA20)
+    Hội tụ 4 điều kiện định lượng chuẩn mực:
+    1. Cấu trúc xu hướng & Chế độ thị trường (Mark-up: EMA20 > EMA50 / Mark-down: EMA20 < EMA50 + ADX >= 20.0 xác nhận sóng mạnh, triệt tiêu sideway)
+    2. Kiểm định hồi quy động & Biên độ cản (Pullback kiểm định EMA20 + Headroom tới cản gần nhất >= 1.0x ATR)
+    3. Bùng nổ khối lượng & Nỗ lực so với Kết quả (Volume >= 1.25x Volume MA20 + Xác nhận nến không bị từ chối râu dài)
+    4. Quản trị rủi ro cấu trúc động (Stop Loss = 1.5x ATR, Target TP = 2.5x Risk)
     """
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -80,19 +81,24 @@ class WyckoffMomentumStrategy(BaseStrategy):
         self.name = "Wyckoff Momentum Pro"
         self.target_rr = float(self.config.get("target_rr", 2.5))
         self.atr_mult = float(self.config.get("atr_mult", 1.5))
-        self.vol_mult = float(self.config.get("vol_mult", 1.1))
+        self.vol_mult = float(self.config.get("vol_mult", 1.25))
+        self.adx_period = int(self.config.get("adx_period", 14))
+        self.adx_threshold = float(self.config.get("adx_threshold", 20.0))
+        self.sr_lookback = int(self.config.get("sr_lookback", 30))
+        self.min_headroom_atr = float(self.config.get("min_headroom_atr", 1.0))
+        self.wick_rejection_max = float(self.config.get("wick_rejection_max", 0.50))
 
     def get_metadata(self) -> Dict[str, Any]:
         return {
             "id": self.strategy_id,
             "name": "Wyckoff Momentum Pro",
-            "description": "Vectorized NumPy ATR envelope and Volume expansion momentum model.",
+            "description": "Vectorized NumPy ATR envelope, ADX trend filter, and Volume expansion momentum model.",
             "author": "Quant AI Core",
             "version": "2.2",
             "checklist_schema": [
-                {"key": "Trend Structure", "description": "Mark-up or Mark-down phase based on EMA20 vs EMA50"},
-                {"key": "Pullback Retest", "description": "Dynamic retest or pullback to EMA20 support/resistance"},
-                {"key": "Volume Expansion", "description": "Volume absorption and expansion relative to MA20"},
+                {"key": "Trend Structure", "description": "Mark-up/Mark-down phase based on EMA20 vs EMA50 and ADX strength"},
+                {"key": "Pullback Retest", "description": "Dynamic retest of EMA20 support/resistance with structural headroom"},
+                {"key": "Volume Expansion", "description": "Volume absorption and Effort vs Result relative to MA20"},
             ],
         }
 
@@ -110,6 +116,55 @@ class WyckoffMomentumStrategy(BaseStrategy):
         for i in range(period, len(arr)):
             res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
         return res
+
+    def _calc_adx(self, highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> np.ndarray:
+        """
+        Calculates J. Welles Wilder Average Directional Index (ADX) vectorized in NumPy.
+        Identifies trend regime vs sideways/choppy market.
+        """
+        n = len(closes)
+        if n < period + 2:
+            return np.full(n, 25.0)
+
+        tr1 = highs[1:] - lows[1:]
+        tr2 = np.abs(highs[1:] - closes[:-1])
+        tr3 = np.abs(lows[1:] - closes[:-1])
+        tr = np.maximum(tr1, np.maximum(tr2, tr3))
+
+        up_move = highs[1:] - highs[:-1]
+        down_move = lows[:-1] - lows[1:]
+        plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+        minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+        tr_smooth = np.zeros(n)
+        p_dm_smooth = np.zeros(n)
+        m_dm_smooth = np.zeros(n)
+
+        tr_smooth[period] = np.sum(tr[:period])
+        p_dm_smooth[period] = np.sum(plus_dm[:period])
+        m_dm_smooth[period] = np.sum(minus_dm[:period])
+
+        for i in range(period + 1, n):
+            tr_smooth[i] = tr_smooth[i - 1] - (tr_smooth[i - 1] / period) + tr[i - 1]
+            p_dm_smooth[i] = p_dm_smooth[i - 1] - (p_dm_smooth[i - 1] / period) + plus_dm[i - 1]
+            m_dm_smooth[i] = m_dm_smooth[i - 1] - (m_dm_smooth[i - 1] / period) + minus_dm[i - 1]
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            plus_di = np.where(tr_smooth > 0, 100.0 * (p_dm_smooth / tr_smooth), 0.0)
+            minus_di = np.where(tr_smooth > 0, 100.0 * (m_dm_smooth / tr_smooth), 0.0)
+            di_sum = plus_di + minus_di
+            dx = np.where(di_sum > 0, 100.0 * np.abs(plus_di - minus_di) / di_sum, 0.0)
+
+        adx = np.zeros(n)
+        adx_start = 2 * period
+        if n > adx_start:
+            adx[adx_start] = np.mean(dx[period : adx_start + 1])
+            for i in range(adx_start + 1, n):
+                adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
+        else:
+            adx[:] = dx
+
+        return adx
 
     def analyze(
         self, df: pd.DataFrame, macro_context: Dict[str, Any] = None
@@ -153,16 +208,18 @@ class WyckoffMomentumStrategy(BaseStrategy):
         for i in range(15, n):
             atr[i] = (atr[i - 1] * 13 + tr[i - 1]) / 14.0
 
-        # 2. Vectorized EMAs & Volume Moving Average
+        # 2. Vectorized EMAs, Volume Moving Average & ADX
         ema20 = self._calc_ema(closes, 20)
         ema50 = self._calc_ema(closes, 50)
         vol_ma = self._calc_ema(volumes, 20)
+        adx_series = self._calc_adx(highs, lows, closes, period=self.adx_period)
 
         # Đánh giá tại nến hiện tại (n - 1)
         curr_c = closes[-1]
         prev_c = closes[-2]
         curr_v = volumes[-1]
         curr_a = atr[-1] if atr[-1] > 0 else 1.0
+        curr_adx = float(adx_series[-1]) if not np.isnan(adx_series[-1]) else 25.0
 
         curr_ema20 = ema20[-1]
         prev_ema20 = ema20[-2]
@@ -172,21 +229,52 @@ class WyckoffMomentumStrategy(BaseStrategy):
         vol_ratio = curr_v / curr_vol_ma
         is_bull_trend = curr_ema20 > curr_ema50
         is_bear_trend = curr_ema20 < curr_ema50
+        is_trend_strong = curr_adx >= self.adx_threshold
         bias = 1 if is_bull_trend else (-1 if is_bear_trend else 0)
 
-        # Tín hiệu vào lệnh chuẩn Wyckoff Trend Momentum
-        buy_cond = (
+        # 3. Phân tích Biên độ Cản (S/R Headroom Clearance)
+        lookback_sr = min(self.sr_lookback, n - 2)
+        if lookback_sr >= 10:
+            recent_high = float(np.max(highs[-lookback_sr - 1 : -1]))
+            recent_low = float(np.min(lows[-lookback_sr - 1 : -1]))
+        else:
+            recent_high = float("inf")
+            recent_low = -float("inf")
+
+        min_headroom = self.min_headroom_atr * curr_a
+        has_headroom_buy = (recent_high - curr_c >= min_headroom) or (curr_c >= recent_high)
+        has_headroom_sell = (curr_c - recent_low >= min_headroom) or (curr_c <= recent_low)
+
+        # 4. Nỗ lực so với Kết quả (Wyckoff Effort vs Result - Candle Spread & Wick Analysis)
+        curr_o = float(df["open"].iloc[-1]) if "open" in df.columns else curr_c
+        curr_h = float(highs[-1])
+        curr_l = float(lows[-1])
+        candle_range = curr_h - curr_l
+        if candle_range > 0:
+            upper_wick = curr_h - max(curr_c, curr_o)
+            lower_wick = min(curr_c, curr_o) - curr_l
+            valid_effort_buy = (upper_wick / candle_range) <= self.wick_rejection_max
+            valid_effort_sell = (lower_wick / candle_range) <= self.wick_rejection_max
+        else:
+            valid_effort_buy = True
+            valid_effort_sell = True
+
+        # Tín hiệu vào lệnh chuẩn Wyckoff Trend Momentum nâng cấp
+        base_buy_pullback = (
             is_bull_trend
             and curr_c > curr_ema20
             and prev_c <= prev_ema20
             and curr_v >= self.vol_mult * curr_vol_ma
         )
-        sell_cond = (
+        base_sell_pullback = (
             is_bear_trend
             and curr_c < curr_ema20
             and prev_c >= prev_ema20
             and curr_v >= self.vol_mult * curr_vol_ma
         )
+
+        buy_cond = base_buy_pullback and is_trend_strong and valid_effort_buy and has_headroom_buy
+        sell_cond = base_sell_pullback and is_trend_strong and valid_effort_sell and has_headroom_sell
 
         sl_dist = self.atr_mult * curr_a
         action = "HOLD"
@@ -225,9 +313,9 @@ class WyckoffMomentumStrategy(BaseStrategy):
             tp2 = entry_price + sl_dist * (rr * 1.5)
             raw_conf = 0.88 if volatility != "HIGH" else 0.75
             confidence = raw_conf * (0.8 if is_counter else 1.0)
-            chk1 = "Mark-up Phase (EMA20 > EMA50)" if not is_counter else "Counter-Trend Spring Reaction"
-            chk2 = "EMA20 Pullback Confirmed"
-            chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA)"
+            chk1 = f"Mark-up Phase (ADX {curr_adx:.1f} · Strong Trend)" if not is_counter else "Counter-Trend Spring Reaction"
+            chk2 = "EMA20 Support Retested · Headroom Clear"
+            chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA · Effort Validated)"
         elif sell_cond and (macro_bias != "BULLISH" or allow_counter_trend):
             is_counter = (macro_bias == "BULLISH")
             action = "SELL"
@@ -237,22 +325,34 @@ class WyckoffMomentumStrategy(BaseStrategy):
             tp2 = entry_price - sl_dist * (rr * 1.5)
             raw_conf = 0.88 if volatility != "HIGH" else 0.75
             confidence = raw_conf * (0.8 if is_counter else 1.0)
-            chk1 = "Mark-down Phase (EMA20 < EMA50)" if not is_counter else "Counter-Trend Upthrust Reaction"
-            chk2 = "EMA20 Retest Confirmed"
-            chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA)"
+            chk1 = f"Mark-down Phase (ADX {curr_adx:.1f} · Strong Trend)" if not is_counter else "Counter-Trend Upthrust Reaction"
+            chk2 = "EMA20 Resistance Retested · Headroom Clear"
+            chk3 = f"Vol Expansion ({vol_ratio:.1f}x MA · Effort Validated)"
         else:
             # Standby Evaluation
             if is_bull_trend:
-                chk1 = "Mark-up Phase (EMA20 > EMA50)"
-                if curr_c <= curr_ema20:
+                if is_trend_strong:
+                    chk1 = f"Mark-up Phase (ADX {curr_adx:.1f} · Strong Trend)"
+                else:
+                    chk1 = f"Choppy Range (ADX {curr_adx:.1f} < {self.adx_threshold:.0f})"
+
+                if not has_headroom_buy and base_buy_pullback:
+                    chk2 = f"Near Resistance · Headroom Choked (<{self.min_headroom_atr:.1f} ATR)"
+                elif curr_c <= curr_ema20:
                     chk2 = "Testing EMA20 Support"
                 elif abs(curr_c - curr_ema20) <= 0.6 * curr_a:
                     chk2 = "Pullback Near EMA20"
                 else:
                     chk2 = "Awaiting Pullback to EMA20"
             elif is_bear_trend:
-                chk1 = "Mark-down Phase (EMA20 < EMA50)"
-                if curr_c >= curr_ema20:
+                if is_trend_strong:
+                    chk1 = f"Mark-down Phase (ADX {curr_adx:.1f} · Strong Trend)"
+                else:
+                    chk1 = f"Choppy Range (ADX {curr_adx:.1f} < {self.adx_threshold:.0f})"
+
+                if not has_headroom_sell and base_sell_pullback:
+                    chk2 = f"Near Support · Headroom Choked (<{self.min_headroom_atr:.1f} ATR)"
+                elif curr_c >= curr_ema20:
                     chk2 = "Testing EMA20 Resistance"
                 elif abs(curr_c - curr_ema20) <= 0.6 * curr_a:
                     chk2 = "Retest Near EMA20"
@@ -263,19 +363,25 @@ class WyckoffMomentumStrategy(BaseStrategy):
                 chk2 = "Awaiting EMA Setup"
 
             if vol_ratio >= self.vol_mult:
-                chk3 = f"Volume Expansion ({vol_ratio:.1f}x MA)"
+                if (is_bull_trend and not valid_effort_buy) or (is_bear_trend and not valid_effort_sell):
+                    chk3 = f"Effort Rejected · High Absorption Wick ({vol_ratio:.1f}x MA)"
+                else:
+                    chk3 = f"Volume Expansion ({vol_ratio:.1f}x MA)"
             else:
                 chk3 = f"Normal Volume ({vol_ratio:.1f}x MA)"
 
         # Construct dynamic self-describing checklist
         chk1_status = (
             ChecklistStatus.PASSED if action in ("BUY", "SELL")
-            else (ChecklistStatus.PASSED if is_bull_trend or is_bear_trend else ChecklistStatus.PENDING)
+            else (ChecklistStatus.PASSED if (is_trend_strong and (is_bull_trend or is_bear_trend)) else ChecklistStatus.PENDING)
         )
-        chk2_status = ChecklistStatus.PASSED if action in ("BUY", "SELL") else ChecklistStatus.PENDING
+        chk2_status = (
+            ChecklistStatus.PASSED if action in ("BUY", "SELL")
+            else (ChecklistStatus.FAILED if ((is_bull_trend and not has_headroom_buy and base_buy_pullback) or (is_bear_trend and not has_headroom_sell and base_sell_pullback)) else ChecklistStatus.PENDING)
+        )
         chk3_status = (
-            ChecklistStatus.PASSED if (action in ("BUY", "SELL") or vol_ratio >= self.vol_mult)
-            else ChecklistStatus.PENDING
+            ChecklistStatus.PASSED if action in ("BUY", "SELL")
+            else (ChecklistStatus.FAILED if (vol_ratio >= self.vol_mult and ((is_bull_trend and not valid_effort_buy) or (is_bear_trend and not valid_effort_sell))) else (ChecklistStatus.PASSED if vol_ratio >= self.vol_mult else ChecklistStatus.PENDING))
         )
 
         checklist_items = [
@@ -303,6 +409,9 @@ class WyckoffMomentumStrategy(BaseStrategy):
                 "volume": chk3,
                 "vol_ratio": float(round(vol_ratio, 2)),
                 "bias": bias,
+                "adx": float(round(curr_adx, 1)),
+                "is_trend_strong": bool(is_trend_strong),
+                "has_headroom": bool(has_headroom_buy if is_bull_trend else has_headroom_sell),
                 "active_obs": 0,
                 "active_fvgs": 0,
                 "checklist": [c.value for c in checklist_items],
