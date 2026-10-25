@@ -868,6 +868,7 @@ class QuantTerminal(QObject):
             from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
 
             from backend.core.bot_worker import DEFAULT_LOOKBACK_BARS
+from backend.core.engine_config import BotRunConfig, get_timeframe_name
 
             risk_mgr = RiskManager(default_risk_pct=1.0)
 
@@ -1004,6 +1005,43 @@ class QuantTerminal(QObject):
                 allowed_sessions.append("NY")
 
             active_symbols = self.watchlist.get_all_symbols() if self.watchlist else []
+            if not active_symbols:
+                active_symbols = ["XAUUSD"]
+
+            bot_config = BotRunConfig.from_dict({
+                "symbols": active_symbols,
+                "timeframe": tf,
+                "strategy_id": strategy,
+                "ai_model_name": ai_model,
+                "gate_mode": gate_mode,
+                "trade_mode": (
+                    self.window.comboBias.currentData()
+                    if hasattr(self.window, "comboBias") and self.window.comboBias.currentData()
+                    else "AUTO"
+                ),
+                "execution_mode": (
+                    self.window.comboExecutionMode.currentData()
+                    if hasattr(self.window, "comboExecutionMode") and self.window.comboExecutionMode.currentData()
+                    else "SEMI-AUTO"
+                ),
+                "risk_per_trade": r_risk,
+                "max_daily_loss": r_max_daily_loss,
+                "max_drawdown": r_maxdd,
+                "max_losing_streak": r_maxloss,
+                "max_open_trades": r_max_open_trades,
+                "max_spread": max_spread,
+                "slippage": slippage,
+                "close_friday": close_friday,
+                "trailing_pips": r_trail,
+                "breakeven_pips": r_be,
+                "enable_trailing_stop": enable_ts,
+                "news_filter_enabled": news_filter,
+                "news_pause_mins": news_pause_mins,
+                "news_defense_enabled": news_defense_enabled,
+                "defense_window_mins": news_defense_mins,
+                "news_defense_be_r": news_defense_be_r,
+                "allowed_sessions": allowed_sessions,
+            })
 
             self.bot_worker = BotWorker(
                 strategy=active_strat,
@@ -1011,28 +1049,7 @@ class QuantTerminal(QObject):
                 execution_manager=exec_mgr,
                 data_preprocessor=prep,
                 decision_gate=gate,
-                symbols=active_symbols,
-                timeframe=tf,
-                strategy_name=strategy,
-                ai_model_name=ai_model,
-                gate_mode=gate_mode,
-                news_filter_enabled=news_filter,
-                news_pause_mins=news_pause_mins,
-                slippage=slippage,
-                risk_per_trade=r_risk,
-                max_daily_loss=r_max_daily_loss,
-                max_drawdown=r_maxdd,
-                max_losing_streak=r_maxloss,
-                max_open_trades=r_max_open_trades,
-                max_spread=max_spread,
-                close_friday=close_friday,
-                enable_trailing_stop=enable_ts,
-                trailing_pips=r_trail,
-                breakeven_pips=r_be,
-                news_defense_enabled=news_defense_enabled,
-                defense_window_mins=news_defense_mins,
-                news_defense_be_r=news_defense_be_r,
-                allowed_sessions=allowed_sessions,
+                config=bot_config,
             )
             self.bot_worker.symbols_provider = lambda: self.watchlist.get_all_symbols() if self.watchlist else []
 

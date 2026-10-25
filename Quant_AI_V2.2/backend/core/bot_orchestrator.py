@@ -23,6 +23,14 @@ from backend.core.position_guard import PositionGuard
 from backend.core.circuit_breaker_guard import CircuitBreakerGuard
 from backend.core.session_filter import SessionFilter
 from backend.core.trade_dispatcher import TradeDispatcher
+from backend.core.engine_config import (
+    BotRunConfig,
+    ExecutionMode,
+    TradeMode,
+    GateMode,
+    resolve_mt5_timeframe,
+    get_timeframe_name,
+)
 
 log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
@@ -53,61 +61,93 @@ class BotOrchestrator(QtCore.QObject):
         execution_manager,
         data_preprocessor,
         decision_gate,
-        symbols: List[str] = ["XAUUSD"],
-        timeframe: int = mt5.TIMEFRAME_M15,
-        strategy_name: str = "ICT",
-        ai_model_name: str = "qwen2.5",
-        gate_mode: str = "FULL",
-        news_filter_enabled: bool = True,
-        news_pause_mins: int = 30,
-        slippage: int = 20,
-        risk_per_trade: float = 1.0,
-        max_daily_loss: float = 500.0,
-        max_drawdown: float = 5.0,
-        max_losing_streak: int = 3,
-        max_open_trades: int = 3,
-        max_spread: int = 25,
-        close_friday: bool = True,
-        trailing_pips: int = 0,
-        breakeven_pips: int = 0,
-        enable_trailing_stop: bool = False,
-        news_defense_enabled: bool = True,
-        defense_window_mins: int = 15,
-        news_defense_be_r: float = 1.5,
+        config: Optional[BotRunConfig] = None,
+        symbols: Optional[List[str]] = None,
+        timeframe: Optional[int] = None,
+        strategy_name: Optional[str] = None,
+        ai_model_name: Optional[str] = None,
+        gate_mode: Optional[str] = None,
+        news_filter_enabled: Optional[bool] = None,
+        news_pause_mins: Optional[int] = None,
+        slippage: Optional[int] = None,
+        risk_per_trade: Optional[float] = None,
+        max_daily_loss: Optional[float] = None,
+        max_drawdown: Optional[float] = None,
+        max_losing_streak: Optional[int] = None,
+        max_open_trades: Optional[int] = None,
+        max_spread: Optional[int] = None,
+        close_friday: Optional[bool] = None,
+        trailing_pips: Optional[int] = None,
+        breakeven_pips: Optional[int] = None,
+        enable_trailing_stop: Optional[bool] = None,
+        news_defense_enabled: Optional[bool] = None,
+        defense_window_mins: Optional[int] = None,
+        news_defense_be_r: Optional[float] = None,
         allowed_sessions: Optional[List[str]] = None,
+        trade_mode: Optional[str] = None,
+        **kwargs,
     ):
         super().__init__()
         self.is_running = True
-        self.symbols = symbols
-        self.timeframe = timeframe
-        self.strategy_name = strategy_name
-        self.gate_mode = gate_mode
-        self.ai_model_name = ai_model_name
         self.signals = WorkerSignals()
 
-        self.news_filter_enabled = news_filter_enabled
-        self.news_pause_mins = news_pause_mins
-        self.slippage = slippage
-        self.risk_per_trade = risk_per_trade
-        self.max_daily_loss = max_daily_loss
-        self.max_drawdown = max_drawdown
-        self.max_losing_streak = max_losing_streak
-        self.max_open_trades = max_open_trades
-        self.max_spread = max_spread
-        self.close_friday = close_friday
-        self.trailing_pips = trailing_pips
-        self.breakeven_pips = breakeven_pips
-        self.enable_trailing_stop = enable_trailing_stop
-        self.news_defense_enabled = news_defense_enabled
-        self.defense_window_mins = defense_window_mins
-        self.news_defense_be_r = news_defense_be_r
-        self.allowed_sessions = (
-            allowed_sessions
-            if allowed_sessions is not None
-            else ["ASIAN", "LONDON", "NY"]
-        )
+        # Enterprise Pillar 1: Validated Immutable BotRunConfig
+        if config is not None:
+            self.config = config
+        else:
+            cfg_dict = {
+                "symbols": symbols if symbols is not None else ["XAUUSD"],
+                "timeframe": timeframe if timeframe is not None else mt5.TIMEFRAME_M15,
+                "strategy_id": strategy_name if strategy_name is not None else "ICT",
+                "ai_model_name": ai_model_name if ai_model_name is not None else "qwen2.5",
+                "gate_mode": gate_mode if gate_mode is not None else "FULL",
+                "news_filter_enabled": news_filter_enabled if news_filter_enabled is not None else True,
+                "news_pause_mins": news_pause_mins if news_pause_mins is not None else 30,
+                "slippage": slippage if slippage is not None else 20,
+                "risk_per_trade": risk_per_trade if risk_per_trade is not None else 1.0,
+                "max_daily_loss": max_daily_loss if max_daily_loss is not None else 500.0,
+                "max_drawdown": max_drawdown if max_drawdown is not None else 5.0,
+                "max_losing_streak": max_losing_streak if max_losing_streak is not None else 3,
+                "max_open_trades": max_open_trades if max_open_trades is not None else 5,
+                "max_spread": max_spread if max_spread is not None else 25,
+                "close_friday": close_friday if close_friday is not None else True,
+                "trailing_pips": trailing_pips if trailing_pips is not None else 0,
+                "breakeven_pips": breakeven_pips if breakeven_pips is not None else 0,
+                "enable_trailing_stop": enable_trailing_stop if enable_trailing_stop is not None else False,
+                "news_defense_enabled": news_defense_enabled if news_defense_enabled is not None else True,
+                "defense_window_mins": defense_window_mins if defense_window_mins is not None else 15,
+                "news_defense_be_r": news_defense_be_r if news_defense_be_r is not None else 1.5,
+                "allowed_sessions": allowed_sessions if allowed_sessions is not None else ["ASIAN", "LONDON", "NY"],
+                "trade_mode": trade_mode if trade_mode is not None else "AUTO",
+            }
+            self.config = BotRunConfig.from_dict(cfg_dict)
 
-        self.trade_mode = "AUTO"
+        # Unpack from immutable config schema to preserve 100% backward compatibility
+        self.symbols = list(self.config.symbols)
+        self.timeframe = self.config.timeframe
+        self.strategy_name = self.config.strategy_id
+        self.gate_mode = self.config.gate_mode.value
+        self.trade_mode = self.config.trade_mode.value
+        self.ai_model_name = self.config.ai_model_name
+        self.execution_mode = self.config.execution_mode.value
+
+        self.news_filter_enabled = self.config.news_filter_enabled
+        self.news_pause_mins = self.config.news_pause_mins
+        self.slippage = self.config.slippage
+        self.risk_per_trade = self.config.risk_per_trade
+        self.max_daily_loss = self.config.max_daily_loss
+        self.max_drawdown = self.config.max_drawdown
+        self.max_losing_streak = self.config.max_losing_streak
+        self.max_open_trades = self.config.max_open_trades
+        self.max_spread = self.config.max_spread
+        self.close_friday = self.config.close_friday
+        self.trailing_pips = self.config.trailing_pips
+        self.breakeven_pips = self.config.breakeven_pips
+        self.enable_trailing_stop = self.config.enable_trailing_stop
+        self.news_defense_enabled = self.config.news_defense_enabled
+        self.defense_window_mins = self.config.defense_window_mins
+        self.news_defense_be_r = self.config.news_defense_be_r
+        self.allowed_sessions = list(self.config.allowed_sessions)
 
         # Dependencies
         self.risk_mgr = risk_manager
