@@ -182,21 +182,48 @@ class DataPreprocessor:
 
     def _calculate_cvd_proxy(self, df: pd.DataFrame, window: int = 14) -> Dict[str, Any]:
         """
-        Approximates Buyer/Seller volume imbalance from bar microstructure:
-        Delta ~ Volume * (Close - Open) / (High - Low).
-        Rolling sum indicates aggressive buyer or seller absorption pressure.
+        Approximates Buyer/Seller volume imbalance from bar microstructure using
+        Wick Absorption Decomposition (Aronson & Lee-Ready Quantitative Heuristic):
+        - Body Delta: Volume * (Close - Open) / Range
+        - Lower Wick Absorption (Aggressive Buyer Absorption at lows): Volume * LowerWick / Range
+        - Upper Wick Absorption (Aggressive Seller Absorption at highs): Volume * UpperWick / Range
+        Net Bar Delta = Body Delta + 0.5 * (Lower Wick - Upper Wick) / Range
         """
         sub = df.tail(window).copy()
-        ranges = sub["high"] - sub["low"]
-        safe_ranges = np.where(ranges <= 0, 1e-6, ranges)
-        bar_delta = sub["volume"] * ((sub["close"] - sub["open"]) / safe_ranges)
-        cvd_rolling = float(bar_delta.sum())
-        avg_vol = float(sub["volume"].mean()) * window
+        highs = sub["high"].to_numpy(dtype=float)
+        lows = sub["low"].to_numpy(dtype=float)
+        opens = sub["open"].to_numpy(dtype=float)
+        closes = sub["close"].to_numpy(dtype=float)
+        volumes = sub["volume"].to_numpy(dtype=float)
+
+        ranges = np.maximum(highs - lows, 1e-6)
+        body_deltas = volumes * ((closes - opens) / ranges)
+
+        upper_wicks = highs - np.maximum(opens, closes)
+        lower_wicks = np.minimum(opens, closes) - lows
+
+        wick_deltas = volumes * ((lower_wicks - upper_wicks) / (2.0 * ranges))
+        total_bar_deltas = body_deltas + wick_deltas
+
+        cvd_rolling = float(np.sum(total_bar_deltas))
+        avg_vol = float(np.mean(volumes)) * window
         ratio = (cvd_rolling / avg_vol) if avg_vol > 0 else 0.0
 
-        if ratio > 0.20:
+        # Divergence Detection over the window:
+        # If price made a new high but CVD is negative -> Bearish Absorption Divergence (Institutional Distribution)
+        # If price made a new low but CVD is positive -> Bullish Absorption Divergence (Institutional Accumulation / Judas Swing)
+        divergence = "NONE"
+        if len(closes) >= 5:
+            price_highest = closes[-1] >= np.max(closes[:-1])
+            price_lowest = closes[-1] <= np.min(closes[:-1])
+            if price_highest and ratio < -0.05:
+                divergence = "BEARISH_ABSORPTION_DIV"
+            elif price_lowest and ratio > 0.05:
+                divergence = "BULLISH_ABSORPTION_DIV"
+
+        if ratio > 0.20 or divergence == "BULLISH_ABSORPTION_DIV":
             pressure = "STRONG_BUYER_ABSORPTION"
-        elif ratio < -0.20:
+        elif ratio < -0.20 or divergence == "BEARISH_ABSORPTION_DIV":
             pressure = "STRONG_SELLER_ABSORPTION"
         else:
             pressure = "BALANCED_ORDER_FLOW"
@@ -205,6 +232,7 @@ class DataPreprocessor:
             "cvd_rolling": round(cvd_rolling, 1),
             "cvd_pressure_ratio": round(ratio, 2),
             "cvd_pressure": pressure,
+            "cvd_divergence": divergence,
         }
 
     def process_technical_data(self, rates_data, broker_timezone="Europe/Kyiv") -> Optional[Dict[str, Any]]:
@@ -357,6 +385,7 @@ class DataPreprocessor:
             "cvd_rolling": cvd_data["cvd_rolling"],
             "cvd_pressure_ratio": cvd_data["cvd_pressure_ratio"],
             "cvd_pressure": cvd_data["cvd_pressure"],
+            "cvd_divergence": cvd_data.get("cvd_divergence", "NONE"),
             "ema50_z_score": ema50_z,
             "microstructure_summary": micro_summary,
             # --- System Market Structure & Geometry Features ---

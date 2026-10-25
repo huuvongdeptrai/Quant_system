@@ -14,6 +14,19 @@ from loguru import logger
 from backend.infrastructure.data_providers.adapters.base_adapter import BaseContextAdapter
 from backend.infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
 from backend.infrastructure.data_providers.macro.calendar_engine import CalendarEngine
+from backend.infrastructure.data_providers.macro.fred_client import FREDClient
+
+# Benchmark Policy Rates of G10 Central Banks (Annualized %)
+CENTRAL_BANK_BENCHMARK_RATES = {
+    "USD": 5.33,  # Fed Funds Effective Target
+    "EUR": 3.65,  # ECB Main Refinancing Rate (Deposit 3.25%)
+    "GBP": 5.00,  # Bank of England Official Bank Rate
+    "JPY": 0.25,  # Bank of Japan Policy Rate
+    "AUD": 4.35,  # Reserve Bank of Australia Cash Rate
+    "CAD": 3.75,  # Bank of Canada Policy Rate
+    "CHF": 1.00,  # Swiss National Bank Policy Rate
+    "NZD": 4.75,  # Reserve Bank of New Zealand Official Cash Rate
+}
 
 
 CURRENCY_COUNTRY_MAP = {
@@ -59,6 +72,7 @@ class ForexContextAdapter(BaseContextAdapter):
     def __init__(self):
         self.macro_engine = MacroRegimeEngine()
         self.calendar_engine = CalendarEngine()
+        self.fred_client = FREDClient()
 
     @staticmethod
     def parse_currency_pair(symbol: str) -> Tuple[str, str]:
@@ -118,11 +132,15 @@ class ForexContextAdapter(BaseContextAdapter):
 
     def get_macro_bias(self, symbol: str) -> str:
         """
-        Computes directional bias (BULLISH, BEARISH, NEUTRAL) for any Forex pair.
+        Computes directional bias (BULLISH, BEARISH, NEUTRAL) for any Forex pair using
+        Tri-Factor Macro Integration:
+        1. US Dollar Index (DXY) Structural Vector
+        2. Central Bank Benchmark Rate & Sovereign Yield Differential
+        3. Economic Surprise Momentum from Economic Releases (CESI Proxy)
         """
         base_curr, quote_curr = self.parse_currency_pair(symbol)
         
-        # 1. DXY Vector Component
+        # 1. DXY Vector Component (-1.0 to +1.0)
         dxy_trend = self._get_dxy_trend()
         usd_component = 0.0
         if quote_curr == "USD":
@@ -136,7 +154,14 @@ class ForexContextAdapter(BaseContextAdapter):
             elif dxy_trend == "BEARISH":
                 usd_component = -1.0
 
-        # 2. Economic Surprise Component from Calendar
+        # 2. Policy Rate & Sovereign Yield Differential Component
+        base_rate = CENTRAL_BANK_BENCHMARK_RATES.get(base_curr, 5.0)
+        quote_rate = CENTRAL_BANK_BENCHMARK_RATES.get(quote_curr, 5.0)
+        rate_diff = base_rate - quote_rate
+        # Rate carry component normalized (-1.0 to +1.0 for +-1.5% spread)
+        rate_component = max(-1.0, min(1.0, rate_diff / 1.5))
+
+        # 3. Economic Surprise Component from Calendar
         try:
             events = self.calendar_engine.fetch_events()
         except Exception:
@@ -144,13 +169,15 @@ class ForexContextAdapter(BaseContextAdapter):
 
         base_surprise = self._calculate_surprise_momentum(base_curr, events)
         quote_surprise = self._calculate_surprise_momentum(quote_curr, events)
-
         net_surprise = base_surprise - quote_surprise
-        total_score = (usd_component * 1.0) + (net_surprise * 0.5)
+        surprise_component = max(-1.0, min(1.0, net_surprise / 2.0))
 
-        if total_score >= 0.75:
+        # Tri-Factor Macro Score (USD Vector 40%, Rate Spread 35%, Surprise 25%)
+        total_score = (usd_component * 0.40) + (rate_component * 0.35) + (surprise_component * 0.25)
+
+        if total_score >= 0.25:
             return "BULLISH"
-        elif total_score <= -0.75:
+        elif total_score <= -0.25:
             return "BEARISH"
         return "NEUTRAL"
 
@@ -159,6 +186,10 @@ class ForexContextAdapter(BaseContextAdapter):
         base_curr, quote_curr = self.parse_currency_pair(symbol)
         bias = self.get_macro_bias(symbol)
         dxy_bias = self._get_dxy_trend()
+        base_rate = CENTRAL_BANK_BENCHMARK_RATES.get(base_curr, 5.0)
+        quote_rate = CENTRAL_BANK_BENCHMARK_RATES.get(quote_curr, 5.0)
+        rate_diff = base_rate - quote_rate
+        us_2y = self.fred_client.get_us_2y_yield() if self.fred_client else None
 
         return {
             "symbol": symbol,
@@ -167,6 +198,10 @@ class ForexContextAdapter(BaseContextAdapter):
             "quote_currency": quote_curr,
             "directional_bias": bias,
             "dxy_trend": dxy_bias,
+            "base_rate": base_rate,
+            "quote_rate": quote_rate,
+            "rate_differential": round(rate_diff, 2),
+            "us_2y_yield": us_2y,
             "timestamp": time.time(),
         }
 

@@ -17,6 +17,7 @@ import yfinance as yf
 from loguru import logger
 
 from backend.infrastructure.data_providers.adapters.base_adapter import BaseContextAdapter
+from backend.infrastructure.data_providers.macro.fred_client import FREDClient
 
 # Module-level cache to minimize external network requests
 _METALS_CACHE: Dict[str, Any] = {
@@ -39,6 +40,33 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             "Origin": "https://www.tradingview.com",
             "Referer": "https://www.tradingview.com/",
         }
+        self.fred_client = FREDClient()
+
+    def get_london_fix_status(self) -> Dict[str, Any]:
+        """
+        Detects if current time is within London Gold Auction Fixing windows (LBMA):
+        - London AM Fix: 10:30 GMT (UTC) [Window: 10:20 - 10:45 UTC]
+        - London PM Fix: 15:00 GMT (UTC) [Window: 14:50 - 15:15 UTC]
+        Highest institutional physical gold liquidity & auction volume of the trading day.
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        mins = now.hour * 60 + now.minute
+        is_am_fix = (10 * 60 + 20) <= mins <= (10 * 60 + 45)
+        is_pm_fix = (14 * 60 + 50) <= mins <= (15 * 60 + 15)
+
+        if is_am_fix:
+            return {
+                "is_fixing_active": True,
+                "fixing_name": "LBMA_AM_FIX (10:30 UTC)",
+                "warning": "High Auction Volume / Spread Expansion",
+            }
+        elif is_pm_fix:
+            return {
+                "is_fixing_active": True,
+                "fixing_name": "LBMA_PM_FIX (15:00 UTC)",
+                "warning": "Physical Benchmark Settlement Auction",
+            }
+        return {"is_fixing_active": False, "fixing_name": "CLEAR", "warning": ""}
 
     def _get_batch_macro_data(self) -> Dict[str, pd.DataFrame]:
         """
@@ -555,6 +583,7 @@ class PreciousMetalsAdapter(BaseContextAdapter):
             "Market": self.get_market_state(),
             "Monetary": self.get_monetary_state(),
             "Economic": self.get_economic_state(),
+            "London_Fix": self.get_london_fix_status(),
             "Telegram_News": tele_news,
             "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
