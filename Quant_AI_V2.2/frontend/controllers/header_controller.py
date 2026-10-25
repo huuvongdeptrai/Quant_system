@@ -490,9 +490,9 @@ class WorkspaceHeaderController:
                 import json
                 with open("config/settings.json", "r", encoding="utf-8") as f_cfg:
                     cfg_d = json.load(f_cfg)
-                    strat_id = cfg_d.get("strategy", "builtin_ict_pro")
+                    strat_id = cfg_d.get("strategy", "builtin_wyckoff")
             except Exception:
-                strat_id = "builtin_ict_pro"
+                strat_id = "builtin_wyckoff"
 
         strat_id_str = str(strat_id or "builtin_ict_pro").strip()
         strat_lower = strat_id_str.lower()
@@ -571,7 +571,7 @@ class WorkspaceHeaderController:
 
         from backend.core.strategies.strategy_loader import discover_strategies
         strats = discover_strategies()
-        curr_strat = getattr(self.window, "active_strategy_id", "builtin_ict_pro").lower()
+        curr_strat = getattr(self.window, "active_strategy_id", "builtin_wyckoff").lower()
 
         for s in strats:
             s_id = s["id"]

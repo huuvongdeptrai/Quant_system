@@ -67,7 +67,7 @@ DEFAULTS = {
     "signal_expiry_sec": 60,
     # Fallback keys maintained for backwards compatibility
     "mt5_server": "MetaQuotes-Demo / IC Markets",
-    "strategy": "ICT",
+    "strategy": "Wyckoff",
     "timeframe": 15,
     "gate_mode": "FULL",
     "bias": "AUTO",
@@ -707,7 +707,7 @@ class SettingsManager:
             "max_open_trades": getattr(win, "spinMaxOpenTrades", None).value() if hasattr(win, "spinMaxOpenTrades") else DEFAULTS["max_open_trades"],
             "max_losing_streak": getattr(win, "spinMaxLosingStreak", None).value() if hasattr(win, "spinMaxLosingStreak") else DEFAULTS["max_losing_streak"],
 
-            "strategy": getattr(win, "comboStrategy", None).currentData() if hasattr(win, "comboStrategy") else DEFAULTS.get("strategy", "builtin_ict_pro"),
+            "strategy": getattr(win, "comboStrategy", None).currentData() if hasattr(win, "comboStrategy") else DEFAULTS.get("strategy", "builtin_wyckoff"),
             "execution_mode": getattr(win, "comboExecutionMode", None).currentData() if hasattr(win, "comboExecutionMode") else DEFAULTS["execution_mode"],
             "market_bias": getattr(win, "comboBias", None).currentData() if hasattr(win, "comboBias") else "AUTO",
             "timeframe": getattr(win, "comboTimeframe", None).currentData() if hasattr(win, "comboTimeframe") else "15",
@@ -794,7 +794,7 @@ class SettingsManager:
         if hasattr(win, "spinMaxOpenTrades"): win.spinMaxOpenTrades.setValue(int(data.get("max_open_trades", DEFAULTS["max_open_trades"])))
 
         if hasattr(win, "comboStrategy"):
-            strat = data.get("strategy", DEFAULTS.get("strategy", "builtin_ict_pro"))
+            strat = data.get("strategy", DEFAULTS.get("strategy", "builtin_wyckoff"))
             idx_s = win.comboStrategy.findData(strat)
             if idx_s < 0:
                 s_low = str(strat).lower()
@@ -866,7 +866,7 @@ class SettingsManager:
         self._hot_reload_live_bot(data)
 
         # Refresh trading plan with loaded strategy
-        strat_id = data.get("strategy", DEFAULTS.get("strategy", "builtin_ict_pro"))
+        strat_id = data.get("strategy", DEFAULTS.get("strategy", "builtin_wyckoff"))
         strat_name = "ICT Zones Pro v4.2"
         if "wyckoff" in str(strat_id).lower():
             strat_name = "Wyckoff Momentum Pro"

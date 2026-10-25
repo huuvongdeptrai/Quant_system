@@ -102,7 +102,7 @@ class BotOrchestrator(QtCore.QObject):
             cfg_dict = {
                 "symbols": symbols if symbols is not None else ["XAUUSD"],
                 "timeframe": timeframe if timeframe is not None else mt5.TIMEFRAME_M15,
-                "strategy_id": strategy_name if strategy_name is not None else "ICT",
+                "strategy_id": strategy_name if strategy_name is not None else "Wyckoff",
                 "ai_model_name": ai_model_name if ai_model_name is not None else "qwen2.5",
                 "gate_mode": gate_mode if gate_mode is not None else "FULL",
                 "news_filter_enabled": news_filter_enabled if news_filter_enabled is not None else True,

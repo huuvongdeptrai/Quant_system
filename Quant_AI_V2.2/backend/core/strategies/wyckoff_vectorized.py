@@ -87,6 +87,7 @@ class WyckoffMomentumStrategy(BaseStrategy):
         self.sr_lookback = int(self.config.get("sr_lookback", 30))
         self.min_headroom_atr = float(self.config.get("min_headroom_atr", 1.0))
         self.wick_rejection_max = float(self.config.get("wick_rejection_max", 0.50))
+        self.session_filter = bool(self.config.get("session_filter", True))
 
     def get_metadata(self) -> Dict[str, Any]:
         return {
@@ -301,6 +302,39 @@ class WyckoffMomentumStrategy(BaseStrategy):
                 "checklist": [],
                 "metadata": {"news_locked": True},
             }
+
+        # Phien thanh khoan to chuc (London & New York: 07:00 - 17:00 UTC)
+        if self.session_filter and "time" in df.columns:
+            try:
+                time_val = df["time"].iloc[-1]
+                utc_hour = getattr(time_val, "hour", None)
+                if utc_hour is None:
+                    utc_hour = pd.to_datetime(time_val).hour
+                if utc_hour is not None and not (7 <= utc_hour <= 17):
+                    default_chk = self.get_default_checklist()
+                    default_chk[0] = ChecklistItem(
+                        key="Trend Structure",
+                        value="Asian Off-Hours (Standby for London 07:00 UTC)",
+                        status=ChecklistStatus.NEUTRAL
+                    )
+                    return StrategySignal(
+                        strategy_id=self.strategy_id,
+                        strategy_name=self.name,
+                        action="HOLD",
+                        signal="HOLD",
+                        confidence=0.0,
+                        checklist=default_chk,
+                        metadata={
+                            "strategy": "Wyckoff_Momentum_Pro",
+                            "session": "ASIAN_OFF_HOURS",
+                            "bias": 0,
+                            "active_obs": 0,
+                            "active_fvgs": 0,
+                            "checklist": [c.value for c in default_chk],
+                        },
+                    )
+            except Exception:
+                pass
 
         allow_counter_trend = macro_context.get("allow_counter_trend", True)
 
