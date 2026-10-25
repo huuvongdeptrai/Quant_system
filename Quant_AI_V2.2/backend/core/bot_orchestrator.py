@@ -31,6 +31,10 @@ from backend.core.engine_config import (
     resolve_mt5_timeframe,
     get_timeframe_name,
 )
+from backend.infrastructure.data_providers.multi_asset_data_feed import (
+    MultiAssetDataFeed,
+    MarketSlice,
+)
 
 log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
@@ -153,6 +157,7 @@ class BotOrchestrator(QtCore.QObject):
         self.risk_mgr = risk_manager
         self.exec_mgr = execution_manager
         self.prep = data_preprocessor
+        self.data_feed = MultiAssetDataFeed(max_workers=8, default_lookback=DEFAULT_LOOKBACK_BARS)
         self.ict = strategy
         self.gate = decision_gate
         self.db = DatabaseManager()
@@ -332,10 +337,13 @@ class BotOrchestrator(QtCore.QObject):
                 except Exception as e_sym:
                     logger.debug(f"[BotOrchestrator] Dynamic symbols refresh: {e_sym}")
 
+            # Enterprise Pillar 2: Synchronized Multi-Asset Market Slice Ingestion
+            slice_data = self.data_feed.pull_slice(active_symbols, self.timeframe, count=DEFAULT_LOOKBACK_BARS)
+
             for sym in active_symbols:
                 if not self.is_running:
                     break
-                self.pipeline_execute(sym)
+                self.pipeline_execute(sym, market_slice=slice_data)
 
             # Responsive event-driven polling sleep (reduced from 10s to 1.5s, wakeable immediately)
             poll_cycles = getattr(self, "poll_cycles", 15)  # 15 * 0.1s = 1.5s max
@@ -416,8 +424,8 @@ class BotOrchestrator(QtCore.QObject):
     def _validate_direction(self, signal: str) -> bool:
         return self.trade_dispatcher.validate_direction(signal, self.trade_mode)
 
-    def pipeline_execute(self, sym: str) -> None:
-        """Executes full strategy pipeline for a single watchlist asset."""
+    def pipeline_execute(self, sym: str, market_slice: Optional[MarketSlice] = None) -> None:
+        """Executes full strategy pipeline for a single watchlist asset using synchronized MarketSlice."""
         if not self.state_recovery.can_open_new_trade(sym):
             return
         if self.circuit_guard.circuit_breaker_active:
@@ -470,13 +478,18 @@ class BotOrchestrator(QtCore.QObject):
             if len(all_positions) >= max_open:
                 return
 
-        # Ensure market data subscription in Market Watch for background scanning
-        try:
-            mt5.symbol_select(sym, True)
-        except Exception:
-            pass
+        # Synchronized Market Slice Rates Extraction (Pillar 2)
+        rates = None
+        if market_slice is not None and market_slice.has_symbol(sym):
+            rates = market_slice.get_rates(sym)
 
-        rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
+        if rates is None or len(rates) == 0:
+            try:
+                mt5.symbol_select(sym, True)
+            except Exception:
+                pass
+            rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
+
         if rates is None or len(rates) == 0:
             return
         refined = self.prep.process_technical_data(rates)
