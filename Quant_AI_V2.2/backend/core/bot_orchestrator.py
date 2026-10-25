@@ -579,8 +579,9 @@ class BotOrchestrator(QtCore.QObject):
             return
 
         # Decision Gate Evaluation
+        strat_id = getattr(self.ict, "strategy_id", None) or getattr(self.config, "strategy_id", "builtin_wyckoff")
         gate_result = self.gate.evaluate(
-            sym, signal, timeframe=self.timeframe, gate_mode=self.gate_mode
+            sym, signal, timeframe=self.timeframe, gate_mode=self.gate_mode, strategy_id=strat_id, rates=rates
         )
         if gate_result["decision"] == "WAIT":
             self.log(

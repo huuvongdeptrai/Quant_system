@@ -1,4 +1,13 @@
+import os
+import json
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, Tuple, List
+import numpy as np
+import pandas as pd
+
 from backend.infrastructure.brokers.mt5_safe import mt5
+
 from backend.infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
 from backend.infrastructure.data_providers.asset_registry import AssetRegistry
 
@@ -21,6 +30,8 @@ class DecisionGate:
     def __init__(self):
 
         self.macro_engine = MacroRegimeEngine()
+        self._models_dir = Path(__file__).resolve().parents[4] / "storage" / "models"
+        self._models_cache: Dict[str, Tuple[float, Any]] = {}
 
     def _get_price_position(self, symbol, timeframe=mt5.TIMEFRAME_H1, rates=None):
         """Xac dinh vi tri gia hien tai so voi vung Ho tro / Khang cu xac thuc boi Volume (Volume-Validated Fractals)."""
@@ -179,7 +190,230 @@ class DecisionGate:
                 logger.warning(f"Fallback macro bias for {symbol}: {e}")
                 return "NEUTRAL"
 
-    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None):
+
+    def _get_or_load_meta_model(self, strategy_id: Optional[str] = None):
+        """
+        Convention-over-Configuration Model Registry (Method 1).
+        Auto-discovers and loads LightGBM Meta-Labeling models from 'storage/models/'.
+        Looks for: {strategy_id}_meta.lgb or {strategy_id}.lgb.
+        Hot-reloads automatically if file modification time (mtime) changes.
+        """
+        if not strategy_id:
+            strategy_id = "builtin_wyckoff"
+
+        s_norm = str(strategy_id).lower().strip()
+        candidates = [
+            f"{s_norm}_meta.lgb",
+            f"{s_norm}.lgb",
+            f"builtin_{s_norm}_meta.lgb",
+        ]
+        if s_norm.startswith("builtin_"):
+            candidates.append(f"{s_norm.replace('builtin_', '')}_meta.lgb")
+        if "wyckoff" in s_norm:
+            candidates.append("builtin_wyckoff_meta.lgb")
+            candidates.append("wyckoff_meta.lgb")
+        elif "ict" in s_norm:
+            candidates.append("builtin_ict_meta.lgb")
+            candidates.append("ict_meta.lgb")
+
+        if not hasattr(self, "_models_dir"):
+            self._models_dir = Path(__file__).resolve().parents[4] / "storage" / "models"
+        if not hasattr(self, "_models_cache"):
+            self._models_cache = {}
+
+        if not self._models_dir.exists():
+            return None
+
+        target_file = None
+        for c in candidates:
+            p = self._models_dir / c
+            if p.exists() and p.is_file() and not p.name.endswith(".bak"):
+                target_file = p
+                break
+
+        if target_file is None:
+            return None
+
+        try:
+            mtime = target_file.stat().st_mtime
+            cached = self._models_cache.get(str(target_file))
+            if cached is not None and cached[0] == mtime:
+                return cached[1]
+
+            import lightgbm as lgb
+            model_str = target_file.read_text(encoding='utf-8')
+            booster = lgb.Booster(model_str=model_str)
+
+            meta_file = target_file.with_suffix(".json")
+            threshold = 0.36
+            feature_cols = [
+                "is_buy", "vol_ratio", "adx", "gk_vol", "cvd_proxy",
+                "vwap_zscore", "ema_spread", "headroom", "wick_ratio", "hour", "dow"
+            ]
+            if meta_file.exists():
+                try:
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                        threshold = float(meta.get("threshold", 0.36))
+                        feature_cols = meta.get("feature_cols", feature_cols)
+                except Exception as ex:
+                    logger.warning(f"[DecisionGate] Could not parse model metadata: {ex}")
+
+            res = (booster, threshold, feature_cols, target_file.name)
+            self._models_cache[str(target_file)] = (mtime, res)
+            logger.info(f"[DecisionGate] Auto-loaded ML Meta-Labeling Model: {target_file.name} (Threshold={threshold:.2f})")
+            return res
+        except Exception as e:
+            logger.error(f"[DecisionGate] Failed to load ML model {target_file.name}: {e}")
+            return None
+
+    def _evaluate_meta_labeling(
+        self, symbol: str, signal: str, strategy_id: Optional[str] = None, rates=None, timeframe=None
+    ) -> Tuple[bool, float, str]:
+        """
+        Evaluates trade probability using the auto-discovered Meta-Labeling model.
+        Returns: (is_pass, probability, reason)
+        """
+        model_info = self._get_or_load_meta_model(strategy_id)
+        if model_info is None:
+            return True, 1.0, "No ML Model Attached (Standard Mode)"
+
+        booster, threshold, feature_cols, model_filename = model_info
+
+        if rates is None or len(rates) < 30:
+            if mt5.terminal_info() is not None:
+                mt5.symbol_select(symbol, True)
+            tf = timeframe if timeframe else mt5.TIMEFRAME_M15
+            rates = mt5.copy_rates_from_pos(symbol, tf, 0, 100)
+
+        if rates is None or len(rates) < 30:
+            return True, 1.0, f"Insufficient bars for ML features ({model_filename} bypassed)"
+
+        try:
+            if isinstance(rates, pd.DataFrame):
+                df = rates
+            else:
+                df = pd.DataFrame(rates)
+            if "time" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["time"]):
+                df["time"] = pd.to_datetime(df["time"], unit="s")
+
+            closes = df["close"].to_numpy(dtype=np.float64)
+            highs = df["high"].to_numpy(dtype=np.float64)
+            lows = df["low"].to_numpy(dtype=np.float64)
+            opens = df["open"].to_numpy(dtype=np.float64)
+            volumes = df["tick_volume"].to_numpy(dtype=np.float64) if "tick_volume" in df.columns else np.ones(len(closes)) * 1000.0
+
+            n_bars = len(closes)
+            tr1 = highs[1:] - lows[1:]
+            tr2 = np.abs(highs[1:] - closes[:-1])
+            tr3 = np.abs(lows[1:] - closes[:-1])
+            tr = np.maximum(tr1, np.maximum(tr2, tr3))
+            atr = np.zeros(n_bars)
+            atr[14] = np.mean(tr[:14])
+            for i in range(15, n_bars):
+                atr[i] = (atr[i - 1] * 13 + tr[i - 1]) / 14.0
+            curr_atr = atr[-1] if atr[-1] > 1e-4 else 1.0
+
+            def calc_ema(arr, period):
+                res = np.zeros(len(arr))
+                alpha = 2.0 / (period + 1.0)
+                res[period - 1] = np.mean(arr[:period])
+                for i in range(period, len(arr)):
+                    res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
+                return res
+
+            ema20 = calc_ema(closes, 20)[-1]
+            ema50 = calc_ema(closes, 50)[-1]
+            vol_ma20 = calc_ema(volumes, 20)[-1]
+
+            up_move = highs[1:] - highs[:-1]
+            down_move = lows[:-1] - lows[1:]
+            plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+            minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+            tr_smooth = np.zeros(n_bars)
+            p_dm_smooth = np.zeros(n_bars)
+            m_dm_smooth = np.zeros(n_bars)
+            tr_smooth[14] = np.sum(tr[:14])
+            p_dm_smooth[14] = np.sum(plus_dm[:14])
+            m_dm_smooth[14] = np.sum(minus_dm[:14])
+            for idx in range(15, n_bars):
+                tr_smooth[idx] = tr_smooth[idx - 1] - (tr_smooth[idx - 1] / 14.0) + tr[idx - 1]
+                p_dm_smooth[idx] = p_dm_smooth[idx - 1] - (p_dm_smooth[idx - 1] / 14.0) + plus_dm[idx - 1]
+                m_dm_smooth[idx] = m_dm_smooth[idx - 1] - (m_dm_smooth[idx - 1] / 14.0) + minus_dm[idx - 1]
+            safe_tr = np.where(tr_smooth > 1e-9, tr_smooth, 1e-9)
+            plus_di = 100.0 * (p_dm_smooth / safe_tr)
+            minus_di = 100.0 * (m_dm_smooth / safe_tr)
+            di_sum = plus_di + minus_di
+            safe_di_sum = np.where(di_sum > 1e-9, di_sum, 1e-9)
+            dx = 100.0 * np.abs(plus_di - minus_di) / safe_di_sum
+            adx14 = np.zeros(n_bars)
+            if n_bars >= 28:
+                adx14[27] = np.mean(dx[14:28])
+                for idx in range(28, n_bars):
+                    adx14[idx] = (adx14[idx - 1] * 13.0 + dx[idx]) / 14.0
+            curr_adx = float(adx14[-1])
+
+            log_hl = np.log(highs[-14:] / np.maximum(lows[-14:], 1e-9))
+            log_co = np.log(closes[-14:] / np.maximum(opens[-14:], 1e-9))
+            gk_bar = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
+            gk_vol = float(np.sqrt(max(0.0, np.mean(gk_bar))) * 1000.0)
+
+            p_diff = np.diff(closes[-11:])
+            s_vol = np.where(p_diff > 0, volumes[-10:], np.where(p_diff < 0, -volumes[-10:], 0.0))
+            cvd_proxy = float(np.sum(s_vol) / max(1.0, np.sum(volumes[-10:])))
+
+            w_len = min(96, n_bars)
+            pv_sub = closes[-w_len:] * volumes[-w_len:]
+            vwap = np.sum(pv_sub) / max(1.0, np.sum(volumes[-w_len:]))
+            vwap_z = float((closes[-1] - vwap) / curr_atr)
+
+            look_sr = min(30, n_bars - 1)
+            high_30 = float(np.max(highs[-look_sr - 1 : -1]))
+            low_30 = float(np.min(lows[-look_sr - 1 : -1]))
+            is_buy = 1 if signal == "BUY" else 0
+            if is_buy:
+                headroom = float((high_30 - closes[-1]) / curr_atr)
+                c_rng = max(1e-4, highs[-1] - lows[-1])
+                wick_ratio = float((highs[-1] - max(closes[-1], opens[-1])) / c_rng)
+            else:
+                headroom = float((closes[-1] - low_30) / curr_atr)
+                c_rng = max(1e-4, highs[-1] - lows[-1])
+                wick_ratio = float((min(closes[-1], opens[-1]) - lows[-1]) / c_rng)
+
+            vol_ratio = float(volumes[-1] / max(1.0, vol_ma20))
+            ema_spread = float(abs(ema20 - ema50) / curr_atr)
+
+            last_time = df["time"].iloc[-1] if "time" in df.columns else datetime.now(timezone.utc)
+            hour_val = int(getattr(last_time, "hour", 12))
+            dow_val = int(getattr(last_time, "weekday", lambda: 2)()) if callable(getattr(last_time, "weekday", None)) else int(getattr(last_time, "dayofweek", 2))
+
+            feat_dict = {
+                "is_buy": is_buy,
+                "vol_ratio": round(vol_ratio, 3),
+                "adx": round(curr_adx, 2),
+                "gk_vol": round(gk_vol, 4),
+                "cvd_proxy": round(cvd_proxy, 3),
+                "vwap_zscore": round(vwap_z, 3),
+                "ema_spread": round(ema_spread, 3),
+                "headroom": round(headroom, 3),
+                "wick_ratio": round(wick_ratio, 3),
+                "hour": hour_val,
+                "dow": dow_val,
+            }
+
+            feat_vector = np.array([[feat_dict.get(c, 0.0) for c in feature_cols]], dtype=np.float64)
+            pred_prob = float(booster.predict(feat_vector)[0])
+
+            if pred_prob >= threshold:
+                return True, pred_prob, f"ML Meta Pass: {model_filename} (P={pred_prob*100:.1f}% >= {threshold*100:.0f}%)"
+            else:
+                return False, pred_prob, f"ML Meta Block: {model_filename} (Xác suất thắng thấp P={pred_prob*100:.1f}% < {threshold*100:.0f}%)"
+
+        except Exception as e:
+            logger.error(f"[DecisionGate] Error computing ML features: {e}")
+            return True, 1.0, f"ML Evaluation Error (Bypassed: {e})"
+
+    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
         """
 
         Diem vao chinh: kiem duyet tin hieu tu Strategy.
@@ -538,6 +772,25 @@ class DecisionGate:
                     reason = f"[AssetRiskGate] {risk_reason}"
             except Exception as e:
                 logger.warning(f"[DecisionGate] Error checking asset risk rules: {e}")
+
+
+        # Kiem tra Machine Learning Meta-Labeling (Model Registry Drop-in Hook)
+        if decision in ["BUY", "SELL"]:
+            try:
+                is_ml_pass, ml_prob, ml_msg = self._evaluate_meta_labeling(
+                    symbol, decision, strategy_id=strategy_id, rates=rates, timeframe=timeframe
+                )
+                if not is_ml_pass:
+                    logger.info(f"[DecisionGate] {symbol}: {ml_msg}")
+                    decision = "WAIT"
+                    trade_mode = "BLOCKED"
+                    size_multiplier = 0.0
+                    reason = f"[MLMetaGate] {ml_msg}"
+                else:
+                    if ml_prob < 1.0:
+                        reason += f" [{ml_msg}]"
+            except Exception as e:
+                logger.warning(f"[DecisionGate] Error checking ML Meta-Labeling: {e}")
 
         logger.info(
             f"[DecisionGate] {symbol}: GateMode=FULL, Strategy={signal_from_strategy}, "
