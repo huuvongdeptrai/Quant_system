@@ -831,7 +831,7 @@ class QuantTerminal(QObject):
 
             gate_mode = (
                 self.window.comboGateMode.currentData()
-                if hasattr(self.window, "comboGateMode")
+                if (hasattr(self.window, "comboGateMode") and self.window.comboGateMode.currentData())
                 else "FULL"
             )
 
@@ -1038,9 +1038,10 @@ class QuantTerminal(QObject):
 
             self.bot_worker.signals.log_msg.connect(event_bus.log_event.emit)
 
-            if hasattr(self.window, "comboBias"):
-
+            if hasattr(self.window, "comboBias") and self.window.comboBias.currentData():
                 self.bot_worker.trade_mode = self.window.comboBias.currentData()
+            else:
+                self.bot_worker.trade_mode = "AUTO" 
 
             self.bot_thread = QThread()
             self.bot_thread.setObjectName("BotOrchestratorThread")
@@ -1076,8 +1077,8 @@ class QuantTerminal(QObject):
 
             tf_name = (
                 self.window.comboTimeframe.currentText()
-                if hasattr(self.window, "comboTimeframe")
-                else "M15"
+                if (hasattr(self.window, "comboTimeframe") and self.window.comboTimeframe.currentText().strip())
+                else getattr(self, "_active_bot_tf_str", "M15") or "M15"
             )
 
             strat_name = (
@@ -1101,8 +1102,8 @@ class QuantTerminal(QObject):
 
             gate_mode_display = (
                 self.window.comboGateMode.currentText()
-                if hasattr(self.window, "comboGateMode")
-                else "Day du"
+                if (hasattr(self.window, "comboGateMode") and self.window.comboGateMode.currentText().strip())
+                else (gate_mode or "Full AI Gate")
             )
 
             syms_display = ", ".join(active_symbols) if active_symbols else "None (0 symbols in watchlist)"

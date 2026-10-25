@@ -47,7 +47,7 @@ class TradeDispatcher:
 
     def validate_direction(self, signal: str, trade_mode: str) -> bool:
         """Validates if signal complies with user-configured directional permission."""
-        if trade_mode == "AUTO":
+        if not trade_mode or trade_mode == "AUTO":
             return True
         if trade_mode == "LONG_ONLY" and signal == "BUY":
             return True

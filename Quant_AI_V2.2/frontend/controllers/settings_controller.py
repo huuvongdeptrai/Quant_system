@@ -539,6 +539,29 @@ class SettingsManager:
             win.comboExecutionMode.addItem("Full-Auto (Autonomous STP)", "FULL-AUTO")
             win.comboExecutionMode.currentIndexChanged.connect(self._on_execution_mode_changed)
 
+        if hasattr(win, "comboBias"):
+            win.comboBias.clear()
+            win.comboBias.addItem("Auto (Long & Short)", "AUTO")
+            win.comboBias.addItem("Long Only (Buy Only)", "LONG_ONLY")
+            win.comboBias.addItem("Short Only (Sell Only)", "SHORT_ONLY")
+
+        if hasattr(win, "comboTimeframe"):
+            win.comboTimeframe.clear()
+            win.comboTimeframe.addItem("M15 (15 Minutes)", "15")
+            win.comboTimeframe.addItem("M1 (1 Minute)", "1")
+            win.comboTimeframe.addItem("M5 (5 Minutes)", "5")
+            win.comboTimeframe.addItem("M30 (30 Minutes)", "30")
+            win.comboTimeframe.addItem("H1 (1 Hour)", "60")
+            win.comboTimeframe.addItem("H4 (4 Hours)", "240")
+            win.comboTimeframe.addItem("D1 (Daily)", "1440")
+            win.comboTimeframe.addItem("Follow Active Chart", "FOLLOW_CHART")
+
+        if hasattr(win, "comboGateMode"):
+            win.comboGateMode.clear()
+            win.comboGateMode.addItem("Full AI Gate (Technical + Macro + News)", "FULL")
+            win.comboGateMode.addItem("Technical Only (Rules & Structure)", "TECH_ONLY")
+            win.comboGateMode.addItem("Bypass AI Gate (Raw Strategy Signals)", "BYPASS")
+
         if hasattr(win, "comboStrategy"):
             try:
                 win.comboStrategy.currentIndexChanged.connect(self._on_strategy_changed)
@@ -686,6 +709,9 @@ class SettingsManager:
 
             "strategy": getattr(win, "comboStrategy", None).currentData() if hasattr(win, "comboStrategy") else DEFAULTS.get("strategy", "builtin_ict_pro"),
             "execution_mode": getattr(win, "comboExecutionMode", None).currentData() if hasattr(win, "comboExecutionMode") else DEFAULTS["execution_mode"],
+            "market_bias": getattr(win, "comboBias", None).currentData() if hasattr(win, "comboBias") else "AUTO",
+            "timeframe": getattr(win, "comboTimeframe", None).currentData() if hasattr(win, "comboTimeframe") else "15",
+            "decision_gate_mode": getattr(win, "comboGateMode", None).currentData() if hasattr(win, "comboGateMode") else "FULL",
             "max_spread": getattr(win, "spinMaxSpread", None).value() if hasattr(win, "spinMaxSpread") else DEFAULTS["max_spread"],
             "slippage": getattr(win, "spinSlippage", None).value() if hasattr(win, "spinSlippage") else DEFAULTS["slippage"],
             "breakeven_pips": getattr(win, "spinBreakevenPips", None).value() if hasattr(win, "spinBreakevenPips") else DEFAULTS["breakeven_pips"],
@@ -785,6 +811,24 @@ class SettingsManager:
                 win.comboExecutionMode.setCurrentIndex(idx)
             if hasattr(win, "quant_terminal") and hasattr(win.quant_terminal, "set_execution_mode"):
                 win.quant_terminal.set_execution_mode(m)
+
+        if hasattr(win, "comboBias"):
+            bias = data.get("market_bias", "AUTO")
+            idx = win.comboBias.findData(bias)
+            if idx >= 0:
+                win.comboBias.setCurrentIndex(idx)
+
+        if hasattr(win, "comboTimeframe"):
+            tf_cfg = str(data.get("timeframe", "15"))
+            idx = win.comboTimeframe.findData(tf_cfg)
+            if idx >= 0:
+                win.comboTimeframe.setCurrentIndex(idx)
+
+        if hasattr(win, "comboGateMode"):
+            gm = data.get("decision_gate_mode", "FULL")
+            idx = win.comboGateMode.findData(gm)
+            if idx >= 0:
+                win.comboGateMode.setCurrentIndex(idx)
 
         if hasattr(win, "spinMaxSpread"): win.spinMaxSpread.setValue(int(data.get("max_spread", DEFAULTS["max_spread"])))
         if hasattr(win, "spinSlippage"): win.spinSlippage.setValue(int(data.get("slippage", DEFAULTS["slippage"])))
