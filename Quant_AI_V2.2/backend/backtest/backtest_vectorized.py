@@ -180,6 +180,7 @@ class VectorizedBacktester:
                     risk_amt * (self.slippage_pct / 100.0)
                 )
                 if pos_type == 1:
+                    # Tuân thủ Pessimistic Execution Rule: Ưu tiên SL nếu nến quét cả 2 đầu trong cùng 1 bar
                     if l <= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)
@@ -231,6 +232,7 @@ class VectorizedBacktester:
                         last_exit_side = 1
                         last_exit_outcome = "TP"
                 elif pos_type == -1:
+                    # Tuân thủ Pessimistic Execution Rule: Ưu tiên SL nếu nến quét cả 2 đầu trong cùng 1 bar
                     if h >= sl_price:
                         loss_pnl = -risk_amt - friction
                         trades_pnl.append(loss_pnl)

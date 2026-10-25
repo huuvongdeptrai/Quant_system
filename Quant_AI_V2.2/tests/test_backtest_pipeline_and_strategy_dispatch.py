@@ -413,5 +413,80 @@ def generate_signals(df):
         assert len(sim_calls) == 0, "_on_run_clicked must abort immediately when _is_simulating is True"
         ctrl._is_simulating = False
 
+    def test_intrabar_sl_tp_collision_pessimistic_rule(self):
+        """
+        Verify that when a candle spans both Stop Loss and Take Profit (intrabar collision),
+        the execution engine strictly applies the Pessimistic Execution Rule (Robert Pardo / QuantConnect LEAN),
+        assuming Stop Loss was hit first and never registering a phantom Take Profit win,
+        even when the candle Open is artificially close to Take Profit.
+        """
+        from backend.backtest.backtest_ict_pro import EventDrivenBacktester
+
+        class DummyCollisionStrategy:
+            def __init__(self):
+                self.has_fired = False
+
+            def analyze(self, window_df, macro_context=None):
+                if not self.has_fired and len(window_df) >= 150:
+                    self.has_fired = True
+                    # Enter BUY at 2000.0, SL at 1990.0 (-10 pts), TP at 2020.0 (+20 pts)
+                    return {
+                        "signal": "BUY",
+                        "entry_price": 2000.0,
+                        "sl": 1990.0,
+                        "tp1": 2020.0,
+                    }
+                return {"signal": "HOLD"}
+
+        # Generate 150 base candles around 2000.0
+        n_base = 152
+        dates = pd.date_range("2026-01-01", periods=n_base + 3, freq="15min")
+        base_opens = [2000.0] * n_base
+        base_highs = [2002.0] * n_base
+        base_lows = [1998.0] * n_base
+        base_closes = [2000.0] * n_base
+
+        # Bar n_base: Strategy fires BUY at 2000.0, SL=1990, TP=2020
+        # Bar n_base + 1: Massive news candle touching BOTH SL and TP!
+        # Open is 2019.0 (only 1 pt from TP 2020.0, but 29 pts from SL 1990.0)
+        # High is 2025.0 (exceeds TP 2020.0)
+        # Low is 1985.0 (violates SL 1990.0)
+        # Under old heuristic, Open being closer to TP would result in 'TP'.
+        # Under Pessimistic Execution Rule, it MUST exit as 'SL'.
+        collision_open = 2019.0
+        collision_high = 2025.0
+        collision_low = 1985.0
+        collision_close = 2015.0
+
+        all_opens = base_opens + [collision_open, 2000.0]
+        all_highs = base_highs + [collision_high, 2002.0]
+        all_lows = base_lows + [collision_low, 1998.0]
+        all_closes = base_closes + [collision_close, 2000.0]
+
+        df = pd.DataFrame({
+            "time": dates[:len(all_opens)],
+            "open": all_opens,
+            "high": all_highs,
+            "low": all_lows,
+            "close": all_closes,
+            "tick_volume": [1000.0] * len(all_opens),
+        })
+
+        bt = EventDrivenBacktester(
+            strategy=DummyCollisionStrategy(),
+            initial_balance=100000.0,
+            risk_per_trade_pct=1.0,
+            commission_per_lot=0.0,
+            slippage_pts=0.0,
+        )
+        report = bt.run(df, symbol="XAUUSD")
+
+        assert report is not None
+        assert report.total_trades == 1, "Must execute exactly 1 trade"
+        assert len(report.trade_records) == 1
+        trade = report.trade_records[0]
+        assert trade["outcome"] == "SL", f"Must register SL exit outcome under Pessimistic Rule, got {trade['outcome']}"
+        assert trade["pnl"] < 0, f"PnL must be negative under Pessimistic Rule, got {trade['pnl']}"
+
 
 

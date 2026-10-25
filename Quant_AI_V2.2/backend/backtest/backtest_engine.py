@@ -144,18 +144,30 @@ class BacktestWorker(QThread):
                 exit_price = curr_price
 
                 # 1. Kiểm tra dính SL / TP (Kiểm tra trong cùng cây nến)
+                # Tuân thủ Nguyên tắc Thực thi Bảo thủ (Pessimistic Execution Rule - Robert Pardo / QuantConnect LEAN):
+                # Nếu nến quét chạm cả SL và TP trong cùng 1 thanh nến, bắt buộc ưu tiên tính dính SL trước.
                 if pos_type == 1:  # Đang BUY
-                    if current_sl and current_sl > 0 and curr_low <= current_sl:
+                    hit_sl = bool(current_sl and current_sl > 0 and curr_low <= current_sl)
+                    hit_tp = bool(current_tp and current_tp > 0 and curr_high >= current_tp)
+                    if hit_sl and hit_tp:
                         exit_reason = "SL"
                         exit_price = current_sl
-                    elif current_tp and current_tp > 0 and curr_high >= current_tp:
+                    elif hit_sl:
+                        exit_reason = "SL"
+                        exit_price = current_sl
+                    elif hit_tp:
                         exit_reason = "TP"
                         exit_price = current_tp
                 else:  # Đang SELL
-                    if current_sl and current_sl > 0 and curr_high >= current_sl:
+                    hit_sl = bool(current_sl and current_sl > 0 and curr_high >= current_sl)
+                    hit_tp = bool(current_tp and current_tp > 0 and curr_low <= current_tp)
+                    if hit_sl and hit_tp:
                         exit_reason = "SL"
                         exit_price = current_sl
-                    elif current_tp and current_tp > 0 and curr_low <= current_tp:
+                    elif hit_sl:
+                        exit_reason = "SL"
+                        exit_price = current_sl
+                    elif hit_tp:
                         exit_reason = "TP"
                         exit_price = current_tp
 

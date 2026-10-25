@@ -9,7 +9,7 @@ Cập nhật chuẩn hóa:
 2. Tắt Disk I/O (save_state=False) trong vòng lặp backtest để tốc độ nhanh gấp 20 lần.
 3. Định cỡ vị thế thực tế theo Risk % và khoảng cách SL cấu trúc (Fixed Fractional Risk Sizing với Max Lot Cap).
 4. Tính toán đầy đủ chi phí ma sát thị trường thực tế: Commission ($/lot) và Slippage (points).
-5. Xử lý logic chạm SL/TP chuẩn nến (Intrabar Open proximity check) triệt tiêu thiên kiến ép thua vô lý.
+5. Xử lý logic chạm SL/TP chuẩn nến: Tuân thủ Pessimistic Execution Rule (khi nến quét cả 2 đầu trong cùng thanh nến, luôn ưu tiên tính dính SL trước để triệt tiêu thiên kiến thắng ảo theo chuẩn Robert Pardo & QuantConnect LEAN).
 6. Cung cấp cả hàm run_ict_pro_backtest() và lớp ICTProBacktester tương thích chuẩn BacktestReport.
 """
 
@@ -155,15 +155,13 @@ class EventDrivenBacktester:
                     hit_tp = h >= tp_p
 
                     if hit_sl and hit_tp:
-                        # Nến quét 2 đầu: Kiểm tra khoảng cách từ giá mở cửa Open
-                        if abs(o - sl_p) <= abs(o - tp_p):
-                            exit_outcome = "SL"
-                            exit_price = sl_p
-                            actual_pnl = -(entry_p - sl_p) * lot_size * mult - friction
-                        else:
-                            exit_outcome = "TP"
-                            exit_price = tp_p
-                            actual_pnl = (tp_p - entry_p) * lot_size * mult - friction
+                        # Nến quét 2 đầu (Intra-bar Collision):
+                        # Chuẩn mực định lượng bảo thủ (Pessimistic Execution Rule - Robert Pardo / QuantConnect LEAN):
+                        # Khi không có dữ liệu tick/M1 để xác định thứ tự thời gian nội nến,
+                        # bắt buộc phải giả định dính Stop Loss trước để triệt tiêu thiên kiến thắng ảo (Phantom Profits).
+                        exit_outcome = "SL"
+                        exit_price = sl_p
+                        actual_pnl = -(entry_p - sl_p) * lot_size * mult - friction
                         exit_occurred = True
                     elif hit_sl:
                         exit_outcome = "SL"
@@ -181,14 +179,12 @@ class EventDrivenBacktester:
                     hit_tp = l <= tp_p
 
                     if hit_sl and hit_tp:
-                        if abs(o - sl_p) <= abs(o - tp_p):
-                            exit_outcome = "SL"
-                            exit_price = sl_p
-                            actual_pnl = -(sl_p - entry_p) * lot_size * mult - friction
-                        else:
-                            exit_outcome = "TP"
-                            exit_price = tp_p
-                            actual_pnl = (entry_p - tp_p) * lot_size * mult - friction
+                        # Nến quét 2 đầu (Intra-bar Collision):
+                        # Chuẩn mực định lượng bảo thủ (Pessimistic Execution Rule - Robert Pardo / QuantConnect LEAN):
+                        # Bắt buộc phải giả định dính Stop Loss trước để triệt tiêu thiên kiến thắng ảo.
+                        exit_outcome = "SL"
+                        exit_price = sl_p
+                        actual_pnl = -(sl_p - entry_p) * lot_size * mult - friction
                         exit_occurred = True
                     elif hit_sl:
                         exit_outcome = "SL"
