@@ -1215,6 +1215,8 @@ class WorkspaceHeaderController:
         if pw:
             self._grid_enabled = not getattr(self, "_grid_enabled", True)
             pw.showGrid(x=self._grid_enabled, y=self._grid_enabled, alpha=0.12)
+            if hasattr(self, "_act_grid") and self._act_grid:
+                self._act_grid.setChecked(self._grid_enabled)
 
     def _refresh_chart_data(self):
         """Ctrl+F5: Refreshes candlestick feed and Market Profile from MT5."""
@@ -1251,7 +1253,7 @@ class WorkspaceHeaderController:
 
         file_path, _ = QFileDialog.getSaveFileName(
             self.window,
-            "Export VPS Headless Profile",
+            "Export VPS Config",
             default_path,
             "JSON Configuration (*.json)",
         )
@@ -1370,7 +1372,7 @@ class WorkspaceHeaderController:
             ("Ctrl+L", "Journal"),
             ("Ctrl+O", "Options"),
             ("Alt+1 / 2 / 3", "Bar Chart / Candlesticks / Line Chart"),
-            ("Ctrl+0 / + / -", "Auto Scroll / Zoom In / Zoom Out"),
+            ("Ctrl+0 / + / -", "Auto Range / Zoom In / Zoom Out"),
             ("Ctrl+G", "Grid"),
             ("Shift+F11 / F11", "Maximize Chart / Full Screen"),
         ]
@@ -1615,11 +1617,12 @@ class WorkspaceHeaderController:
         act_zout.setShortcut(QKeySequence("-"))
         act_zout.triggered.connect(self._zoom_out_chart)
 
-        act_fit = menu.addAction("Auto Scroll")
+        act_fit = menu.addAction("Auto Range")
         act_fit.setShortcut(QKeySequence("Ctrl+0"))
         act_fit.triggered.connect(self._auto_fit_chart)
 
-        act_grid = menu.addAction("Grid")
+        is_grid = getattr(self, "_grid_enabled", True)
+        act_grid = menu.addAction("✓ Grid" if is_grid else "Grid")
         act_grid.setShortcut(QKeySequence("Ctrl+G"))
         act_grid.triggered.connect(self._toggle_grid)
 
@@ -1637,9 +1640,7 @@ class WorkspaceHeaderController:
 
         act_order = menu.addAction("New Order")
         act_order.setShortcut(QKeySequence("F9"))
-        def _on_new_order():
-            self._toggle_trading_plan()
-        act_order.triggered.connect(_on_new_order)
+        act_order.triggered.connect(self._open_new_order_ticket)
 
         act_strat = menu.addAction("Strategy Manager...")
         act_strat.setShortcut(QKeySequence("Ctrl+Shift+S"))
@@ -1655,11 +1656,11 @@ class WorkspaceHeaderController:
 
         menu.addSeparator()
 
-        act_tray = menu.addAction("Run in Background (Tray Mode)")
+        act_tray = menu.addAction("Minimize to Tray")
         act_tray.setShortcut(QKeySequence("Ctrl+Shift+B"))
         act_tray.triggered.connect(self._run_in_background)
 
-        act_vps = menu.addAction("Export VPS Headless Profile...")
+        act_vps = menu.addAction("Export VPS Config...")
         act_vps.setShortcut(QKeySequence("Ctrl+Shift+E"))
         act_vps.triggered.connect(self._export_vps_profile)
 
@@ -1671,9 +1672,18 @@ class WorkspaceHeaderController:
 
         cal_tab = getattr(self.window, "tabCalendar", None)
         if cal_tab:
-            act_cal = menu.addAction("Calendar")
+            act_cal = menu.addAction("Economic Calendar")
             act_cal.setShortcut(QKeySequence("F3"))
             act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
+
+        def _toggle_mt5_win():
+            if mt5.is_mt5_window_visible():
+                mt5.hide_mt5_window()
+            else:
+                mt5.show_mt5_window()
+
+        act_mt5 = menu.addAction("Show/Hide MT5 Window")
+        act_mt5.triggered.connect(_toggle_mt5_win)
 
         act_opt = menu.addAction("Options")
         act_opt.setShortcut(QKeySequence("Ctrl+O"))
@@ -1784,7 +1794,7 @@ class WorkspaceHeaderController:
         )
 
         act_cal = _reg_action(
-            None, "Calendar", "F3",
+            None, "Economic Calendar", "F3",
             lambda: self._switch_nav_tab(getattr(self.window, "tabCalendar", None), getattr(self, "btnNavCalendar", None), "Calendar"),
             checkable=True
         )
@@ -1914,8 +1924,9 @@ class WorkspaceHeaderController:
 
         act_zin = _reg_action(m_charts, "Zoom In", ["+", "="], self._zoom_in_chart)
         act_zout = _reg_action(m_charts, "Zoom Out", "-", self._zoom_out_chart)
-        act_fit = _reg_action(m_charts, "Auto Scroll", "Ctrl+0", self._auto_fit_chart)
-        act_grid = _reg_action(m_charts, "Grid", "Ctrl+G", self._toggle_grid)
+        act_fit = _reg_action(m_charts, "Auto Range", "Ctrl+0", self._auto_fit_chart)
+        act_grid = _reg_action(m_charts, "Grid", "Ctrl+G", self._toggle_grid, checkable=True)
+        self._act_grid = act_grid
         act_ref = _reg_action(m_charts, "Refresh", "Ctrl+F5", self._refresh_chart_data)
 
         def _sync_charts_states():
@@ -1929,6 +1940,8 @@ class WorkspaceHeaderController:
             curr_tf = getattr(self, "active_timeframe", "H1")
             for tf, act_tf in self._tf_actions.items():
                 act_tf.setChecked(tf == curr_tf)
+
+            act_grid.setChecked(getattr(self, "_grid_enabled", True))
 
         m_charts.aboutToShow.connect(_sync_charts_states)
         _sync_charts_states()
@@ -1946,8 +1959,8 @@ class WorkspaceHeaderController:
         act_kill = _reg_action(m_tools, "Close All Positions", "Ctrl+Shift+K", self._trigger_kill_switch)
 
         m_tools.addSeparator()
-        act_tray = _reg_action(m_tools, "Run in Background (Tray Mode)", "Ctrl+Shift+B", self._run_in_background)
-        act_vps = _reg_action(m_tools, "Export VPS Headless Profile...", "Ctrl+Shift+E", self._export_vps_profile)
+        act_tray = _reg_action(m_tools, "Minimize to Tray", "Ctrl+Shift+B", self._run_in_background)
+        act_vps = _reg_action(m_tools, "Export VPS Config...", "Ctrl+Shift+E", self._export_vps_profile)
 
         m_tools.addSeparator()
         m_tools.addAction(act_journal)
@@ -1958,7 +1971,7 @@ class WorkspaceHeaderController:
             else:
                 mt5.show_mt5_window()
 
-        act_mt5_win = _reg_action(m_tools, "Toggle MT5 Window", None, _toggle_mt5_window)
+        act_mt5_win = _reg_action(m_tools, "Show/Hide MT5 Window", None, _toggle_mt5_window)
         act_opt = _reg_action(m_tools, "Options", "Ctrl+O", self._trigger_options)
 
         # -------------------------------------------------------------
