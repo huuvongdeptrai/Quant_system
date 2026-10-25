@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
+    QScrollArea,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -249,19 +251,19 @@ class CalendarManager:
         """)
         tl_lay.addWidget(self.timeline_bar)
 
-        # Sub-tick time markers
-        ticks_row = QHBoxLayout()
-        ticks_row.setContentsMargins(0, 0, 0, 0)
+        # Sub-tick time markers (Mathematically equal 25% intervals across 24h timeline)
+        ticks_grid = QGridLayout()
+        ticks_grid.setContentsMargins(0, 0, 0, 0)
+        ticks_grid.setSpacing(0)
         ticks_labels = ["00:00", "06:00", "12:00 UTC", "18:00", "24:00"]
-        for idx, lbl in enumerate(ticks_labels):
+        aligns = [Qt.AlignLeft, Qt.AlignCenter, Qt.AlignCenter, Qt.AlignCenter, Qt.AlignRight]
+        for col_idx, (lbl, align) in enumerate(zip(ticks_labels, aligns)):
             l = QLabel(lbl)
-            l.setStyleSheet("color: #475569; font-family: Consolas, monospace; font-size: 8px; border: none;")
-            if idx > 0 and idx < len(ticks_labels) - 1:
-                ticks_row.addStretch()
-            ticks_row.addWidget(l)
-            if idx == 0:
-                ticks_row.addStretch()
-        tl_lay.addLayout(ticks_row)
+            l.setStyleSheet("color: #64748b; font-family: Consolas, monospace; font-size: 8px; border: none;")
+            l.setAlignment(align)
+            ticks_grid.addWidget(l, 0, col_idx)
+            ticks_grid.setColumnStretch(col_idx, 1)
+        tl_lay.addLayout(ticks_grid)
 
         self.root_layout.addWidget(self.frame_timeline)
         self._update_timeline()
@@ -290,7 +292,8 @@ class CalendarManager:
             secs = diff % 60
             impact = nxt.get("impact", 0)
             impact_tag = "HIGH" if impact == 2 else "MED"
-            impact_col = "#ef4444" if impact == 2 else "#f59e0b"
+            is_d = getattr(self.window, "is_dark_theme", False)
+            impact_col = "#ef4444" if impact == 2 else ("#f59e0b" if is_d else "#b45309")
 
             from backend.core.timezone_manager import timezone_manager
             time_str = timezone_manager.format_utc_ts(sort_key, "%H:%M")
@@ -304,9 +307,11 @@ class CalendarManager:
                 f"color: {impact_col}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;"
             )
         else:
+            is_d = getattr(self.window, "is_dark_theme", False)
+            color_clear = "#22c55e" if is_d else "#15803d"
             self.lbl_next_event_strip.setText("▶ NO UPCOMING HIGH-IMPACT RELEASES IN THIS SESSION")
             self.lbl_next_event_strip.setStyleSheet(
-                "color: #22c55e; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;"
+                f"color: {color_clear}; font-family: Consolas, monospace; font-size: 9.5px; font-weight: 700; border: none;"
             )
 
     def _setup_controls_wire_row(self):
@@ -456,10 +461,17 @@ class CalendarManager:
         self.main_splitter.addWidget(self.left_container)
 
         # --- RIGHT PANE (30%): Compact Event Risk & Semi-Auto Defense Desk ---
+        self.right_scroll = QScrollArea()
+        self.right_scroll.setWidgetResizable(True)
+        self.right_scroll.setFrameShape(QFrame.NoFrame)
+        self.right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.right_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
         self.right_container = QWidget()
         self.right_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._setup_defense_desk_ui()
-        self.main_splitter.addWidget(self.right_container)
+        self.right_scroll.setWidget(self.right_container)
+        self.main_splitter.addWidget(self.right_scroll)
 
         # 68:32 Golden Split Proportions (Balanced horizontal density)
         self.main_splitter.setStretchFactor(0, 68)
@@ -495,17 +507,17 @@ class CalendarManager:
         fg_muted = "#94a3b8" if is_d else "#64748b"
 
         r_lay = QVBoxLayout(self.right_container)
-        r_lay.setContentsMargins(0, 0, 0, 0)
-        r_lay.setSpacing(4)
+        r_lay.setContentsMargins(0, 0, 2, 0)
+        r_lay.setSpacing(3)
 
-        # Section 1: Upcoming Event Countdown Card (~105px)
+        # Section 1: Upcoming Event Countdown Card (~95px)
         self.frame_countdown = QFrame()
         self.frame_countdown.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
         )
         c_lay = QVBoxLayout(self.frame_countdown)
-        c_lay.setContentsMargins(4, 4, 4, 4)
-        c_lay.setSpacing(2)
+        c_lay.setContentsMargins(4, 3, 4, 3)
+        c_lay.setSpacing(1)
 
         top_c_row = QHBoxLayout()
         lbl_c_tag = QLabel("NEXT HIGH-IMPACT RELEASE")
@@ -528,10 +540,10 @@ class CalendarManager:
         self.lbl_next_event_time.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9.5px; border: none;")
         c_lay.addWidget(self.lbl_next_event_time)
 
-        # Huge Monospace Countdown
+        # Compact Monospace Countdown
         self.lbl_countdown_val = QLabel("T - 00:00:00")
         self.lbl_countdown_val.setStyleSheet(
-            "color: #ef4444; font-family: 'Consolas', monospace; font-size: 20px; font-weight: 900; letter-spacing: 1px; border: none; margin: 2px 0;"
+            "color: #ef4444; font-family: 'Consolas', monospace; font-size: 18px; font-weight: 900; letter-spacing: 1px; border: none; margin: 0;"
         )
         c_lay.addWidget(self.lbl_countdown_val)
 
@@ -542,13 +554,13 @@ class CalendarManager:
         c_lay.addWidget(self.lbl_lockout_status)
         r_lay.addWidget(self.frame_countdown)
 
-        # Section 2: Quantitative Defense Protocol (~110px)
+        # Section 2: Quantitative Defense Protocol (~100px)
         self.frame_protocol = QFrame()
         self.frame_protocol.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
         )
         p_lay = QVBoxLayout(self.frame_protocol)
-        p_lay.setContentsMargins(4, 4, 4, 4)
+        p_lay.setContentsMargins(4, 3, 4, 3)
         p_lay.setSpacing(2)
 
         lbl_p_tag = QLabel("DEFENSE PROTOCOL (T-15M SHIELD)")
@@ -559,10 +571,12 @@ class CalendarManager:
         self.lbl_desk_assets.setStyleSheet("font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         p_lay.addWidget(self.lbl_desk_assets)
 
+        col_rule1 = "#22c55e" if is_d else "#15803d"
+        col_rule2 = "#f59e0b" if is_d else "#b45309"
         self.lbl_desk_rule1 = QLabel("• PnL >= +1.5R: Auto-Trail SL to Breakeven (+buffer)")
-        self.lbl_desk_rule1.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
+        self.lbl_desk_rule1.setStyleSheet(f"color: {col_rule1}; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
         self.lbl_desk_rule2 = QLabel("• PnL +0.5R to +1.5R: Partial Close 50% & Lock BE")
-        self.lbl_desk_rule2.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
+        self.lbl_desk_rule2.setStyleSheet(f"color: {col_rule2}; font-family: Consolas; font-size: 9px; font-weight: 600; border: none;")
         self.lbl_desk_rule3 = QLabel("• Negative PnL: Maintain original SL discipline")
         self.lbl_desk_rule3.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 9px; border: none;")
         p_lay.addWidget(self.lbl_desk_rule1)
@@ -571,14 +585,14 @@ class CalendarManager:
 
         r_lay.addWidget(self.frame_protocol)
 
-        # Section 3: Semi-Auto Execution Controls (~75px)
+        # Section 3: Semi-Auto Execution Controls (~70px)
         self.frame_actions = QFrame()
         self.frame_actions.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
         )
         a_lay = QVBoxLayout(self.frame_actions)
-        a_lay.setContentsMargins(4, 4, 4, 4)
-        a_lay.setSpacing(4)
+        a_lay.setContentsMargins(4, 3, 4, 3)
+        a_lay.setSpacing(3)
 
         lbl_a_tag = QLabel("SEMI-AUTO RISK OVERRIDE")
         lbl_a_tag.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
@@ -624,14 +638,14 @@ class CalendarManager:
 
         r_lay.addWidget(self.frame_actions)
 
-        # Section 4: Quantitative Event Assessment & Action Desk (Fills empty area cleanly)
+        # Section 4: Quantitative Event Assessment & Action Desk (~125px)
         self.frame_quant_action = QFrame()
         self.frame_quant_action.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}"
+            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
         )
         qa_lay = QVBoxLayout(self.frame_quant_action)
-        qa_lay.setContentsMargins(4, 4, 4, 4)
-        qa_lay.setSpacing(3)
+        qa_lay.setContentsMargins(4, 3, 4, 3)
+        qa_lay.setSpacing(2)
 
         top_qa = QHBoxLayout()
         lbl_qa_tag = QLabel("QUANT EVENT IMPACT & ACTIONS")
@@ -960,17 +974,44 @@ class CalendarManager:
 
             t.setCellWidget(row, 3, w_col3)
 
-            # Col 4, 5, 6: Actual, Forecast, Previous
-            actual = str(e.get("actual", "-")) if e.get("actual") not in ("None", "", None) else "-"
-            forecast = str(e.get("forecast", "-")) if e.get("forecast") not in ("None", "", None) else "-"
-            previous = str(e.get("previous", "-")) if e.get("previous") not in ("None", "", None) else "-"
+            # Col 4, 5, 6: Actual, Forecast, Previous with Tabular Precision Normalization
+            actual_raw = e.get("actual")
+            forecast_raw = e.get("forecast")
+            prev_raw = e.get("previous")
+
+            actual = str(actual_raw).strip() if actual_raw not in ("None", "", None) else "--"
+            forecast = str(forecast_raw).strip() if forecast_raw not in ("None", "", None) else "--"
+            previous = str(prev_raw).strip() if prev_raw not in ("None", "", None) else "--"
+
+            def _normalize_precision(v_str, ref_str):
+                """Ensures v_str has aligned decimal precision matching ref_str for tabular comparison."""
+                if not v_str or v_str == "--" or not ref_str or ref_str == "--":
+                    return v_str
+                ref_clean = ref_str.replace("%", "").replace("K", "").replace("M", "").replace("B", "").strip()
+                v_clean = v_str.replace("%", "").replace("K", "").replace("M", "").replace("B", "").strip()
+                if "." in ref_clean:
+                    num_decimals = len(ref_clean.split(".")[1])
+                    if num_decimals in (1, 2, 3, 4):
+                        try:
+                            val_num = float(v_clean)
+                            has_pct = "%" in v_str
+                            suffix = "%" if has_pct else ""
+                            return f"{val_num:.{num_decimals}f}{suffix}"
+                        except Exception:
+                            pass
+                return v_str
+
+            ref = forecast if forecast != "--" else (previous if previous != "--" else actual)
+            actual = _normalize_precision(actual, ref)
+            forecast = _normalize_precision(forecast, ref)
+            previous = _normalize_precision(previous, ref)
 
             # Col 7: Surprise Delta calculation & directional color
             act_col = text_alpha
             surprise_text = "--"
             surprise_col = text_alpha
 
-            if actual != "-" and forecast != "-":
+            if actual != "--" and forecast != "--":
                 try:
                     act_num = float(actual.replace("%", "").replace("K", "").replace("M", "").replace("B", ""))
                     fc_num = float(forecast.replace("%", "").replace("K", "").replace("M", "").replace("B", ""))
@@ -1020,15 +1061,21 @@ class CalendarManager:
         self._update_timeline()
 
     def _auto_select_next_event(self):
-        """Prioritizes the next upcoming Tier-2 event for the active target asset (XAUUSD)."""
+        """Prioritizes upcoming events hierarchically: Target High -> Any High -> Target Med -> Any Med."""
         t = self.table
-        now_utc_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        now_utc_ts = now_utc.timestamp()
         curr_sym = self._current_symbol.upper()
 
-        best_target_row = -1
-        min_target_gap = float("inf")
-        best_any_row = -1
-        min_any_gap = float("inf")
+        best_target_high = -1
+        min_target_high_gap = float("inf")
+        best_any_high = -1
+        min_any_high_gap = float("inf")
+
+        best_target_med = -1
+        min_target_med_gap = float("inf")
+        best_any_med = -1
+        min_any_med_gap = float("inf")
 
         for r in range(t.rowCount()):
             item = t.item(r, 0)
@@ -1046,22 +1093,66 @@ class CalendarManager:
             # Future events only
             if sort_key >= (now_utc_ts - 60):
                 gap = sort_key - now_utc_ts
-                if impact == 2:
-                    # Check if event impacts target asset directly (e.g. US -> XAUUSD)
-                    if self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title):
-                        if gap < min_target_gap:
-                            min_target_gap = gap
-                            best_target_row = r
-                    if gap < min_any_gap:
-                        min_any_gap = gap
-                        best_any_row = r
+                is_direct = self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title)
 
-        if best_target_row != -1:
-            t.selectRow(best_target_row)
-        elif best_any_row != -1:
-            t.selectRow(best_any_row)
+                if impact == 2:
+                    if is_direct and gap < min_target_high_gap:
+                        min_target_high_gap = gap
+                        best_target_high = r
+                    if gap < min_any_high_gap:
+                        min_any_high_gap = gap
+                        best_any_high = r
+                elif impact == 1:
+                    if is_direct and gap < min_target_med_gap:
+                        min_target_med_gap = gap
+                        best_target_med = r
+                    if gap < min_any_med_gap:
+                        min_any_med_gap = gap
+                        best_any_med = r
+
+        # Hierarchical Selection
+        selected_row = -1
+        if best_target_high != -1:
+            selected_row = best_target_high
+        elif best_any_high != -1:
+            selected_row = best_any_high
+        elif best_target_med != -1:
+            selected_row = best_target_med
+        elif best_any_med != -1:
+            selected_row = best_any_med
+
+        if selected_row != -1:
+            t.selectRow(selected_row)
         else:
-            self._set_weekend_standby_desk()
+            # Check if market is closed for weekend (Friday 21:00 UTC through Sunday 21:00 UTC)
+            weekday = now_utc.weekday()
+            is_weekend = (weekday == 4 and now_utc.hour >= 21) or (weekday == 5) or (weekday == 6 and now_utc.hour < 21)
+            if is_weekend:
+                self._set_weekend_standby_desk()
+            else:
+                self._set_session_clear_desk()
+
+    def _set_session_clear_desk(self):
+        """Displays session clear state when markets are active but no high/med releases remain for today."""
+        self._selected_event = None
+        self.lbl_next_event_title.setText("ACTIVE SESSION · NO IMMINENT MACRO RISK")
+        self.lbl_next_event_time.setText("SCHEDULED: MONITORING ROUTINE RELEASES")
+        self.lbl_countdown_val.setText("WINDOW CLEAR")
+        self.lbl_countdown_val.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 18px; font-weight: 900; border: none;")
+        self.lbl_lockout_status.setText("STATUS: NO HIGH-IMPACT THREATS DETECTED")
+        self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+        self.badge_target_relevance.setText("NORMAL PROTOCOL")
+        self.badge_target_relevance.setStyleSheet(
+            "background-color: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); "
+            "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+        )
+        self.lbl_desk_assets.setText("AFFECTED ASSETS: NONE · STANDARD RISK LIMITS")
+        self.lbl_qa_event_name.setText("EVENT: ROUTINE TRADING WINDOW")
+        self.lbl_qa_surprise.setText("DEVIATION: WITHIN NORMAL PARAMETERS")
+        self.lbl_qa_ai_insight.setText("• AI Assessment: No Tier-1 macro shock events detected in the near-term horizon.")
+        self.lbl_qa_asset_impact.setText(f"• Target Impact ({self._current_symbol}): Primary trend dictates price action. Technical setups favored.")
+        self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #22c55e; font-weight: 600; border: none;")
+        self.lbl_qa_watchlist_impact.setText("• WATCHLIST EXPOSURE: <span style='color:#22c55e;'>CLEAR · NO LOCKOUTS</span>")
 
     def _set_weekend_standby_desk(self):
         """Displays institutional weekend / holiday standby state when all releases for the week have passed."""
@@ -1069,7 +1160,7 @@ class CalendarManager:
         self.lbl_next_event_title.setText("WEEKEND STANDBY · ALL RELEASES CONCLUDED")
         self.lbl_next_event_time.setText("SCHEDULED: MONDAY MARKET REOPEN")
         self.lbl_countdown_val.setText("STANDBY")
-        self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
+        self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 18px; font-weight: 900; border: none;")
         self.lbl_lockout_status.setText("STATUS: NO UPCOMING RELEASES THIS WEEK")
         self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         self.badge_target_relevance.setText("STANDBY")
@@ -1414,51 +1505,71 @@ class CalendarManager:
             t.setItem(row, col, item)
 
     def _country_badge(self, country: str, is_past: bool = False):
+        is_d = getattr(self.window, "is_dark_theme", False)
         col = COUNTRY_COLORS.get(country.upper(), "#334155")
         if is_past:
-            col = "#334155"
+            col = "#334155" if is_d else "#94a3b8"
         w = QWidget()
         lay = QHBoxLayout(w)
         lay.setContentsMargins(1, 1, 1, 1)
         lbl = QLabel(country.upper())
-        opacity = "color: #94a3b8;" if is_past else "color: #ffffff;"
-        lbl.setStyleSheet(
-            f"background-color: {col}; {opacity} font-family: Consolas; font-size: 9px; "
-            "font-weight: bold; border-radius: 2px; padding: 1px 3px;"
-        )
+        if is_d:
+            opacity = "color: #94a3b8;" if is_past else "color: #ffffff;"
+            style = f"background-color: {col}; {opacity} font-family: Consolas; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 3px;"
+        else:
+            # Clean institutional light mode: subtle badge with clear contrast
+            opacity = "color: #94a3b8;" if is_past else "color: #1e293b;"
+            bg_light = "#f1f5f9" if is_past else "#f8fafc"
+            border_light = "#e2e8f0" if is_past else "#cbd5e1"
+            style = f"background-color: {bg_light}; {opacity} border: 1px solid {border_light}; font-family: Consolas; font-size: 9px; font-weight: bold; border-radius: 2px; padding: 1px 3px;"
+        lbl.setStyleSheet(style)
         lbl.setAlignment(Qt.AlignCenter)
         lay.addWidget(lbl, alignment=Qt.AlignCenter)
         return w
 
     def _impact_badge(self, impact: int, is_past: bool = False):
-        """Preserves HIGH/MED/LOW impact rating, only changes alpha/color intensity for past events."""
+        """Preserves HIGH/MED/LOW impact rating, with optimal contrast in both Dark and Light themes."""
+        is_d = getattr(self.window, "is_dark_theme", False)
         w = QWidget()
         lay = QHBoxLayout(w)
         lay.setContentsMargins(1, 1, 1, 1)
 
         if impact == 2:
             lbl_text = "HIGH"
-            bg_col = "#7f1d1d" if is_past else "#ef4444"
-            fg_col = "#fca5a5" if is_past else "#ffffff"
+            if is_d:
+                bg_col = "#7f1d1d" if is_past else "#ef4444"
+                fg_col = "#fca5a5" if is_past else "#ffffff"
+            else:
+                bg_col = "#fee2e2" if is_past else "#dc2626"
+                fg_col = "#991b1b" if is_past else "#ffffff"
         elif impact == 1:
             lbl_text = "MED"
-            bg_col = "#78350f" if is_past else "#f59e0b"
-            fg_col = "#fcd34d" if is_past else "#000000"
+            if is_d:
+                bg_col = "#78350f" if is_past else "#f59e0b"
+                fg_col = "#fcd34d" if is_past else "#000000"
+            else:
+                bg_col = "#fef3c7" if is_past else "#d97706"
+                fg_col = "#92400e" if is_past else "#ffffff"
         else:
             lbl_text = "LOW"
-            bg_col = "#1e293b" if is_past else "#334155"
-            fg_col = "#64748b" if is_past else "#94a3b8"
+            if is_d:
+                bg_col = "#1e293b" if is_past else "#334155"
+                fg_col = "#64748b" if is_past else "#94a3b8"
+            else:
+                bg_col = "#f8fafc" if is_past else "#f1f5f9"
+                fg_col = "#94a3b8" if is_past else "#64748b"
 
         lbl = QLabel(lbl_text)
+        border_style = "border: 1px solid #e2e8f0;" if not is_d and impact == 0 else "border: none;"
         lbl.setStyleSheet(
-            f"background-color: {bg_col}; color: {fg_col}; font-family: Consolas; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
+            f"background-color: {bg_col}; color: {fg_col}; {border_style} font-family: Consolas; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 4px;"
         )
         lbl.setAlignment(Qt.AlignCenter)
         lay.addWidget(lbl, alignment=Qt.AlignCenter)
         return w
 
     def _cell(self, text, color=None, bold=False, font="Segoe UI", align=Qt.AlignCenter):
-        val = str(text) if text not in ("None", "none", "", None) else "-"
+        val = str(text) if text not in ("None", "none", "", None) else "--"
         w = QWidget()
         lay = QHBoxLayout(w)
         lay.setContentsMargins(3, 0, 3, 0)
