@@ -1365,8 +1365,8 @@ class WorkspaceHeaderController:
             ("F3", "Calendar"),
             ("F9", "New Order"),
             ("Ctrl+M", "Market Watch"),
-            ("Ctrl+T", "Toolbox"),
-            ("Ctrl+B", "Trade"),
+            ("Ctrl+T", "Trading Plan"),
+            ("Ctrl+B", "Trade Blotter"),
             ("Ctrl+N", "New Chart..."),
             ("Ctrl+S", "Save As Picture..."),
             ("Ctrl+L", "Journal"),
@@ -1476,7 +1476,7 @@ class WorkspaceHeaderController:
 
         cal_tab = getattr(self.window, "tabCalendar", None)
         if cal_tab:
-            act_cal = menu.addAction("✓ Calendar" if curr_w == cal_tab else "Calendar")
+            act_cal = menu.addAction("✓ Economic Calendar" if curr_w == cal_tab else "Economic Calendar")
             act_cal.setShortcut(QKeySequence("F3"))
             act_cal.triggered.connect(lambda: self._switch_nav_tab(cal_tab, getattr(self, "btnNavCalendar", None), "Calendar"))
 
@@ -1488,16 +1488,14 @@ class WorkspaceHeaderController:
         act_wl.triggered.connect(self._toggle_watchlist)
 
         is_plan_open = getattr(self.window, "frameAIArea", None) and self.window.frameAIArea.isVisible()
-        act_plan = menu.addAction("✓ Toolbox" if is_plan_open else "Toolbox")
+        act_plan = menu.addAction("✓ Trading Plan" if is_plan_open else "Trading Plan")
         act_plan.setShortcut(QKeySequence("Ctrl+T"))
         act_plan.triggered.connect(self._toggle_trading_plan)
 
         is_dock_open = not getattr(self.window, "is_dock_collapsed", False)
-        act_blotter = menu.addAction("✓ Trade" if is_dock_open else "Trade")
+        act_blotter = menu.addAction("✓ Trade Blotter" if is_dock_open else "Trade Blotter")
         act_blotter.setShortcut(QKeySequence("Ctrl+B"))
         act_blotter.triggered.connect(self._toggle_blotter_dock)
-
-        menu.addSeparator()
 
         act_journal = menu.addAction("Journal")
         act_journal.setShortcut(QKeySequence("Ctrl+L"))
@@ -1831,10 +1829,8 @@ class WorkspaceHeaderController:
         m_view.addSeparator()
 
         act_wl = _reg_action(m_view, "Market Watch", "Ctrl+M", self._toggle_watchlist, checkable=True)
-        act_plan = _reg_action(m_view, "Toolbox", "Ctrl+T", self._toggle_trading_plan, checkable=True)
-        act_blotter = _reg_action(m_view, "Trade", "Ctrl+B", self._toggle_blotter_dock, checkable=True)
-
-        m_view.addSeparator()
+        act_plan = _reg_action(m_view, "Trading Plan", "Ctrl+T", self._toggle_trading_plan, checkable=True)
+        act_blotter = _reg_action(m_view, "Trade Blotter", "Ctrl+B", self._toggle_blotter_dock, checkable=True)
         m_view.addAction(act_journal)
 
         sub_theme = m_view.addMenu("Theme")
