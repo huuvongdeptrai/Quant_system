@@ -313,10 +313,13 @@ def setup_chart_ui(window):
                 except Exception:
                     pass
                 clean_curr = getattr(window, "current_sym", "").split("\n")[0].strip()
-                sig = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
-                if not sig and hasattr(window, "active_signal_data") and isinstance(window.active_signal_data, dict):
-                    if window.active_signal_data.get("sym", "").upper() == clean_curr.upper():
-                        sig = window.active_signal_data
+                from backend.core.market_state_store import MarketStateStore
+                store = MarketStateStore.get_instance()
+                sig = store.get_state_dict(clean_curr)
+                if not sig or not sig.get("model_name"):
+                    sig_fb = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
+                    if sig_fb:
+                        sig = sig_fb
                 from frontend.controllers.chart.trading_plan_panel import update_order_proposal_html
                 if sig and sig.get("has_signal"):
                     update_order_proposal_html(

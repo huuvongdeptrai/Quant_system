@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from loguru import logger
 import pyqtgraph as pg
+from backend.core.market_state_store import MarketStateStore
 
 
 
@@ -331,36 +332,38 @@ def update_order_proposal_html(
         window.active_signals_by_symbol = {}
 
     # If the call is for a different symbol than currently displayed on the chart canvas,
-    # isolate it into active_signals_by_symbol dictionary without contaminating the current chart UI
+    # isolate it into MarketStateStore and active_signals_by_symbol without contaminating active chart UI
     if active_chart_sym and clean_sym.upper() != active_chart_sym.upper():
-        window.active_signals_by_symbol[clean_sym] = {
-            "sym": clean_sym,
-            "has_signal": has_signal,
-            "signal_type": signal_type,
-            "entry": entry,
-            "sl": sl,
-            "tp": tp,
-            "risk_dlr": risk_dlr,
-            "reward_dlr": reward_dlr,
-            "risk_pct": risk_pct,
-            "rr_ratio": rr_ratio,
-            "is_live_position": is_live_position,
-            "live_ticket": live_ticket,
-            "live_volume": live_volume,
-            "live_profit": live_profit,
-            "is_pending_order": is_pending_order,
-            "pending_ticket": pending_ticket,
-            "model_name": model_name,
-            "grade": grade,
-            "confidence": confidence,
-            "exec_mode": exec_mode,
-            "status": status,
-            "chk1": chk1,
-            "chk2": chk2,
-            "chk3": chk3,
-            "checklist": checklist,
-            "digits": digits,
-        }
+        store = MarketStateStore.get_instance()
+        st = store.update_state(
+            clean_sym,
+            has_signal=has_signal,
+            signal_type=signal_type,
+            entry=entry,
+            sl=sl,
+            tp=tp,
+            risk_dlr=risk_dlr,
+            reward_dlr=reward_dlr,
+            risk_pct=risk_pct,
+            rr_ratio=rr_ratio,
+            is_live_position=is_live_position,
+            live_ticket=live_ticket,
+            live_volume=live_volume,
+            live_profit=live_profit,
+            is_pending_order=is_pending_order,
+            pending_ticket=pending_ticket,
+            model_name=model_name,
+            grade=grade,
+            confidence=confidence,
+            exec_mode=exec_mode,
+            status=status,
+            chk1=chk1,
+            chk2=chk2,
+            chk3=chk3,
+            checklist=checklist,
+            digits=digits,
+        )
+        window.active_signals_by_symbol[clean_sym] = st.to_dict()
         return
 
     info = mt5.symbol_info(clean_sym)
@@ -394,20 +397,21 @@ def update_order_proposal_html(
             }
             window.active_signals_by_symbol[clean_sym] = sig_background
         elif clean_sym not in window.active_signals_by_symbol or not window.active_signals_by_symbol[clean_sym].get("has_signal"):
-            prev_sig = window.active_signals_by_symbol.get(clean_sym, {})
-            window.active_signals_by_symbol[clean_sym] = {
-                "sym": clean_sym,
-                "has_signal": False,
-                "signal_type": signal_type or prev_sig.get("signal_type", "HOLD"),
-                "model_name": model_name or prev_sig.get("model_name"),
-                "grade": grade or prev_sig.get("grade", "STATUS: STANDBY"),
-                "chk1": chk1 if chk1 is not None else prev_sig.get("chk1"),
-                "chk2": chk2 if chk2 is not None else prev_sig.get("chk2"),
-                "chk3": chk3 if chk3 is not None else prev_sig.get("chk3"),
-                "checklist": checklist if checklist is not None else prev_sig.get("checklist"),
-                "status": status or prev_sig.get("status", "SCANNING_STANDBY"),
-                "digits": digits if digits is not None else prev_sig.get("digits"),
-            }
+            store = MarketStateStore.get_instance()
+            st = store.update_state(
+                clean_sym,
+                has_signal=False,
+                signal_type=signal_type or "HOLD",
+                model_name=model_name,
+                grade=grade,
+                chk1=chk1,
+                chk2=chk2,
+                chk3=chk3,
+                checklist=checklist,
+                status=status,
+                digits=digits,
+            )
+            window.active_signals_by_symbol[clean_sym] = st.to_dict()
         return
 
     # 1. TRƯỜNG HỢP: KHÔNG CÓ TÍN HIỆU THỰC TẾ (HOLD / CHỜ SETUP)
@@ -418,31 +422,23 @@ def update_order_proposal_html(
         window.is_pending_order = False
         window.pending_ticket = None
 
-        prev_sig = window.active_signals_by_symbol.get(clean_sym, {})
-        effective_model = model_name or prev_sig.get("model_name")
-        effective_grade = grade or prev_sig.get("grade")
-        effective_chk1 = chk1 if chk1 is not None else prev_sig.get("chk1")
-        effective_chk2 = chk2 if chk2 is not None else prev_sig.get("chk2")
-        effective_chk3 = chk3 if chk3 is not None else prev_sig.get("chk3")
-        effective_checklist = checklist if checklist is not None else prev_sig.get("checklist")
-        effective_status = status if (status and status != "WAITING OPERATOR APPROVAL") else prev_sig.get("status", "SCANNING_STANDBY")
-        effective_digits = digits if digits is not None else prev_sig.get("digits")
-
-        standby_payload = {
-            "sym": clean_sym,
-            "has_signal": False,
-            "signal_type": signal_type or prev_sig.get("signal_type", "HOLD"),
-            "model_name": effective_model,
-            "grade": effective_grade or "STATUS: STANDBY",
-            "chk1": effective_chk1,
-            "chk2": effective_chk2,
-            "chk3": effective_chk3,
-            "checklist": effective_checklist,
-            "status": effective_status,
-            "digits": effective_digits,
-            "exec_mode": exec_mode,
-            "is_bot_active": is_bot_active,
-        }
+        store = MarketStateStore.get_instance()
+        st = store.update_state(
+            clean_sym,
+            has_signal=False,
+            signal_type=signal_type or "HOLD",
+            model_name=model_name,
+            grade=grade,
+            chk1=chk1,
+            chk2=chk2,
+            chk3=chk3,
+            checklist=checklist,
+            status=status if (status and status != "WAITING OPERATOR APPROVAL") else None,
+            digits=digits,
+            exec_mode=exec_mode,
+            is_bot_active=is_bot_active,
+        )
+        standby_payload = st.to_dict()
         window.active_signal_data = standby_payload
         window.active_signals_by_symbol[clean_sym] = standby_payload
 
@@ -450,18 +446,18 @@ def update_order_proposal_html(
         clear_manual_chart_lines(window)
 
         # Card 1: Mô hình thiết lập (Standby)
-        resolved_model = resolve_strategy_model_name(window, effective_model)
+        resolved_model = resolve_strategy_model_name(window, st.model_name)
         if hasattr(window, "lblModelSubtitle") and window.lblModelSubtitle:
             window.lblModelSubtitle.setText("SETUP MODEL")
         if hasattr(window, "lblModelName") and window.lblModelName:
             window.lblModelName.setText(resolved_model)
         if hasattr(window, "lblModelGrade") and window.lblModelGrade:
-            window.lblModelGrade.setText(effective_grade or "STATUS: STANDBY")
+            window.lblModelGrade.setText(st.grade or "STATUS: STANDBY")
             window.lblModelGrade.setStyleSheet(
                 "background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; "
                 "font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; border-radius: 2px; padding: 1px 5px;"
             )
-        update_strategy_checklist_ui(window, resolved_model, effective_chk1, effective_chk2, effective_chk3, is_active=False, checklist=effective_checklist)
+        update_strategy_checklist_ui(window, resolved_model, st.chk1, st.chk2, st.chk3, is_active=False, checklist=st.checklist)
 
         # Card 2: Lệnh và Quản trị rủi ro (Chưa có lệnh)
         if hasattr(window, "lblOrderBudgetTitle") and window.lblOrderBudgetTitle:
@@ -584,35 +580,38 @@ def update_order_proposal_html(
         reward_dlr = round(tp_pts * calc_lot * sym_mult, 2)
     risk_pct = round((risk_dlr / real_balance) * 100.0, 1) if real_balance > 0 else 1.0
 
-    sig_payload = {
-        "sym": clean_sym,
-        "has_signal": True,
-        "signal_type": signal_type,
-        "entry": entry,
-        "sl": sl,
-        "tp": tp,
-        "lot": calc_lot,
-        "risk_dlr": risk_dlr,
-        "reward_dlr": reward_dlr,
-        "rr_ratio": rr_ratio,
-        "is_live_position": is_live_position,
-        "live_ticket": live_ticket,
-        "live_volume": calc_lot if is_live_position else None,
-        "live_profit": live_profit,
-        "is_pending_order": is_pending_order,
-        "pending_ticket": pending_ticket,
-        "model_name": model_name,
-        "grade": grade,
-        "confidence": confidence,
-        "status": status,
-        "chk1": chk1,
-        "chk2": chk2,
-        "chk3": chk3,
-        "checklist": checklist,
-        "digits": digits,
-        "exec_mode": exec_mode,
-        "is_bot_active": is_bot_active,
-    }
+    store = MarketStateStore.get_instance()
+    st = store.update_state(
+        clean_sym,
+        has_signal=True,
+        signal_type=signal_type,
+        entry=entry,
+        sl=sl,
+        tp=tp,
+        lot=calc_lot,
+        risk_dlr=risk_dlr,
+        reward_dlr=reward_dlr,
+        risk_pct=risk_pct,
+        rr_ratio=rr_ratio,
+        is_live_position=is_live_position,
+        live_ticket=live_ticket,
+        live_volume=calc_lot if is_live_position else None,
+        live_profit=live_profit,
+        is_pending_order=is_pending_order,
+        pending_ticket=pending_ticket,
+        model_name=model_name,
+        grade=grade,
+        confidence=confidence,
+        status=status,
+        chk1=chk1,
+        chk2=chk2,
+        chk3=chk3,
+        checklist=checklist,
+        digits=digits,
+        exec_mode=exec_mode,
+        is_bot_active=is_bot_active,
+    )
+    sig_payload = st.to_dict()
     window.active_signal_data = sig_payload
     window.active_signals_by_symbol[clean_sym] = sig_payload
 
@@ -3495,10 +3494,12 @@ def setup_trading_plan_cards(window, is_dark=False):
                 window.lblManualGateTitle.setText("PRE-TRADE COMPLIANCE GATE")
             sync_live_position_to_ai_plan(window)
             clean_curr = getattr(window, "current_sym", "").split("\n")[0].strip()
-            sig = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
-            if not sig and hasattr(window, "active_signal_data") and isinstance(window.active_signal_data, dict):
-                if window.active_signal_data.get("sym", "").upper() == clean_curr.upper():
-                    sig = window.active_signal_data
+            store = MarketStateStore.get_instance()
+            sig = store.get_state_dict(clean_curr)
+            if not sig or not sig.get("model_name"):
+                sig_fb = getattr(window, "active_signals_by_symbol", {}).get(clean_curr, {})
+                if sig_fb:
+                    sig = sig_fb
             if sig and sig.get("has_signal"):
                 update_order_proposal_html(
                     window, sym=clean_curr, entry=sig.get("entry"),
