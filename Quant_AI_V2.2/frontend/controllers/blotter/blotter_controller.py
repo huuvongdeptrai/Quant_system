@@ -46,6 +46,19 @@ class BlotterController:
             if hasattr(self, "terminal"):
                 setattr(self.terminal, name, value)
 
+    def get_open_positions(self):
+        """Retrieve active open positions from MT5 broker or internal paper storage."""
+        try:
+            is_live = getattr(self.terminal, "_mt5_connected", False) or getattr(self, "_mt5_connected", False)
+            if is_live:
+                from backend.infrastructure.brokers.mt5_safe import mt5
+                pos = mt5.positions_get()
+                if pos is not None:
+                    return list(pos)
+        except Exception:
+            pass
+        return getattr(self.terminal, "_demo_positions", None) or getattr(self, "_demo_positions", []) or []
+
     def _setup_executions_table(self):
         """Setup institutional MT5-style Trade Blotter layout and controls."""
         return self.table_view.setup_ui()

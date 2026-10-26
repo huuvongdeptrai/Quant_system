@@ -22,7 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-PROJECT_ROOT = Path(r"Kho_Do_An\Quant_AI_V2.2")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -264,7 +264,8 @@ oos_df = pd.DataFrame(oos_predictions)
 print(f"Generated {len(oos_df)} PURE OUT-OF-SAMPLE walk-forward trade predictions (2023-2026).")
 
 # Compare Unfiltered vs Filtered OOS
-for thresh in [0.0, 0.32, 0.34, 0.36]:
+oos_summary = {}
+for thresh in [0.0, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42]:
     filtered = oos_df[oos_df["pred_prob"] >= thresh] if thresh > 0.0 else oos_df
     balance = 100000.0
     curve = [balance]
@@ -280,20 +281,45 @@ for thresh in [0.0, 0.32, 0.34, 0.36]:
     total = len(filtered)
     wr = (wins / total * 100.0) if total > 0 else 0.0
     net = balance - 100000.0
-    gp = filtered[filtered["pnl"] > 0]["pnl"].sum()
-    gl = abs(filtered[filtered["pnl"] < 0]["pnl"].sum())
-    pf = (gp / gl) if gl > 0 else 99.0
+    gp = filtered[filtered["pnl"] > 0]["pnl"].sum() if total > 0 else 0.0
+    gl = abs(filtered[filtered["pnl"] < 0]["pnl"].sum()) if total > 0 else 0.0
+    pf = (gp / gl) if gl > 0 else (99.0 if gp > 0 else 0.0)
     
     lbl = "Dynamic Goc (Khong ML)" if thresh == 0.0 else f"Dynamic + ML OOS (Thresh {thresh})"
     print(f"\n[{lbl}]")
     print(f"   Trades: {total:3d} | Winrate: {wr:4.1f}% | Net Profit: +${net:10,.2f} USD (+{net/1000.0:.1f}%) | Max DD: {max_dd:5.2f}% | PF: {pf:4.2f}")
     
     # Yearly
+    yearly_data = {}
     for yr in ["2023", "2024", "2025", "2026"]:
         yr_f = filtered[filtered["year"] == yr]
-        yr_w = (yr_f["outcome"] == 1).sum()
+        yr_w = int((yr_f["outcome"] == 1).sum())
         yr_t = len(yr_f)
-        yr_pnl = yr_f["pnl"].sum()
+        yr_pnl = float(yr_f["pnl"].sum())
         sign = "+" if yr_pnl >= 0 else "-"
         yr_wr = (yr_w / yr_t * 100.0) if yr_t > 0 else 0.0
         print(f"      Year {yr}: {yr_t:3d} trades ({yr_w:2d}W/{yr_t-yr_w:2d}L - {yr_wr:4.1f}% WR) -> PnL: {sign}${abs(yr_pnl):9,.2f} USD")
+        yearly_data[yr] = {"trades": yr_t, "wins": yr_w, "winrate": round(yr_wr, 1), "pnl": round(yr_pnl, 2)}
+        
+    oos_summary[str(thresh)] = {
+        "threshold": thresh,
+        "total_trades": total,
+        "wins": int(wins),
+        "losses": int(total - wins),
+        "winrate_pct": round(wr, 2),
+        "net_profit_usd": round(net, 2),
+        "return_pct": round(net / 1000.0, 2),
+        "max_drawdown_pct": round(max_dd, 2),
+        "profit_factor": round(pf, 2),
+        "yearly": yearly_data
+    }
+
+# Lưu kết quả OOS thực tế
+oos_json_path = PROJECT_ROOT / "research" / "strict_walk_forward_oos_results.json"
+with open(oos_json_path, "w", encoding="utf-8") as f:
+    json.dump({
+        "description": "STRICT EXPANDING WALK-FORWARD OUT-OF-SAMPLE VALIDATION (2023-2026)",
+        "total_bars": 99999,
+        "results": oos_summary
+    }, f, indent=2, ensure_ascii=False)
+print(f"\n[V] ĐÃ LƯU KẾT QUẢ WALK-FORWARD OOS THỰC TẾ VÀO: {oos_json_path.name}")

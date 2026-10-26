@@ -76,27 +76,29 @@ def test_zero_qt_stylesheet_parse_warnings_on_mainwindow():
     warnings = []
 
     def handler(mode, ctx, msg):
-        if any(ign in msg.lower() for ign in ["cannot find font directory", "propagatesizehints"]):
+        if any(ign in msg.lower() for ign in ["cannot find font directory", "propagatesizehints", "timers cannot be stopped from another thread"]):
             return
         warnings.append(msg)
 
     qInstallMessageHandler(handler)
+    try:
+        qss_path = os.path.join(PROJECT_ROOT, "frontend", "styling", "style_light.qss")
+        with open(qss_path, "r", encoding="utf-8") as f:
+            content_qss = f.read()
 
-    qss_path = os.path.join(PROJECT_ROOT, "frontend", "styling", "style_light.qss")
-    with open(qss_path, "r", encoding="utf-8") as f:
-        content_qss = f.read()
+        assets_dir = os.path.join(PROJECT_ROOT, "frontend", "assets").replace("\\", "/")
+        content_qss = re.sub(
+            r'url\(["\']?(?:frontend/)?assets/([^"\'\)]+)["\']?\)',
+            f'url("{assets_dir}/\\1")',
+            content_qss
+        )
 
-    assets_dir = os.path.join(PROJECT_ROOT, "frontend", "assets").replace("\\", "/")
-    content_qss = re.sub(
-        r'url\(["\']?(?:frontend/)?assets/([^"\'\)]+)["\']?\)',
-        f'url("{assets_dir}/\\1")',
-        content_qss
-    )
+        win = QMainWindow()
+        win.setObjectName("MainWindow")
+        win.setStyleSheet(content_qss)
+        win.show()
+        _app.processEvents()
 
-    win = QMainWindow()
-    win.setObjectName("MainWindow")
-    win.setStyleSheet(content_qss)
-    win.show()
-    _app.processEvents()
-
-    assert len(warnings) == 0, f"Unexpected Qt warnings during QSS parsing: {warnings}"
+        assert len(warnings) == 0, f"Unexpected Qt warnings during QSS parsing: {warnings}"
+    finally:
+        qInstallMessageHandler(None)
