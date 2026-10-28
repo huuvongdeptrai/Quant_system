@@ -35,7 +35,8 @@ def test_decision_gate_scalp_pullback_resistance_sell_macro_bull():
 
     with patch.object(dg, "_get_price_position", return_value=mock_pos), \
          patch.object(dg, "_get_htf_bias", return_value="BULLISH"), \
-         patch.object(dg, "_get_macro_bias", return_value="BULLISH"):
+         patch.object(dg, "_get_macro_bias", return_value="BULLISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "OK")):
 
         res = dg.evaluate("XAUUSD", "SELL", gate_mode="FULL")
 
@@ -99,7 +100,8 @@ def test_decision_gate_pro_trend_full_size():
 
     with patch.object(dg, "_get_price_position", return_value=mock_pos), \
          patch.object(dg, "_get_htf_bias", return_value="BULLISH"), \
-         patch.object(dg, "_get_macro_bias", return_value="BULLISH"):
+         patch.object(dg, "_get_macro_bias", return_value="BULLISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "OK")):
 
         res = dg.evaluate("XAUUSD", "BUY", gate_mode="FULL")
 

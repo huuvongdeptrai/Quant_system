@@ -60,7 +60,7 @@ def test_model_registry_auto_discovery_and_fallback(sample_rates):
     assert model_info is not None, "Should auto-discover builtin_wyckoff_meta.lgb"
     booster, thresh, feat_cols, fname = model_info
     assert fname == "builtin_wyckoff_meta.lgb"
-    assert thresh == 0.36
+    assert thresh == 0.38
     assert "cvd_proxy" in feat_cols
 
     # 2. Test Evaluation with ML Hook Active

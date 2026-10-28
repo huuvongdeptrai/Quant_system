@@ -245,7 +245,7 @@ class DecisionGate:
             booster = lgb.Booster(model_str=model_str)
 
             meta_file = target_file.with_suffix(".json")
-            threshold = 0.36
+            threshold = 0.38
             feature_cols = [
                 "is_buy", "vol_ratio", "adx", "gk_vol", "cvd_proxy",
                 "vwap_zscore", "ema_spread", "headroom", "wick_ratio", "hour", "dow"
@@ -254,7 +254,7 @@ class DecisionGate:
                 try:
                     with open(meta_file, "r", encoding="utf-8") as f:
                         meta = json.load(f)
-                        threshold = float(meta.get("threshold", 0.36))
+                        threshold = float(meta.get("threshold", 0.38))
                         feature_cols = meta.get("feature_cols", feature_cols)
                 except Exception as ex:
                     logger.warning(f"[DecisionGate] Could not parse model metadata: {ex}")
