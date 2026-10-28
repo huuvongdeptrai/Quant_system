@@ -1,3 +1,4 @@
+import math
 from backend.infrastructure.brokers.mt5_safe import mt5
 
 
@@ -7,11 +8,23 @@ class RiskManager:
         self.default_risk_pct = default_risk_pct
 
     def calculate_lot_size(
-        self, symbol: str, sl_points: float, risk_pct: float = None
+        self,
+        symbol: str,
+        sl_points: float,
+        risk_pct: float = None,
+        reject_under_min: bool = True,
     ) -> float:
         """
         Tính toán tự động số Lot cần đánh dựa trên rủi ro % tài khoản và khoảng cách StopLoss.
-        Sử dụng Type Hints để làm tài liệu sống (Self-documenting code).
+        Tuân thủ quy trình 4 bước chuẩn định chế:
+        1. Xác định ngân sách rủi ro (RiskMoney = Balance * RiskPct / 100).
+        2. Xác định mức lỗ dự kiến cho 1 lot chuẩn: Loss_1lot = (sl_points / tick_size) * tick_value.
+        3. Tính raw_lot = RiskMoney / Loss_1lot.
+        4. Làm tròn xuống (floor) theo volume_step và kiểm tra các giới hạn sàn:
+           - Nếu lot < volume_min: Từ chối lệnh (trả về 0.0 nếu reject_under_min=True)
+             nhằm bảo đảm rủi ro thực tế không vượt quá ngân sách.
+           - Nếu lot > volume_max: Kẹp trần ở volume_max.
+           - Hậu kiểm: lot * Loss_1lot <= RiskMoney.
         """
         if risk_pct is None:
             risk_pct = self.default_risk_pct
@@ -22,11 +35,6 @@ class RiskManager:
         if not account or not info:
             return 0.0
 
-        # Số tiền chấp nhận mất (Bằng đồng tiền cơ sở của tài khoản, vd: USD)
-        risk_amount = account.balance * (risk_pct / 100.0)
-
-        import math
-
         # Lấy thông số kỹ thuật của sàn
         tick_size = getattr(info, "trade_tick_size", 0.0) or 0.0
         tick_value = getattr(info, "trade_tick_value", 0.0) or 0.0
@@ -34,29 +42,38 @@ class RiskManager:
         vol_max = getattr(info, "volume_max", 100.0)
 
         if tick_size <= 0 or tick_value <= 0 or sl_points <= 0:
-            return vol_min
+            return 0.0 if reject_under_min else vol_min
+
+        # Số tiền chấp nhận mất (Bằng đồng tiền cơ sở của tài khoản, vd: USD)
+        risk_amount = account.balance * (risk_pct / 100.0)
 
         # Tính toán giá trị thua lỗ cho 1 Lot chuẩn
         loss_for_one_lot = (sl_points / tick_size) * tick_value
 
         if loss_for_one_lot <= 0 or math.isnan(loss_for_one_lot) or math.isinf(loss_for_one_lot):
-            return vol_min
+            return 0.0 if reject_under_min else vol_min
 
         # Tính số Lot thô
         raw_lot = risk_amount / loss_for_one_lot
         if math.isnan(raw_lot) or math.isinf(raw_lot):
-            return vol_min
+            return 0.0 if reject_under_min else vol_min
 
         # Chuẩn hoá số Lot theo quy định của sàn (Volume Step)
-        # Tại sao phải dùng volume_step? Vì có sàn cho đánh 0.01, có sàn chỉ cho đánh 0.1 (Crypto)
         step = getattr(info, "volume_step", 0.01)
         if not step or step <= 0:
             step = 0.01
 
-        lot = round(raw_lot / step) * step
+        # Làm tròn xuống (floor) theo volume_step nhằm bảo đảm không bao giờ vượt ngân sách rủi ro
+        lot = math.floor(raw_lot / step) * step
 
-        # Khoá số Lot không được nhỏ hơn Min và lớn hơn Max
-        lot = max(vol_min, min(vol_max, lot))
+        # Kiểm tra ngưỡng tối thiểu volume_min
+        if lot < vol_min:
+            if reject_under_min:
+                return 0.0
+            lot = vol_min
+
+        # Khoá số Lot không được lớn hơn Max
+        lot = min(vol_max, lot)
 
         # Xác định số chữ số thập phân an toàn theo volume_step
         digits = 2
@@ -65,4 +82,11 @@ class RiskManager:
         elif step >= 0.1:
             digits = 1
 
-        return round(lot, digits)
+        lot = round(lot, digits)
+
+        # Hậu kiểm an toàn: kiểm tra lại mức lỗ dự kiến không vượt quá ngân sách rủi ro (cho phép sai số số thực 1e-6)
+        if (lot * loss_for_one_lot) > (risk_amount + 1e-6):
+            lot = math.floor((lot - step) / step) * step
+            lot = max(0.0, round(lot, digits))
+
+        return lot
