@@ -79,9 +79,30 @@ class TestStage5StateRecoveryAndWatchdog:
                 price_open=2305.0,
                 sl=2295.0,
                 tp=2330.0,
+                time=1700000000,
+                magic=1002,
             )
 
-            with patch.object(mt5, "positions_get", return_value=[mock_pos_222]):
+            # Giả lập Deal đóng cho lệnh #111111
+            mock_deal_111 = MagicMock(
+                ticket=999,
+                order=111111,
+                position_id=111111,
+                time=1700000100,
+                time_msc=1700000100000,
+                entry=1,  # DEAL_ENTRY_OUT
+                price=2215.0,
+                profit=75.0,
+                commission=-1.5,
+                swap=0.0,
+                fee=0.0,
+            )
+
+            with patch.object(
+                mt5, "positions_get", return_value=[mock_pos_222]
+            ), patch.object(
+                mt5, "history_deals_get", return_value=[mock_deal_111]
+            ):
                 summary = recovery_mgr.reconcile_on_startup()
 
                 assert summary["status"] == "SUCCESS"
@@ -98,6 +119,72 @@ class TestStage5StateRecoveryAndWatchdog:
                 assert (
                     can_open is False
                 ), "Không được phép mở lệnh mới khi XAUUSD đang có vị thế chạy!"
+
+    def test_state_recovery_api_error_protection(self):
+        """Kiểm tra an toàn: Khi positions_get() trả về None (mất kết nối API), dừng đối soát để bảo vệ CSDL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db_path = os.path.join(tmpdir, "test_recovery_err.db")
+            db = DatabaseManager(db_path=test_db_path)
+            recovery_mgr = StateRecoveryManager(db_manager=db)
+
+            # Lệnh #333333 đang OPEN trong CSDL
+            db.record_open_trade(
+                ticket=333333,
+                symbol="XAUUSD",
+                order_type="BUY",
+                volume=0.1,
+                open_price=2400.0,
+            )
+
+            with patch.object(mt5, "positions_get", return_value=None), patch.object(
+                mt5, "last_error", return_value=(10004, "No connection to trade server")
+            ):
+                summary = recovery_mgr.reconcile_on_startup()
+
+                assert summary["status"] == "FAILED_API_ERROR"
+                assert summary["reconciled_closed"] == 0
+
+                # Lệnh #333333 trong CSDL phải được giữ nguyên trạng thái OPEN, không được xóa nhầm!
+                open_trades = db.get_open_trades("XAUUSD")
+                assert len(open_trades) == 1
+                assert open_trades[0]["ticket"] == 333333
+                assert open_trades[0]["status"] == "OPEN"
+
+    def test_state_recovery_missing_deals_protection(self):
+        """Kiểm tra an toàn: Khi vị thế không còn trên MT5 nhưng không tìm thấy deals, KHÔNG được ghi đè 0/0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db_path = os.path.join(tmpdir, "test_missing_deals.db")
+            db = DatabaseManager(db_path=test_db_path)
+            recovery_mgr = StateRecoveryManager(db_manager=db)
+
+            db.record_open_trade(
+                ticket=444444,
+                symbol="XAUUSD",
+                order_type="BUY",
+                volume=0.2,
+                open_price=2500.0,
+            )
+
+            # Sàn báo không còn vị thế, nhưng tra cứu history_deals_get trả về None / rỗng
+            with patch.object(
+                mt5, "positions_get", return_value=[]
+            ), patch.object(
+                mt5, "history_deals_get", return_value=None
+            ):
+                summary = recovery_mgr.reconcile_on_startup()
+
+                # Không được tính là đóng thành công vì chưa rõ kết quả
+                assert summary["reconciled_closed"] == 0
+
+                # Lệnh vẫn giữ nguyên trong CSDL
+                open_trades = db.get_open_trades("XAUUSD")
+                assert len(open_trades) == 1
+                assert open_trades[0]["ticket"] == 444444
+                assert open_trades[0]["status"] == "OPEN"
+
+                # Có cờ cảnh báo trong system_state
+                state_val = db.get_system_state("unreconciled_trade_444444")
+                assert state_val == "MISSING_DEALS_FROM_BROKER"
 
     def test_mt5_watchdog_heartbeat_and_reconnect(self):
         watchdog = MT5Watchdog(check_interval_sec=1.0, max_reconnect_retries=2)

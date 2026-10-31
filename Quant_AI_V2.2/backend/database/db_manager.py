@@ -128,12 +128,13 @@ class DatabaseManager:
         sl: float = 0.0,
         tp: float = 0.0,
         comment: str = "",
+        open_time: Optional[str] = None,
     ) -> bool:
         """Ghi nhận vị thế mới mở vào CSDL."""
         with self._db_lock:
             conn = self._get_connection()
             cursor = conn.cursor()
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            record_time = open_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 cursor.execute(
                     """
@@ -149,7 +150,7 @@ class DatabaseManager:
                         open_price,
                         sl,
                         tp,
-                        now_str,
+                        record_time,
                         comment,
                     ),
                 )
@@ -179,12 +180,18 @@ class DatabaseManager:
             finally:
                 conn.close()
 
-    def record_close_trade(self, ticket: int, close_price: float, pnl: float) -> bool:
+    def record_close_trade(
+        self,
+        ticket: int,
+        close_price: float,
+        pnl: float,
+        close_time: Optional[str] = None,
+    ) -> bool:
         """Cập nhật trạng thái lệnh đã đóng vào CSDL."""
         with self._db_lock:
             conn = self._get_connection()
             cursor = conn.cursor()
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            record_time = close_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             try:
                 cursor.execute(
                     """
@@ -192,7 +199,7 @@ class DatabaseManager:
                     SET close_price = ?, pnl = ?, close_time = ?, status = 'CLOSED'
                     WHERE ticket = ?
                 """,
-                    (close_price, pnl, now_str, ticket),
+                    (close_price, pnl, record_time, ticket),
                 )
                 conn.commit()
                 return True

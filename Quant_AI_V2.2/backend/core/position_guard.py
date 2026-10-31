@@ -148,29 +148,35 @@ class PositionGuard:
                 return
 
             live_positions = mt5.positions_get()
-            live_tickets = {p.ticket for p in live_positions} if live_positions else set()
+            if live_positions is None:
+                # API connection drop - abort sync to protect open trades
+                return
+
+            live_tickets = {p.ticket for p in live_positions}
 
             for trade in db_open:
                 tk = trade["ticket"]
                 if tk not in live_tickets:
                     deals = mt5.history_deals_get(position=tk)
-                    pnl = 0.0
-                    exit_price = 0.0
-                    reason = "CLOSED"
-                    if deals:
-                        def _get_val(obj, attr):
-                            v = getattr(obj, attr, 0.0)
-                            return float(v) if isinstance(v, (int, float)) else 0.0
+                    if not deals:
+                        # Missing deals: do not overwrite with 0.0 / 0.0
+                        continue
 
-                        pnl = sum(
-                            _get_val(d, "profit")
-                            + _get_val(d, "commission")
-                            + _get_val(d, "swap")
-                            + _get_val(d, "fee")
-                            for d in deals
-                        )
-                        exit_price = float(deals[-1].price or 0.0) if isinstance(getattr(deals[-1], "price", None), (int, float)) else 0.0
-                        reason = getattr(deals[-1], "comment", "CLOSED") or "CLOSED"
+                    def _get_val(obj, attr):
+                        v = getattr(obj, attr, 0.0)
+                        return float(v) if isinstance(v, (int, float)) else 0.0
+
+                    pnl = sum(
+                        _get_val(d, "profit")
+                        + _get_val(d, "commission")
+                        + _get_val(d, "swap")
+                        + _get_val(d, "fee")
+                        for d in deals
+                    )
+                    out_deals = [d for d in deals if getattr(d, "entry", 0) in (1, 3)]
+                    exit_deal = max(out_deals, key=lambda x: getattr(x, "time_msc", getattr(x, "time", 0))) if out_deals else deals[-1]
+                    exit_price = float(getattr(exit_deal, "price", 0.0) or 0.0)
+                    reason = getattr(exit_deal, "comment", "CLOSED") or "CLOSED"
 
                     self.db.record_close_trade(ticket=tk, close_price=exit_price, pnl=pnl)
 
