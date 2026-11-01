@@ -287,6 +287,9 @@ class SystemTrayManager(QObject):
         if sys.platform != "win32":
             return
 
+        if getattr(self, "_keep_awake_active", None) == enabled:
+            return
+
         try:
             if enabled:
                 # ES_CONTINUOUS | ES_SYSTEM_REQUIRED

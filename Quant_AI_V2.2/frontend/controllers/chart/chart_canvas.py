@@ -1642,7 +1642,12 @@ def setup_chart_ui(window):
                 from backend.infrastructure.brokers.execution_manager import ExecutionManager
                 exec_mgr = ExecutionManager(slippage=20)
 
-            res = exec_mgr.modify_pending_order(int(tkt), price=new_p, sl=cur_sl, tp=cur_tp)
+            res = exec_mgr.modify_pending_order(
+                int(tkt),
+                price=new_p,
+                sl=(cur_sl if cur_sl > 0 else None),
+                tp=(cur_tp if cur_tp > 0 else None)
+            )
             from backend.core.event_bus import event_bus
             if res and res.get("status") == "success":
                 window.pending_price = new_p
@@ -1707,7 +1712,12 @@ def setup_chart_ui(window):
             elif hasattr(window, "line_order_tp") and window.line_order_tp.isVisible():
                 cur_tp = float(window.line_order_tp.value())
 
-            res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=new_sl, tp=cur_tp)
+            res = exec_mgr.modify_pending_order(
+                int(tkt),
+                price=cur_price,
+                sl=new_sl,
+                tp=(cur_tp if cur_tp > 0 else None)
+            )
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Stop Loss lệnh chờ #{tkt} sang {new_sl:.{digits}f}", "#22c55e")
                 if hasattr(window, "refresh_active_orders"):
@@ -1768,7 +1778,12 @@ def setup_chart_ui(window):
             elif hasattr(window, "line_order_sl") and window.line_order_sl.isVisible():
                 cur_sl = float(window.line_order_sl.value())
 
-            res = exec_mgr.modify_pending_order(int(tkt), price=cur_price, sl=cur_sl, tp=new_tp)
+            res = exec_mgr.modify_pending_order(
+                int(tkt),
+                price=cur_price,
+                sl=(cur_sl if cur_sl > 0 else None),
+                tp=new_tp
+            )
             if res and res.get("status") == "success":
                 event_bus.log_event.emit("", "SUCCESS", f"Đã cập nhật Take Profit lệnh chờ #{tkt} sang {new_tp:.{digits}f}", "#22c55e")
                 if hasattr(window, "refresh_active_orders"):
@@ -3077,6 +3092,38 @@ def setup_chart_ui(window):
 
             def _do_execute_pending(order_type_str: str, target_price: float):
                 try:
+                    is_buy_order = "BUY" in order_type_str.upper()
+
+                    # Calculate ATR-based protective stops (VECTRA institutional safety invariant)
+                    atr_val = 0.0
+                    if hasattr(window, "chart_data_list") and len(window.chart_data_list) >= 15:
+                        cd = window.chart_data_list[-15:]
+                        trs = [max(c[4] - c[3], abs(c[4] - cd[i-1][2]), abs(c[3] - cd[i-1][2])) for i, c in enumerate(cd) if i > 0]
+                        if trs:
+                            atr_val = sum(trs) / len(trs)
+                    if atr_val <= 0:
+                        sym_u = sym.upper()
+                        if "XAU" in sym_u or "GOLD" in sym_u:
+                            atr_val = 2.0
+                        elif "BTC" in sym_u or "ETH" in sym_u:
+                            atr_val = 300.0
+                        elif any(c in sym_u for c in ["US30", "NAS100", "SPX500"]):
+                            atr_val = 40.0
+                        elif "JPY" in sym_u:
+                            atr_val = 0.35
+                        else:
+                            atr_val = 0.0020
+
+                    sl_dist = round(1.5 * atr_val, digits)
+                    tp_dist = round(3.0 * atr_val, digits)
+
+                    if is_buy_order:
+                        calc_sl = round(target_price - sl_dist, digits)
+                        calc_tp = round(target_price + tp_dist, digits)
+                    else:
+                        calc_sl = round(target_price + sl_dist, digits)
+                        calc_tp = round(target_price - tp_dist, digits)
+
                     # Institutional Safety Guard: Confirmation dialog before dispatching real broker orders
                     one_click = getattr(window, "one_click_trading_enabled", False)
                     if not one_click:
@@ -3088,7 +3135,9 @@ def setup_chart_ui(window):
                             f"• Loại lệnh: {order_type_str}\n"
                             f"• Cặp tiền: {sym}\n"
                             f"• Khối lượng: {lot:.2f} lot\n"
-                            f"• Giá đặt: {target_price:.{digits}f}\n\n"
+                            f"• Giá đặt: {target_price:.{digits}f}\n"
+                            f"• Cắt lỗ (SL): {calc_sl:.{digits}f}\n"
+                            f"• Chốt lời (TP): {calc_tp:.{digits}f}\n\n"
                             f"Bấm 'Yes' để gửi lệnh lên sàn, hoặc 'No' để hủy bỏ.",
                             QMessageBox.Yes | QMessageBox.No,
                             QMessageBox.No,
@@ -3108,9 +3157,10 @@ def setup_chart_ui(window):
                         order_type=order_type_str,
                         price=target_price,
                         volume=lot,
-                        sl_price=0.0,
-                        tp_price=0.0,
-                        comment="VECTRA_ChartOrder",
+                        sl_price=calc_sl,
+                        tp_price=calc_tp,
+                        comment="VECTRA_Manual_Chart",
+                        magic=0,
                     )
 
                     from backend.core.event_bus import event_bus

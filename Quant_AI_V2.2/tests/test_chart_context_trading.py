@@ -719,3 +719,88 @@ def test_ai_signal_price_action_invalidation_gate(qapp):
         assert win.btnApproveOrder.setEnabled.called
         assert win.btnApproveOrder.setEnabled.call_args[0][0] is False
         assert win.btnApproveOrder.setText.call_args[0][0] == "INVALIDATED"
+
+
+def test_chart_context_trading_dispatches_protective_stops_and_manual_magic(qapp):
+    """
+    Verifies that right-click context menu order execution always passes:
+    1. Positive finite protective stops (SL and TP based on ATR geometry).
+    2. Buy order: SL < Price < TP.
+    3. Sell order: TP < Price < SL.
+    4. magic=0 and comment='VECTRA_Manual_Chart' to satisfy TradingCommandService invariants.
+    """
+    win = _create_mock_window()
+    win.one_click_trading_enabled = True
+
+    mock_exec_mgr = MagicMock()
+    mock_exec_mgr.execute_pending_order.return_value = {"status": "success", "ticket": 555888}
+
+    mock_sym_info = MagicMock()
+    mock_sym_info.digits = 2
+    mock_sym_info.point = 0.01
+    mock_sym_info.volume_min = 0.01
+
+    mock_tick = MagicMock(bid=2000.00, ask=2000.50)
+
+    # 1. Test clicking ABOVE market (SELL_LIMIT at 2050.00)
+    mock_pt_above = MagicMock()
+    mock_pt_above.y.return_value = 2050.00
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr), \
+         patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt_above):
+
+        with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+            mock_menu_inst = MagicMock()
+            actions_list = []
+            mock_submenu = MagicMock()
+            mock_submenu.addAction.side_effect = lambda text: actions_list.append(MagicMock(text=lambda: text)) or actions_list[-1]
+            mock_menu_inst.addMenu.return_value = mock_submenu
+            MockMenu.return_value = mock_menu_inst
+
+            win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+            sell_limit_action = actions_list[0]
+            sell_limit_action.triggered.connect.call_args[0][0]()
+
+            assert mock_exec_mgr.execute_pending_order.called
+            kwargs = mock_exec_mgr.execute_pending_order.call_args[1]
+            assert kwargs["order_type"] == "SELL_LIMIT"
+            assert kwargs["price"] == 2050.00
+            assert kwargs["magic"] == 0
+            assert "manual" in kwargs["comment"].lower()
+            assert kwargs["sl_price"] > kwargs["price"], "For SELL, SL must be above entry"
+            assert kwargs["tp_price"] < kwargs["price"], "For SELL, TP must be below entry"
+            assert kwargs["tp_price"] > 0, "TP must be strictly positive"
+
+    # 2. Test clicking BELOW market (BUY_LIMIT at 1950.00)
+    mock_pt_below = MagicMock()
+    mock_pt_below.y.return_value = 1950.00
+    mock_exec_mgr.reset_mock()
+
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info", return_value=mock_sym_info), \
+         patch("backend.infrastructure.brokers.mt5_safe.mt5.symbol_info_tick", return_value=mock_tick), \
+         patch("backend.infrastructure.brokers.execution_manager.ExecutionManager", return_value=mock_exec_mgr), \
+         patch.object(win.plot_widget.plotItem.vb, "mapSceneToView", return_value=mock_pt_below):
+
+        with patch("PySide6.QtWidgets.QMenu") as MockMenu:
+            mock_menu_inst = MagicMock()
+            actions_list = []
+            mock_submenu = MagicMock()
+            mock_submenu.addAction.side_effect = lambda text: actions_list.append(MagicMock(text=lambda: text)) or actions_list[-1]
+            mock_menu_inst.addMenu.return_value = mock_submenu
+            MockMenu.return_value = mock_menu_inst
+
+            win.plot_widget.customContextMenuRequested.emit(QPoint(100, 100))
+            buy_limit_action = actions_list[0]
+            buy_limit_action.triggered.connect.call_args[0][0]()
+
+            assert mock_exec_mgr.execute_pending_order.called
+            kwargs = mock_exec_mgr.execute_pending_order.call_args[1]
+            assert kwargs["order_type"] == "BUY_LIMIT"
+            assert kwargs["price"] == 1950.00
+            assert kwargs["magic"] == 0
+            assert "manual" in kwargs["comment"].lower()
+            assert kwargs["sl_price"] < kwargs["price"], "For BUY, SL must be below entry"
+            assert kwargs["tp_price"] > kwargs["price"], "For BUY, TP must be above entry"
+            assert kwargs["sl_price"] > 0, "SL must be strictly positive"
