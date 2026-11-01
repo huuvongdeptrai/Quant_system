@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import os
 
 import json
@@ -47,6 +48,38 @@ _global_cache = {}
 
 
 class AnalysisEngine:
+    VALID_TRENDS = {"BULLISH", "BEARISH", "SIDEWAYS"}
+
+    @classmethod
+    def validate_schema(cls, data: Any) -> Dict[str, Any]:
+        """Strict application-side schema validation for LLM responses.
+
+        Guarantees all required fields exist, are non-empty strings, and enum values
+        strictly match expected values before caching or downstream dispatch.
+        """
+        if not isinstance(data, dict):
+            raise ValueError(f"AI response must be a JSON object, got {type(data).__name__}")
+
+        required_keys = ["trend_macro", "trend_intraday", "scenario_a", "scenario_b"]
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"AI response missing required schema key: '{key}'")
+            val = data[key]
+            if not isinstance(val, str) or not val.strip():
+                raise ValueError(f"AI response key '{key}' must be a non-empty string")
+
+        trend_macro = data["trend_macro"].strip().upper()
+        trend_intraday = data["trend_intraday"].strip().upper()
+
+        if trend_macro not in cls.VALID_TRENDS:
+            raise ValueError(f"Invalid trend_macro value: '{trend_macro}', expected one of {sorted(cls.VALID_TRENDS)}")
+        if trend_intraday not in cls.VALID_TRENDS:
+            raise ValueError(f"Invalid trend_intraday value: '{trend_intraday}', expected one of {sorted(cls.VALID_TRENDS)}")
+
+        data["trend_macro"] = trend_macro
+        data["trend_intraday"] = trend_intraday
+        return data
+
     _warned_ollama_offline = False
 
     def __init__(self, model_name="qwen2.5"):
@@ -349,6 +382,7 @@ Analyze {symbol} based on the following intermarket and price action inputs. Ret
                 result_text = result_text.replace("```", "").strip()
 
             result_json = json.loads(result_text)
+            result_json = self.validate_schema(result_json)
 
             # Record inference dataset for LoRA fine-tuning
             try:
