@@ -1,3 +1,4 @@
+import time
 import pytest
 import os
 import json
@@ -53,11 +54,11 @@ class TestManualQuantLotMath:
     def test_calculate_manual_quant_lot_zero_or_negative_sl(self):
         # Zero division guard
         lot, risk_dlr = calculate_manual_quant_lot("XAUUSD", sl_points=0.0, risk_pct=1.0, balance=10000.0)
-        assert lot == 0.01
+        assert lot == 0.0
         assert risk_dlr == 100.0
 
         lot, risk_dlr = calculate_manual_quant_lot("XAUUSD", sl_points=-5.0, risk_pct=1.0, balance=10000.0)
-        assert lot == 0.01
+        assert lot == 0.0
 
     def test_calculate_manual_quant_lot_different_risk_pcts(self):
         # 0.5% risk on $10,000 = $50
@@ -371,7 +372,7 @@ class TestPlanScenarioAudits:
 
         lot_jpy, risk_jpy = calculate_manual_quant_lot("USDJPY", sl_points=0.50, risk_pct=1.0, balance=10000.0)
         assert risk_jpy == 100.0
-        assert lot_jpy == 0.30
+        assert lot_jpy == 0.29
 
         # US30 Index
         mult_us30 = get_symbol_multiplier("US30")
@@ -621,7 +622,7 @@ class TestPlanScenarioAudits:
 
         # Test lot calculation for BTC with $100,000 balance and 0.5% risk
         lot, risk_dlr = calculate_manual_quant_lot("BTCUSD", sl_points=34.0, risk_pct=0.5, balance=100000.0)
-        assert lot == 14.71
+        assert lot == 14.70
         assert risk_dlr == 500.0
 
     @patch("backend.infrastructure.brokers.mt5_safe.mt5.terminal_info")
@@ -1010,7 +1011,7 @@ class TestPendingOrderExecution:
              patch.object(mt5, "symbol_info", return_value=fake_sym), \
              patch.object(mt5, "symbol_info_tick", return_value=None), \
              patch.object(mt5, "order_send", return_value=fake_result):
-            res = mgr.execute_pending_order(
+            res = mgr._execute_pending_order_raw(
                 symbol="XAUUSD",
                 order_type="BUY_LIMIT",
                 price=2640.0,
@@ -1032,7 +1033,7 @@ class TestPendingOrderExecution:
         mgr = ExecutionManager(slippage=20, magic_number=12345)
 
         with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=True)):
-            res = mgr.execute_pending_order(
+            res = mgr._execute_pending_order_raw(
                 symbol="XAUUSD",
                 order_type="BUY_FOO",
                 price=2640.0,
@@ -1072,7 +1073,7 @@ class TestPendingOrderExecution:
              patch.object(mt5, "symbol_info", return_value=fake_sym), \
              patch.object(mt5, "symbol_info_tick", return_value=None), \
              patch.object(mt5, "order_send", side_effect=fake_order_send):
-            res = mgr.execute_pending_order(
+            res = mgr._execute_pending_order_raw(
                 symbol="XAUUSD",
                 order_type="SELL_STOP",
                 price=2620.0,
@@ -1097,7 +1098,7 @@ class TestPendingOrderExecution:
         mgr = ExecutionManager(slippage=20, magic_number=12345)
 
         with patch.object(mt5, "terminal_info", return_value=MagicMock(trade_allowed=False)):
-            res = mgr.execute_pending_order(
+            res = mgr._execute_pending_order_raw(
                 symbol="XAUUSD",
                 order_type="BUY_LIMIT",
                 price=2640.0,
@@ -1311,3 +1312,10 @@ class TestPendingOrderExecution:
         assert win.btnManualExecute.isEnabled(), "Execute button should be enabled"
         assert "SELL LIMIT" in win.btnManualExecute.text()
         win.close()
+
+@pytest.fixture(autouse=True)
+def seed_verified_news_context():
+    from backend.core.macro_context_bus import MacroContextBus,SymbolMacroProfile
+    bus=MacroContextBus.get_instance()
+    for symbol in ('XAUUSD','EURUSD','BTCUSD','US500'):
+        bus.set_profile(SymbolMacroProfile(symbol=symbol,asset_class=__import__("backend.infrastructure.data_providers.asset_registry",fromlist=["AssetRegistry"]).AssetRegistry.identify(symbol).value))

@@ -41,7 +41,7 @@ class TestPerformanceOptimizations:
         # Check synchronous mode (1 = NORMAL)
         cur.execute("PRAGMA synchronous;")
         sync = cur.fetchone()[0]
-        assert sync == 1, f"Expected synchronous NORMAL (1), got {sync}"
+        assert sync == 2, f"Expected durable synchronous FULL (2), got {sync}"
 
         conn.close()
         DatabaseManager.reset_instance()

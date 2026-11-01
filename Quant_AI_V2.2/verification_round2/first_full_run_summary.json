@@ -1,0 +1,9 @@
+{
+  "tests": 391,
+  "passed": 384,
+  "failures": 1,
+  "errors": 0,
+  "skipped": 6,
+  "modules": 53,
+  "failed_processes": 1
+}

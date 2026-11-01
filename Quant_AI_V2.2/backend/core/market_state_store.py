@@ -6,6 +6,7 @@ market structure, checklists, active order proposals, and live broker positions.
 Decouples domain trading state completely from PyQt QMainWindow objects.
 """
 
+import copy
 import time
 import threading
 from dataclasses import dataclass, field
@@ -112,14 +113,14 @@ class MarketStateStore:
         """Thread-safe retrieval of a SymbolState snapshot."""
         clean = str(symbol or "").split("\n")[0].strip().upper()
         with self._lock:
-            return self._states.get(clean)
+            return copy.deepcopy(self._states.get(clean))
 
     def get_state_dict(self, symbol: str) -> Dict[str, Any]:
         """Retrieves state dictionary compatible with legacy UI active_signals_by_symbol."""
         clean = str(symbol or "").split("\n")[0].strip().upper()
         with self._lock:
             st = self._states.get(clean)
-            return st.to_dict() if st else {"sym": clean, "has_signal": False}
+            return copy.deepcopy(st.to_dict()) if st else {"sym": clean, "has_signal": False}
 
     def update_state(self, symbol: str, **kwargs) -> SymbolState:
         """
@@ -133,24 +134,24 @@ class MarketStateStore:
             # Defensive merging against clobbering with None
             has_signal = kwargs.get("has_signal", prev.has_signal if prev else False)
             sig_type = kwargs.get("signal_type") or (prev.signal_type if prev else "HOLD")
-            entry = kwargs.get("entry") if kwargs.get("entry") is not None else (prev.entry if prev else None)
-            sl = kwargs.get("sl") if kwargs.get("sl") is not None else (prev.sl if prev else None)
-            tp = kwargs.get("tp") if kwargs.get("tp") is not None else (prev.tp if prev else None)
+            entry = kwargs["entry"] if "entry" in kwargs else (prev.entry if prev else None)
+            sl = kwargs["sl"] if "sl" in kwargs else (prev.sl if prev else None)
+            tp = kwargs["tp"] if "tp" in kwargs else (prev.tp if prev else None)
             risk_dlr = kwargs.get("risk_dlr") if kwargs.get("risk_dlr") is not None else (prev.risk_dlr if prev else None)
             reward_dlr = kwargs.get("reward_dlr") if kwargs.get("reward_dlr") is not None else (prev.reward_dlr if prev else None)
             risk_pct = kwargs.get("risk_pct") if kwargs.get("risk_pct") is not None else (prev.risk_pct if prev else None)
             rr_ratio = kwargs.get("rr_ratio") if kwargs.get("rr_ratio") is not None else (prev.rr_ratio if prev else None)
-            lot = kwargs.get("lot") if kwargs.get("lot") is not None else (prev.lot if prev else None)
+            lot = kwargs["lot"] if "lot" in kwargs else (prev.lot if prev else None)
             if lot is None and kwargs.get("calc_lot") is not None:
                 lot = kwargs.get("calc_lot")
 
             is_live = kwargs.get("is_live_position", prev.is_live_position if prev else False)
-            live_ticket = kwargs.get("live_ticket") if kwargs.get("live_ticket") is not None else (prev.live_ticket if prev else None)
-            live_volume = kwargs.get("live_volume") if kwargs.get("live_volume") is not None else (prev.live_volume if prev else None)
+            live_ticket = kwargs["live_ticket"] if "live_ticket" in kwargs else (prev.live_ticket if prev else None)
+            live_volume = kwargs["live_volume"] if "live_volume" in kwargs else (prev.live_volume if prev else None)
             live_profit = kwargs.get("live_profit", prev.live_profit if prev else 0.0)
 
             is_pending = kwargs.get("is_pending_order", prev.is_pending_order if prev else False)
-            pending_ticket = kwargs.get("pending_ticket") if kwargs.get("pending_ticket") is not None else (prev.pending_ticket if prev else None)
+            pending_ticket = kwargs["pending_ticket"] if "pending_ticket" in kwargs else (prev.pending_ticket if prev else None)
 
             model_name = kwargs.get("model_name") or (prev.model_name if prev else None)
             grade = kwargs.get("grade") or (prev.grade if prev else ("STATUS: STANDBY" if not has_signal else None))
@@ -232,7 +233,7 @@ class MarketStateStore:
     def get_all_states(self) -> Dict[str, SymbolState]:
         """Thread-safe snapshot of all instrument states."""
         with self._lock:
-            return dict(self._states)
+            return copy.deepcopy(self._states)
 
     def clear_symbol(self, symbol: str) -> None:
         """Removes a symbol from the store."""

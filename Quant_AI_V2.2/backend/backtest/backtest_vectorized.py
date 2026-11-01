@@ -41,6 +41,7 @@ class BacktestReport:
     equity_curve: list = None
     trades: list = None
     trade_records: list = None
+    equity_times: list = None
 
 
 def get_symbol_multiplier(symbol: str) -> float:
@@ -59,7 +60,7 @@ def get_symbol_multiplier(symbol: str) -> float:
 
 class VectorizedBacktester:
     """
-    Động cơ Backtest Vectorized xử lý thuần ma trận NumPy.
+    Legacy fast screening simulator; use EventDrivenBacktester for live-strategy evaluation.
     Tối ưu cho RAM 8GB: Tốc độ xử lý 10,000 nến trong < 0.1s.
     Hỗ trợ mô phỏng ma sát thị trường thực: Commission và Slippage.
     """
@@ -90,7 +91,7 @@ class VectorizedBacktester:
         target_rr: float = 2.5,
         strategy_name: str = "wyckoff",
         symbol: str = "XAUUSD",
-        fill_on_next_open: bool = False,
+        fill_on_next_open: bool = True,
     ) -> BacktestReport:
         start_time = time.perf_counter()
 
@@ -108,6 +109,8 @@ class VectorizedBacktester:
             else np.ones(len(closes)) * 1000.0
         )
         n = len(closes)
+        if n < 60:
+            return None
 
         # 1. Tính ATR(14) Vectorized
         tr1 = highs[1:] - lows[1:]
@@ -176,20 +179,19 @@ class VectorizedBacktester:
             exit_occurred = False
 
             if in_pos:
-                friction = self.commission_per_trade + (
-                    risk_amt * (self.slippage_pct / 100.0)
-                )
+                friction = self.commission_per_trade + abs(entry_price)*mult*lot_size*(self.slippage_pct/100)
                 if pos_type == 1:
                     # Tuân thủ Pessimistic Execution Rule: Ưu tiên SL nếu nến quét cả 2 đầu trong cùng 1 bar
                     if l <= sl_price:
-                        loss_pnl = -risk_amt - friction
+                        fill=min(opens[i],sl_price) if pos_type==1 else max(opens[i],sl_price)
+                        loss_pnl = pos_type*(fill-entry_price)*lot_size*mult-friction
                         trades_pnl.append(loss_pnl)
                         exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
                             "trade_id": len(trade_records) + 1,
                             "side": "BUY",
                             "entry": entry_price,
-                            "exit": sl_price,
+                            "exit": fill,
                             "sl": sl_price,
                             "tp": tp_price,
                             "outcome": "SL",
@@ -207,7 +209,7 @@ class VectorizedBacktester:
                         last_exit_side = 1
                         last_exit_outcome = "SL"
                     elif h >= tp_price:
-                        win_pnl = (risk_amt * target_rr) - friction
+                        win_pnl = pos_type*(tp_price-entry_price)*lot_size*mult-friction
                         trades_pnl.append(win_pnl)
                         exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
@@ -234,14 +236,15 @@ class VectorizedBacktester:
                 elif pos_type == -1:
                     # Tuân thủ Pessimistic Execution Rule: Ưu tiên SL nếu nến quét cả 2 đầu trong cùng 1 bar
                     if h >= sl_price:
-                        loss_pnl = -risk_amt - friction
+                        fill=min(opens[i],sl_price) if pos_type==1 else max(opens[i],sl_price)
+                        loss_pnl = pos_type*(fill-entry_price)*lot_size*mult-friction
                         trades_pnl.append(loss_pnl)
                         exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
                             "trade_id": len(trade_records) + 1,
                             "side": "SELL",
                             "entry": entry_price,
-                            "exit": sl_price,
+                            "exit": fill,
                             "sl": sl_price,
                             "tp": tp_price,
                             "outcome": "SL",
@@ -259,7 +262,7 @@ class VectorizedBacktester:
                         last_exit_side = -1
                         last_exit_outcome = "SL"
                     elif l <= tp_price:
-                        win_pnl = (risk_amt * target_rr) - friction
+                        win_pnl = pos_type*(tp_price-entry_price)*lot_size*mult-friction
                         trades_pnl.append(win_pnl)
                         exit_time_str = time_strs[i] if i < len(time_strs) else ""
                         trade_records.append({
@@ -285,10 +288,24 @@ class VectorizedBacktester:
                         last_exit_outcome = "TP"
 
             # Không mở vị thế trên cùng cây nến vừa đóng lệnh (Rule of Exclusivity on Exit Bar)
+            if in_pos and (i-entry_bar+1>=20 or i==n-1):
+                pnl=pos_type*(c-entry_price)*lot_size*mult-friction
+                trades_pnl.append(pnl)
+                balance+=pnl
+                total_comm+=friction
+                trade_records.append(dict(trade_id=len(trade_records)+1,side='BUY' if pos_type==1 else 'SELL',
+                    entry=entry_price,exit=c,sl=sl_price,tp=tp_price,outcome='TIME' if i-entry_bar+1>=20 else 'END_OF_DATA',
+                    pnl=pnl,volume=lot_size,symbol=symbol,entry_time=entry_time_str,exit_time=time_strs[i]))
+                in_pos=False
+                exit_occurred=True
+
             if not in_pos and not exit_occurred and i < n - 5:
                 risk_amt = balance * (self.risk_per_trade_pct / 100.0)
                 sl_dist = 1.5 * a
-                lot_size = max(0.01, min(round(risk_amt / (max(sl_dist, 0.0001) * mult), 2), 50.0))
+                lot_size = min(np.floor(risk_amt/(max(sl_dist,0.0001)*mult)/0.01)*0.01,50.0)
+                if lot_size<0.01:
+                    equity_curve.append(balance+(pos_type*(c-entry_price)*lot_size*mult if in_pos else 0.0))
+                    continue
 
                 strat_lower = (strategy_name or "wyckoff").lower()
                 if "ict" in strat_lower or "fvg" in strat_lower:
@@ -341,7 +358,7 @@ class VectorizedBacktester:
                     entry_time_str = time_strs[entry_bar] if entry_bar < len(time_strs) else ""
 
 
-            equity_curve.append(balance)
+            equity_curve.append(balance+(pos_type*(c-entry_price)*lot_size*mult if in_pos else 0.0))
 
         end_time = time.perf_counter()
         exec_ms = (end_time - start_time) * 1000.0
@@ -394,17 +411,17 @@ class VectorizedBacktester:
         dd_pct_arr = (dd_arr / peak_arr) * 100.0
         max_dd_pct = float(np.max(dd_pct_arr))
 
-        # Sharpe & Sortino (Annualized 252)
-        returns = trades / self.initial_balance
-        mean_ret = np.mean(returns) if len(returns) > 0 else 0
-        std_ret = np.std(returns) if len(returns) > 0 else 1
-        sharpe = float((mean_ret / std_ret) * np.sqrt(252)) if std_ret > 0 else 0.0
-
-        downside_diff = np.minimum(0.0, returns)
-        downside_dev = float(np.sqrt(np.mean(downside_diff ** 2)))
-        sortino = (
-            float((mean_ret / downside_dev) * np.sqrt(252)) if downside_dev > 0 else 0.0
-        )
+        sharpe=sortino=0.0
+        if 'time' in df.columns:
+            raw_time=df['time']
+            times=pd.to_datetime(raw_time,unit='s') if pd.api.types.is_numeric_dtype(raw_time) else pd.to_datetime(raw_time)
+            eq=pd.Series(equity_curve,index=[times.iloc[59]]+list(times.iloc[60:]))
+            returns=eq.resample('1D').last().ffill().pct_change().dropna().to_numpy()
+            if len(returns)>1:
+                std=np.std(returns,ddof=1)
+                downside=np.sqrt(np.mean(np.minimum(returns,0)**2))
+                sharpe=float(np.mean(returns)/std*np.sqrt(252)) if std>0 else 0.0
+                sortino=float(np.mean(returns)/downside*np.sqrt(252)) if downside>0 else 0.0
 
         # Profit Factor
         gross_profit = float(np.sum(wins)) if len(wins) > 0 else 0.0

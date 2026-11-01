@@ -13,6 +13,7 @@ class MT5SafeController:
             if cls._instance is None:
                 cls._instance = super(MT5SafeController, cls).__new__(cls)
                 cls._instance._mt5_lock = threading.Lock()
+                cls._instance._session_lock = threading.RLock()
         return cls._instance
 
     def __getattr__(self, name):
@@ -29,7 +30,7 @@ class MT5SafeController:
         return attr
 
     def initialize(self, *args, **kwargs):
-        with self._mt5_lock:
+        with self._session_lock, self._mt5_lock:
             res = _mt5.initialize(*args, **kwargs)
             if not res and not args and not kwargs:
                 for custom_path in [
@@ -46,11 +47,11 @@ class MT5SafeController:
             return res
 
     def login(self, *args, **kwargs):
-        with self._mt5_lock:
+        with self._session_lock, self._mt5_lock:
             return _mt5.login(*args, **kwargs)
 
     def shutdown(self):
-        with self._mt5_lock:
+        with self._session_lock, self._mt5_lock:
             _mt5.shutdown()
 
     def terminal_info(self):

@@ -1,0 +1,28 @@
+{
+  "synthetic_workflow_completed": true,
+  "bars": 2000,
+  "threshold_selected_on_validation": 0.32,
+  "splits": {
+    "2023": {
+      "train_samples": 57,
+      "label_end_exclusive": "2022-01-07 02:45:00",
+      "boundary_gap_bars": 5
+    },
+    "2024": {
+      "train_samples": 175,
+      "label_end_exclusive": "2023-01-07 02:45:00",
+      "boundary_gap_bars": 5
+    },
+    "2025": {
+      "train_samples": 293,
+      "label_end_exclusive": "2024-01-07 02:45:00",
+      "boundary_gap_bars": 5
+    },
+    "2026": {
+      "train_samples": 411,
+      "label_end_exclusive": "2025-01-07 02:45:00",
+      "boundary_gap_bars": 5
+    }
+  },
+  "note": "Synthetic functional check only, not market evidence or deployment model"
+}

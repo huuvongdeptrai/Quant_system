@@ -1,8 +1,8 @@
 """
-Security Guard Module - AST-Based Code Sandbox
+Security Guard Module - AST-Based Strategy Linter
 ================================================
-Kiểm duyệt và ngăn chặn triệt để các hành vi thực thi mã độc hại (RCE, Sandbox Escape)
-trong tab Lập trình chiến lược trước khi hàm exec() được phép chạy.
+Static screening for common dangerous operations before executing trusted strategies.
+This is not an OS sandbox and does not make untrusted Python safe to execute.
 """
 
 import ast
@@ -50,6 +50,9 @@ BANNED_CALLS = {
     "quit",
     "input",
     "breakpoint",
+    "getattr", "setattr", "delattr", "read_pickle", "to_pickle",
+    "read_csv", "to_csv", "read_json", "to_json", "to_sql", "read_sql",
+    "load", "save", "dump", "dumps", "system", "popen",
 }
 
 # Các kỹ thuật vượt rào Sandbox qua thuộc tính Dunder (Python Sandbox Escape)
@@ -61,6 +64,7 @@ BANNED_ATTRIBUTES = {
     "__globals__",
     "__builtins__",
     "__import__",
+    "__dict__", "__getattribute__",
 }
 
 
@@ -109,7 +113,7 @@ class StrategySecurityVisitor(ast.NodeVisitor):
 
 def validate_strategy_code(code_str: str) -> Tuple[bool, str]:
     """
-    Phân tích AST để xác thực mã chiến lược có an toàn trước khi exec() hay không.
+    Phân tích AST để tìm các thao tác bị cấm trước khi chạy mã tin cậy.
 
     Returns:
         (is_safe: bool, reason: str)
@@ -130,4 +134,4 @@ def validate_strategy_code(code_str: str) -> Tuple[bool, str]:
     if visitor.violations:
         return False, "; ".join(visitor.violations)
 
-    return True, "Mã nguồn an toàn"
+    return True, "Static checks passed; execute trusted strategy code only"

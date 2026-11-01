@@ -89,6 +89,7 @@ class CalendarEngine:
             return 0
 
     def fetch_events(self):
+        self.last_fetch_success=False
         # Lấy sự kiện chuẩn 1 Tuần (Từ Thứ 2 đến Chủ nhật của tuần hiện tại)
         now = datetime.datetime.now(datetime.timezone.utc)
 
@@ -175,6 +176,7 @@ class CalendarEngine:
                     )
 
                 processed_events.sort(key=lambda x: x["sort_key"])
+                self.last_fetch_success=True
                 return processed_events
             else:
                 return []

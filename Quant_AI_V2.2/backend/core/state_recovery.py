@@ -5,7 +5,8 @@ Hệ thống: Quant AI V2.2 - Tự động đồng bộ CSDL và Vị thế sàn
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import json
 from typing import Dict, Any, List, Optional
 from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
@@ -37,6 +38,9 @@ class StateRecoveryManager:
         )
 
         # 1. TRUY VẤN VỊ THẾ SÀN VÀ XỬ LÝ LỖI NGHIÊM NGẶT
+        account=mt5.account_info()
+        if account is not None and isinstance(getattr(account,'login',None),int):
+            self.db.bind_account(account.login,account.server)
         live_positions = mt5.positions_get()
         if live_positions is None:
             err_code, err_str = mt5.last_error()
@@ -57,6 +61,13 @@ class StateRecoveryManager:
                 ),
             }
 
+        if account is None or not isinstance(getattr(account, 'login', None), int):
+            return {"status":"FAILED_ACCOUNT_UNVERIFIED", "active_positions_count":0,
+                    "recovered_orphans":0,"reconciled_closed":0,"synced_active":0,
+                    "circuit_breaker_active":True}
+
+        self.reconcile_intents(live_positions=live_positions)
+
         # Lọc vị thế theo phạm vi quản lý của nền tảng nếu có chỉ định magic
         if magic is not None and magic != 0:
             managed_positions = [
@@ -66,6 +77,7 @@ class StateRecoveryManager:
             managed_positions = list(live_positions)
 
         live_tickets = {pos.ticket: pos for pos in managed_positions}
+        live_ids={getattr(pos,'identifier',pos.ticket) for pos in live_positions}
 
         # 2. Lấy danh sách vị thế đang đánh dấu là 'OPEN' trong CSDL
         db_open_trades = self.db.get_open_trades()
@@ -78,6 +90,11 @@ class StateRecoveryManager:
 
         # 3. ĐỐI SOÁT CHIỀU 1: Lệnh có trên MT5 nhưng DB chưa ghi nhận (Orphan positions)
         for ticket, pos in live_tickets.items():
+            old=next((t for t in db_tickets.values() if t.get('position_id')==getattr(pos,'identifier',ticket)),None)
+            if old:
+                self.db.sync_position(old['ticket'],pos)
+                synced_active+=1
+                continue
             if ticket not in db_tickets:
                 order_type = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
                 # Lấy thời gian mở thực tế từ sàn MT5 (UTC) nếu có
@@ -99,6 +116,9 @@ class StateRecoveryManager:
                     sl=pos.sl,
                     tp=pos.tp,
                     open_time=pos_time_utc,
+                    position_id=getattr(pos,"identifier",ticket),
+                    initial_sl=0,  # Current trailing SL is not evidence of original risk.
+                    magic=getattr(pos,"magic",0),
                     comment=f"Recovered_From_MT5_Magic_{getattr(pos, 'magic', 0)}",
                 )
                 if ok:
@@ -116,10 +136,10 @@ class StateRecoveryManager:
 
         # 4. ĐỐI SOÁT CHIỀU 2: Lệnh DB đánh dấu OPEN nhưng MT5 không còn (Đã cắn SL/TP khi offline)
         for ticket, trade in db_tickets.items():
-            if ticket not in live_tickets:
+            if (trade.get("position_id") or ticket) not in live_ids:
                 deals = None
                 try:
-                    deals = mt5.history_deals_get(position=ticket)
+                    deals = mt5.history_deals_get(position=trade.get("position_id") or ticket)
                 except Exception as e_deal:
                     logger.error(
                         f"[StateRecovery] Ngoại lệ khi tra cứu Deals cho #{ticket}: {e_deal}"
@@ -138,6 +158,9 @@ class StateRecoveryManager:
 
                 # Khi có deals: Tìm deal đóng (DEAL_ENTRY_OUT) cuối cùng theo thời gian
                 out_deals = [d for d in deals if getattr(d, "entry", 0) in (1, 3)]
+                if not out_deals:
+                    continue
+                self.db.record_deals(deals)
                 exit_deal = (
                     max(
                         out_deals,
@@ -206,13 +229,141 @@ class StateRecoveryManager:
         logger.info(f"[StateRecovery] Phục hồi hoàn tất: {summary}")
         return summary
 
+    def reconcile_intents(self, live_positions=None):
+        """Rebuild complete broker-confirmed lifecycles before releasing reservations.
+
+        Positive order/deal identities take precedence over comments. Missing or
+        incomplete history is never interpreted as a rejection or a flat fill.
+        """
+        account=mt5.account_info()
+        if account is None:
+            return
+        self.db.bind_account(account.login, account.server)
+        if live_positions is None:
+            live_positions=mt5.positions_get()
+        orders=mt5.orders_get()
+        if live_positions is None or orders is None:
+            return
+        live_by_id={getattr(p,'identifier',p.ticket):p for p in live_positions}
+        for intent in self.db.get_unresolved_intents():
+            payload=json.loads(intent['payload'])
+            request=payload.get('request',payload)
+            tag=request.get('broker_tag')
+            order_id=payload.get('order_id') or payload.get('ticket') or request.get('order_id')
+            def linked(obj, is_deal=False):
+                if order_id:
+                    return (getattr(obj,'order',None) if is_deal else getattr(obj,'ticket',None))==order_id
+                return bool(tag and tag.startswith('V2_') and getattr(obj,'comment','')==tag)
+            working=[o for o in orders if linked(o)]
+            amendment=payload.get('amendment',{})
+            if amendment.get('pending') and working:
+                target=amendment['target']
+                if any(all(abs(float(getattr(o,k))-float(target[v]))<1e-8
+                           for k,v in (('price_open','price'),('sl','sl'),('tp','tp'))) for o in working):
+                    request=target
+                    payload={'request':request,'order_id':order_id}
+                    self.db.finish_intent(intent['intent_id'],'UNKNOWN',payload)
+                else:
+                    continue
+            start=datetime.fromisoformat(intent['updated_at'])-timedelta(minutes=5)
+            end=datetime.now(timezone.utc)+timedelta(minutes=1)
+            # A historical position query below supplies its entire entry/exit lifecycle.
+            deals=mt5.history_deals_get(start,end)
+            if deals is None:
+                continue
+            matches=[d for d in deals if linked(d, is_deal=True)]
+            if matches:
+                position_ids={int(d.position_id) for d in matches if getattr(d,'position_id',0)>0}
+                resolved=bool(position_ids)
+                for pid in position_ids:
+                    complete=mt5.history_deals_get(position=pid)
+                    if not complete:
+                        resolved=False
+                        continue
+                    complete=[d for d in complete if getattr(d,'position_id',None)==pid]
+                    self.db.record_deals(complete)
+                    pos=live_by_id.get(pid)
+                    opening=[d for d in complete if getattr(d,'entry',None)==0]
+                    first=min(opening,key=lambda d:getattr(d,'time_msc',d.time*1000)) if opening else None
+                    broker_order=getattr(first,'order',None) or order_id or getattr(matches[0],'order',None)
+                    if pos is not None:
+                        saved=self.db.get_trade_by_position(pid)
+                        if not saved:
+                            if not self.db.record_open_trade(pos.ticket,pos.symbol,
+                                    'BUY' if pos.type==mt5.ORDER_TYPE_BUY else 'SELL',pos.volume,pos.price_open,
+                                    sl=pos.sl,tp=pos.tp,initial_sl=float(request.get('sl') or 0),
+                                    open_time=datetime.fromtimestamp(pos.time,timezone.utc).isoformat(),
+                                    position_id=pid,broker_order_id=broker_order,magic=pos.magic,
+                                    strategy_id=request.get('strategy_id','')):
+                                resolved=False
+                                continue
+                        else:
+                            self.db.sync_position(saved['ticket'],pos)
+                        if not self.db.attach_execution_policy(pos.ticket,pid,request,broker_order):
+                            resolved=False
+                    else:
+                        # A fill and its exit can both happen between polls. Reconstruct
+                        # only a volume-complete history; a partial exit is not flat proof.
+                        exits=[d for d in complete if getattr(d,'entry',None) in (1,3)]
+                        if not opening or not exits or any(getattr(d,'entry',None)==2 for d in complete):
+                            resolved=False
+                            continue
+                        in_volume=sum(float(d.volume) for d in opening)
+                        out_volume=sum(float(d.volume) for d in exits)
+                        if in_volume<=0 or abs(in_volume-out_volume)>1e-8:
+                            resolved=False
+                            continue
+                        open_price=sum(d.price*d.volume for d in opening)/in_volume
+                        close_price=sum(d.price*d.volume for d in exits)/out_volume
+                        last=max(exits,key=lambda d:getattr(d,'time_msc',d.time*1000))
+                        pnl=sum(float(getattr(d,k,0) or 0) for d in complete
+                                for k in ('profit','commission','swap','fee'))
+                        saved=self.db.get_trade_by_position(pid)
+                        ticket=saved['ticket'] if saved else pid
+                        if not saved and not self.db.record_open_trade(ticket,first.symbol,
+                                'BUY' if getattr(first,'type',0)==mt5.ORDER_TYPE_BUY else 'SELL',
+                                in_volume,open_price,sl=float(request.get('sl') or 0),tp=float(request.get('tp') or 0),
+                                position_id=pid,broker_order_id=broker_order,magic=getattr(first,'magic',0),
+                                strategy_id=request.get('strategy_id',''),
+                                open_time=datetime.fromtimestamp(first.time,timezone.utc).isoformat()):
+                            resolved=False
+                            continue
+                        if not self.db.attach_execution_policy(ticket,pid,request,broker_order):
+                            resolved=False
+                            continue
+                        if not self.db.record_close_trade(ticket,close_price,pnl,
+                                datetime.fromtimestamp(last.time,timezone.utc).isoformat()):
+                            resolved=False
+                if resolved and not working and not amendment.get('pending'):
+                    self.db.finish_intent(intent['intent_id'],'FILLED',{
+                        'request':request,'order_id':order_id,
+                        'reconciled_deals':[d.ticket for d in matches]})
+                continue
+            if working:
+                continue
+            history=mt5.history_orders_get(start,end)
+            if history is None:
+                continue
+            terminal=[o for o in history if linked(o) and getattr(o,'state',None) in (2,5,6)]
+            if terminal:
+                # A partially filled then canceled order still requires its fills.
+                if any(float(getattr(o,'volume_initial',0) or 0)>
+                       float(getattr(o,'volume_current',0) or 0)+1e-9 for o in terminal):
+                    continue
+                self.db.finish_intent(intent['intent_id'],'CANCELED',{
+                    'request':request,'broker_order':terminal[-1].ticket})
+
     def can_open_new_trade(self, symbol: str) -> bool:
         """
         Kiểm tra an toàn: Tuyệt đối không mở lệnh mới nếu mã này đã có vị thế đang chạy.
         """
         clean = symbol.split(".")[0].replace("/", "").upper()
         # Kiểm tra đồng thời cả trên MT5 lẫn Database
+        if self.db.has_unresolved_intent(symbol):
+            return False
         positions = mt5.positions_get(symbol=symbol)
+        if positions is None:
+            return False
         if positions and len(positions) > 0:
             if any(
                 getattr(p, "symbol", "").split(".")[0].replace("/", "").upper()
@@ -222,6 +373,8 @@ class StateRecoveryManager:
                 return False
         else:
             all_pos = mt5.positions_get()
+            if all_pos is None:
+                return False
             if all_pos:
                 if any(
                     getattr(p, "symbol", "").split(".")[0].replace("/", "").upper()

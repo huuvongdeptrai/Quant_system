@@ -25,6 +25,7 @@ class TestStage5StateRecoveryAndWatchdog:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db_path = os.path.join(tmpdir, "test_quant.db")
             db = DatabaseManager(db_path=test_db_path)
+            db.bind_account(1,"test")
 
             ok = db.record_open_trade(
                 ticket=888888,
@@ -59,6 +60,7 @@ class TestStage5StateRecoveryAndWatchdog:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db_path = os.path.join(tmpdir, "test_recovery.db")
             db = DatabaseManager(db_path=test_db_path)
+            db.bind_account(1,"test")
             recovery_mgr = StateRecoveryManager(db_manager=db)
 
             # Trong DB có lệnh #111111 (đang ghi OPEN)
@@ -72,6 +74,7 @@ class TestStage5StateRecoveryAndWatchdog:
 
             # Trên MT5: có lệnh mồ côi #222222, lệnh #111111 đã hit TP
             mock_pos_222 = MagicMock(
+                identifier=222222,
                 ticket=222222,
                 symbol="XAUUSD",
                 type=mt5.ORDER_TYPE_BUY,
@@ -125,6 +128,7 @@ class TestStage5StateRecoveryAndWatchdog:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db_path = os.path.join(tmpdir, "test_recovery_err.db")
             db = DatabaseManager(db_path=test_db_path)
+            db.bind_account(1,"test")
             recovery_mgr = StateRecoveryManager(db_manager=db)
 
             # Lệnh #333333 đang OPEN trong CSDL
@@ -155,6 +159,7 @@ class TestStage5StateRecoveryAndWatchdog:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db_path = os.path.join(tmpdir, "test_missing_deals.db")
             db = DatabaseManager(db_path=test_db_path)
+            db.bind_account(1,"test")
             recovery_mgr = StateRecoveryManager(db_manager=db)
 
             db.record_open_trade(
@@ -205,3 +210,9 @@ class TestStage5StateRecoveryAndWatchdog:
             is_healthy_fail = watchdog.check_health()
             assert is_healthy_fail is False
             assert watchdog.is_connected is False
+
+
+@pytest.fixture(autouse=True)
+def recovery_verified_account(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(mt5,"account_info",lambda:SimpleNamespace(login=1,server="test"))

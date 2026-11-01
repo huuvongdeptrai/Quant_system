@@ -15,6 +15,7 @@ from backend.infrastructure.brokers.mt5_safe import mt5
 class TestStage7EventRiskEngine:
     def setup_method(self):
         self.mock_exec = MagicMock()
+        self.mock_exec.magic = 999999
         self.mock_cal = MagicMock()
         self.engine = EventRiskEngine(
             execution_manager=self.mock_exec,
@@ -97,6 +98,13 @@ class TestStage7EventRiskEngine:
         pos.price_open = 1.0800
         pos.sl = 1.0780
         pos.tp = 1.0900
+        pos.identifier = pos.ticket
+        pos.magic = 999999
+        pos.comment = "VECTRA"
+        from backend.database.db_manager import DatabaseManager
+        db = DatabaseManager()
+        db.bind_account(1, "test")
+        assert db.record_open_trade(pos.ticket, pos.symbol, "BUY" if pos.type == 0 else "SELL", pos.volume, pos.price_open, sl=pos.sl, tp=pos.tp, position_id=pos.identifier)
         mock_positions.return_value = [pos]
 
         tick = MagicMock()
@@ -149,6 +157,13 @@ class TestStage7EventRiskEngine:
         pos.price_open = 1.0800
         pos.sl = 1.0780
         pos.tp = 1.0900
+        pos.identifier = pos.ticket
+        pos.magic = 999999
+        pos.comment = "VECTRA"
+        from backend.database.db_manager import DatabaseManager
+        db = DatabaseManager()
+        db.bind_account(1, "test")
+        assert db.record_open_trade(pos.ticket, pos.symbol, "BUY" if pos.type == 0 else "SELL", pos.volume, pos.price_open, sl=pos.sl, tp=pos.tp, position_id=pos.identifier)
         mock_positions.return_value = [pos]
 
         tick = MagicMock()
@@ -202,6 +217,13 @@ class TestStage7EventRiskEngine:
         pos.price_open = 1.0800
         pos.sl = 1.0780
         pos.tp = 1.0900
+        pos.identifier = pos.ticket
+        pos.magic = 999999
+        pos.comment = "VECTRA"
+        from backend.database.db_manager import DatabaseManager
+        db = DatabaseManager()
+        db.bind_account(1, "test")
+        assert db.record_open_trade(pos.ticket, pos.symbol, "BUY" if pos.type == 0 else "SELL", pos.volume, pos.price_open, sl=pos.sl, tp=pos.tp, position_id=pos.identifier)
         mock_positions.return_value = [pos]
 
         tick = MagicMock()
@@ -277,3 +299,9 @@ class TestStage7EventRiskEngine:
         # Secondary indicators should be Medium or Low
         assert CalendarEngine.classify_impact(1, "Existing Home Sales", "US") == 1
         assert CalendarEngine.classify_impact(-1, "EIA Crude Oil Stocks", "US") == 0
+
+
+@pytest.fixture(autouse=True)
+def verified_defense_account(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(mt5,"account_info",lambda:SimpleNamespace(login=1,server="test"))

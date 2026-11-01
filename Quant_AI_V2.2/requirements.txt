@@ -17,4 +17,9 @@ redis
 telethon
 PySide6
 pyqtgraph
-MetaTrader5
+MetaTrader5; platform_system == "Windows"
+lightgbm>=4.0
+scikit-learn>=1.3
+quantstats>=0.0.62
+openai>=1.0
+psutil>=5.9

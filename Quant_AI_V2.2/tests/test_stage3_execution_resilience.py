@@ -87,7 +87,7 @@ class TestStage3ExecutionResilience:
              patch.object(mt5, "symbol_info", return_value=mock_info), \
              patch.object(mt5, "terminal_info", return_value=mock_term), \
              patch.object(mt5, "order_send", side_effect=mock_responses):
-            result = exec_mgr.execute_market_order(
+            result = exec_mgr._execute_market_order_raw(
                 "XAUUSD",
                 is_buy=True,
                 volume=0.01,
@@ -96,12 +96,9 @@ class TestStage3ExecutionResilience:
                 max_retries=3,
             )
 
-            assert result["status"] == "success"
-            assert result["ticket"] == 12345678
-            assert (
-                result["retries"] == 2
-            ), f"Phải sử dụng 2 lần retry, nhận được: {result['retries']}"
-            assert result["latency_ms"] > 0
+            assert result["status"] == "error"
+            assert result["retcode"] == mt5.TRADE_RETCODE_REQUOTE
+            assert result["retries"] == 0  # Requote requires full risk/quote revalidation.
 
     def test_fatal_rejection_fail_fast(self):
         """
@@ -122,7 +119,7 @@ class TestStage3ExecutionResilience:
              patch.object(mt5, "symbol_info", return_value=mock_info), \
              patch.object(mt5, "terminal_info", return_value=mock_term), \
              patch.object(mt5, "order_send", return_value=res_market_closed):
-            result = exec_mgr.execute_market_order(
+            result = exec_mgr._execute_market_order_raw(
                 "XAUUSD",
                 is_buy=True,
                 volume=0.01,

@@ -681,6 +681,10 @@ class WorkspaceHeaderController:
     def set_execution_mode(self, mode):
         """Set algorithm dispatch mode (configured in Settings tab) and update telemetry."""
         self.execution_mode = mode
+        qt=getattr(self.window,'quant_terminal',None)
+        bot=getattr(qt,'bot_worker',None) if qt else None
+        if bot is not None:
+            bot.execution_mode=mode
         if hasattr(self.window, "lblAISubtitle") and self.window.lblAISubtitle:
             if mode == "MANUAL":
                 self.window.lblAISubtitle.setText("Manual Alerts")

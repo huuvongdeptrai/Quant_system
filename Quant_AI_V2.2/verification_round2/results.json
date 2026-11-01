@@ -1,0 +1,534 @@
+[
+  {
+    "module": "test_ai_manual_tab_isolation.py",
+    "exit_code": 0,
+    "seconds": 3.277,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_backtest_pipeline_and_strategy_dispatch.py",
+    "exit_code": 0,
+    "seconds": 11.015,
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 14
+  },
+  {
+    "module": "test_blotter_dock_alignment.py",
+    "exit_code": 0,
+    "seconds": 2.525,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_bot_orchestrator_watchlist_scan.py",
+    "exit_code": 0,
+    "seconds": 1.12,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_chart_context_trading.py",
+    "exit_code": 0,
+    "seconds": 3.497,
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 12
+  },
+  {
+    "module": "test_drawing_engine_persistence_and_deletion.py",
+    "exit_code": 0,
+    "seconds": 2.977,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_engine_config_schema.py",
+    "exit_code": 0,
+    "seconds": 1.273,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_execution_modes_and_dedup.py",
+    "exit_code": 0,
+    "seconds": 2.729,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_execution_volume_normalization.py",
+    "exit_code": 0,
+    "seconds": 1.12,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_fvg_engine.py",
+    "exit_code": 0,
+    "seconds": 2.325,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_header_ribbon_alignment.py",
+    "exit_code": 0,
+    "seconds": 2.576,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_indicator_catalog_and_math.py",
+    "exit_code": 0,
+    "seconds": 2.423,
+    "tests": 18,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 18
+  },
+  {
+    "module": "test_institutional_macro_calendar.py",
+    "exit_code": 0,
+    "seconds": 2.577,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_macro_calendar_fixes.py",
+    "exit_code": 0,
+    "seconds": 2.573,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_macro_context_bus_and_risk_gate.py",
+    "exit_code": 0,
+    "seconds": 2.476,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_manual_quant_copilot.py",
+    "exit_code": 0,
+    "seconds": 4.084,
+    "tests": 44,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 44
+  },
+  {
+    "module": "test_market_profile_value_area.py",
+    "exit_code": 0,
+    "seconds": 2.979,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_market_state_store.py",
+    "exit_code": 0,
+    "seconds": 1.421,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_ml_meta_labeling_model_registry.py",
+    "exit_code": 0,
+    "seconds": 2.535,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_modify_order_dialog_stops_validation.py",
+    "exit_code": 0,
+    "seconds": 2.885,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_mt5_shortcuts_execution.py",
+    "exit_code": 0,
+    "seconds": 3.232,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_multi_asset_data_feed.py",
+    "exit_code": 0,
+    "seconds": 1.316,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_multi_asset_watchlist_and_icons.py",
+    "exit_code": 0,
+    "seconds": 2.575,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_phase1_order_ownership_and_guard_isolation.py",
+    "exit_code": 0,
+    "seconds": 1.12,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_phase2_circuit_breaker_defense_and_drawdown.py",
+    "exit_code": 0,
+    "seconds": 2.321,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_phase3_state_sync_memory_and_concurrency.py",
+    "exit_code": 0,
+    "seconds": 2.632,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_phase4_ui_styling_and_warning_cleansing.py",
+    "exit_code": 0,
+    "seconds": 1.698,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_repair_regressions.py",
+    "exit_code": 0,
+    "seconds": 1.722,
+    "tests": 38,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 38
+  },
+  {
+    "module": "test_review_findings.py",
+    "exit_code": 0,
+    "seconds": 1.624,
+    "tests": 25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 25
+  },
+  {
+    "module": "test_run_headless.py",
+    "exit_code": 0,
+    "seconds": 1.221,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_scalp_pullback_and_copilot.py",
+    "exit_code": 0,
+    "seconds": 2.63,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_splash_and_startup_resilience.py",
+    "exit_code": 0,
+    "seconds": 1.874,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_stage1_unit_math.py",
+    "exit_code": 0,
+    "seconds": 1.118,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_stage2_backtest.py",
+    "exit_code": 0,
+    "seconds": 1.122,
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  {
+    "module": "test_stage3_execution_resilience.py",
+    "exit_code": 0,
+    "seconds": 1.069,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 2
+  },
+  {
+    "module": "test_stage4_resource_profiling.py",
+    "exit_code": 0,
+    "seconds": 26.452,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2,
+    "first_run_failure": "Timeout after 25s while running 1000-cycle tracemalloc stress test",
+    "rerun": "test_stage4_resource_profiling_rerun.xml; same source and same timeout=25"
+  },
+  {
+    "module": "test_stage5_state_recovery_and_watchdog.py",
+    "exit_code": 0,
+    "seconds": 1.271,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_stage6_unbiased_backtest.py",
+    "exit_code": 0,
+    "seconds": 1.176,
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  {
+    "module": "test_stage7_event_risk_engine.py",
+    "exit_code": 0,
+    "seconds": 1.22,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_stage8_options_integration.py",
+    "exit_code": 0,
+    "seconds": 2.274,
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 9
+  },
+  {
+    "module": "test_strategy_lifecycle_and_ingestion.py",
+    "exit_code": 0,
+    "seconds": 1.12,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_strategy_macro_injection.py",
+    "exit_code": 0,
+    "seconds": 2.325,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_system_market_structure_engine.py",
+    "exit_code": 0,
+    "seconds": 1.222,
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 12
+  },
+  {
+    "module": "test_system_performance_optimizations.py",
+    "exit_code": 0,
+    "seconds": 2.428,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 3
+  },
+  {
+    "module": "test_system_tray_manager.py",
+    "exit_code": 0,
+    "seconds": 3.852,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5,
+    "passed": 0
+  },
+  {
+    "module": "test_timeframe_catalog.py",
+    "exit_code": 0,
+    "seconds": 1.603,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 3
+  },
+  {
+    "module": "test_timezone_synchronization.py",
+    "exit_code": 0,
+    "seconds": 1.321,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_trading_plan_stepper_and_clean_market.py",
+    "exit_code": 0,
+    "seconds": 2.826,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_ui_cohesion_watchlist_calendar.py",
+    "exit_code": 0,
+    "seconds": 2.829,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_walk_forward_replay.py",
+    "exit_code": 0,
+    "seconds": 2.634,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_weekend_filter_and_thread_safety.py",
+    "exit_code": 0,
+    "seconds": 2.671,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_wyckoff_institutional_upgrade.py",
+    "exit_code": 0,
+    "seconds": 1.073,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_xauusd_forex_data_pipeline.py",
+    "exit_code": 0,
+    "seconds": 1.073,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  }
+]

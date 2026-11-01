@@ -71,19 +71,9 @@ class TestFullAutoExecution:
         # First run: autonomous dispatch
         _update_panel_with_result(win, ai_result)
 
-        # Verified: Order was dispatched automatically via execute_market_order!
-        assert win.quant_terminal.exec_mgr.execute_market_order.called
-        call_kwargs = win.quant_terminal.exec_mgr.execute_market_order.call_args[1]
-        assert call_kwargs["symbol"] == "XAUUSD"
-        assert call_kwargs["is_buy"] is True
-        assert call_kwargs["sl_price"] == 2640.0
-        assert call_kwargs["tp_price"] == 2670.0
-
-        # Verified: UI transitioned immediately to live position (NO countdown timer, disabled button)
-        assert win.is_live_position is True
-        assert win.live_ticket == 888999
-        assert win.btnApproveOrder.isEnabled() is False
-        assert "BOT AUTO MANAGING" in win.btnApproveOrder.text() or "FULL-AUTO" in win.btnApproveOrder.text()
+        # The GUI is a renderer; autonomous routing belongs to the armed worker.
+        win.quant_terminal.exec_mgr.execute_market_order.assert_not_called()
+        assert not getattr(win,'is_live_position',False)
 
     @patch("frontend.controllers.chart.ai_panel_controller.mt5")
     def test_full_auto_signal_deduplication(self, mock_mt5, qapp):
@@ -116,12 +106,12 @@ class TestFullAutoExecution:
         }
 
         _update_panel_with_result(win, ai_result)
-        assert win.quant_terminal.exec_mgr.execute_market_order.call_count == 1
+        assert win.quant_terminal.exec_mgr.execute_market_order.call_count == 0
 
         # Second tick on the exact same candle -> MUST NOT CALL execute_market_order AGAIN
         win.is_live_position = False  # even if position closed
         _update_panel_with_result(win, ai_result)
-        assert win.quant_terminal.exec_mgr.execute_market_order.call_count == 1
+        assert win.quant_terminal.exec_mgr.execute_market_order.call_count == 0
 
     @patch("frontend.controllers.chart.ai_panel_controller.mt5")
     def test_full_auto_invalid_sl_orientation_interception(self, mock_mt5, qapp):

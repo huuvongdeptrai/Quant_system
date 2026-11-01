@@ -23,6 +23,7 @@ class MT5Watchdog:
         self.check_interval_sec = check_interval_sec
         self.max_reconnect_retries = max_reconnect_retries
         self._is_running = False
+        self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._last_heartbeat = 0.0
         self._connected = False
@@ -63,7 +64,8 @@ class MT5Watchdog:
             logger.info(
                 f"[Watchdog] Thử kết nối lại lần {attempt}/{self.max_reconnect_retries} (Chờ {delay}s)..."
             )
-            time.sleep(delay)
+            if self._stop_event.wait(delay):
+                return False
 
             try:
                 mt5.shutdown()
@@ -92,6 +94,7 @@ class MT5Watchdog:
         """Khởi chạy luồng giám sát ngầm."""
         if self._is_running:
             return
+        self._stop_event.clear()
         self._is_running = True
         self._thread = threading.Thread(
             target=self._monitor_loop, daemon=True, name="MT5_Watchdog_Thread"
@@ -102,6 +105,7 @@ class MT5Watchdog:
     def stop(self):
         """Dừng luồng giám sát."""
         self._is_running = False
+        self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         logger.info("[Watchdog] Đã dừng luồng giám sát nhịp tim.")
@@ -110,7 +114,7 @@ class MT5Watchdog:
         while self._is_running:
             if not self.check_health():
                 self.attempt_reconnect()
-            time.sleep(self.check_interval_sec)
+            self._stop_event.wait(self.check_interval_sec)
 
     @property
     def is_connected(self) -> bool:

@@ -69,7 +69,10 @@ def test_model_registry_auto_discovery_and_fallback(sample_rates):
     )
     assert isinstance(is_pass, (bool, np.bool_))
     assert 0.0 <= prob <= 1.0
-    assert "ML Meta" in reason
+    # Shipped v1 model must not consume the changed v2 feature formulas.
+    assert is_pass is False
+    assert prob == 0.0
+    assert "feature version mismatch" in reason
 
     # 3. Test Fallback when Strategy has no model (e.g. unknown custom strategy)
     fallback_info = gate._get_or_load_meta_model("custom_strategy_without_model")

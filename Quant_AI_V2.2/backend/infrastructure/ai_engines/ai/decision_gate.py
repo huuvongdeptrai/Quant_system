@@ -1,4 +1,5 @@
 import os
+import math
 import json
 from pathlib import Path
 from datetime import datetime, timezone
@@ -39,7 +40,7 @@ class DecisionGate:
         if rates is None:
             if mt5.terminal_info() is not None:
                 mt5.symbol_select(symbol, True)
-            rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 150)
+            rates = mt5.copy_rates_from_pos(symbol, timeframe, 1, 150)
 
         if rates is None or len(rates) == 0:
 
@@ -72,12 +73,12 @@ class DecisionGate:
         if d1_rates is None:
             if mt5.terminal_info() is not None:
                 mt5.symbol_select(symbol, True)
-            d1_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, 150)
+            d1_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 1, 150)
 
         if h4_rates is None:
             if mt5.terminal_info() is not None:
                 mt5.symbol_select(symbol, True)
-            h4_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 0, 150)
+            h4_rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 1, 150)
 
         # Tinh toan Bias tung khung
 
@@ -235,7 +236,8 @@ class DecisionGate:
             return None
 
         try:
-            mtime = target_file.stat().st_mtime
+            metadata = target_file.with_suffix('.json')
+            mtime = (target_file.stat().st_mtime_ns, metadata.stat().st_mtime_ns if metadata.exists() else None)
             cached = self._models_cache.get(str(target_file))
             if cached is not None and cached[0] == mtime:
                 return cached[1]
@@ -257,7 +259,7 @@ class DecisionGate:
                         threshold = float(meta.get("threshold", 0.38))
                         feature_cols = meta.get("feature_cols", feature_cols)
                 except Exception as ex:
-                    logger.warning(f"[DecisionGate] Could not parse model metadata: {ex}")
+                    raise RuntimeError(f"Invalid model metadata: {ex}") from ex
 
             res = (booster, threshold, feature_cols, target_file.name)
             self._models_cache[str(target_file)] = (mtime, res)
@@ -265,7 +267,7 @@ class DecisionGate:
             return res
         except Exception as e:
             logger.error(f"[DecisionGate] Failed to load ML model {target_file.name}: {e}")
-            return None
+            raise RuntimeError(f"Attached ML model cannot be loaded: {target_file.name}") from e
 
     def _evaluate_meta_labeling(
         self, symbol: str, signal: str, strategy_id: Optional[str] = None, rates=None, timeframe=None
@@ -274,135 +276,54 @@ class DecisionGate:
         Evaluates trade probability using the auto-discovered Meta-Labeling model.
         Returns: (is_pass, probability, reason)
         """
-        model_info = self._get_or_load_meta_model(strategy_id)
+        try:
+            model_info = self._get_or_load_meta_model(strategy_id)
+        except Exception as exc:
+            return False, 0.0, f"Model unavailable: {exc}"
         if model_info is None:
             return True, 1.0, "No ML Model Attached (Standard Mode)"
 
         booster, threshold, feature_cols, model_filename = model_info
+        from backend.core.meta_features import FEATURE_VERSION
+        metadata_file=self._models_dir / Path(model_filename).with_suffix('.json')
+        try:
+            metadata=json.loads(metadata_file.read_text())
+            if not isinstance(metadata, dict):
+                raise ValueError('Model metadata must be an object')
+            if metadata.get('symbol') is not None and not isinstance(metadata['symbol'], str):
+                raise ValueError('Model symbol must be a string')
+            if not isinstance(feature_cols, list) or not all(isinstance(c, str) for c in feature_cols):
+                raise ValueError('Model feature columns must be a list of names')
+        except Exception as exc:
+            return False,0.0,f'Model metadata unavailable: {exc}'
+        if metadata.get('feature_version') != FEATURE_VERSION:
+            return False,0.0,'Model feature version mismatch; retraining is required'
+        if not math.isfinite(threshold) or not 0 <= threshold <= 1:
+            return False,0.0,'Invalid model threshold'
+        trained_symbol=metadata.get('symbol')
+        if trained_symbol and symbol.upper().split('.')[0]!=trained_symbol.upper():
+            return False,0.0,'Model is not validated for this instrument'
 
-        if rates is None or len(rates) < 30:
+        if rates is None or len(rates) < 100:
             if mt5.terminal_info() is not None:
                 mt5.symbol_select(symbol, True)
             tf = timeframe if timeframe else mt5.TIMEFRAME_M15
-            rates = mt5.copy_rates_from_pos(symbol, tf, 0, 100)
+            rates = mt5.copy_rates_from_pos(symbol, tf, 1, 100)
 
-        if rates is None or len(rates) < 30:
-            return True, 1.0, f"Insufficient bars for ML features ({model_filename} bypassed)"
+        if rates is None or len(rates) < 100:
+            return False, 0.0, f"Insufficient bars for ML features ({model_filename} bypassed)"
 
         try:
-            if isinstance(rates, pd.DataFrame):
-                df = rates
-            else:
-                df = pd.DataFrame(rates)
-            if "time" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["time"]):
-                df["time"] = pd.to_datetime(df["time"], unit="s")
-
-            closes = df["close"].to_numpy(dtype=np.float64)
-            highs = df["high"].to_numpy(dtype=np.float64)
-            lows = df["low"].to_numpy(dtype=np.float64)
-            opens = df["open"].to_numpy(dtype=np.float64)
-            volumes = df["tick_volume"].to_numpy(dtype=np.float64) if "tick_volume" in df.columns else np.ones(len(closes)) * 1000.0
-
-            n_bars = len(closes)
-            tr1 = highs[1:] - lows[1:]
-            tr2 = np.abs(highs[1:] - closes[:-1])
-            tr3 = np.abs(lows[1:] - closes[:-1])
-            tr = np.maximum(tr1, np.maximum(tr2, tr3))
-            atr = np.zeros(n_bars)
-            atr[14] = np.mean(tr[:14])
-            for i in range(15, n_bars):
-                atr[i] = (atr[i - 1] * 13 + tr[i - 1]) / 14.0
-            curr_atr = atr[-1] if atr[-1] > 1e-4 else 1.0
-
-            def calc_ema(arr, period):
-                res = np.zeros(len(arr))
-                alpha = 2.0 / (period + 1.0)
-                res[period - 1] = np.mean(arr[:period])
-                for i in range(period, len(arr)):
-                    res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
-                return res
-
-            ema20 = calc_ema(closes, 20)[-1]
-            ema50 = calc_ema(closes, 50)[-1]
-            vol_ma20 = calc_ema(volumes, 20)[-1]
-
-            up_move = highs[1:] - highs[:-1]
-            down_move = lows[:-1] - lows[1:]
-            plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-            minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-            tr_smooth = np.zeros(n_bars)
-            p_dm_smooth = np.zeros(n_bars)
-            m_dm_smooth = np.zeros(n_bars)
-            tr_smooth[14] = np.sum(tr[:14])
-            p_dm_smooth[14] = np.sum(plus_dm[:14])
-            m_dm_smooth[14] = np.sum(minus_dm[:14])
-            for idx in range(15, n_bars):
-                tr_smooth[idx] = tr_smooth[idx - 1] - (tr_smooth[idx - 1] / 14.0) + tr[idx - 1]
-                p_dm_smooth[idx] = p_dm_smooth[idx - 1] - (p_dm_smooth[idx - 1] / 14.0) + plus_dm[idx - 1]
-                m_dm_smooth[idx] = m_dm_smooth[idx - 1] - (m_dm_smooth[idx - 1] / 14.0) + minus_dm[idx - 1]
-            safe_tr = np.where(tr_smooth > 1e-9, tr_smooth, 1e-9)
-            plus_di = 100.0 * (p_dm_smooth / safe_tr)
-            minus_di = 100.0 * (m_dm_smooth / safe_tr)
-            di_sum = plus_di + minus_di
-            safe_di_sum = np.where(di_sum > 1e-9, di_sum, 1e-9)
-            dx = 100.0 * np.abs(plus_di - minus_di) / safe_di_sum
-            adx14 = np.zeros(n_bars)
-            if n_bars >= 28:
-                adx14[27] = np.mean(dx[14:28])
-                for idx in range(28, n_bars):
-                    adx14[idx] = (adx14[idx - 1] * 13.0 + dx[idx]) / 14.0
-            curr_adx = float(adx14[-1])
-
-            log_hl = np.log(highs[-14:] / np.maximum(lows[-14:], 1e-9))
-            log_co = np.log(closes[-14:] / np.maximum(opens[-14:], 1e-9))
-            gk_bar = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
-            gk_vol = float(np.sqrt(max(0.0, np.mean(gk_bar))) * 1000.0)
-
-            p_diff = np.diff(closes[-11:])
-            s_vol = np.where(p_diff > 0, volumes[-10:], np.where(p_diff < 0, -volumes[-10:], 0.0))
-            cvd_proxy = float(np.sum(s_vol) / max(1.0, np.sum(volumes[-10:])))
-
-            w_len = min(96, n_bars)
-            pv_sub = closes[-w_len:] * volumes[-w_len:]
-            vwap = np.sum(pv_sub) / max(1.0, np.sum(volumes[-w_len:]))
-            vwap_z = float((closes[-1] - vwap) / curr_atr)
-
-            look_sr = min(30, n_bars - 1)
-            high_30 = float(np.max(highs[-look_sr - 1 : -1]))
-            low_30 = float(np.min(lows[-look_sr - 1 : -1]))
-            is_buy = 1 if signal == "BUY" else 0
-            if is_buy:
-                headroom = float((high_30 - closes[-1]) / curr_atr)
-                c_rng = max(1e-4, highs[-1] - lows[-1])
-                wick_ratio = float((highs[-1] - max(closes[-1], opens[-1])) / c_rng)
-            else:
-                headroom = float((closes[-1] - low_30) / curr_atr)
-                c_rng = max(1e-4, highs[-1] - lows[-1])
-                wick_ratio = float((min(closes[-1], opens[-1]) - lows[-1]) / c_rng)
-
-            vol_ratio = float(volumes[-1] / max(1.0, vol_ma20))
-            ema_spread = float(abs(ema20 - ema50) / curr_atr)
-
-            last_time = df["time"].iloc[-1] if "time" in df.columns else datetime.now(timezone.utc)
-            hour_val = int(getattr(last_time, "hour", 12))
-            dow_val = int(getattr(last_time, "weekday", lambda: 2)()) if callable(getattr(last_time, "weekday", None)) else int(getattr(last_time, "dayofweek", 2))
-
-            feat_dict = {
-                "is_buy": is_buy,
-                "vol_ratio": round(vol_ratio, 3),
-                "adx": round(curr_adx, 2),
-                "gk_vol": round(gk_vol, 4),
-                "cvd_proxy": round(cvd_proxy, 3),
-                "vwap_zscore": round(vwap_z, 3),
-                "ema_spread": round(ema_spread, 3),
-                "headroom": round(headroom, 3),
-                "wick_ratio": round(wick_ratio, 3),
-                "hour": hour_val,
-                "dow": dow_val,
-            }
-
+            from backend.core.meta_features import build_meta_features
+            feat_dict=build_meta_features(rates,signal)
+            if set(feature_cols)!=set(feat_dict):
+                return False,0.0,"Model feature schema mismatch"
             feat_vector = np.array([[feat_dict.get(c, 0.0) for c in feature_cols]], dtype=np.float64)
+            if not np.isfinite(feat_vector).all():
+                return False, 0.0, "Non-finite ML features"
             pred_prob = float(booster.predict(feat_vector)[0])
+            if not math.isfinite(pred_prob) or not 0 <= pred_prob <= 1:
+                return False, 0.0, "Invalid model prediction"
 
             if pred_prob >= threshold:
                 return True, pred_prob, f"ML Meta Pass: {model_filename} (P={pred_prob*100:.1f}% >= {threshold*100:.0f}%)"
@@ -411,9 +332,9 @@ class DecisionGate:
 
         except Exception as e:
             logger.error(f"[DecisionGate] Error computing ML features: {e}")
-            return True, 1.0, f"ML Evaluation Error (Bypassed: {e})"
+            return False, 0.0, f"ML Evaluation Error (Blocked: {e})"
 
-    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
+    def _evaluate_technical(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
         """
 
         Diem vao chinh: kiem duyet tin hieu tu Strategy.
@@ -791,6 +712,10 @@ class DecisionGate:
                         reason += f" [{ml_msg}]"
             except Exception as e:
                 logger.warning(f"[DecisionGate] Error checking ML Meta-Labeling: {e}")
+                decision = 'WAIT'
+                trade_mode = 'BLOCKED'
+                size_multiplier = 0.0
+                reason = f'ML evaluation unavailable: {e}'
 
         logger.info(
             f"[DecisionGate] {symbol}: GateMode=FULL, Strategy={signal_from_strategy}, "
@@ -811,3 +736,19 @@ class DecisionGate:
             "tp_limit_r": tp_limit_r,
             "be_trigger_r": be_trigger_r,
         }
+
+    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
+        strategy_id=strategy_id or '__unconfigured__'
+        aliases={'BYPASS':'FREE','TECH_ONLY':'TECHNICAL'}
+        mode=aliases.get(str(gate_mode).upper(),str(gate_mode).upper())
+        if mode not in ('FREE','TECHNICAL','TREND','FULL') or signal_from_strategy not in ('BUY','SELL'):
+            return {'decision':'WAIT','reason':'Invalid gate mode or signal','trade_mode':'BLOCKED','size_multiplier':0}
+        try:
+            result=self._evaluate_technical(symbol,signal_from_strategy,timeframe,mode,rates,strategy_id,**kwargs)
+            if result['decision'] in ('BUY','SELL') and mode in ('TECHNICAL','TREND'):
+                passed,prob,reason=self._evaluate_meta_labeling(symbol,result['decision'],strategy_id,rates,timeframe)
+                if not passed:
+                    result.update(decision='WAIT',reason=reason,trade_mode='BLOCKED',size_multiplier=0)
+            return result
+        except Exception as exc:
+            return {'decision':'WAIT','reason':f'Decision gate unavailable: {exc}','trade_mode':'BLOCKED','size_multiplier':0}

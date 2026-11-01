@@ -220,7 +220,7 @@ print(f"Harvested {len(raw_trades)} raw trades from Dynamic strategy.")
 time_str_to_idx = {t.strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(df["time"])}
 samples = []
 for tr in raw_trades:
-    entry_str = str(tr["entry_time"])
+    entry_str = str(tr.get("signal_time",tr["entry_time"]))
     idx = time_str_to_idx.get(entry_str)
     if idx is None:
         continue
@@ -267,6 +267,16 @@ for tr in raw_trades:
         "dow": dow,
         "lot_size": tr["volume"],
     })
+
+from backend.core.meta_features import build_meta_features
+trades_by_time={str(t["entry_time"]):t for t in raw_trades}
+for sample in samples:
+    trade=trades_by_time[str(sample["entry_time"])]
+    feature_time=str(trade.get('signal_time',trade['entry_time']))
+    feature_idx=time_str_to_idx.get(feature_time)
+    if feature_idx is None:
+        raise ValueError('Missing signal timestamp for feature extraction')
+    sample.update(build_meta_features(df.iloc[max(0,feature_idx-299):feature_idx+1],trade['side']))
 
 dataset_df = pd.DataFrame(samples)
 print(f"Constructed clean feature dataset with {len(dataset_df)} labeled samples.")

@@ -1,3 +1,4 @@
+import time
 # -*- coding: utf-8 -*-
 """
 Unit tests for MacroContextBus, Multi-Asset Adapters, and System Risk Gate.
@@ -84,7 +85,11 @@ def test_macro_context_bus_manual_override_and_pre_trade_gate():
     prof = bus.get_profile("EURUSD")
     # Simulate news blackout
     prof.news_blackout = True
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
     prof.next_event_title = "ECB Rate Decision"
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
 
     # 1. Without override -> BLOCKED
     cleared, status, msg = bus.check_pre_trade_news_compliance("EURUSD")
@@ -107,6 +112,8 @@ def test_macro_context_bus_force_defense_trigger():
     """Verifies that trigger_force_defense executes immediately without waiting for T-15m."""
     bus = MacroContextBus.get_instance()
     with patch.object(bus._event_risk_engine, "evaluate_pre_news_defense", return_value=[{"action": "BE"}]) as mock_def:
+        from backend.core.trading_commands import TradingCommandService
+        TradingCommandService._runtime=MagicMock()
         results = bus.trigger_force_defense()
         assert len(results) == 1
         mock_def.assert_called_once()
@@ -137,12 +144,18 @@ def test_decision_gate_integrates_news_compliance():
         # 1. Clear news -> BUY approved
         prof = bus.get_profile("EURUSD")
         prof.news_blackout = False
+        prof.timestamp = time.time()
+        bus.set_profile(prof)
         res_ok = dg.evaluate("EURUSD", "BUY", gate_mode="FULL")
         assert res_ok["decision"] == "BUY"
 
         # 2. Red event blackout without override -> Blocked with WAIT
         prof.news_blackout = True
+        prof.timestamp = time.time()
+        bus.set_profile(prof)
         prof.next_event_title = "ECB Rate Decision"
+        prof.timestamp = time.time()
+        bus.set_profile(prof)
         res_blocked = dg.evaluate("EURUSD", "BUY", gate_mode="FULL")
         assert res_blocked["decision"] == "WAIT"
         assert "NewsDefenseGate" in res_blocked["reason"]
@@ -155,6 +168,8 @@ def test_decision_gate_integrates_news_compliance():
         # Cleanup
         bus.set_manual_override(False)
         prof.news_blackout = False
+        prof.timestamp = time.time()
+        bus.set_profile(prof)
 
 
 def test_watchlist_5th_column_macro_badge():
@@ -180,3 +195,10 @@ def test_watchlist_5th_column_macro_badge():
     assert item is not None
     badge_text = item.text(4)
     assert badge_text in ["BULL", "BEAR", "NEUT", "LOCK", "OVRD"] or badge_text.startswith("T-")
+
+@pytest.fixture(autouse=True)
+def seed_news_context():
+    from backend.core.macro_context_bus import SymbolMacroProfile
+    bus=MacroContextBus.get_instance()
+    for symbol in ('XAUUSD','EURUSD'):
+        bus.set_profile(SymbolMacroProfile(symbol=symbol,asset_class=__import__("backend.infrastructure.data_providers.asset_registry",fromlist=["AssetRegistry"]).AssetRegistry.identify(symbol).value))

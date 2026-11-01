@@ -147,7 +147,7 @@ def main():
     )
     parser.add_argument("--config", "-c", type=str, help="Path to JSON configuration file (e.g. config/vps_profile.json)")
     parser.add_argument("--symbols", "-s", type=str, help="Comma-separated symbols (e.g. XAUUSD,BTCUSD,EURUSD)")
-    parser.add_argument("--timeframe", "-tf", type=str, default="15", help="Timeframe (e.g. 15, M15, H1, D1)")
+    parser.add_argument("--timeframe", "-tf", type=str, default=None, help="Timeframe (e.g. 15, M15, H1, D1)")
     parser.add_argument("--strategy", type=str, help="Strategy ID (e.g. builtin_ict_pro)")
     parser.add_argument("--trade-mode", "-m", type=str, choices=["AUTO", "LONG_ONLY", "SHORT_ONLY"], help="Trade Directional Mode")
     parser.add_argument("--gate-mode", "-g", type=str, choices=["FULL", "TECH_ONLY", "BYPASS"], help="Decision Gate Mode")

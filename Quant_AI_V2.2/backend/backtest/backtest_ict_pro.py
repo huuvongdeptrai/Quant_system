@@ -50,6 +50,7 @@ class EventDrivenBacktester:
         commission_per_lot: float = 7.0,
         slippage_pts: float = 20.0,
         max_lot_cap: float = 10.0,
+        max_holding_bars: Optional[int] = 20,
     ):
         self.strategy = strategy
         self.initial_balance = initial_balance
@@ -57,6 +58,7 @@ class EventDrivenBacktester:
         self.commission_per_lot = commission_per_lot
         self.slippage_pts = slippage_pts
         self.max_lot_cap = max_lot_cap
+        self.max_holding_bars = max_holding_bars
 
     def _resolve_strategy(self, strategy_config: Optional[Dict[str, Any]] = None):
         if self.strategy is not None and not isinstance(self.strategy, str):
@@ -93,6 +95,9 @@ class EventDrivenBacktester:
         symbol: str = "XAUUSD",
         strategy_config: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        signal_filter: Optional[Callable] = None,
+        trading_start=None,
+        trading_end=None,
     ) -> BacktestReport:
         start_time = time.perf_counter()
 
@@ -129,144 +134,87 @@ class EventDrivenBacktester:
         n = len(df)
         start_scan = max(100, min(200, n // 3))
 
-        for i in range(start_scan, n):
-            if progress_callback and (i % 10 == 0 or i == n - 1):
-                progress_callback(i - start_scan + 1, n - start_scan)
-            row = df.iloc[i]
-            c = float(row["close"])
-            h = float(row["high"])
-            l = float(row["low"])
-            o = float(row["open"]) if "open" in df.columns else c
-            row_time = row["time"] if "time" in df.columns else i
-
-            exit_occurred = False
-            exit_outcome = ""
-            exit_price = 0.0
-            actual_pnl = 0.0
-
-            # A. Quản lý lệnh đang mở (Khớp lệnh chuẩn nến và trừ phí ma sát thực tế)
+        equity_times=[df['time'].iloc[start_scan-1] if 'time' in df else start_scan-1]
+        entry_bar=-1
+        signal_time=None
+        commission_total=0.0
+        for i in range(start_scan,n):
+            if progress_callback and (i%10==0 or i==n-1):
+                progress_callback(i-start_scan+1,n-start_scan)
+            row=df.iloc[i]
+            c,h,l=float(row['close']),float(row['high']),float(row['low'])
+            o=float(row.get('open',c))
+            row_time=row.get('time',i)
+            # Signals only see completed bars. Their earliest possible fill is this open.
+            can_enter=(trading_start is None or row_time>=pd.Timestamp(trading_start)) and (
+                trading_end is None or row_time<pd.Timestamp(trading_end))
+            if not in_pos and i<n-1 and balance>0 and can_enter:
+                window=df.iloc[max(0,i-250):i].reset_index(drop=True)
+                res=strat.analyze(window,macro_context={})
+                sig=res.get('signal','HOLD')
+                if sig in ('BUY','SELL') and signal_filter is not None:
+                    feature_window=df.iloc[max(0,i-300):i].reset_index(drop=True)
+                    if not signal_filter(feature_window,res):
+                        sig='HOLD'
+                if last_exit_outcome=='SL' and sig==last_exit_side and i-last_exit_bar<5:
+                    sig='HOLD'
+                sl,tp=res.get('sl'),res.get('tp1') or res.get('tp')
+                if sig in ('BUY','SELL') and sl is not None and tp is not None:
+                    direction=1 if sig=='BUY' else -1
+                    candidate=o+direction*slippage_cost_per_point
+                    sl,tp=float(sl),float(tp)
+                    valid=(sl<candidate<tp) if direction==1 else (tp<candidate<sl)
+                    dist=abs(candidate-sl)
+                    if valid and np.isfinite([candidate,sl,tp]).all() and dist>0:
+                        budget=balance*self.risk_per_trade_pct/100
+                        loss_one=dist*mult+self.commission_per_lot+slippage_cost_per_point*mult
+                        raw=min(budget/loss_one,self.max_lot_cap)
+                        lot_size=np.floor((raw+1e-12)/0.01)*0.01
+                        if lot_size>=0.01:
+                            in_pos=True
+                            pos_type=direction
+                            entry_p,sl_p,tp_p=candidate,sl,tp
+                            entry_time=row_time
+                            signal_time=window['time'].iloc[-1] if 'time' in window else i-1
+                            entry_bar=i
             if in_pos:
-                friction = (self.commission_per_lot * lot_size) + (
-                    slippage_cost_per_point * mult * lot_size
-                )
-
-                if pos_type == 1:  # BUY POSITION
-                    hit_sl = l <= sl_p
-                    hit_tp = h >= tp_p
-
-                    if hit_sl and hit_tp:
-                        # Nến quét 2 đầu (Intra-bar Collision):
-                        # Chuẩn mực định lượng bảo thủ (Pessimistic Execution Rule - Robert Pardo / QuantConnect LEAN):
-                        # Khi không có dữ liệu tick/M1 để xác định thứ tự thời gian nội nến,
-                        # bắt buộc phải giả định dính Stop Loss trước để triệt tiêu thiên kiến thắng ảo (Phantom Profits).
-                        exit_outcome = "SL"
-                        exit_price = sl_p
-                        actual_pnl = -(entry_p - sl_p) * lot_size * mult - friction
-                        exit_occurred = True
-                    elif hit_sl:
-                        exit_outcome = "SL"
-                        exit_price = sl_p
-                        actual_pnl = -(entry_p - sl_p) * lot_size * mult - friction
-                        exit_occurred = True
-                    elif hit_tp:
-                        exit_outcome = "TP"
-                        exit_price = tp_p
-                        actual_pnl = (tp_p - entry_p) * lot_size * mult - friction
-                        exit_occurred = True
-
-                elif pos_type == -1:  # SELL POSITION
-                    hit_sl = h >= sl_p
-                    hit_tp = l <= tp_p
-
-                    if hit_sl and hit_tp:
-                        # Nến quét 2 đầu (Intra-bar Collision):
-                        # Chuẩn mực định lượng bảo thủ (Pessimistic Execution Rule - Robert Pardo / QuantConnect LEAN):
-                        # Bắt buộc phải giả định dính Stop Loss trước để triệt tiêu thiên kiến thắng ảo.
-                        exit_outcome = "SL"
-                        exit_price = sl_p
-                        actual_pnl = -(sl_p - entry_p) * lot_size * mult - friction
-                        exit_occurred = True
-                    elif hit_sl:
-                        exit_outcome = "SL"
-                        exit_price = sl_p
-                        actual_pnl = -(sl_p - entry_p) * lot_size * mult - friction
-                        exit_occurred = True
-                    elif hit_tp:
-                        exit_outcome = "TP"
-                        exit_price = tp_p
-                        actual_pnl = (entry_p - tp_p) * lot_size * mult - friction
-                        exit_occurred = True
-
-                if exit_occurred:
+                hit_sl=l<=sl_p if pos_type==1 else h>=sl_p
+                hit_tp=h>=tp_p if pos_type==1 else l<=tp_p
+                outcome=None
+                if hit_sl:
+                    outcome='SL'
+                    exit_price=min(o,sl_p) if pos_type==1 else max(o,sl_p)
+                elif hit_tp:
+                    outcome='TP'
+                    exit_price=tp_p
+                elif self.max_holding_bars is not None and i-entry_bar+1>=self.max_holding_bars:
+                    outcome='TIME'
+                    exit_price=c
+                elif i==n-1:
+                    outcome='END_OF_DATA'
+                    exit_price=c
+                if outcome:
+                    exit_price-=pos_type*slippage_cost_per_point
+                    commission=self.commission_per_lot*lot_size+float(getattr(self,"flat_commission",0))
+                    actual_pnl=pos_type*(exit_price-entry_p)*lot_size*mult-commission
+                    balance+=actual_pnl
+                    commission_total+=commission
                     trades_pnl.append(actual_pnl)
-                    balance += actual_pnl
-                    total_commission_paid += friction
-                    def _fmt_ts(val):
-                        if hasattr(val, "strftime"):
-                            return val.strftime("%Y-%m-%d %H:%M")
-                        return str(val) if val is not None else ""
-
-                    trade_records.append({
-                        "trade_id": len(trade_records) + 1,
-                        "side": "BUY" if pos_type == 1 else "SELL",
-                        "entry": round(entry_p, 2),
-                        "exit": round(exit_price, 2),
-                        "sl": round(sl_p, 2),
-                        "tp": round(tp_p, 2),
-                        "outcome": exit_outcome,
-                        "pnl": round(actual_pnl, 2),
-                        "volume": round(lot_size, 2),
-                        "symbol": symbol,
-                        "entry_time": _fmt_ts(entry_time),
-                        "exit_time": _fmt_ts(row_time),
-                    })
-                    in_pos = False
-                    last_exit_bar = i
-                    last_exit_side = "BUY" if pos_type == 1 else "SELL"
-                    last_exit_outcome = exit_outcome
-
-            # B. Quét tín hiệu mới từ chiến lược (Chỉ quét khi chưa có vị thế và không mở trên cùng cây nến vừa đóng)
-            if not in_pos and not exit_occurred and i < n - 3:
-                window_df = df.iloc[max(0, i - 250) : i + 1].reset_index(drop=True)
-                res = strat.analyze(window_df, macro_context={})
-                sig = res.get("signal") if hasattr(res, "get") else getattr(res, "signal", "HOLD")
-
-                # Chốt chặn không nhồi lệnh cùng chiều khi vừa bị dính SL (Post-Stopout Cooldown)
-                if last_exit_outcome == "SL" and sig == last_exit_side and (i - last_exit_bar) < 5:
-                    sig = "HOLD"
-
-                cand_sl = res.get("sl") if hasattr(res, "get") else getattr(res, "sl", None)
-                cand_tp = res.get("tp1") if hasattr(res, "get") else getattr(res, "tp1", None)
-                if cand_tp is None:
-                    cand_tp = res.get("tp") if hasattr(res, "get") else getattr(res, "tp", None)
-                cand_entry = res.get("entry_price") if hasattr(res, "get") else getattr(res, "entry_price", c)
-
-                if (
-                    sig in ["BUY", "SELL"]
-                    and cand_sl is not None
-                    and cand_tp is not None
-                ):
-                    candidate_entry = float(cand_entry)
-                    candidate_sl = float(cand_sl)
-                    candidate_tp = float(cand_tp)
-                    sl_dist = abs(candidate_entry - candidate_sl)
-
-                    # Ngưỡng chặn SL Floor tối thiểu để bảo vệ rủi ro vi cấu trúc
-                    min_sl_floor = 0.50 if mult == 100.0 else (5.0 * point)
-                    if sl_dist >= min_sl_floor:
-                        in_pos = True
-                        pos_type = 1 if sig == "BUY" else -1
-                        entry_p = candidate_entry
-                        sl_p = candidate_sl
-                        tp_p = candidate_tp
-                        entry_time = row_time
-
-                        # Định cỡ vị thế chuẩn Fixed Fractional Risk
-                        risk_amt = balance * (self.risk_per_trade_pct / 100.0)
-                        raw_lot = risk_amt / (sl_dist * mult)
-                        lot_size = max(0.01, min(round(raw_lot, 2), self.max_lot_cap))
-
-            equity_curve.append(balance)
+                    def fmt(v):
+                        return v.strftime('%Y-%m-%d %H:%M') if hasattr(v,'strftime') else str(v)
+                    trade_records.append(dict(trade_id=len(trade_records)+1,
+                        side='BUY' if pos_type==1 else 'SELL',entry=entry_p,exit=exit_price,
+                        sl=sl_p,tp=tp_p,outcome=outcome,pnl=actual_pnl,volume=lot_size,symbol=symbol,
+                        signal_time=fmt(signal_time),entry_time=fmt(entry_time),exit_time=fmt(row_time),
+                        holding_bars=i-entry_bar+1))
+                    in_pos=False
+                    last_exit_bar,last_exit_side,last_exit_outcome=i,'BUY' if pos_type==1 else 'SELL',outcome
+            mtm=balance
+            if in_pos:
+                mtm+=pos_type*(c-pos_type*slippage_cost_per_point-entry_p)*lot_size*mult-self.commission_per_lot*lot_size
+            equity_curve.append(mtm)
+            equity_times.append(row_time)
+        total_commission_paid=commission_total
 
         exec_ms = (time.perf_counter() - start_time) * 1000.0
 
@@ -296,6 +244,7 @@ class EventDrivenBacktester:
                 execution_time_ms=exec_ms,
                 total_commission_paid=0.0,
                 equity_curve=equity_curve,
+                equity_times=equity_times,
                 trades=[],
                 trade_records=[],
             )
@@ -329,14 +278,16 @@ class EventDrivenBacktester:
         p_loss = loss_count / total_trades
         expectancy = (p_win * avg_w) - (p_loss * avg_l)
 
-        returns = trades_arr / self.initial_balance
-        mean_ret = float(np.mean(returns)) if len(returns) > 0 else 0.0
-        std_ret = float(np.std(returns)) if len(returns) > 0 else 1.0
-        sharpe = float((mean_ret / std_ret) * np.sqrt(252)) if std_ret > 0 else 0.0
-
-        downside = np.minimum(0.0, returns)
-        downside_dev = float(np.sqrt(np.mean(downside ** 2))) if len(downside) > 0 else 1.0
-        sortino = float((mean_ret / downside_dev) * np.sqrt(252)) if downside_dev > 0 else 0.0
+        # Annualization applies to daily account returns, not individual trade returns.
+        sharpe=sortino=0.0
+        if 'time' in df.columns:
+            series=pd.Series(equity_curve,index=pd.to_datetime(equity_times))
+            returns=series.resample('1D').last().ffill().pct_change().dropna().to_numpy()
+            if len(returns)>1:
+                std=float(np.std(returns,ddof=1))
+                downside=float(np.sqrt(np.mean(np.minimum(returns,0)**2)))
+                sharpe=float(np.mean(returns)/std*np.sqrt(252)) if std>0 else 0.0
+                sortino=float(np.mean(returns)/downside*np.sqrt(252)) if downside>0 else 0.0
 
         return BacktestReport(
             sample_size=n,
@@ -360,6 +311,7 @@ class EventDrivenBacktester:
             execution_time_ms=round(exec_ms, 2),
             total_commission_paid=round(total_commission_paid, 2),
             equity_curve=equity_curve,
+            equity_times=equity_times,
             trades=trades_pnl,
             trade_records=trade_records,
         )

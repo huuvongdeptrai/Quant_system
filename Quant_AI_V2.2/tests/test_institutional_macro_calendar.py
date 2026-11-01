@@ -73,10 +73,10 @@ def test_calendar_filtering_and_defense_desk(qapp):
 
     # Mock raw events
     mgr._raw_events = [
-        {"time": "20/10 19:30", "sort_key": 1792450000.0, "country": "US", "title": "Core CPI (MoM)", "impact": 2, "actual": "0.4%", "forecast": "0.3%", "previous": "0.2%"},
-        {"time": "20/10 20:00", "sort_key": 1792451800.0, "country": "EU", "title": "ECB President Lagarde Speech", "impact": 2, "actual": "None", "forecast": "None", "previous": "None"},
-        {"time": "20/10 21:00", "sort_key": 1792455400.0, "country": "US", "title": "Real Earnings", "impact": 1, "actual": "None", "forecast": "0.1%", "previous": "0.2%"},
-        {"time": "20/10 22:00", "sort_key": 1792459000.0, "country": "GB", "title": "BoE Tenreyro Speech", "impact": 0, "actual": "None", "forecast": "None", "previous": "None"},
+        {"time": "20/10 19:30", "sort_key": 1792495800.0, "country": "US", "title": "Core CPI (MoM)", "impact": 2, "actual": "0.4%", "forecast": "0.3%", "previous": "0.2%"},
+        {"time": "20/10 20:00", "sort_key": 1792497600.0, "country": "EU", "title": "ECB President Lagarde Speech", "impact": 2, "actual": "None", "forecast": "None", "previous": "None"},
+        {"time": "20/10 21:00", "sort_key": 1792501200.0, "country": "US", "title": "Real Earnings", "impact": 1, "actual": "None", "forecast": "0.1%", "previous": "0.2%"},
+        {"time": "20/10 22:00", "sort_key": 1792504800.0, "country": "GB", "title": "BoE Tenreyro Speech", "impact": 0, "actual": "None", "forecast": "None", "previous": "None"},
     ]
 
     # Test ALL filter

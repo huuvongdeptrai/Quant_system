@@ -2241,6 +2241,10 @@ def setup_chart_ui(window):
                 event_bus.log_event.emit("", "ERROR", f"Failed to modify #{ticket}: {res.get('msg', 'Error')}", "#ef4444")
             return
 
+        if getattr(window,'_signal_expiry_remaining',0) <= 0:
+            window.order_proposal_active=False
+            return
+
         entry_p = window.line_order_entry.value()
         sl_p = window.line_order_sl.value()
         tp_p = window.line_order_tp.value()
@@ -2304,7 +2308,10 @@ def setup_chart_ui(window):
                 volume=lot_size,
                 sl_price=sl_p,
                 tp_price=tp_p,
-                comment="ICT_Strategy"
+                comment="ICT_Strategy",
+                approval=True,
+                strategy_id=getattr(window,"active_strategy_id",None),
+                signal_key=getattr(window,"_active_proposal_sig",None)
             )
 
         from backend.core.event_bus import event_bus

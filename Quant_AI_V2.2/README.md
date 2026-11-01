@@ -1,3 +1,5 @@
+> Bản sửa lần 2, 01/11/2026: đọc [ROUND2_REPAIR_REPORT_VI.md](ROUND2_REPAIR_REPORT_VI.md) và verification_round2/summary.json trước khi dùng. Model cũ vẫn chờ retrain bằng OHLC gốc.
+
 # VECTRA - Hệ Thống Phân Tích & Giao Dịch Định Lượng (Institutional Terminal)
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)

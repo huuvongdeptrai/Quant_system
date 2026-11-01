@@ -80,8 +80,7 @@ class DataPreprocessor:
         cum_pv = (typical_price * vol).cumsum()
         vwap_series = cum_pv / safe_cum_vol
 
-        diff = typical_price - vwap_series
-        var = (vol * (diff ** 2)).cumsum() / safe_cum_vol
+        var = (vol * typical_price.pow(2)).cumsum() / safe_cum_vol - vwap_series.pow(2)
         std_vwap = np.sqrt(np.maximum(0.0, var))
 
         last_vwap = float(vwap_series.iloc[-1])
@@ -251,10 +250,7 @@ class DataPreprocessor:
         if "time" in df.columns:
             df["time"] = pd.to_datetime(df["time"], unit="s")
             try:
-                broker_tz = pytz.timezone(broker_timezone)
-                df["time"] = (
-                    df["time"].dt.tz_localize(broker_tz).dt.tz_convert(pytz.UTC)
-                )
+                df["time"] = df["time"].dt.tz_localize(pytz.UTC)
                 current_time_utc = df.iloc[-1]["time"].strftime("%Y-%m-%d %H:%M:%S UTC")
             except Exception:
                 current_time_utc = "Không xác định"
@@ -335,7 +331,10 @@ class DataPreprocessor:
         gk_vol = self._calculate_garman_klass_vol(df, window=14)
 
         # b) Session VWAP & Bands
-        vwap_data = self._calculate_session_vwap(df)
+        session_df=df
+        if "time" in df.columns:
+            session_df=df[df['time'].dt.date==df['time'].iloc[-1].date()]
+        vwap_data = self._calculate_session_vwap(session_df)
 
         # c) Volume Profile & Point of Control (POC)
         vp_data = self._calculate_volume_profile(df, n_bars=100, n_bins=25)

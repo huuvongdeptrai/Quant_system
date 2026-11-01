@@ -1,6 +1,6 @@
 from backend.infrastructure.brokers.mt5_safe import mt5
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 
 
@@ -22,8 +22,8 @@ class StatsEngine:
         from datetime import timedelta
 
         # Lấy lịch sử (giới hạn 365 ngày gần nhất để tránh timeout)
-        date_from = datetime.now() - timedelta(days=365)
-        date_to = datetime.now() + timedelta(days=1)
+        date_from = datetime.now(timezone.utc) - timedelta(days=365)
+        date_to = datetime.now(timezone.utc) + timedelta(days=1)
 
         deals = mt5.history_deals_get(date_from, date_to)
 
@@ -32,27 +32,36 @@ class StatsEngine:
 
         # Lọc các deal Đóng Lệnh (Entry Out)
         # Bỏ qua các deal Nạp/Rút tiền (Balance) hoặc Mở lệnh (Entry In)
-        trades = []
-        for d in deals:
-            # deal.entry == 1 (DEAL_ENTRY_OUT)
-            if d.entry == 1:
-                trades.append(
-                    {
-                        "time": d.time,
-                        "symbol": d.symbol,
-                        "volume": d.volume,
-                        "profit": d.profit,
-                        "commission": d.commission,
-                        "swap": d.swap,
-                        "total_pnl": d.profit + d.commission + d.swap,
-                    }
-                )
+        live=mt5.positions_get()
+        if live is None:
+            return None
+        active={getattr(p,'identifier',p.ticket) for p in live}
+        positions={d.position_id for d in deals if d.entry in (1,3)}-active
+        trades=[]
+        for pid in positions:
+            history=mt5.history_deals_get(position=pid)
+            if not history:
+                continue
+            exits=[d for d in history if d.entry in (1,3)]
+            if not exits:
+                continue
+            last=max(exits,key=lambda d:d.time)
+            trades.append(dict(time=last.time,symbol=last.symbol,
+                volume=sum(float(d.volume) for d in history if d.entry==0),
+                profit=sum(d.profit for d in history),commission=sum(d.commission for d in history),
+                swap=sum(d.swap for d in history),
+                total_pnl=sum(float(getattr(d,k,0) or 0) for d in history for k in ('profit','commission','swap','fee'))))
 
         if not trades:
             try:
                 import time
                 from backend.database.db_manager import DatabaseManager
-                db_trades = DatabaseManager().get_closed_trades()
+                db=DatabaseManager()
+                account=mt5.account_info()
+                if account is None:
+                    return self._empty_stats()
+                db.bind_account(account.login,account.server)
+                db_trades = db.get_closed_trades()
                 if db_trades:
                     for dt in db_trades:
                         trades.append({
@@ -115,12 +124,43 @@ class StatsEngine:
 
         from datetime import timedelta
 
-        date_from = datetime.now() - timedelta(days=365)
-        date_to = datetime.now() + timedelta(days=1)
+        date_from = datetime.now(timezone.utc) - timedelta(days=365)
+        date_to = datetime.now(timezone.utc) + timedelta(days=1)
         deals = mt5.history_deals_get(date_from, date_to)
         if not deals:
             return []
 
+        live=mt5.positions_get()
+        if live is None:
+            return []
+        active={getattr(p,'identifier',p.ticket) for p in live}
+        grouped={}
+        for d in deals:
+            if d.position_id not in active:
+                grouped.setdefault(d.position_id,[]).append(d)
+        complete=[]
+        for pid,group in grouped.items():
+            history=mt5.history_deals_get(position=pid)
+            if history:
+                group=list(history)
+            ins=[d for d in group if d.entry==0]
+            outs=[d for d in group if d.entry in (1,3)]
+            if not ins or not outs:
+                continue
+            from types import SimpleNamespace
+            first=min(ins,key=lambda d:d.time)
+            last=max(outs,key=lambda d:d.time)
+            entry=SimpleNamespace(**first._asdict()) if hasattr(first,'_asdict') else SimpleNamespace(**vars(first))
+            entry.price=sum(d.price*d.volume for d in ins)/sum(d.volume for d in ins)
+            exit_data=last._asdict() if hasattr(last,'_asdict') else vars(last)
+            out=SimpleNamespace(**exit_data)
+            out.profit=sum(float(getattr(d,k,0) or 0) for d in group for k in ('profit','commission','swap','fee'))
+            out.commission=out.swap=0.0
+            out.volume=sum(d.volume for d in outs)
+            out.price=sum(d.price*d.volume for d in outs)/sum(d.volume for d in outs)
+            out.entry=1
+            complete.extend([entry,out])
+        deals=complete
         entries = {}
         trades = []
         for d in deals:
@@ -172,20 +212,26 @@ class StatsEngine:
         try:
             import time
             from backend.database.db_manager import DatabaseManager
-            db_trades = DatabaseManager().get_closed_trades()
+            db=DatabaseManager()
+            account=mt5.account_info()
+            if account is None:
+                return trades
+            db.bind_account(account.login,account.server)
+            db_trades = db.get_closed_trades()
             if db_trades:
                 existing_tickets = {t["ticket"] for t in trades}
                 for dt in db_trades:
-                    t_num = dt.get("ticket", 0)
+                    t_num = dt.get("position_id") or dt.get("ticket", 0)
                     if t_num not in existing_tickets:
+                        existing_tickets.add(t_num)
                         c_time_str = dt.get("close_time", "")
                         try:
-                            ts = int(datetime.strptime(c_time_str, "%Y-%m-%d %H:%M:%S").timestamp()) if c_time_str else int(time.time())
+                            ts = int(datetime.fromisoformat(c_time_str).replace(tzinfo=timezone.utc).timestamp()) if c_time_str else int(time.time())
                         except Exception:
                             ts = int(time.time())
                         trades.append({
                             "ticket": t_num,
-                            "type": dt.get("side", "Buy").capitalize(),
+                            "type": dt.get("order_type", "BUY").capitalize(),
                             "close_time": c_time_str,
                             "volume": dt.get("volume", 0.0),
                             "symbol": dt.get("symbol", "XAUUSD"),

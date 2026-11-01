@@ -8,6 +8,7 @@ Provides:
 3. Semi-auto human-in-the-loop control flags: manual_override_lock & force_defense_active.
 4. Autonomous In-Trade Position Defense triggering at T-15m before High-Impact events.
 """
+import copy
 import time
 import threading
 from dataclasses import dataclass, field
@@ -71,6 +72,11 @@ class MacroContextBus:
     # ---------------------------------------------------------
     # Semi-Auto Human-In-The-Loop Controls
     # ---------------------------------------------------------
+    def set_profile(self,profile):
+        """Publish a complete profile atomically; readers receive independent snapshots."""
+        with self._data_lock:
+            self._profiles[profile.symbol]=copy.deepcopy(profile)
+
     def set_manual_override(self, enabled: bool) -> None:
         """Sets user manual override flag to bypass news blackout lockouts."""
         with self._data_lock:
@@ -90,6 +96,11 @@ class MacroContextBus:
         with self._data_lock:
             self._force_defense_active = True
         try:
+            from backend.core.trading_commands import TradingCommandService
+            runtime=TradingCommandService._runtime
+            if runtime is None:
+                return []
+            self._event_risk_engine.exec_mgr=runtime.exec_mgr
             results = self._event_risk_engine.evaluate_pre_news_defense()
             return results
         except Exception as e:
@@ -267,8 +278,11 @@ class MacroContextBus:
         clean_sym = symbol.upper().split(".")[0].replace("/", "").strip()
         with self._data_lock:
             prof = self._profiles.get(clean_sym)
-            if prof is not None:
-                return prof
+            if prof is not None and time.time()-prof.timestamp <= self._cycle_interval_sec:
+                return copy.deepcopy(prof)
+        if prof is not None:
+            self._trigger_async_refresh(clean_sym)
+            return copy.deepcopy(prof)
 
         if sync_fallback:
             prof = self.refresh_symbol_profile(clean_sym)
@@ -294,7 +308,7 @@ class MacroContextBus:
             seconds_to_event=999999.0,
             manual_override_lock=self._manual_override_lock,
             force_defense_active=self._force_defense_active,
-            timestamp=time.time(),
+            timestamp=0.0,
         )
         self._update_badge(default_prof)
         with self._data_lock:
@@ -309,6 +323,8 @@ class MacroContextBus:
         Returns: (is_passed: bool, status_val: 'PASS' | 'BLOCKED' | 'OVERRIDE', message: str)
         """
         prof = self.get_profile(symbol)
+        if time.time()-prof.timestamp > 120:
+            return False, "BLOCKED", "News context unavailable or stale"
         if not prof.news_blackout:
             return True, "PASS", "News Defense: Clear (No blackout)"
 

@@ -5,6 +5,7 @@ Provides strict validation, immutable dataclasses, and fail-safe defaults
 to decouple the execution engine completely from PyQt GUI widgets.
 """
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple, List, Optional, Any, Dict
@@ -106,7 +107,7 @@ class GateMode(str, Enum):
         s = str(val or "").strip().upper()
         if "TECH" in s:
             return cls.TECH_ONLY
-        if "BYPASS" in s or "RAW" in s:
+        if "BYPASS" in s or "RAW" in s or s == "FREE":
             return cls.BYPASS
         return cls.FULL
 
@@ -150,6 +151,16 @@ class BotRunConfig:
     # Session Controls
     allowed_sessions: Tuple[str, ...] = ("ASIAN", "LONDON", "NY")
 
+    def __post_init__(self):
+        if not math.isfinite(self.risk_per_trade) or not 0 < self.risk_per_trade <= 100:
+            raise ValueError('risk_per_trade must be finite and in (0,100]')
+        for name in ('max_daily_loss','max_drawdown','max_losing_streak','max_spread','slippage',
+                     'trailing_pips','breakeven_pips','news_pause_mins','defense_window_mins'):
+            if not math.isfinite(getattr(self,name)) or getattr(self,name)<0:
+                raise ValueError(f'{name} must be finite and nonnegative')
+        if self.max_open_trades < 1:
+            raise ValueError('max_open_trades must be positive')
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BotRunConfig":
         """Builds a validated BotRunConfig from arbitrary dictionary with fallback defaults."""
@@ -179,7 +190,8 @@ class BotRunConfig:
 
         def _to_float(v, default):
             try:
-                return float(v) if v is not None else default
+                result=float(v) if v is not None else default
+                return result if math.isfinite(result) else default
             except (ValueError, TypeError):
                 return default
 
@@ -189,10 +201,25 @@ class BotRunConfig:
             except (ValueError, TypeError):
                 return default
 
+        def _to_bool(value,default):
+            if value is None:
+                return default
+            if isinstance(value,str):
+                if value.strip().lower() in ('false','0','no','off'):
+                    return False
+                if value.strip().lower() in ('true','1','yes','on'):
+                    return True
+                return default
+            return bool(value)
+
         # Sessions
         raw_sessions = data.get("allowed_sessions")
-        if isinstance(raw_sessions, (list, tuple)) and raw_sessions:
+        if isinstance(raw_sessions, (list, tuple)):
             sessions_tuple = tuple(str(s).upper() for s in raw_sessions if str(s).strip())
+        elif any(k in data for k in ('session_asian','session_london','session_ny')):
+            sessions_tuple = tuple(name for name,key in (
+                ('ASIAN','session_asian'),('LONDON','session_london'),('NY','session_ny'))
+                if _to_bool(data.get(key),True))
         else:
             sessions_tuple = ("ASIAN", "LONDON", "NY")
 
@@ -211,13 +238,13 @@ class BotRunConfig:
             max_open_trades=_to_int(data.get("max_open_trades"), 5),
             max_spread=_to_int(data.get("max_spread"), 25),
             slippage=_to_int(data.get("slippage"), 20),
-            close_friday=bool(data.get("close_friday", True)),
+            close_friday=_to_bool(data.get("close_friday"), True),
             trailing_pips=_to_int(data.get("trailing_pips"), 0),
             breakeven_pips=_to_int(data.get("breakeven_pips"), 0),
-            enable_trailing_stop=bool(data.get("enable_trailing_stop", False)),
-            news_filter_enabled=bool(data.get("news_filter_enabled", True)),
+            enable_trailing_stop=_to_bool(data.get("enable_trailing_stop"), False),
+            news_filter_enabled=_to_bool(data.get("news_filter_enabled"), True),
             news_pause_mins=_to_int(data.get("news_pause_mins"), 30),
-            news_defense_enabled=bool(data.get("news_defense_enabled", True)),
+            news_defense_enabled=_to_bool(data.get("news_defense_enabled"), True),
             defense_window_mins=_to_int(data.get("defense_window_mins"), 15),
             news_defense_be_r=_to_float(data.get("news_defense_be_r"), 1.5),
             allowed_sessions=sessions_tuple,

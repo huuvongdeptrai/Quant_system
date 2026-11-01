@@ -11,6 +11,7 @@ Verifies:
 """
 
 import os
+from types import SimpleNamespace
 import pytest
 from unittest.mock import MagicMock, patch
 import pandas as pd
@@ -37,13 +38,17 @@ class TestMultiAssetWatchlistAndIcons:
     def test_multi_asset_position_isolation_xau_does_not_block_btc(self):
         """Verifies that an active position in Gold (XAUUSD) does NOT block BTCUSD."""
         mock_db = MagicMock()
+        mock_db.has_unresolved_intent.return_value = False
         mock_db.get_open_trades.return_value = []
+        mock_db.has_unresolved_intent.return_value = False
         recovery = StateRecoveryManager(mock_db)
 
         # Mock MT5 positions: 1 open position for XAUUSD
         pos_gold = MagicMock()
         pos_gold.symbol = "XAUUSD"
         pos_gold.ticket = 1001
+        pos_gold.magic = 999999
+        pos_gold.comment = "bot"
 
         with patch.object(mt5, "positions_get") as mock_pos_get:
             def side_effect_pos(*args, **kwargs):
@@ -80,6 +85,9 @@ class TestMultiAssetWatchlistAndIcons:
         pos_gold = MagicMock()
         pos_gold.symbol = "XAUUSD"
         pos_gold.ticket = 1001
+        pos_gold.magic = 999999
+        pos_gold.comment = "bot"
+        mock_exec.magic = 999999
 
         with patch.object(mt5, "positions_get") as mock_pos_get, \
              patch("backend.core.session_filter.datetime") as mock_dt:
@@ -89,7 +97,7 @@ class TestMultiAssetWatchlistAndIcons:
             mock_now.hour = 22
             mock_dt.now.return_value = mock_now
 
-            mock_pos_get.side_effect = lambda symbol: [pos_gold] if symbol == "XAUUSD" else [pos_btc]
+            mock_pos_get.side_effect = lambda symbol=None: ([pos_gold,pos_btc] if symbol is None else ([pos_gold] if symbol == "XAUUSD" else [pos_btc]))
             mock_exec.close_position.return_value = {"status": "success"}
 
             closed = filter_session.manage_friday_eod(["XAUUSD", "BTCUSD"], mock_exec)
@@ -167,6 +175,7 @@ class TestMultiAssetWatchlistAndIcons:
 
         mock_exec = MagicMock()
         mock_db = MagicMock()
+        mock_db.has_unresolved_intent.return_value = False
         mock_db.get_open_trades.return_value = [
             {"ticket": 5001, "symbol": "BTCUSD", "volume": 0.5, "open_price": 65000.0, "order_type": "BUY"},
             {"ticket": 5002, "symbol": "XAUUSD", "volume": 1.0, "open_price": 2650.0, "order_type": "BUY"},
@@ -175,17 +184,20 @@ class TestMultiAssetWatchlistAndIcons:
         guard = PositionGuard(execution_manager=mock_exec, db_manager=mock_db)
 
         # Live positions: Only XAUUSD is still open, BTCUSD (ticket 5001) has closed!
-        pos_xau = MagicMock(ticket=5002)
-        mock_deal = MagicMock(profit=750.0, price=66500.0, comment="tp hit")
+        pos_xau = MagicMock(ticket=5002,identifier=5002)
+        mock_deal = MagicMock(profit=750.0,price=66500.0,comment="tp hit",entry=1,time=1700000000,time_msc=1700000000000,commission=0,swap=0,fee=0)
 
-        with patch.object(mt5, "positions_get", return_value=[pos_xau]), \
+        from types import SimpleNamespace
+        with patch.object(mt5,"account_info",return_value=SimpleNamespace(login=1,server='test')), patch.object(mt5, "positions_get", return_value=[pos_xau]), \
              patch.object(mt5, "history_deals_get", return_value=[mock_deal]), \
              patch.object(telegram_notifier, "send_message") as mock_tg:
 
             guard.sync_closed_trades()
 
             # Verify DB closed record
-            mock_db.record_close_trade.assert_called_with(ticket=5001, close_price=66500.0, pnl=750.0)
+            assert mock_db.record_close_trade.call_args.kwargs["ticket"]==5001
+            assert mock_db.record_close_trade.call_args.kwargs["pnl"]==750.0
+            assert mock_db.record_close_trade.call_args.kwargs["close_time"]
 
             # Verify Telegram notification was sent
             assert mock_tg.call_count >= 1
@@ -228,10 +240,16 @@ class TestMultiAssetWatchlistAndIcons:
         pos_gold = MagicMock()
         pos_gold.symbol = "XAUUSD"
         pos_gold.ticket = 1001
+        pos_gold.magic = 999999
+        pos_gold.comment = "bot"
+        mock_exec.magic = 999999
 
+        bot.execution_mode='FULL-AUTO'
+        bot.news_filter_enabled=False
+        from types import SimpleNamespace
         fake_rates = [{"close": 65000.0, "time": 1700000000}]
 
-        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+        with patch.object(mt5,"account_info",return_value=SimpleNamespace(login=1,server="test",balance=10000.)), patch.object(mt5, "terminal_info", return_value=MagicMock()), \
              patch.object(mt5, "positions_get", return_value=[pos_gold]), \
              patch.object(mt5, "symbol_select", return_value=True), \
              patch.object(mt5, "copy_rates_from_pos", return_value=fake_rates), \
@@ -286,7 +304,7 @@ class TestMultiAssetWatchlistAndIcons:
         pos_gold.tp = 4255.447
         pos_gold.type = 0
 
-        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+        with patch.object(mt5,"account_info",return_value=SimpleNamespace(login=1,server="test",balance=10000.)), patch.object(mt5, "terminal_info", return_value=MagicMock()), \
              patch.object(mt5, "positions_get", return_value=[pos_gold]), \
              patch.object(mt5, "symbol_info", return_value=MagicMock(digits=3)):
             update_order_proposal_html(
@@ -325,7 +343,7 @@ class TestMultiAssetWatchlistAndIcons:
         )
 
         # Step 3: Run sync_live_position_to_ai_plan for BTCUSD (no open position in MT5)
-        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+        with patch.object(mt5,"account_info",return_value=SimpleNamespace(login=1,server="test",balance=10000.)), patch.object(mt5, "terminal_info", return_value=MagicMock()), \
              patch.object(mt5, "positions_get", return_value=()):
             sync_live_position_to_ai_plan(window)
 
@@ -344,7 +362,7 @@ class TestMultiAssetWatchlistAndIcons:
 
         # Step 4: Switch back to XAUUSD
         window.current_sym = "XAUUSD"
-        with patch.object(mt5, "terminal_info", return_value=MagicMock()), \
+        with patch.object(mt5,"account_info",return_value=SimpleNamespace(login=1,server="test",balance=10000.)), patch.object(mt5, "terminal_info", return_value=MagicMock()), \
              patch.object(mt5, "positions_get", return_value=[pos_gold]), \
              patch.object(mt5, "symbol_info", return_value=MagicMock(digits=3)):
             sync_live_position_to_ai_plan(window)

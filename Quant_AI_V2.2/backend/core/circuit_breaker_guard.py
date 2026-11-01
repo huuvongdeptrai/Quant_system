@@ -4,7 +4,7 @@ Monitors daily equity drawdown, dollar-denominated loss limits, and consecutive
 losing streaks to automatically freeze trading and prevent capital destruction.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional, Tuple
 from loguru import logger
 
@@ -44,6 +44,7 @@ class CircuitBreakerGuard:
         self.circuit_breaker_active = False
         self._circuit_breaker_alert_sent = False
         self.current_date = None
+        self._account_identity = None
 
     def _log(self, level: str, msg: str, color: str = "#8B949E") -> None:
         if self.log_callback:
@@ -58,40 +59,48 @@ class CircuitBreakerGuard:
 
     def check_losing_streak(self) -> Tuple[bool, int]:
         """Counts consecutive losing deals closed today from MT5 trade history."""
+        self.history_available = True
         if self.max_losing_streak <= 0:
             return False, 0
 
-        now = datetime.now()
-        t_from = datetime(now.year, now.month, now.day, 0, 0, 0)
+        now = datetime.now(timezone.utc)
+        t_from = datetime(now.year, now.month, now.day, 0, 0, 0,tzinfo=timezone.utc)
         t_to = now + timedelta(hours=2)
         deals = mt5.history_deals_get(t_from, t_to)
+        if deals is None:
+            self.history_available = False
+            return False, 0
         if not deals:
             return False, 0
 
         exit_deals = [d for d in deals if d.entry == 1]
-        # SC-02: Isolate bot losing streak from discretionary manual trades (magic=0 or comment containing 'manual')
-        if self.bot_magic is not None:
-            filtered_deals = []
-            for d in exit_deals:
-                d_magic = getattr(d, "magic", 0)
-                d_comment = str(getattr(d, "comment", "") or "").lower()
-                if "manual" in d_comment:
-                    continue
-                if isinstance(d_magic, (int, float)) and int(d_magic) != int(self.bot_magic):
-                    continue
-                filtered_deals.append(d)
-            exit_deals = filtered_deals
-
+        # Ownership is determined from entry deals, never from the user/broker closing action.
         if not exit_deals:
             return False, 0
 
-        exit_deals.sort(key=lambda x: x.time, reverse=True)
-        streak = 0
+        positions=mt5.positions_get()
+        if positions is None:
+            self.history_available = False
+            return False,0
+        active={getattr(p,'identifier',p.ticket) for p in positions}
+        grouped={}
         for d in exit_deals:
-            total_pnl = d.profit + d.commission + d.swap
-            if total_pnl < 0:
-                streak += 1
-            elif total_pnl > 0:
+            pid=d.position_id
+            if pid not in active:
+                grouped[pid]=max(grouped.get(pid,0),d.time)
+        streak=0
+        for pid,_ in sorted(grouped.items(),key=lambda x:x[1],reverse=True):
+            history=mt5.history_deals_get(position=pid)
+            if not history:
+                self.history_available = False
+                break
+            opening=[d for d in history if d.entry in (0,2)]
+            if self.bot_magic is not None and not any(getattr(d,'magic',0)==self.bot_magic for d in opening):
+                continue
+            total_pnl=sum(float(getattr(d,k,0) or 0) for d in history for k in ('profit','commission','swap','fee'))
+            if total_pnl<0:
+                streak+=1
+            elif total_pnl>0:
                 break
 
         self.current_losing_streak = streak
@@ -110,11 +119,21 @@ class CircuitBreakerGuard:
 
         account = mt5.account_info()
         if not account:
-            return self.circuit_breaker_active
+            return True
 
-        today = datetime.now().date()
+        self.db.bind_account(account.login, account.server)
+        today = datetime.now(timezone.utc).date()
         today_str = today.strftime("%Y-%m-%d")
         acct_login = str(getattr(account, "login", "") or "")
+        identity = (account.server, account.login)
+        if self._account_identity != identity:
+            # Database scope alone cannot reset a long-lived guard's cached equity/halt.
+            self._account_identity = identity
+            self.start_of_day_equity = 0.0
+            self.current_date = None
+            self.current_losing_streak = 0
+            self.circuit_breaker_active = False
+            self._circuit_breaker_alert_sent = False
 
         saved_date = self.db.get_system_state("start_of_day_date", default="")
         saved_equity = self.db.get_system_state("start_of_day_equity", default="")
@@ -195,6 +214,9 @@ class CircuitBreakerGuard:
         # 3. Consecutive Losing Streak Check
         if self.max_losing_streak > 0:
             is_streak_hit, streak_count = self.check_losing_streak()
+            if not self.history_available:
+                self._log("WARNING", "Entry paused: broker history is unavailable")
+                return True
             if is_streak_hit:
                 self._trigger_halt(
                     f"CIRCUIT BREAKER TRIGGERED: Max consecutive loss streak of {streak_count} hit (Limit: {self.max_losing_streak}). Trading halted for today!",

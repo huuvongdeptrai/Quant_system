@@ -1,3 +1,6 @@
+import os
+import pytest
+pytestmark=pytest.mark.skipif(os.environ.get("QT_QPA_PLATFORM")=="offscreen",reason="Native system tray requires a desktop session")
 """
 Unit tests for SystemTrayManager - Background Mode, Anti-Sleep, and Context Menu Operations.
 """

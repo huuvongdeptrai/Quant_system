@@ -881,6 +881,11 @@ class SettingsManager:
         self._set_status("CONFIGURATION READY", "#475569")
 
     def _hot_reload_live_bot(self, data: dict):
+        from backend.core.trading_commands import TradingCommandService
+        with TradingCommandService._lock:
+            return self._hot_reload_live_bot_locked(data)
+
+    def _hot_reload_live_bot_locked(self, data: dict):
         """Đồng bộ các tham số cấu hình trực tiếp vào BotWorker đang chạy trong bộ nhớ."""
         qt = getattr(self.window, "quant_terminal", None)
         bot = getattr(qt, "bot_worker", None) if qt else None
@@ -888,6 +893,8 @@ class SettingsManager:
             return
 
         try:
+            if "execution_mode" in data:
+                bot.execution_mode = str(data["execution_mode"])
             if "risk_per_trade" in data:
                 bot.risk_per_trade = float(data["risk_per_trade"])
             if "max_daily_loss" in data:
@@ -900,6 +907,7 @@ class SettingsManager:
                 bot.max_open_trades = int(data["max_open_trades"])
             if "slippage" in data:
                 bot.slippage = int(data["slippage"])
+                bot.exec_mgr.slippage = bot.slippage
             if "max_spread" in data:
                 bot.max_spread = int(data["max_spread"])
                 if hasattr(bot, "event_risk"):

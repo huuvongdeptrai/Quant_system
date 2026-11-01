@@ -37,6 +37,10 @@ config/*.local.json
 # SQLite database files
 *.db
 *.sqlite3
+*.bak
+
+# Verification test runs
+verification_test_run/
 
 # Datasets & Backups
 *.jsonl

@@ -1,4 +1,5 @@
 import math
+from decimal import Decimal, ROUND_FLOOR
 from backend.infrastructure.brokers.mt5_safe import mt5
 
 
@@ -29,6 +30,11 @@ class RiskManager:
         if risk_pct is None:
             risk_pct = self.default_risk_pct
 
+        try:
+            if not math.isfinite(float(risk_pct)) or not 0 < float(risk_pct) <= 100 or not math.isfinite(float(sl_points)):
+                return 0.0
+        except (TypeError, ValueError):
+            return 0.0
         account = mt5.account_info()
         info = mt5.symbol_info(symbol)
 
@@ -75,18 +81,12 @@ class RiskManager:
         # Khoá số Lot không được lớn hơn Max
         lot = min(vol_max, lot)
 
-        # Xác định số chữ số thập phân an toàn theo volume_step
-        digits = 2
-        if step < 0.01:
-            digits = 3
-        elif step >= 0.1:
-            digits = 1
-
-        lot = round(lot, digits)
-
-        # Hậu kiểm an toàn: kiểm tra lại mức lỗ dự kiến không vượt quá ngân sách rủi ro (cho phép sai số số thực 1e-6)
-        if (lot * loss_for_one_lot) > (risk_amount + 1e-6):
-            lot = math.floor((lot - step) / step) * step
-            lot = max(0.0, round(lot, digits))
-
-        return lot
+        # Decimal quantization supports arbitrary broker steps without rounding risk upward.
+        step_d = Decimal(str(step))
+        lot_d = (Decimal(str(min(raw_lot, vol_max))) / step_d).to_integral_value(rounding=ROUND_FLOOR) * step_d
+        lot = float(lot_d)
+        if lot < vol_min:
+            return 0.0
+        if lot * loss_for_one_lot > risk_amount + 1e-6:
+            lot = float(max(Decimal(0), lot_d-step_d))
+        return lot if lot >= vol_min else 0.0

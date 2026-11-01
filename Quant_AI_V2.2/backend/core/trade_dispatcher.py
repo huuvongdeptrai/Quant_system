@@ -4,6 +4,7 @@ Responsible for lot sizing validation, Stop Loss/Take Profit calculation,
 direction compliance checks, MT5 market order execution, and LoRA dataset logging.
 """
 
+import math
 from typing import Callable, Optional, Tuple
 from loguru import logger
 
@@ -47,6 +48,8 @@ class TradeDispatcher:
 
     def validate_direction(self, signal: str, trade_mode: str) -> bool:
         """Validates if signal complies with user-configured directional permission."""
+        if signal not in ("BUY","SELL"):
+            return False
         if not trade_mode or trade_mode == "AUTO":
             return True
         if trade_mode == "LONG_ONLY" and signal == "BUY":
@@ -84,14 +87,21 @@ class TradeDispatcher:
         strategy_name: str,
         confidence_str: str,
         sample_id: Optional[str] = None,
+        signal_key: Optional[str] = None,
     ) -> Optional[dict]:
         """Calculates lot size, fires order to broker, and records database/LoRA state."""
+        if signal not in ('BUY','SELL') or not all(math.isfinite(float(v)) for v in (entry_price,sl_price,tp_price,risk_pct)):
+            return {"status":"error","msg":"Invalid strategy order"}
+        if not (sl_price < entry_price < tp_price if signal=='BUY' else tp_price < entry_price < sl_price):
+            return {"status":"error","msg":"Invalid strategy stops"}
         sl_points = abs(entry_price - sl_price)
         if sl_points <= 0:
             sl_points = entry_price * 0.005
 
         lot = self.risk_mgr.calculate_lot_size(symbol, sl_points, risk_pct=risk_pct)
 
+        if not math.isfinite(lot) or lot <= 0:
+            return {"status":"error","msg":"Risk budget rejected volume"}
         self._log(
             "TRADE",
             f"[{strategy_name}] Approved {signal} {symbol}. {confidence_str}. Vol: {lot} Lots. SL: {sl_price:.2f}",
@@ -99,23 +109,19 @@ class TradeDispatcher:
         )
 
         res = self.exec_mgr.execute_market_order(
-            symbol, signal == "BUY", lot, sl_price, tp_price, comment=f"Quant_{signal}"
+            symbol, signal == "BUY", lot, sl_price, tp_price, comment=f"Quant_{signal}",
+            risk_pct=risk_pct,signal_key=signal_key,strategy_id=strategy_name
         )
 
         if res.get("status") == "success":
             self._log("SUCCESS", res["msg"], "#3FB950")
             ticket = res.get("ticket", 0)
             if ticket:
-                self.db.record_open_trade(
-                    ticket=ticket,
-                    symbol=symbol,
-                    order_type=signal,
-                    volume=lot,
-                    open_price=entry_price,
-                    sl=sl_price,
-                    tp=tp_price,
-                    comment=f"Quant_{signal}",
-                )
+                # TradingCommandService persists confirmed broker identity and actual fills.
+                entry_price = res.get('price',entry_price)
+                lot = res.get('volume',lot)
+                sl_price = res.get('sl',sl_price)
+                tp_price = res.get('tp',tp_price)
 
                 if sample_id:
                     try:

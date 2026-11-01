@@ -99,9 +99,9 @@ class MultiAssetDataFeed:
                 pass
 
             # Fetch rates
-            rates = mt5.copy_rates_from_pos(clean, timeframe, 0, count)
+            rates = mt5.copy_rates_from_pos(clean, timeframe, 1, count)
             if rates is None or len(rates) == 0:
-                rates = mt5.copy_rates_from_pos(clean, timeframe, 0, min(count, 100))
+                rates = mt5.copy_rates_from_pos(clean, timeframe, 1, min(count, 100))
 
             df = None
             if rates is not None and len(rates) > 0:

@@ -139,7 +139,7 @@ class BacktestWorker(QThread):
                     }
                 )
 
-            elif in_pos:
+            if in_pos:
                 exit_reason = None
                 exit_price = curr_price
 

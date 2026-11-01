@@ -85,7 +85,9 @@ class AIAnalyzerThread(QtCore.QThread):
         self.is_cancelled = True
 
     def run(self):
-
+        # Chart feeds include bar zero; strategy proposals use completed bars only.
+        if self.rates is not None and len(self.rates)>1:
+            self.rates=self.rates[:-1]
         try:
 
             from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
@@ -610,7 +612,7 @@ def _update_panel_with_result(window, result):
     if has_valid_signal:
         entry_val = float(raw_entry)
         sl_val = float(raw_sl)
-        tp_val = float(raw_tp or (entry_val + abs(entry_val - sl_val) * 2.0))
+        tp_val = float(raw_tp or (entry_val + (1 if strat_sig == "BUY" else -1) * abs(entry_val - sl_val) * 2.0))
         conf_raw = strat_res.get("confidence", 0.85)
         conf_pct = f"{int(conf_raw * 100 if conf_raw <= 1.0 else conf_raw)}%"
         ai_model = f"{strat_name} ({strat_sig})"
@@ -619,7 +621,7 @@ def _update_panel_with_result(window, result):
         if not candle_time:
             candle_time = int(time.time())
 
-        sig_key = f"{clean_sym}_{candle_time}_{strat_sig}_{round(entry_val, 2)}"
+        sig_key = f"{clean_sym}_{getattr(window, 'current_tf', 15)}_{candle_time}_{strat_sig}"
 
         chk1, chk2, chk3 = None, None, None
         if isinstance(strat_checklist, (list, tuple)) and len(strat_checklist) >= 3:
@@ -635,155 +637,13 @@ def _update_panel_with_result(window, result):
         # MODE 1: FULL-AUTO -> AUTONOMOUS MT5 DISPATCH (NO HUMAN APPROVAL)
         # -----------------------------------------------------------------
         if exec_mode == "FULL-AUTO":
-            # Guard against re-executing the exact same signal on the same candle
-            if getattr(window, "_last_executed_signal", None) == sig_key:
-                logger.debug(f"[FULL-AUTO] Signal {sig_key} already executed on this candle. Skipping re-entry.")
-                return
-
-            is_buy = (strat_sig == "BUY")
-            # Strict stop loss orientation guard
-            if (is_buy and sl_val >= entry_val) or (not is_buy and sl_val <= entry_val):
-                from backend.core.event_bus import event_bus
-                event_bus.log_event.emit("", "ERROR", f"FULL-AUTO Intercepted: Invalid SL ({sl_val:.{digits}f}) for {strat_sig} at ({entry_val:.{digits}f})", "#ef4444")
-                window._last_executed_signal = sig_key
-                return
-
-            from frontend.controllers.chart.trading_plan_panel import calculate_manual_quant_lot
-            sl_pts = abs(entry_val - sl_val)
-            risk_pct = 1.0
-            try:
-                cfg_p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "config", "settings.json")
-                if os.path.exists(cfg_p):
-                    with open(cfg_p, "r", encoding="utf-8") as f_cfg:
-                        risk_pct = float(json.load(f_cfg).get("risk_per_trade", 1.0))
-            except Exception:
-                pass
-
-            lot_size, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct=risk_pct)
-
-            # Decision Gate & News Compliance Verification
-            gate_res = None
-            gate_mode = getattr(window, "gate_mode", "FULL")
-            rates_in_win = getattr(window, "_last_rates", None)
-
-            if hasattr(window, "decision_gate") and window.decision_gate:
-                gate_res = window.decision_gate.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode)
-            elif mt5.terminal_info() is not None or rates_in_win is not None:
-                from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
-                dg = DecisionGate()
-                gate_res = dg.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, rates=rates_in_win)
-
-            if gate_res and gate_res.get("decision") == "WAIT":
-                from backend.core.event_bus import event_bus
-                event_bus.log_event.emit("", "WARNING", f"FULL-AUTO Intercepted by Gate: {gate_res.get('reason')}", "#f59e0b")
-                window._last_executed_signal = sig_key
-                return
-
-            if gate_res and gate_res.get("trade_mode") == "SCALP_PULLBACK":
-                size_multiplier = float(gate_res.get("size_multiplier", 0.5))
-                lot_size = max(0.01, round(lot_size * size_multiplier, 2))
-                tp_limit_r = gate_res.get("tp_limit_r", 1.5)
-                if tp_limit_r:
-                    max_tp_dist = sl_pts * float(tp_limit_r)
-                    if is_buy:
-                        tp_val = min(tp_val, entry_val + max_tp_dist)
-                    else:
-                        tp_val = max(tp_val, entry_val - max_tp_dist)
-
-            exec_mgr = None
-            if hasattr(window, "quant_terminal") and hasattr(window.quant_terminal, "exec_mgr"):
-                exec_mgr = window.quant_terminal.exec_mgr
-            if not exec_mgr:
-                from backend.infrastructure.brokers.execution_manager import ExecutionManager
-                exec_mgr = ExecutionManager(slippage=20, magic_number=888888)
-
-            order_res = None
-            if exec_mgr and hasattr(exec_mgr, "execute_market_order"):
-                order_res = exec_mgr.execute_market_order(
-                    symbol=clean_sym,
-                    is_buy=is_buy,
-                    volume=lot_size,
-                    sl_price=sl_val,
-                    tp_price=tp_val,
-                    comment=f"FULL_AUTO_{clean_sym}"
-                )
-            elif mt5.terminal_info() is not None:
-                order_res = exec_mgr.execute_market_order(
-                    symbol=clean_sym,
-                    is_buy=is_buy,
-                    volume=lot_size,
-                    sl_price=sl_val,
-                    tp_price=tp_val,
-                    comment=f"FULL_AUTO_{clean_sym}"
-                )
-            else:
-                order_res = {"status": "success", "ticket": int(time.time()) % 1000000, "price": entry_val}
-
-            window._last_executed_signal = sig_key
-            from backend.core.event_bus import event_bus
-            if order_res and order_res.get("status") == "success":
-                ticket = order_res.get("ticket", "OK")
-                event_bus.log_event.emit("", "SUCCESS", f"FULL-AUTO Autonomous Fill: {strat_sig} {lot_size:.2f} lots {clean_sym} #{ticket}", "#10b981")
-
-                try:
-                    from backend.database.db_manager import DatabaseManager
-                    db = DatabaseManager()
-                    if isinstance(ticket, int):
-                        db.record_open_trade(
-                            ticket=ticket,
-                            symbol=clean_sym,
-                            order_type=strat_sig,
-                            volume=lot_size,
-                            open_price=entry_val,
-                            sl=sl_val,
-                            tp=tp_val,
-                            comment=f"FULL_AUTO_{clean_sym}",
-                        )
-                except Exception as e_db:
-                    logger.debug(f"[AIPanel] DB record open trade error: {e_db}")
-
-                try:
-                    from backend.infrastructure.notifications.telegram_notifier import telegram_notifier
-                    telegram_notifier.send_message(
-                        f"[EXEC] <b>ORDER FILLED: {strat_sig} {clean_sym}</b>\n"
-                        f"Ticket: <b>#{ticket}</b> | Mode: <b>FULL-AUTO</b>\n"
-                        f"Volume: <b>{lot_size:.2f} Lots</b> @ <b>{entry_val:.{digits}f}</b>\n"
-                        f"SL: <b>{sl_val:.{digits}f}</b> | TP: <b>{tp_val:.{digits}f}</b>\n"
-                        f"Model: <i>{ai_model}</i>",
-                        category="fill",
-                    )
-                except Exception as e_tg:
-                    logger.debug(f"[AIPanel] Telegram notification error: {e_tg}")
-
-                # Immediately transition UI to live position mode without any countdown timer
-                kwargs_order = {
-                    "sym": clean_sym,
-                    "has_signal": True,
-                    "signal_type": strat_sig,
-                    "model_name": ai_model,
-                    "grade": "PNL: +$0.00",
-                    "chk1": f"{strat_sig} AUTONOMOUS EXECUTION",
-                    "chk2": f"ORDER ROUTED #{ticket}",
-                    "chk3": "TARGET TP / TRAILING SL ACTIVE",
-                    "entry": entry_val,
-                    "sl": sl_val,
-                    "tp": tp_val,
-                    "confidence": conf_pct,
-                    "status": "BOT AUTO MANAGING (TARGET TP/SL)",
-                    "digits": digits,
-                    "is_live_position": True,
-                    "live_ticket": ticket,
-                    "live_profit": 0.0,
-                    "live_volume": lot_size,
-                    "exec_mode": exec_mode,
-                    "is_bot_active": is_bot_active,
-                }
-                update_order_proposal_html(window, **kwargs_order)
-                return
-            else:
-                err_msg = order_res.get("msg", "Rejected") if order_res else "Broker disconnected"
-                event_bus.log_event.emit("", "ERROR", f"FULL-AUTO Execution Rejected: {err_msg}", "#ef4444")
-                return
+            # GUI renders analysis only. The worker owns autonomous order admission.
+            update_order_proposal_html(window, sym=clean_sym, has_signal=True,
+                signal_type=strat_sig, entry=entry_val, sl=sl_val, tp=tp_val,
+                model_name=ai_model, confidence=conf_pct, digits=digits,
+                status="AUTONOMOUS WORKER ACTIVE" if is_bot_active else "AUTONOMOUS WORKER STOPPED",
+                exec_mode=exec_mode, is_bot_active=is_bot_active)
+            return
 
         # -----------------------------------------------------------------
         # MODE 2: SEMI-AUTO -> DECISION GATE (PROPOSAL + OPERATOR APPROVAL)
@@ -807,11 +667,11 @@ def _update_panel_with_result(window, result):
             gate_mode = getattr(window, "gate_mode", "FULL")
             rates_in_win = getattr(window, "_last_rates", None)
             if hasattr(window, "decision_gate") and window.decision_gate:
-                gate_res = window.decision_gate.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode)
+                gate_res = window.decision_gate.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, strategy_id=strat_res.get("strategy_id"))
             elif mt5.terminal_info() is not None or rates_in_win is not None:
                 from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
                 dg = DecisionGate()
-                gate_res = dg.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, rates=rates_in_win)
+                gate_res = dg.evaluate(clean_sym, strat_sig, timeframe=getattr(window, "current_tf", None), gate_mode=gate_mode, rates=rates_in_win, strategy_id=strat_res.get("strategy_id"))
 
             if gate_res and gate_res.get("trade_mode") == "SCALP_PULLBACK":
                 tp_limit_r = gate_res.get("tp_limit_r", 1.5)

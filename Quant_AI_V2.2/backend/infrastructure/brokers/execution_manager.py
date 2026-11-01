@@ -1,4 +1,6 @@
 import time
+import math
+from decimal import Decimal, ROUND_FLOOR
 from typing import Optional, List, Dict, Any
 from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
@@ -48,7 +50,7 @@ class ExecutionManager:
         try:
             vol = float(volume)
         except (TypeError, ValueError):
-            return 0.01
+            return 0.0
 
         def _safe_float(val, default):
             if isinstance(val, (int, float)) and not isinstance(val, bool):
@@ -74,17 +76,27 @@ class ExecutionManager:
         step_str = f"{vol_step:.8f}".rstrip("0")
         digits = len(step_str.split(".")[1]) if "." in step_str else 0
 
-        steps_count = round(vol / vol_step)
+        if not math.isfinite(vol) or vol <= 0 or vol < vol_min:
+            return 0.0
+        steps_count = int((Decimal(str(vol)) / Decimal(str(vol_step))).to_integral_value(rounding=ROUND_FLOOR))
         normalized = round(steps_count * vol_step, digits)
 
         if normalized < vol_min:
-            normalized = vol_min
+            return 0.0
         elif normalized > vol_max:
             normalized = vol_max
 
         return round(float(normalized), digits)
 
-    def execute_market_order(
+    def execute_market_order(self, symbol, is_buy, volume, sl_price, tp_price,
+                             comment="VECTRA", magic=None, max_retries=3, **kwargs):
+        """All entry requests share durable pre-trade admission and risk checks."""
+        from backend.core.trading_commands import TradingCommandService
+        return TradingCommandService(self).submit(
+            symbol, is_buy, volume, sl_price, tp_price, comment, magic,
+            max_retries=max_retries, **kwargs)
+
+    def _execute_market_order_raw(
         self,
         symbol: str,
         is_buy: bool,
@@ -94,13 +106,16 @@ class ExecutionManager:
         comment: str = "VECTRA",
         magic: Optional[int] = None,
         max_retries: int = 3,
+        validated_price: Optional[float] = None,
     ) -> dict:
         """
         Bắn lệnh vào thị trường (Market Order) kèm:
         - Latency Logging: Đo đạc chính xác thời gian khớp lệnh (< 500ms).
-        - Fault Tolerance & Auto-Retry: Tự động thử lại khi gặp Requote / Price Changed.
+        - Ambiguous outcomes stay unresolved; repricing requires new admission checks.
         """
         start_exec = time.perf_counter()
+        if not isinstance(volume, (int, float)) or not math.isfinite(volume) or volume <= 0:
+            return {"status": "error", "msg": "Invalid volume", "retries": 0}
 
         # Kiểm tra trạng thái cho phép giao dịch tự động của phần mềm MT5 (Algo Trading)
         terminal_info = mt5.terminal_info()
@@ -139,29 +154,26 @@ class ExecutionManager:
             order_type = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
             price = tick.ask if is_buy else tick.bid
             price = round(float(price), digits)
+            if validated_price is not None and ((price > validated_price + 1e-9) if is_buy else (price < validated_price - 1e-9)):
+                return {"status":"error", "msg":"Adverse quote change: recalculate order risk", "retries":0}
             norm_volume = self.normalize_volume(symbol, volume)
 
             # Làm tròn SL/TP theo digits của sàn
             sl_val = round(float(sl_price), digits) if sl_price > 0 else 0.0
             tp_val = round(float(tp_price), digits) if tp_price > 0 else 0.0
 
-            # Kiểm tra Stops Level chống sàn từ chối
+            # Stop changes require a fresh risk calculation by TradingCommandService.
+            if norm_volume <= 0 or sl_val <= 0 or tp_val <= 0 or not all(math.isfinite(v) for v in (price, sl_val, tp_val)):
+                return {"status":"error", "msg":"Invalid order geometry or volume", "retries":attempt-1}
+            if (is_buy and not sl_val < price < tp_val) or (not is_buy and not tp_val < price < sl_val):
+                return {"status":"error", "msg":"Stops on incorrect side of price", "retries":attempt-1}
             if info and info.trade_stops_level > 0:
                 min_dist = info.trade_stops_level * info.point
-                if sl_val > 0:
-                    dist = (price - sl_val) if is_buy else (sl_val - price)
-                    if dist < min_dist:
-                        sl_val = round(
-                            price - min_dist if is_buy else price + min_dist, digits
-                        )
-                if tp_val > 0:
-                    dist = (tp_val - price) if is_buy else (price - tp_val)
-                    if dist < min_dist:
-                        tp_val = round(
-                            price + min_dist if is_buy else price - min_dist, digits
-                        )
+                reference = tick.bid if is_buy else tick.ask
+                if (reference-sl_val if is_buy else sl_val-reference) < min_dist or (tp_val-reference if is_buy else reference-tp_val) < min_dist:
+                    return {"status":"error", "msg":"Stop distance changed: recalculate order risk", "retries":attempt-1}
 
-            curr_deviation = self.slippage + (attempt - 1) * 10
+            curr_deviation = self.slippage
 
             target_magic = magic if magic is not None else (0 if "manual" in comment.lower() else self.magic)
             request = {
@@ -189,19 +201,11 @@ class ExecutionManager:
                 logger.error(
                     f"[ExecutionManager] MT5 order_send returned None. Error: {err_code}"
                 )
-                if attempt < max_retries:
-                    time.sleep(0.1)
-                    continue
-                return {
-                    "status": "error",
-                    "msg": f"Lenh bi sap. Loi he thong: {err_code}",
-                    "latency_ms": round_latency_ms,
-                    "retries": attempt - 1,
-                }
+                return {"status":"unknown", "msg":f"Broker outcome unknown: {err_code}", "retries":attempt-1}
 
             total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
 
-            if result.retcode == mt5.TRADE_RETCODE_DONE:
+            if result.retcode in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_DONE_PARTIAL):
                 if total_latency_ms > 500.0:
                     logger.warning(
                         f"[ExecutionManager] CANH BAO DO TRE: {total_latency_ms:.2f} ms (> 500 ms)!"
@@ -215,19 +219,24 @@ class ExecutionManager:
                     "status": "success",
                     "msg": f"Da khop lenh {'BUY' if is_buy else 'SELL'} {norm_volume} {symbol} tai gia {price} (Do tre: {total_latency_ms:.1f} ms)",
                     "ticket": result.order,
+                    "order_id": result.order,
+                    "deal_id": result.deal,
+                    "price": float(result.price),
+                    "volume": float(result.volume),
+                    "partial": result.retcode == mt5.TRADE_RETCODE_DONE_PARTIAL,
                     "latency_ms": round(total_latency_ms, 2),
                     "retries": attempt - 1,
                     "retcode": result.retcode,
                 }
 
+            if result.retcode == mt5.TRADE_RETCODE_PLACED:
+                return {'status':'unknown', 'msg':'Order accepted; waiting for broker fills',
+                        'order_id':result.order, 'retcode':result.retcode, 'retries':attempt-1}
+
             # Xử lý các mã lỗi có thể thử lại
-            RETRYABLE_RETCODES = [
-                mt5.TRADE_RETCODE_REQUOTE,
-                mt5.TRADE_RETCODE_PRICE_CHANGED,
-                mt5.TRADE_RETCODE_PRICE_OFF,
-                mt5.TRADE_RETCODE_TIMEOUT,
-                mt5.TRADE_RETCODE_CONNECTION,
-            ]
+            if result.retcode in (mt5.TRADE_RETCODE_TIMEOUT, mt5.TRADE_RETCODE_CONNECTION):
+                return {"status":"unknown", "msg":result.comment, "retcode":result.retcode, "retries":attempt-1}
+            RETRYABLE_RETCODES = []
 
             if result.retcode in RETRYABLE_RETCODES and attempt < max_retries:
                 logger.warning(
@@ -250,7 +259,14 @@ class ExecutionManager:
                     "retcode": result.retcode,
                 }
 
-    def execute_pending_order(
+    def execute_pending_order(self, symbol, order_type, price, volume, sl_price, tp_price,
+                              comment="VECTRA_Pending", magic=None, max_retries=3):
+        from backend.core.trading_commands import TradingCommandService
+        return TradingCommandService(self).submit(symbol, order_type.startswith("BUY"), volume,
+            sl_price, tp_price, comment, magic, pending_type=order_type, pending_price=price,
+            max_retries=max_retries)
+
+    def _execute_pending_order_raw(
         self,
         symbol: str,
         order_type: str,  # "BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"
@@ -342,7 +358,7 @@ class ExecutionManager:
                 "magic": target_magic,
                 "comment": comment,
                 "type_time": mt5.ORDER_TIME_GTC,
-                "type_filling": self._get_fill_policy(symbol),
+                "type_filling": mt5.ORDER_FILLING_RETURN,
             }
 
             req_start = time.perf_counter()
@@ -351,19 +367,7 @@ class ExecutionManager:
             round_latency_ms = (req_end - req_start) * 1000.0
 
             if result is None:
-                err_code = mt5.last_error()
-                logger.error(
-                    f"[ExecutionManager] MT5 order_send returned None. Error: {err_code}"
-                )
-                if attempt < max_retries:
-                    time.sleep(0.1)
-                    continue
-                return {
-                    "status": "error",
-                    "msg": f"Lenh bi sap. Loi he thong: {err_code}",
-                    "latency_ms": round_latency_ms,
-                    "retries": attempt - 1,
-                }
+                return {"status":"unknown", "msg":str(mt5.last_error()), "retries":attempt-1}
 
             total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
 
@@ -376,15 +380,15 @@ class ExecutionManager:
                     "msg": f"Da dat lenh cho {clean_type_str} {norm_volume} {symbol} tai gia {target_price} (Ticket #{result.order})",
                     "ticket": result.order,
                     "price": target_price,
+                    "volume": norm_volume,
                     "latency_ms": round(total_latency_ms, 2),
                     "retries": attempt - 1,
                     "retcode": result.retcode,
                 }
 
-            RETRYABLE_RETCODES = [
-                mt5.TRADE_RETCODE_TIMEOUT,
-                mt5.TRADE_RETCODE_CONNECTION,
-            ]
+            if result.retcode in (mt5.TRADE_RETCODE_TIMEOUT, mt5.TRADE_RETCODE_CONNECTION):
+                return {"status":"unknown", "msg":result.comment, "retcode":result.retcode, "retries":attempt-1}
+            RETRYABLE_RETCODES = []
 
             if result.retcode in RETRYABLE_RETCODES and attempt < max_retries:
                 logger.warning(
@@ -439,6 +443,8 @@ class ExecutionManager:
         close_price = tick.bid if is_buy else tick.ask
         close_price = round(float(close_price), digits)
 
+        if volume is not None and (not math.isfinite(float(volume)) or float(volume) <= 0 or float(volume) > pos.volume):
+            return {"status":"error", "msg":"Invalid close volume"}
         if volume is not None and 0 < float(volume) < pos.volume:
             norm_close = self.normalize_volume(sym, volume)
             min_step = 0.01
@@ -446,10 +452,9 @@ class ExecutionManager:
                 val_min = getattr(info, "volume_min", None)
                 if isinstance(val_min, (int, float)) and not isinstance(val_min, bool) and val_min > 0:
                     min_step = float(val_min)
-            remaining = self.normalize_volume(sym, pos.volume - norm_close)
-            if norm_close >= pos.volume or remaining < min_step:
-                close_volume = pos.volume
-                is_partial = False
+            remaining = pos.volume - norm_close
+            if norm_close <= 0 or norm_close >= pos.volume or remaining < min_step:
+                return {"status":"error", "msg":"Partial close would leave invalid remainder"}
             else:
                 close_volume = norm_close
                 is_partial = True
@@ -473,25 +478,43 @@ class ExecutionManager:
         res = mt5.order_send(request)
         total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
 
-        if res and res.retcode == mt5.TRADE_RETCODE_DONE:
-            action_desc = f"Da dong {close_volume} lot vi the #{ticket}" if is_partial else f"Da dong thanh cong vi the #{ticket}"
+        if res and res.retcode in (mt5.TRADE_RETCODE_DONE,mt5.TRADE_RETCODE_DONE_PARTIAL):
+            filled=getattr(res,'volume',None)
+            if not isinstance(filled,(int,float)) or not math.isfinite(filled) or filled<=0:
+                if res.retcode==mt5.TRADE_RETCODE_DONE_PARTIAL:
+                    return {'status':'unknown','msg':'Partial close volume requires reconciliation'}
+                filled=close_volume
+            remaining_vol=max(0.0,pos.volume-float(filled))
+            completed_request = float(filled)>=close_volume-1e-9
+            action_desc = f"Closed {filled} lots of position #{ticket}; remaining {remaining_vol}"
             # SC-08: Synchronize remaining volume with DatabaseManager on partial close
-            if is_partial:
-                remaining_vol = self.normalize_volume(sym, pos.volume - close_volume)
+            if remaining_vol>0:
                 try:
                     from backend.database.db_manager import DatabaseManager
-                    DatabaseManager().update_trade_volume(ticket, remaining_vol)
+                    db=DatabaseManager()
+                    account=mt5.account_info()
+                    if account is not None:
+                        db.bind_account(account.login,account.server)
+                        db.update_trade_volume(ticket, remaining_vol)
                 except Exception as e_db:
                     logger.debug(f"[ExecutionManager] Partial close DB sync skipped: {e_db}")
             return {
-                "status": "success",
+                "status": "success" if completed_request else "partial",
                 "msg": f"{action_desc} (Do tre: {total_latency_ms:.1f} ms)",
                 "deal": res.deal,
+                "partial_fill": res.retcode == mt5.TRADE_RETCODE_DONE_PARTIAL,
+                "filled_volume": float(filled),
+                "remaining_volume": remaining_vol,
+                "position_closed": remaining_vol<=1e-9,
+                "retcode": res.retcode,
                 "latency_ms": round(total_latency_ms, 2),
             }
+        if res is None or res.retcode in (mt5.TRADE_RETCODE_TIMEOUT,mt5.TRADE_RETCODE_CONNECTION,mt5.TRADE_RETCODE_PLACED):
+            return {"status":"unknown","msg":"Close requires broker reconciliation"}
         return {
             "status": "error",
             "msg": f"Loi dong vi the #{ticket}: {res.comment if res else 'Unknown'}",
+            "retcode": res.retcode if res else None,
             "latency_ms": round(total_latency_ms, 2),
         }
 
@@ -663,7 +686,11 @@ class ExecutionManager:
             "latency_ms": round(total_latency_ms, 2),
         }
 
-    def modify_pending_order(
+    def modify_pending_order(self, ticket: int, price: float, sl=None, tp=None) -> dict:
+        from backend.core.trading_commands import TradingCommandService
+        return TradingCommandService(self).modify_pending(ticket, price, sl, tp)
+
+    def _modify_pending_order_raw(
         self, ticket: int, price: float, sl: float = 0.0, tp: float = 0.0
     ) -> dict:
         """
@@ -703,6 +730,8 @@ class ExecutionManager:
                 "msg": f"Da cap nhat lenh cho #{ticket} sang gia {price:.{digits}f} thanh cong (Do tre: {total_latency_ms:.1f} ms)",
                 "latency_ms": round(total_latency_ms, 2),
             }
+        if res is None or res.retcode in (mt5.TRADE_RETCODE_TIMEOUT,mt5.TRADE_RETCODE_CONNECTION,mt5.TRADE_RETCODE_PLACED):
+            return {'status':'unknown','msg':'Amendment requires broker reconciliation'}
         return {
             "status": "error",
             "msg": f"Loi sua lenh cho #{ticket}: {res.comment if res else 'Unknown'}",

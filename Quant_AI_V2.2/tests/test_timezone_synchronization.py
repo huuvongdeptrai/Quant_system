@@ -31,7 +31,7 @@ def test_chart_and_calendar_time_alignment():
     # Suppose an event occurs at 12:30:00 UTC
     utc_epoch = 1792499400.0  # 12:30:00 UTC
     broker_offset = timezone_manager.get_broker_offset()
-    mt5_bar_time = int(utc_epoch + broker_offset)
+    mt5_bar_time = int(utc_epoch)
 
     for tz_key in ["UTC+7", "UTC", "US/Eastern", "Broker"]:
         timezone_manager.set_active_timezone(tz_key)

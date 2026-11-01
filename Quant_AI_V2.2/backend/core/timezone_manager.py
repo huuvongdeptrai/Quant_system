@@ -128,7 +128,7 @@ class TimezoneManager:
 
     def mt5_to_utc_ts(self, mt5_ts: int) -> int:
         """Converts raw MT5 rate timestamp (broker server time) to true UTC epoch."""
-        return int(mt5_ts) - self.get_broker_offset()
+        return int(mt5_ts)
 
     def utc_to_display_dt(self, utc_ts: float) -> datetime:
         """Converts UTC epoch timestamp to datetime in active display timezone."""

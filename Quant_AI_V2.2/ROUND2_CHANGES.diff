@@ -1,0 +1,2912 @@
+--- a/README.md
++++ b/README.md
+@@ -1,34 +1,36 @@
+-# VECTRA - Hệ Thống Phân Tích & Giao Dịch Định Lượng (Institutional Terminal)
+-
+-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+-![Python](https://img.shields.io/badge/python-3.10%2B-green)
+-![Architecture](https://img.shields.io/badge/Architecture-Hybrid%20AI-orange)
+-
+-## 📌 Giới Thiệu
+-Đây là một hệ thống Giao dịch Định lượng (Quant Trading System) cấp độ tổ chức, được thiết kế với kiến trúc **Hybrid AI** độc đáo. Hệ thống không chỉ dựa vào các chỉ báo kỹ thuật thuần túy mà kết hợp sức mạnh của Mô hình Ngôn ngữ Lớn (LLM - Gemini 1.5 / Local Llama 3B) để đọc hiểu bối cảnh kinh tế vĩ mô, từ đó cấp phép cho các thuật toán kỹ thuật (ICT) hoạt động.
+-
+-## 🏗 Kiến Trúc Hệ Thống (5 Lõi)
+-
+-Hệ thống được chia thành 5 lõi (Cores) hoạt động độc lập và bất đồng bộ, đảm bảo tính ổn định và khả năng mở rộng cao:
+-
+-1. **Core 1: Data Engine (MT5 & News API)**
+-   - Kết nối trực tiếp với MetaTrader 5 để lấy dữ liệu Tick/Bar theo thời gian thực (Zero-latency).
+-   - Tự động cào (scrape) lịch kinh tế từ ForexFactory và phân loại các sự kiện High-Impact.
+-2. **Core 2: Macro Brain (Trí Tuệ Vĩ Mô AI)**
+-   - Sử dụng **Gemini 1.5** hoặc **Local Llama 3B** để phân tích bối cảnh vĩ mô (DXY, US10Y, VIX).
+-   - Tự động đánh giá các số liệu kinh tế (Ví dụ: ISM PMI, NFP) so với kỳ vọng (Forecast) để đưa ra "Thiên kiến" (Bias) dài hạn.
+-   - **Tính năng đặc biệt:** Hỗ trợ cơ chế *Semi-Auto Input* cho phép người dùng mớm dữ liệu Actual để vượt qua các tường lửa chống Bot (Cloudflare).
+-3. **Core 3: Technical Strategy (Chiến lược Kỹ thuật - ICT)**
+-   - Triển khai thuật toán **ICT (Inner Circle Trader)** để dò tìm các vùng thanh khoản (Liquidity Voids, FVG, Order Blocks).
+-   - Core 3 chỉ được phép kích hoạt lệnh khi hướng giao dịch đồng thuận với Bias Vĩ mô từ Core 2.
+-4. **Core 4: Risk Manager (Quản trị Rủi ro Tự động)**
+-   - Tính toán khối lượng vào lệnh (Position Sizing) động dựa trên ATR và phần trăm rủi ro tài khoản.
+-   - Kiểm soát Drawdown tối đa trong ngày (Max Daily Drawdown) và chặn đứng hệ thống nếu chạm ngưỡng rủi ro.
+-5. **Core 5: Execution Manager (Thực thi Lệnh)**
+-   - Giao tiếp với MT5 để đẩy lệnh (Market/Limit) với mức trượt giá (Slippage) được kiểm soát nghiêm ngặt.
+-   - Quản lý vòng đời của lệnh, tự động dời Stoploss (Trailing) dựa trên cấu trúc giá.
+-
+-## 🚀 Điểm Nhấn Công Nghệ (Dành cho báo cáo/Demo)
+-- **Kiến trúc Bất đồng bộ (Threading & Watchdogs):** Giao diện UI (Streamlit) và Lõi phân tích (Backend) chạy trên 2 luồng độc lập. UI không bao giờ bị đơ (freeze) kể cả khi AI đang tốn thời gian phân tích suy luận.
+-- **Dự phòng AI (LLM Fallback):** Hệ thống có khả năng chuyển đổi mượt mà giữa Cloud AI (Gemini) và Offline AI (Llama 3B chạy cục bộ) để đảm bảo quyền riêng tư dữ liệu và tính liên tục.
+-- **Giao diện Dashboard Tối giản & Thông minh:** Bảng điều khiển Streamlit được tinh chỉnh CSS cấp thấp, mang lại trải nghiệm chuyên nghiệp (Quant Terminal) và tự động dọn dẹp các trường nhập liệu thừa thãi.
++> Bản sửa lần 2, 01/11/2026: đọc [ROUND2_REPAIR_REPORT_VI.md](ROUND2_REPAIR_REPORT_VI.md) và verification_round2/summary.json trước khi dùng. Model cũ vẫn chờ retrain bằng OHLC gốc.
++
++# VECTRA - Hệ Thống Phân Tích & Giao Dịch Định Lượng (Institutional Terminal)
++
++![Version](https://img.shields.io/badge/version-1.0.0-blue)
++![Python](https://img.shields.io/badge/python-3.10%2B-green)
++![Architecture](https://img.shields.io/badge/Architecture-Hybrid%20AI-orange)
++
++## 📌 Giới Thiệu
++Đây là một hệ thống Giao dịch Định lượng (Quant Trading System) cấp độ tổ chức, được thiết kế với kiến trúc **Hybrid AI** độc đáo. Hệ thống không chỉ dựa vào các chỉ báo kỹ thuật thuần túy mà kết hợp sức mạnh của Mô hình Ngôn ngữ Lớn (LLM - Gemini 1.5 / Local Llama 3B) để đọc hiểu bối cảnh kinh tế vĩ mô, từ đó cấp phép cho các thuật toán kỹ thuật (ICT) hoạt động.
++
++## 🏗 Kiến Trúc Hệ Thống (5 Lõi)
++
++Hệ thống được chia thành 5 lõi (Cores) hoạt động độc lập và bất đồng bộ, đảm bảo tính ổn định và khả năng mở rộng cao:
++
++1. **Core 1: Data Engine (MT5 & News API)**
++   - Kết nối trực tiếp với MetaTrader 5 để lấy dữ liệu Tick/Bar theo thời gian thực (Zero-latency).
++   - Tự động cào (scrape) lịch kinh tế từ ForexFactory và phân loại các sự kiện High-Impact.
++2. **Core 2: Macro Brain (Trí Tuệ Vĩ Mô AI)**
++   - Sử dụng **Gemini 1.5** hoặc **Local Llama 3B** để phân tích bối cảnh vĩ mô (DXY, US10Y, VIX).
++   - Tự động đánh giá các số liệu kinh tế (Ví dụ: ISM PMI, NFP) so với kỳ vọng (Forecast) để đưa ra "Thiên kiến" (Bias) dài hạn.
++   - **Tính năng đặc biệt:** Hỗ trợ cơ chế *Semi-Auto Input* cho phép người dùng mớm dữ liệu Actual để vượt qua các tường lửa chống Bot (Cloudflare).
++3. **Core 3: Technical Strategy (Chiến lược Kỹ thuật - ICT)**
++   - Triển khai thuật toán **ICT (Inner Circle Trader)** để dò tìm các vùng thanh khoản (Liquidity Voids, FVG, Order Blocks).
++   - Core 3 chỉ được phép kích hoạt lệnh khi hướng giao dịch đồng thuận với Bias Vĩ mô từ Core 2.
++4. **Core 4: Risk Manager (Quản trị Rủi ro Tự động)**
++   - Tính toán khối lượng vào lệnh (Position Sizing) động dựa trên ATR và phần trăm rủi ro tài khoản.
++   - Kiểm soát Drawdown tối đa trong ngày (Max Daily Drawdown) và chặn đứng hệ thống nếu chạm ngưỡng rủi ro.
++5. **Core 5: Execution Manager (Thực thi Lệnh)**
++   - Giao tiếp với MT5 để đẩy lệnh (Market/Limit) với mức trượt giá (Slippage) được kiểm soát nghiêm ngặt.
++   - Quản lý vòng đời của lệnh, tự động dời Stoploss (Trailing) dựa trên cấu trúc giá.
++
++## 🚀 Điểm Nhấn Công Nghệ (Dành cho báo cáo/Demo)
++- **Kiến trúc Bất đồng bộ (Threading & Watchdogs):** Giao diện UI (Streamlit) và Lõi phân tích (Backend) chạy trên 2 luồng độc lập. UI không bao giờ bị đơ (freeze) kể cả khi AI đang tốn thời gian phân tích suy luận.
++- **Dự phòng AI (LLM Fallback):** Hệ thống có khả năng chuyển đổi mượt mà giữa Cloud AI (Gemini) và Offline AI (Llama 3B chạy cục bộ) để đảm bảo quyền riêng tư dữ liệu và tính liên tục.
++- **Giao diện Dashboard Tối giản & Thông minh:** Bảng điều khiển Streamlit được tinh chỉnh CSS cấp thấp, mang lại trải nghiệm chuyên nghiệp (Quant Terminal) và tự động dọn dẹp các trường nhập liệu thừa thãi.
+--- a/backend/backtest/backtest_ict_pro.py
++++ b/backend/backtest/backtest_ict_pro.py
+@@ -95,6 +95,9 @@
+         symbol: str = "XAUUSD",
+         strategy_config: Optional[Dict[str, Any]] = None,
+         progress_callback: Optional[Callable[[int, int], None]] = None,
++        signal_filter: Optional[Callable] = None,
++        trading_start=None,
++        trading_end=None,
+     ) -> BacktestReport:
+         start_time = time.perf_counter()
+ 
+@@ -143,10 +146,16 @@
+             o=float(row.get('open',c))
+             row_time=row.get('time',i)
+             # Signals only see completed bars. Their earliest possible fill is this open.
+-            if not in_pos and i<n-1 and balance>0:
++            can_enter=(trading_start is None or row_time>=pd.Timestamp(trading_start)) and (
++                trading_end is None or row_time<pd.Timestamp(trading_end))
++            if not in_pos and i<n-1 and balance>0 and can_enter:
+                 window=df.iloc[max(0,i-250):i].reset_index(drop=True)
+                 res=strat.analyze(window,macro_context={})
+                 sig=res.get('signal','HOLD')
++                if sig in ('BUY','SELL') and signal_filter is not None:
++                    feature_window=df.iloc[max(0,i-300):i].reset_index(drop=True)
++                    if not signal_filter(feature_window,res):
++                        sig='HOLD'
+                 if last_exit_outcome=='SL' and sig==last_exit_side and i-last_exit_bar<5:
+                     sig='HOLD'
+                 sl,tp=res.get('sl'),res.get('tp1') or res.get('tp')
+@@ -235,6 +244,7 @@
+                 execution_time_ms=exec_ms,
+                 total_commission_paid=0.0,
+                 equity_curve=equity_curve,
++                equity_times=equity_times,
+                 trades=[],
+                 trade_records=[],
+             )
+@@ -301,6 +311,7 @@
+             execution_time_ms=round(exec_ms, 2),
+             total_commission_paid=round(total_commission_paid, 2),
+             equity_curve=equity_curve,
++            equity_times=equity_times,
+             trades=trades_pnl,
+             trade_records=trade_records,
+         )
+--- a/backend/backtest/backtest_vectorized.py
++++ b/backend/backtest/backtest_vectorized.py
+@@ -41,6 +41,7 @@
+     equity_curve: list = None
+     trades: list = None
+     trade_records: list = None
++    equity_times: list = None
+ 
+ 
+ def get_symbol_multiplier(symbol: str) -> float:
+--- a/backend/core/circuit_breaker_guard.py
++++ b/backend/core/circuit_breaker_guard.py
+@@ -44,6 +44,7 @@
+         self.circuit_breaker_active = False
+         self._circuit_breaker_alert_sent = False
+         self.current_date = None
++        self._account_identity = None
+ 
+     def _log(self, level: str, msg: str, color: str = "#8B949E") -> None:
+         if self.log_callback:
+@@ -124,6 +125,15 @@
+         today = datetime.now(timezone.utc).date()
+         today_str = today.strftime("%Y-%m-%d")
+         acct_login = str(getattr(account, "login", "") or "")
++        identity = (account.server, account.login)
++        if self._account_identity != identity:
++            # Database scope alone cannot reset a long-lived guard's cached equity/halt.
++            self._account_identity = identity
++            self.start_of_day_equity = 0.0
++            self.current_date = None
++            self.current_losing_streak = 0
++            self.circuit_breaker_active = False
++            self._circuit_breaker_alert_sent = False
+ 
+         saved_date = self.db.get_system_state("start_of_day_date", default="")
+         saved_equity = self.db.get_system_state("start_of_day_equity", default="")
+--- a/backend/core/engine_config.py
++++ b/backend/core/engine_config.py
+@@ -216,6 +216,10 @@
+         raw_sessions = data.get("allowed_sessions")
+         if isinstance(raw_sessions, (list, tuple)):
+             sessions_tuple = tuple(str(s).upper() for s in raw_sessions if str(s).strip())
++        elif any(k in data for k in ('session_asian','session_london','session_ny')):
++            sessions_tuple = tuple(name for name,key in (
++                ('ASIAN','session_asian'),('LONDON','session_london'),('NY','session_ny'))
++                if _to_bool(data.get(key),True))
+         else:
+             sessions_tuple = ("ASIAN", "LONDON", "NY")
+ 
+--- a/backend/core/event_risk_engine.py
++++ b/backend/core/event_risk_engine.py
+@@ -89,6 +89,7 @@
+                 self._news_events_ts = now
+             except Exception as e:
+                 logger.warning(f"[EventRisk] Calendar fetch failed: {e}")
++                self._calendar_valid = False
+                 self._news_events_cache = []
+                 self._news_events_ts = now
+ 
+@@ -191,6 +192,13 @@
+             return []
+ 
+         defense_results = []
++        account=mt5.account_info()
++        if account is None:
++            return []
++        identity=(account.server,account.login)
++        if getattr(self,'_defense_account',None)!=identity:
++            self._defended_positions.clear()
++            self._defense_account=identity
+ 
+         for pos in positions:
+             # SC-04 & SC-06: Do NOT defend or modify user manual trades
+@@ -287,22 +295,23 @@
+ 
+             # QUY TẮC 2: Lệnh đang lãi nhẹ 0.5R - be_r_threshold -> Chốt 50% Volume & dời phần còn lại về Breakeven
+             elif 0.5 <= r_multiple < threshold_be:
++                previous=db.get_system_state(persisted_key,default='')
++                partial_done=previous=='PARTIAL_DONE'
++                if previous.startswith('PARTIAL_PENDING:'):
++                    original,target=json.loads(previous.split(':',1)[1])
++                    if pos.volume<=target+1e-9:
++                        partial_done=True
++                        if not db.set_system_state(persisted_key,'PARTIAL_DONE'):
++                            continue
++                    else:
++                        continue
+                 min_vol = info.volume_min
+                 step_vol = info.volume_step
+                 if not math.isfinite(step_vol) or step_vol <= 0:
+                     continue
+                 half_vol = float((Decimal(str(pos.volume)) / 2 / Decimal(str(step_vol))).to_integral_value(rounding=ROUND_FLOOR) * Decimal(str(step_vol)))
+ 
+-                if half_vol >= min_vol and (pos.volume - half_vol) >= min_vol:
+-                    previous=db.get_system_state(persisted_key,default='')
+-                    partial_done=previous=='PARTIAL_DONE'
+-                    if previous.startswith('PARTIAL_PENDING:'):
+-                        original,target=json.loads(previous.split(':',1)[1])
+-                        if pos.volume<=target+1e-9:
+-                            partial_done=True
+-                            db.set_system_state(persisted_key,'PARTIAL_DONE')
+-                        else:
+-                            continue  # Do not duplicate a close whose outcome is still unknown.
++                if partial_done or (half_vol >= min_vol and (pos.volume - half_vol) >= min_vol):
+                     if partial_done:
+                         close_res={'status':'success'}
+                     else:
+--- a/backend/core/position_guard.py
++++ b/backend/core/position_guard.py
+@@ -55,12 +55,69 @@
+     def manage_positions(self, symbols: List[str]) -> None:
+         """Inspects all open positions for trailing stop adjustments and syncs closed trades."""
+         live=mt5.positions_get()
++        if live is not None:
++            self._apply_time_barriers(live)
+         managed={p.symbol for p in (live or ()) if getattr(p,'magic',None)==self.bot_magic}
+         if self.enable_trailing_stop and (self.trailing_pips > 0 or self.breakeven_pips > 0):
+             for sym in set(symbols)|managed:
+                 self._apply_trailing_for_symbol(sym)
+ 
+         self.sync_closed_trades()
++
++    def _apply_time_barriers(self, positions):
++        """Count completed venue bars, not wall-clock hours across market closures.
++
++        Only our persisted automatic execution policy arms a time exit. Legacy,
++        manual and unrelated positions do not acquire a new exit rule on restart.
++        """
++        import json
++        account=mt5.account_info()
++        if account is None:
++            return
++        self.db.bind_account(account.login,account.server)
++        for pos in positions:
++            if getattr(pos,'magic',None)!=self.bot_magic:
++                continue
++            pid=getattr(pos,'identifier',pos.ticket)
++            raw=self.db.get_system_state(f'position_policy:{pid}',default='')
++            if not raw:
++                continue
++            try:
++                policy=json.loads(raw)
++                limit=int(policy['max_holding_bars'])
++                timeframe=int(policy['timeframe'])
++                if not 1<=limit<=10000:
++                    continue
++                rates=mt5.copy_rates_from_pos(pos.symbol,timeframe,0,limit+2)
++                if rates is None or len(rates)<2:
++                    continue
++                times=sorted(int(r['time']) for r in rates)
++                opened=int(pos.time)
++                if opened>=times[-1]:
++                    continue  # No completed holding bar yet.
++                containing=max((i for i,t in enumerate(times[:-1]) if t<=opened),default=-1)
++                completed=len(times)-1-containing if containing>=0 else len(times)-1
++                if completed<limit:
++                    continue
++                key=f'time_exit:{pid}'
++                saved=self.db.get_system_state(key,default='')
++                if saved:
++                    pending=json.loads(saved)
++                    expected=pending.get('remaining')
++                    if expected is None or abs(pos.volume-float(expected))>1e-8:
++                        continue  # An ambiguous prior close must not be sent twice.
++                if not self.db.set_system_state(key,json.dumps({'remaining':None})):
++                    continue
++                result=self.exec_mgr.close_position(pos.ticket)
++                if result.get('status')=='partial':
++                    # Broker confirmed a partial execution. A later poll must see
++                    # that exact remaining exposure before another close is admitted.
++                    self.db.set_system_state(key,json.dumps({'remaining':result['remaining_volume']}))
++                elif result.get('status')=='error':
++                    self.db.set_system_state(key,'')
++                self._log('INFO',f'Time barrier close #{pos.ticket}: {result.get("status")}')
++            except (ValueError,TypeError,KeyError) as exc:
++                self._log('WARNING',f'Invalid time-exit policy for #{pos.ticket}: {exc}')
+ 
+     def _apply_trailing_for_symbol(self, sym: str) -> None:
+         positions = mt5.positions_get(symbol=sym)
+--- a/backend/core/state_recovery.py
++++ b/backend/core/state_recovery.py
+@@ -66,6 +66,8 @@
+                     "recovered_orphans":0,"reconciled_closed":0,"synced_active":0,
+                     "circuit_breaker_active":True}
+ 
++        self.reconcile_intents(live_positions=live_positions)
++
+         # Lọc vị thế theo phạm vi quản lý của nền tảng nếu có chỉ định magic
+         if magic is not None and magic != 0:
+             managed_positions = [
+@@ -211,8 +213,6 @@
+                         f"[StateRecovery] Không thể cập nhật trạng thái đóng cho #{ticket} trong CSDL!"
+                     )
+ 
+-        self.reconcile_intents()
+-
+         # 5. Khôi phục trạng thái Circuit Breaker
+         cb_state = self.db.get_system_state("circuit_breaker_active", default="False")
+ 
+@@ -229,42 +229,129 @@
+         logger.info(f"[StateRecovery] Phục hồi hoàn tất: {summary}")
+         return summary
+ 
+-    def reconcile_intents(self):
+-        """Only positive broker evidence can resolve an ambiguous submission.
+-
+-        Missing history is not proof of rejection. Unmatched requests remain
+-        blocked for operator review, even if a broker stripped their comment.
++    def reconcile_intents(self, live_positions=None):
++        """Rebuild complete broker-confirmed lifecycles before releasing reservations.
++
++        Positive order/deal identities take precedence over comments. Missing or
++        incomplete history is never interpreted as a rejection or a flat fill.
+         """
+         account=mt5.account_info()
+         if account is None:
+             return
+         self.db.bind_account(account.login, account.server)
++        if live_positions is None:
++            live_positions=mt5.positions_get()
++        orders=mt5.orders_get()
++        if live_positions is None or orders is None:
++            return
++        live_by_id={getattr(p,'identifier',p.ticket):p for p in live_positions}
+         for intent in self.db.get_unresolved_intents():
+             payload=json.loads(intent['payload'])
+             request=payload.get('request',payload)
+             tag=request.get('broker_tag')
+-            if not tag:
+-                continue
++            order_id=payload.get('order_id') or payload.get('ticket') or request.get('order_id')
++            def linked(obj, is_deal=False):
++                if order_id:
++                    return (getattr(obj,'order',None) if is_deal else getattr(obj,'ticket',None))==order_id
++                return bool(tag and tag.startswith('V2_') and getattr(obj,'comment','')==tag)
++            working=[o for o in orders if linked(o)]
++            amendment=payload.get('amendment',{})
++            if amendment.get('pending') and working:
++                target=amendment['target']
++                if any(all(abs(float(getattr(o,k))-float(target[v]))<1e-8
++                           for k,v in (('price_open','price'),('sl','sl'),('tp','tp'))) for o in working):
++                    request=target
++                    payload={'request':request,'order_id':order_id}
++                    self.db.finish_intent(intent['intent_id'],'UNKNOWN',payload)
++                else:
++                    continue
+             start=datetime.fromisoformat(intent['updated_at'])-timedelta(minutes=5)
+             end=datetime.now(timezone.utc)+timedelta(minutes=1)
++            # A historical position query below supplies its entire entry/exit lifecycle.
+             deals=mt5.history_deals_get(start,end)
+-            orders=mt5.orders_get()
+-            if deals is None or orders is None:
+-                continue
+-            matches=[d for d in deals if getattr(d,'comment','')==tag]
++            if deals is None:
++                continue
++            matches=[d for d in deals if linked(d, is_deal=True)]
+             if matches:
+-                self.db.record_deals(matches)
+-                self.db.finish_intent(intent['intent_id'],'FILLED',{'request':request,'reconciled_deals':[d.ticket for d in matches]})
+-                continue
+-            if any(getattr(o,'comment','')==tag for o in orders):
+-                continue  # A pending order still reserves this symbol.
++                position_ids={int(d.position_id) for d in matches if getattr(d,'position_id',0)>0}
++                resolved=bool(position_ids)
++                for pid in position_ids:
++                    complete=mt5.history_deals_get(position=pid)
++                    if not complete:
++                        resolved=False
++                        continue
++                    complete=[d for d in complete if getattr(d,'position_id',None)==pid]
++                    self.db.record_deals(complete)
++                    pos=live_by_id.get(pid)
++                    opening=[d for d in complete if getattr(d,'entry',None)==0]
++                    first=min(opening,key=lambda d:getattr(d,'time_msc',d.time*1000)) if opening else None
++                    broker_order=getattr(first,'order',None) or order_id or getattr(matches[0],'order',None)
++                    if pos is not None:
++                        saved=self.db.get_trade_by_position(pid)
++                        if not saved:
++                            if not self.db.record_open_trade(pos.ticket,pos.symbol,
++                                    'BUY' if pos.type==mt5.ORDER_TYPE_BUY else 'SELL',pos.volume,pos.price_open,
++                                    sl=pos.sl,tp=pos.tp,initial_sl=float(request.get('sl') or 0),
++                                    open_time=datetime.fromtimestamp(pos.time,timezone.utc).isoformat(),
++                                    position_id=pid,broker_order_id=broker_order,magic=pos.magic,
++                                    strategy_id=request.get('strategy_id','')):
++                                resolved=False
++                                continue
++                        else:
++                            self.db.sync_position(saved['ticket'],pos)
++                        if not self.db.attach_execution_policy(pos.ticket,pid,request,broker_order):
++                            resolved=False
++                    else:
++                        # A fill and its exit can both happen between polls. Reconstruct
++                        # only a volume-complete history; a partial exit is not flat proof.
++                        exits=[d for d in complete if getattr(d,'entry',None) in (1,3)]
++                        if not opening or not exits or any(getattr(d,'entry',None)==2 for d in complete):
++                            resolved=False
++                            continue
++                        in_volume=sum(float(d.volume) for d in opening)
++                        out_volume=sum(float(d.volume) for d in exits)
++                        if in_volume<=0 or abs(in_volume-out_volume)>1e-8:
++                            resolved=False
++                            continue
++                        open_price=sum(d.price*d.volume for d in opening)/in_volume
++                        close_price=sum(d.price*d.volume for d in exits)/out_volume
++                        last=max(exits,key=lambda d:getattr(d,'time_msc',d.time*1000))
++                        pnl=sum(float(getattr(d,k,0) or 0) for d in complete
++                                for k in ('profit','commission','swap','fee'))
++                        saved=self.db.get_trade_by_position(pid)
++                        ticket=saved['ticket'] if saved else pid
++                        if not saved and not self.db.record_open_trade(ticket,first.symbol,
++                                'BUY' if getattr(first,'type',0)==mt5.ORDER_TYPE_BUY else 'SELL',
++                                in_volume,open_price,sl=float(request.get('sl') or 0),tp=float(request.get('tp') or 0),
++                                position_id=pid,broker_order_id=broker_order,magic=getattr(first,'magic',0),
++                                strategy_id=request.get('strategy_id',''),
++                                open_time=datetime.fromtimestamp(first.time,timezone.utc).isoformat()):
++                            resolved=False
++                            continue
++                        if not self.db.attach_execution_policy(ticket,pid,request,broker_order):
++                            resolved=False
++                            continue
++                        if not self.db.record_close_trade(ticket,close_price,pnl,
++                                datetime.fromtimestamp(last.time,timezone.utc).isoformat()):
++                            resolved=False
++                if resolved and not working and not amendment.get('pending'):
++                    self.db.finish_intent(intent['intent_id'],'FILLED',{
++                        'request':request,'order_id':order_id,
++                        'reconciled_deals':[d.ticket for d in matches]})
++                continue
++            if working:
++                continue
+             history=mt5.history_orders_get(start,end)
+             if history is None:
+                 continue
+-            # Only definitive terminal order statuses prove cancellation/rejection.
+-            terminal=[o for o in history if getattr(o,'comment','')==tag and getattr(o,'state',None) in (2,5,6)]
++            terminal=[o for o in history if linked(o) and getattr(o,'state',None) in (2,5,6)]
+             if terminal:
+-                self.db.finish_intent(intent['intent_id'],'CANCELED',{'request':request,'broker_order':terminal[-1].ticket})
++                # A partially filled then canceled order still requires its fills.
++                if any(float(getattr(o,'volume_initial',0) or 0)>
++                       float(getattr(o,'volume_current',0) or 0)+1e-9 for o in terminal):
++                    continue
++                self.db.finish_intent(intent['intent_id'],'CANCELED',{
++                    'request':request,'broker_order':terminal[-1].ticket})
+ 
+     def can_open_new_trade(self, symbol: str) -> bool:
+         """
+--- a/backend/core/stats_engine.py
++++ b/backend/core/stats_engine.py
+@@ -221,8 +221,9 @@
+             if db_trades:
+                 existing_tickets = {t["ticket"] for t in trades}
+                 for dt in db_trades:
+-                    t_num = dt.get("ticket", 0)
++                    t_num = dt.get("position_id") or dt.get("ticket", 0)
+                     if t_num not in existing_tickets:
++                        existing_tickets.add(t_num)
+                         c_time_str = dt.get("close_time", "")
+                         try:
+                             ts = int(datetime.fromisoformat(c_time_str).replace(tzinfo=timezone.utc).timestamp()) if c_time_str else int(time.time())
+@@ -230,7 +231,7 @@
+                             ts = int(time.time())
+                         trades.append({
+                             "ticket": t_num,
+-                            "type": dt.get("side", "Buy").capitalize(),
++                            "type": dt.get("order_type", "BUY").capitalize(),
+                             "close_time": c_time_str,
+                             "volume": dt.get("volume", 0.0),
+                             "symbol": dt.get("symbol", "XAUUSD"),
+--- a/backend/core/trading_commands.py
++++ b/backend/core/trading_commands.py
+@@ -8,6 +8,7 @@
+ import math
+ import threading
+ import time
++from datetime import datetime, timezone
+ from pathlib import Path
+ from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
+ 
+@@ -49,7 +50,8 @@
+                 k: getattr(runtime, k, getattr(runtime.config, k))
+                 for k in ('risk_per_trade','max_daily_loss','max_drawdown','max_losing_streak',
+                           'max_open_trades','max_spread','slippage','close_friday',
+-                          'news_filter_enabled','news_pause_mins','execution_mode','trade_mode')
++                          'news_filter_enabled','news_pause_mins','execution_mode','trade_mode',
++                          'allowed_sessions','timeframe','gate_mode')
+             }})
+         path = Path(__file__).resolve().parents[2] / 'config' / 'settings.json'
+         return BotRunConfig.from_dict(json.loads(path.read_text()) if path.exists() else {})
+@@ -107,7 +109,11 @@
+             return self._error('Broker exposure is unavailable')
+         if any(p.symbol == symbol for p in positions) or any(o.symbol == symbol for o in orders):
+             return self._error('Existing position or pending order')
+-        if len(positions)+len(orders) >= config.max_open_trades or self.db.has_unresolved_intent(symbol):
++        # Count an unresolved symbol once even if its order/position is already visible.
++        visible_symbols = {p.symbol for p in positions} | {o.symbol for o in orders}
++        reserved_symbols = {i['symbol'] for i in self.db.get_unresolved_intents()}
++        reserved_slots = len(reserved_symbols - visible_symbols)
++        if len(positions)+len(orders)+reserved_slots >= config.max_open_trades or self.db.has_unresolved_intent(symbol):
+             return self._error('Capacity or unresolved execution blocks entry')
+         if any(t['symbol']==symbol for t in self.db.get_open_trades()):
+             return self._error('Persisted position requires reconciliation')
+@@ -176,11 +182,19 @@
+         latest=mt5.account_info()
+         if latest is None or (latest.login,latest.server)!=(account.login,account.server):
+             return self._error('Account changed during validation')
+-        if not manual and not approval and (not runtime.is_running or getattr(getattr(runtime,"circuit_guard",None),"circuit_breaker_active",False)):
++        if not manual and approval and self._config(runtime).execution_mode.value!='SEMI-AUTO':
++            return self._error('Approval mode changed during validation')
++        if not manual and not approval and (not runtime.is_running or
++                str(runtime.execution_mode if hasattr(runtime,'execution_mode') else runtime.config.execution_mode.value)!='FULL-AUTO' or
++                getattr(getattr(runtime,"circuit_guard",None),"circuit_breaker_active",False)):
+             return self._error('Trading stopped during pre-trade checks')
+         self.execution.slippage=config.slippage
+         payload=dict(symbol=symbol,is_buy=is_buy,volume=lot,price=price,sl=sl,tp=tp,
+-                     comment=comment,strategy_id=strategy_id or config.strategy_id)
++                     comment=comment,strategy_id=strategy_id or config.strategy_id,
++                     risk_pct=selected_risk, pending_type=pending_type, magic=0 if manual else
++                     (self.execution.magic if magic is None else magic))
++        if not manual:
++            payload['holding_policy'] = {'timeframe':config.timeframe, 'max_holding_bars':20}
+         if signal_key is None:
+             bars=mt5.copy_rates_from_pos(symbol,config.timeframe,1,1)
+             if bars is None or len(bars)==0:
+@@ -199,6 +213,7 @@
+                 result=self.execution._execute_market_order_raw(symbol,is_buy,lot,sl,tp,
+                     comment=payload['broker_tag'],magic=0 if manual else magic,max_retries=1,validated_price=price)
+             result=result or self._error('Missing broker result','unknown')
++            payload['order_id']=result.get('order_id') or result.get('ticket')
+             result['intent_id']=intent
+             state='UNKNOWN' if result['status']=='unknown' else ('FILLED' if result['status']=='success' else 'REJECTED')
+             if result.get('partial'):
+@@ -217,9 +232,13 @@
+                     self.db.record_deals(deals)
+                     ok=self.db.record_open_trade(pos.ticket,symbol,'BUY' if is_buy else 'SELL',pos.volume,
+                         pos.price_open,sl=pos.sl,tp=pos.tp,comment=comment,position_id=pos.identifier,
+-                        broker_order_id=result['order_id'],magic=pos.magic,strategy_id=payload['strategy_id'])
++                        broker_order_id=result['order_id'],magic=pos.magic,strategy_id=payload['strategy_id'],
++                        initial_sl=payload['sl'], open_time=datetime.fromtimestamp(
++                            getattr(pos,'time',time.time()),timezone.utc).isoformat())
+                     if not ok:
+                         raise RuntimeError('Broker filled but position persistence failed')
++                    if not self.db.attach_execution_policy(pos.ticket,pos.identifier,payload,result['order_id']):
++                        raise RuntimeError('Broker filled but execution policy persistence failed')
+                     result.update(ticket=pos.ticket,position_id=pos.identifier,volume=pos.volume,
+                                   price=pos.price_open,sl=pos.sl,tp=pos.tp)
+             if pending_type and result.get('status')=='success':
+@@ -232,3 +251,112 @@
+             except Exception:
+                 pass  # The durable SUBMITTING row still blocks entry after restart.
+             return self._error(f'Execution requires reconciliation: {exc}','unknown')
++
++    def modify_pending(self, ticket, price, sl=None, tp=None):
++        """Re-admit fixed-volume amendments; omission preserves existing protection.
++
++        A durable amendment marker precedes the RPC. An ambiguous amendment cannot
++        be retried until reconciliation confirms the target or a terminal order.
++        """
++        with self._lock, mt5._session_lock:
++            intent = None
++            marker = None
++            try:
++                account = mt5.account_info()
++                terminal = mt5.terminal_info()
++                if account is None or terminal is None or not terminal.connected or not terminal.trade_allowed:
++                    return self._error('Verified broker connection is required')
++                self.db.bind_account(account.login, account.server)
++                orders = mt5.orders_get(ticket=int(ticket))
++                if orders is None or len(orders) != 1:
++                    return self._error('Pending order unavailable')
++                order = orders[0]
++                symbol = order.symbol
++                types = {mt5.ORDER_TYPE_BUY_LIMIT:True, mt5.ORDER_TYPE_BUY_STOP:True,
++                         mt5.ORDER_TYPE_SELL_LIMIT:False, mt5.ORDER_TYPE_SELL_STOP:False}
++                if order.type not in types:
++                    return self._error('Unsupported pending order type')
++                is_buy = types[order.type]
++                volume = float(order.volume_current)
++                old_price, old_sl, old_tp = float(order.price_open), float(order.sl), float(order.tp)
++                price, sl, tp = float(price), old_sl if sl is None else float(sl), old_tp if tp is None else float(tp)
++                if not all(math.isfinite(v) and v > 0 for v in (price,sl,tp,volume)):
++                    return self._error('Protective stops cannot be removed by amendment')
++                if not (sl < price < tp if is_buy else tp < price < sl):
++                    return self._error('Invalid pending order geometry')
++                config = self._config(self._runtime)
++                info, tick = mt5.symbol_info(symbol), mt5.symbol_info_tick(symbol)
++                if info is None or tick is None or abs(time.time()-tick.time)>120:
++                    return self._error('Quote unavailable or stale')
++                step = float(info.trade_tick_size)
++                if step <= 0 or any(abs(v/step-round(v/step))>1e-6 for v in (price,sl,tp)):
++                    return self._error('Amendment prices must align with broker tick size')
++                minimum = float(info.trade_stops_level)*float(info.point)
++                quote = tick.ask if is_buy else tick.bid
++                above = order.type in (mt5.ORDER_TYPE_BUY_STOP,mt5.ORDER_TYPE_SELL_LIMIT)
++                if (price-quote if above else quote-price) < max(minimum,step)-1e-9:
++                    return self._error('Pending price too close to market or on wrong side')
++                if abs(price-sl)<minimum or abs(tp-price)<minimum:
++                    return self._error('Pending stops too close')
++                action = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
++                adverse = price+(1 if is_buy else -1)*config.slippage*info.point
++                loss = mt5.order_calc_profit(action,symbol,volume,adverse,sl)
++                old_adverse = old_price+(1 if is_buy else -1)*config.slippage*info.point
++                old_loss = mt5.order_calc_profit(action,symbol,volume,old_adverse,old_sl) if old_sl>0 else None
++                if not isinstance(loss,(int,float)) or not math.isfinite(loss) or loss>=0:
++                    return self._error('Broker loss estimate unavailable')
++                old_loss = abs(old_loss) if isinstance(old_loss,(int,float)) and math.isfinite(old_loss) and old_sl>0 else float('inf')
++                increases_risk = abs(loss)>old_loss+1e-6
++                # Moving a pending entry can activate exposure even when its SL
++                # loss is smaller. Only protection-only changes bypass a halt.
++                requires_admission = increases_risk or abs(price-old_price)>1e-9
++                intent = self.db.find_order_intent(ticket,getattr(order,'comment',''))
++                previous = json.loads(intent['payload']) if intent else {}
++                if previous.get('amendment',{}).get('pending'):
++                    return self._error('Prior amendment requires reconciliation')
++                request = dict(previous.get('request',previous))
++                if requires_admission:
++                    if self._emergency_halt or (self._runtime is not None and not self._runtime.is_running):
++                        return self._error('Trading halt blocks risk-increasing amendment')
++                    guard = CircuitBreakerGuard(self.db,config.max_daily_loss,config.max_drawdown,
++                                                config.max_losing_streak,bot_magic=self.execution.magic)
++                    if guard.evaluate_circuit_breaker():
++                        return self._error('Circuit breaker blocks risk increase')
++                    if not SessionFilter(list(config.allowed_sessions),config.close_friday).is_session_allowed(symbol)[0]:
++                        return self._error('Session is closed')
++                    events = EventRiskEngine(self.execution,pause_window_mins=config.news_pause_mins,
++                                             user_max_spread=config.max_spread)
++                    if not events.check_spread_normalization(symbol)[0]:
++                        return self._error('Spread blocks risk increase')
++                    if config.news_filter_enabled and events.check_news_impact_for_symbol(symbol)[0]:
++                        return self._error('News blackout')
++                    risk = min(config.risk_per_trade,float(request.get('risk_pct',config.risk_per_trade)))
++                    if not math.isfinite(risk) or abs(loss)>account.balance*risk/100+1e-6:
++                        return self._error('Amendment exceeds loss budget; reduce order volume by cancel/recreate')
++                    margin = mt5.order_calc_margin(action,symbol,volume,price)
++                    if not isinstance(margin,(int,float)) or not math.isfinite(margin) or margin>account.margin_free:
++                        return self._error('Margin unavailable or insufficient')
++                latest = mt5.account_info()
++                if latest is None or (latest.login,latest.server)!=(account.login,account.server):
++                    return self._error('Account changed during amendment validation')
++                request.setdefault('symbol',symbol)
++                request.setdefault('broker_tag',getattr(order,'comment',''))
++                request['order_id']=int(ticket)
++                target = {**request,'price':price,'sl':sl,'tp':tp,'volume':volume}
++                if intent is None:
++                    intent_id = self.db.reserve_intent('amend:'+str(ticket)+':'+str(time.time_ns()),symbol,request)
++                    if not intent_id:
++                        return self._error('Unresolved execution blocks amendment')
++                    intent = {'intent_id':intent_id}
++                marker = {'request':request,'order_id':int(ticket),'amendment':{
++                    'pending':True,'target':target,'before':{'price':old_price,'sl':old_sl,'tp':old_tp}}}
++                self.db.finish_intent(intent['intent_id'],'UNKNOWN',marker)
++                result = self.execution._modify_pending_order_raw(ticket,price,sl,tp)
++                if result['status']=='success':
++                    self.db.finish_intent(intent['intent_id'],'UNKNOWN',{'request':target,'order_id':int(ticket)})
++                elif result['status']=='error':
++                    self.db.finish_intent(intent['intent_id'],'UNKNOWN',{'request':request,'order_id':int(ticket)})
++                return result
++            except Exception as exc:
++                # SUBMITTING/UNKNOWN remains durable even if post-RPC persistence fails.
++                return self._error(f'Amendment requires reconciliation: {exc}', 'unknown' if marker else 'error')
+--- a/backend/database/db_manager.py
++++ b/backend/database/db_manager.py
+@@ -290,6 +290,51 @@
+         with self._db_lock, self._connection() as conn:
+             return [dict(r) for r in conn.execute("SELECT * FROM order_intents WHERE account_id=? AND status IN ('SUBMITTING','UNKNOWN')",(self.account_id,))]
+ 
++    def get_intents(self):
++        with self._db_lock, self._connection() as conn:
++            return [dict(r) for r in conn.execute(
++                'SELECT * FROM order_intents WHERE account_id=? ORDER BY updated_at DESC', (self.account_id,))]
++
++    def find_order_intent(self, order_id=None, broker_tag=None):
++        """Resolve by broker identity first; comments are only a secondary positive link."""
++        for intent in self.get_intents():
++            payload = json.loads(intent['payload'])
++            request = payload.get('request', payload)
++            known_order = payload.get('order_id') or payload.get('ticket') or request.get('order_id')
++            if order_id and known_order:
++                if int(known_order) == int(order_id):
++                    return intent
++                continue
++            if broker_tag and broker_tag.startswith('V2_') and request.get('broker_tag') == broker_tag:
++                return intent
++        return None
++
++    def get_trade_by_position(self, position_id):
++        with self._db_lock, self._connection() as conn:
++            row = conn.execute('SELECT * FROM trades WHERE account_id=? AND position_id=?',
++                               (self.account_id, position_id)).fetchone()
++            return dict(row) if row else None
++
++    def attach_execution_policy(self, ticket, position_id, request, order_id=None):
++        """Attach only facts retained in our durable request, never a reconstructed trailing SL."""
++        with self._db_lock, self._connection() as conn:
++            cur = conn.execute('''UPDATE trades SET
++                initial_sl=CASE WHEN initial_sl=0 THEN ? ELSE initial_sl END,
++                strategy_id=CASE WHEN strategy_id='' THEN ? ELSE strategy_id END,
++                broker_order_id=COALESCE(broker_order_id,?)
++                WHERE account_id=? AND ticket=?''',
++                (float(request.get('sl') or 0), request.get('strategy_id') or '', order_id,
++                 self.account_id, ticket))
++            if cur.rowcount != 1:
++                return False
++            policy = request.get('holding_policy')
++            if policy:
++                conn.execute('''INSERT INTO system_state VALUES (?,?,?,?)
++                    ON CONFLICT(account_id,key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at''',
++                    (self.account_id, f'position_policy:{position_id}',
++                     json.dumps(policy, allow_nan=False), self._now()))
++            return True
++
+     def sync_position(self, old_ticket, pos):
+         with self._db_lock, self._connection() as conn:
+             conn.execute("UPDATE trades SET ticket=?,volume=?,sl=?,tp=? WHERE account_id=? AND ticket=? AND status='OPEN'",
+--- a/backend/infrastructure/ai_engines/ai/decision_gate.py
++++ b/backend/infrastructure/ai_engines/ai/decision_gate.py
+@@ -288,6 +288,12 @@
+         metadata_file=self._models_dir / Path(model_filename).with_suffix('.json')
+         try:
+             metadata=json.loads(metadata_file.read_text())
++            if not isinstance(metadata, dict):
++                raise ValueError('Model metadata must be an object')
++            if metadata.get('symbol') is not None and not isinstance(metadata['symbol'], str):
++                raise ValueError('Model symbol must be a string')
++            if not isinstance(feature_cols, list) or not all(isinstance(c, str) for c in feature_cols):
++                raise ValueError('Model feature columns must be a list of names')
+         except Exception as exc:
+             return False,0.0,f'Model metadata unavailable: {exc}'
+         if metadata.get('feature_version') != FEATURE_VERSION:
+@@ -706,6 +712,10 @@
+                         reason += f" [{ml_msg}]"
+             except Exception as e:
+                 logger.warning(f"[DecisionGate] Error checking ML Meta-Labeling: {e}")
++                decision = 'WAIT'
++                trade_mode = 'BLOCKED'
++                size_multiplier = 0.0
++                reason = f'ML evaluation unavailable: {e}'
+ 
+         logger.info(
+             f"[DecisionGate] {symbol}: GateMode=FULL, Strategy={signal_from_strategy}, "
+--- a/backend/infrastructure/brokers/execution_manager.py
++++ b/backend/infrastructure/brokers/execution_manager.py
+@@ -228,6 +228,10 @@
+                     "retries": attempt - 1,
+                     "retcode": result.retcode,
+                 }
++
++            if result.retcode == mt5.TRADE_RETCODE_PLACED:
++                return {'status':'unknown', 'msg':'Order accepted; waiting for broker fills',
++                        'order_id':result.order, 'retcode':result.retcode, 'retries':attempt-1}
+ 
+             # Xử lý các mã lỗi có thể thử lại
+             if result.retcode in (mt5.TRADE_RETCODE_TIMEOUT, mt5.TRADE_RETCODE_CONNECTION):
+@@ -354,7 +358,7 @@
+                 "magic": target_magic,
+                 "comment": comment,
+                 "type_time": mt5.ORDER_TIME_GTC,
+-                "type_filling": self._get_fill_policy(symbol),
++                "type_filling": mt5.ORDER_FILLING_RETURN,
+             }
+ 
+             req_start = time.perf_counter()
+@@ -475,25 +479,37 @@
+         total_latency_ms = (time.perf_counter() - start_exec) * 1000.0
+ 
+         if res and res.retcode in (mt5.TRADE_RETCODE_DONE,mt5.TRADE_RETCODE_DONE_PARTIAL):
+-            action_desc = f"Da dong {close_volume} lot vi the #{ticket}" if is_partial else f"Da dong thanh cong vi the #{ticket}"
++            filled=getattr(res,'volume',None)
++            if not isinstance(filled,(int,float)) or not math.isfinite(filled) or filled<=0:
++                if res.retcode==mt5.TRADE_RETCODE_DONE_PARTIAL:
++                    return {'status':'unknown','msg':'Partial close volume requires reconciliation'}
++                filled=close_volume
++            remaining_vol=max(0.0,pos.volume-float(filled))
++            completed_request = float(filled)>=close_volume-1e-9
++            action_desc = f"Closed {filled} lots of position #{ticket}; remaining {remaining_vol}"
+             # SC-08: Synchronize remaining volume with DatabaseManager on partial close
+-            if is_partial:
+-                filled=getattr(res,'volume',None)
+-                filled=float(filled) if isinstance(filled,(int,float)) else close_volume
+-                remaining_vol = max(0.0,pos.volume-filled)
++            if remaining_vol>0:
+                 try:
+                     from backend.database.db_manager import DatabaseManager
+-                    DatabaseManager().update_trade_volume(ticket, remaining_vol)
++                    db=DatabaseManager()
++                    account=mt5.account_info()
++                    if account is not None:
++                        db.bind_account(account.login,account.server)
++                        db.update_trade_volume(ticket, remaining_vol)
+                 except Exception as e_db:
+                     logger.debug(f"[ExecutionManager] Partial close DB sync skipped: {e_db}")
+             return {
+-                "status": "success",
++                "status": "success" if completed_request else "partial",
+                 "msg": f"{action_desc} (Do tre: {total_latency_ms:.1f} ms)",
+                 "deal": res.deal,
+                 "partial_fill": res.retcode == mt5.TRADE_RETCODE_DONE_PARTIAL,
++                "filled_volume": float(filled),
++                "remaining_volume": remaining_vol,
++                "position_closed": remaining_vol<=1e-9,
++                "retcode": res.retcode,
+                 "latency_ms": round(total_latency_ms, 2),
+             }
+-        if res is None or res.retcode in (mt5.TRADE_RETCODE_TIMEOUT,mt5.TRADE_RETCODE_CONNECTION):
++        if res is None or res.retcode in (mt5.TRADE_RETCODE_TIMEOUT,mt5.TRADE_RETCODE_CONNECTION,mt5.TRADE_RETCODE_PLACED):
+             return {"status":"unknown","msg":"Close requires broker reconciliation"}
+         return {
+             "status": "error",
+@@ -670,7 +686,11 @@
+             "latency_ms": round(total_latency_ms, 2),
+         }
+ 
+-    def modify_pending_order(
++    def modify_pending_order(self, ticket: int, price: float, sl=None, tp=None) -> dict:
++        from backend.core.trading_commands import TradingCommandService
++        return TradingCommandService(self).modify_pending(ticket, price, sl, tp)
++
++    def _modify_pending_order_raw(
+         self, ticket: int, price: float, sl: float = 0.0, tp: float = 0.0
+     ) -> dict:
+         """
+@@ -710,6 +730,8 @@
+                 "msg": f"Da cap nhat lenh cho #{ticket} sang gia {price:.{digits}f} thanh cong (Do tre: {total_latency_ms:.1f} ms)",
+                 "latency_ms": round(total_latency_ms, 2),
+             }
++        if res is None or res.retcode in (mt5.TRADE_RETCODE_TIMEOUT,mt5.TRADE_RETCODE_CONNECTION,mt5.TRADE_RETCODE_PLACED):
++            return {'status':'unknown','msg':'Amendment requires broker reconciliation'}
+         return {
+             "status": "error",
+             "msg": f"Loi sua lenh cho #{ticket}: {res.comment if res else 'Unknown'}",
+--- a/frontend/controllers/settings_controller.py
++++ b/frontend/controllers/settings_controller.py
+@@ -881,6 +881,11 @@
+         self._set_status("CONFIGURATION READY", "#475569")
+ 
+     def _hot_reload_live_bot(self, data: dict):
++        from backend.core.trading_commands import TradingCommandService
++        with TradingCommandService._lock:
++            return self._hot_reload_live_bot_locked(data)
++
++    def _hot_reload_live_bot_locked(self, data: dict):
+         """Đồng bộ các tham số cấu hình trực tiếp vào BotWorker đang chạy trong bộ nhớ."""
+         qt = getattr(self.window, "quant_terminal", None)
+         bot = getattr(qt, "bot_worker", None) if qt else None
+--- a/research/export_trained_wyckoff_model.py
++++ b/research/export_trained_wyckoff_model.py
+@@ -1,261 +1,14 @@
+-# -*- coding: utf-8 -*-
++"""Export only after the canonical chronological validation pipeline succeeds.
++Usage: python research/export_trained_wyckoff_model.py --data completed_M15.csv
+ """
+-EXPORTS TRAINED WYCKOFF META-LABELING MODEL TO STORAGE/MODELS
+-============================================================
+-Saves:
+-1. storage/models/builtin_wyckoff_meta.lgb (LightGBM Booster Model)
+-2. storage/models/builtin_wyckoff_meta.json (Model Metadata & Feature Spec)
+-"""
++import sys
++from pathlib import Path
++ROOT=Path(__file__).resolve().parents[1]
++sys.path.insert(0,str(ROOT))
++from research.walk_forward_pipeline import main
+ 
+-import sys
+-import json
+-from pathlib import Path
+-import numpy as np
+-import pandas as pd
+-import lightgbm as lgb
+-
+-if hasattr(sys.stdout, "reconfigure"):
+-    sys.stdout.reconfigure(encoding="utf-8")
+-if hasattr(sys.stderr, "reconfigure"):
+-    sys.stderr.reconfigure(encoding="utf-8")
+-
+-PROJECT_ROOT = Path(r"Kho_Do_An\Quant_AI_V2.2")
+-if str(PROJECT_ROOT) not in sys.path:
+-    sys.path.insert(0, str(PROJECT_ROOT))
+-
+-from backend.infrastructure.brokers.mt5_safe import mt5
+-from backend.backtest.backtest_ict_pro import EventDrivenBacktester
+-from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+-
+-MODELS_DIR = PROJECT_ROOT / "storage" / "models"
+-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+-
+-if not mt5.initialize():
+-    print("MT5 Init Failed")
+-    sys.exit(1)
+-
+-symbol = "XAUUSD"
+-bars_count = 99999
+-print(f"Loading {bars_count:,} bars from MT5...")
+-rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, bars_count)
+-df = pd.DataFrame(rates)
+-df["time"] = pd.to_datetime(df["time"], unit="s")
+-
+-closes = df["close"].to_numpy(dtype=np.float64)
+-highs = df["high"].to_numpy(dtype=np.float64)
+-lows = df["low"].to_numpy(dtype=np.float64)
+-opens = df["open"].to_numpy(dtype=np.float64)
+-volumes = df["tick_volume"].to_numpy(dtype=np.float64)
+-n = len(df)
+-
+-tr1 = highs[1:] - lows[1:]
+-tr2 = np.abs(highs[1:] - closes[:-1])
+-tr3 = np.abs(lows[1:] - closes[:-1])
+-tr = np.maximum(tr1, np.maximum(tr2, tr3))
+-atr14 = np.zeros(n)
+-atr14[14] = np.mean(tr[:14])
+-for idx in range(15, n):
+-    atr14[idx] = (atr14[idx - 1] * 13 + tr[idx - 1]) / 14.0
+-
+-def calc_ema(arr, period):
+-    res = np.zeros(len(arr))
+-    alpha = 2.0 / (period + 1.0)
+-    res[period - 1] = np.mean(arr[:period])
+-    for i in range(period, len(arr)):
+-        res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
+-    return res
+-
+-ema20 = calc_ema(closes, 20)
+-ema50 = calc_ema(closes, 50)
+-vol_ma20 = calc_ema(volumes, 20)
+-
+-# Wilder ADX
+-up_move = highs[1:] - highs[:-1]
+-down_move = lows[:-1] - lows[1:]
+-plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+-minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+-tr_smooth = np.zeros(n)
+-p_dm_smooth = np.zeros(n)
+-m_dm_smooth = np.zeros(n)
+-tr_smooth[14] = np.sum(tr[:14])
+-p_dm_smooth[14] = np.sum(plus_dm[:14])
+-m_dm_smooth[14] = np.sum(minus_dm[:14])
+-for idx in range(15, n):
+-    tr_smooth[idx] = tr_smooth[idx - 1] - (tr_smooth[idx - 1] / 14.0) + tr[idx - 1]
+-    p_dm_smooth[idx] = p_dm_smooth[idx - 1] - (p_dm_smooth[idx - 1] / 14.0) + plus_dm[idx - 1]
+-    m_dm_smooth[idx] = m_dm_smooth[idx - 1] - (m_dm_smooth[idx - 1] / 14.0) + minus_dm[idx - 1]
+-
+-safe_tr = np.where(tr_smooth > 1e-9, tr_smooth, 1e-9)
+-plus_di = 100.0 * (p_dm_smooth / safe_tr)
+-minus_di = 100.0 * (m_dm_smooth / safe_tr)
+-di_sum = plus_di + minus_di
+-safe_di_sum = np.where(di_sum > 1e-9, di_sum, 1e-9)
+-dx = 100.0 * np.abs(plus_di - minus_di) / safe_di_sum
+-adx14 = np.zeros(n)
+-if n >= 28:
+-    adx14[27] = np.mean(dx[14:28])
+-    for idx in range(28, n):
+-        adx14[idx] = (adx14[idx - 1] * 13.0 + dx[idx]) / 14.0
+-
+-log_hl = np.log(highs / np.maximum(lows, 1e-9))
+-log_co = np.log(closes / np.maximum(opens, 1e-9))
+-gk_bar = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
+-gk_series = pd.Series(gk_bar).rolling(14).mean().fillna(0.0).to_numpy()
+-gk_vol = np.sqrt(np.maximum(0.0, gk_series)) * 1000.0
+-
+-price_diff = np.diff(closes, prepend=closes[0])
+-signed_vol = np.where(price_diff > 0, volumes, np.where(price_diff < 0, -volumes, 0.0))
+-cvd_10 = pd.Series(signed_vol).rolling(10).sum().fillna(0.0).to_numpy()
+-vol_sum_10 = pd.Series(volumes).rolling(10).sum().replace(0, 1.0).fillna(1.0).to_numpy()
+-cvd_proxy_ratio = cvd_10 / vol_sum_10
+-
+-pv = closes * volumes
+-rolling_pv = pd.Series(pv).rolling(96).sum().bfill()
+-rolling_v = pd.Series(volumes).rolling(96).sum().replace(0, 1.0).fillna(1.0)
+-vwap_24h = (rolling_pv / rolling_v).to_numpy()
+-safe_atr = np.where(atr14 > 1e-4, atr14, 1.0)
+-vwap_zscore = (closes - vwap_24h) / safe_atr
+-
+-candle_range = highs - lows
+-candle_range_safe = np.where(candle_range > 1e-4, candle_range, 1.0)
+-upper_wick = highs - np.maximum(closes, opens)
+-lower_wick = np.minimum(closes, opens) - lows
+-upper_wick_ratio = upper_wick / candle_range_safe
+-lower_wick_ratio = lower_wick / candle_range_safe
+-
+-roll_high_30 = pd.Series(highs).rolling(30).max().shift(1).bfill().to_numpy()
+-roll_low_30 = pd.Series(lows).rolling(30).min().shift(1).bfill().to_numpy()
+-hours = df["time"].dt.hour.to_numpy()
+-days_of_week = df["time"].dt.dayofweek.to_numpy()
+-
+-dynamic_cfg = {
+-    "vol_mult": 1.10,
+-    "adx_threshold": 16.0,
+-    "min_headroom_atr": 0.4,
+-    "session_filter": False,
+-}
+-
+-class VersionedWyckoff(WyckoffMomentumStrategy):
+-    def __init__(self, s_hr=6, e_hr=21):
+-        super().__init__(dynamic_cfg)
+-        self.s_hr = s_hr
+-        self.e_hr = e_hr
+-
+-    def analyze(self, window_df, macro_context=None):
+-        if "time" in window_df.columns:
+-            t = pd.to_datetime(window_df["time"].iloc[-1])
+-            if not (self.s_hr <= t.hour <= self.e_hr):
+-                res = super().analyze(window_df, macro_context)
+-                res.action = "HOLD"
+-                res.signal = "HOLD"
+-                return res
+-        return super().analyze(window_df, macro_context)
+-
+-strat = VersionedWyckoff(6, 21)
+-tester = EventDrivenBacktester(
+-    strategy=strat,
+-    initial_balance=100000.0,
+-    risk_per_trade_pct=1.0,
+-    commission_per_lot=7.0,
+-    slippage_pts=20.0,
+-    max_lot_cap=10.0,
+-)
+-
+-report = tester.run(df, symbol=symbol)
+-raw_trades = report.trade_records
+-
+-time_str_to_idx = {t.strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(df["time"])}
+-samples = []
+-for tr in raw_trades:
+-    entry_str = str(tr.get("signal_time",tr["entry_time"]))
+-    idx = time_str_to_idx.get(entry_str)
+-    if idx is None:
+-        continue
+-    side = tr["side"]
+-    is_buy = 1 if side == "BUY" else 0
+-    outcome = 1 if tr["outcome"] == "TP" else 0
+-    v_ratio = volumes[idx] / max(1.0, vol_ma20[idx])
+-    adx_val = adx14[idx]
+-    gk_val = gk_vol[idx]
+-    cvd_val = cvd_proxy_ratio[idx]
+-    vwap_z = vwap_zscore[idx]
+-    ema_spread = abs(ema20[idx] - ema50[idx]) / safe_atr[idx]
+-    if is_buy:
+-        headroom = (roll_high_30[idx] - closes[idx]) / safe_atr[idx]
+-        wick = upper_wick_ratio[idx]
+-    else:
+-        headroom = (closes[idx] - roll_low_30[idx]) / safe_atr[idx]
+-        wick = lower_wick_ratio[idx]
+-    hr = hours[idx]
+-    dow = days_of_week[idx]
+-    samples.append({
+-        "outcome": outcome,
+-        "is_buy": is_buy,
+-        "vol_ratio": round(v_ratio, 3),
+-        "adx": round(adx_val, 2),
+-        "gk_vol": round(gk_val, 4),
+-        "cvd_proxy": round(cvd_val, 3),
+-        "vwap_zscore": round(vwap_z, 3),
+-        "ema_spread": round(ema_spread, 3),
+-        "headroom": round(headroom, 3),
+-        "wick_ratio": round(wick, 3),
+-        "hour": hr,
+-        "dow": dow,
+-    })
+-
+-from backend.core.meta_features import build_meta_features
+-trades_by_time={str(t["entry_time"]):t for t in raw_trades}
+-for sample in samples:
+-    trade=trades_by_time[str(sample["entry_time"])]
+-    feature_time=str(trade.get('signal_time',trade['entry_time']))
+-    feature_idx=time_str_to_idx.get(feature_time)
+-    if feature_idx is None:
+-        raise ValueError('Missing signal timestamp for feature extraction')
+-    sample.update(build_meta_features(df.iloc[max(0,feature_idx-299):feature_idx+1],trade['side']))
+-
+-dataset_df = pd.DataFrame(samples)
+-feature_cols = [
+-    "is_buy", "vol_ratio", "adx", "gk_vol", "cvd_proxy",
+-    "vwap_zscore", "ema_spread", "headroom", "wick_ratio", "hour", "dow"
+-]
+-
+-X = dataset_df[feature_cols]
+-y = dataset_df["outcome"]
+-
+-train_data = lgb.Dataset(X, label=y)
+-params = {
+-    "objective": "binary",
+-    "metric": "binary_logloss",
+-    "boosting_type": "gbdt",
+-    "learning_rate": 0.03,
+-    "num_leaves": 12,
+-    "max_depth": 3,
+-    "min_child_samples": 15,
+-    "feature_fraction": 0.8,
+-    "verbose": -1,
+-    "random_state": 42,
+-}
+-model = lgb.train(params, train_data, num_boost_round=80)
+-
+-model_file = MODELS_DIR / "builtin_wyckoff_meta.lgb"
+-model.save_model(str(model_file))
+-print(f"Model successfully saved to {model_file}")
+-
+-meta_file = MODELS_DIR / "builtin_wyckoff_meta.json"
+-with open(meta_file, "w", encoding="utf-8") as f:
+-    json.dump({
+-        "strategy_id": "builtin_wyckoff",
+-        "model_type": "LightGBM_Binary_Classifier",
+-        "threshold": 0.38,
+-        "feature_cols": feature_cols,
+-        "feature_version": "vectra-meta-v2",
+-        "max_holding_bars": 20,
+-        "trained_from": str(df["time"].min()),
+-        "trained_through": str(df["time"].max()),
+-        "total_samples": len(dataset_df),
+-        "win_samples": int(y.sum()),
+-        "loss_samples": int(len(dataset_df) - y.sum()),
+-        "description": "Meta-Labeling filter for Wyckoff Momentum Pro trained on 99,999 M15 bars (4.27 years). Compresses Max Drawdown from 39.1% to 12.8%."
+-    }, f, indent=2)
+-
+-print(f"Metadata saved to {meta_file}")
++if __name__=='__main__':
++    argv=sys.argv[1:]
++    if '--export-model' not in argv:
++        argv += ['--export-model',str(ROOT/'storage/models/builtin_wyckoff_meta.lgb')]
++    main(argv)
+--- a/research/reproduce_canonical_walk_forward.py
++++ b/research/reproduce_canonical_walk_forward.py
+@@ -1,269 +1,10 @@
++"""Canonical entry point: independent capital replay, validation-only tuning.
++The former cached-PnL aggregation is retained only in the original source ZIP.
++"""
+ import sys
+ from pathlib import Path
+-import json
+-import numpy as np
+-import pandas as pd
+-import lightgbm as lgb
++sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
++from research.walk_forward_pipeline import main
+ 
+-PROJECT_ROOT = Path("Kho_Do_An/Quant_AI_V2.2").resolve()
+-if str(PROJECT_ROOT) not in sys.path:
+-    sys.path.insert(0, str(PROJECT_ROOT))
+-
+-from backend.infrastructure.brokers.mt5_safe import mt5
+-from backend.backtest.backtest_ict_pro import EventDrivenBacktester
+-from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+-
+-if not mt5.initialize():
+-    print("MT5 Failed")
+-    sys.exit(1)
+-
+-symbol = "XAUUSD"
+-# We want the exact 99999 bars ending at 2026-10-26 20:45
+-# Let's find the bar pos where time == 2026-10-26 20:45
+-rates_all = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, 1000)
+-df_recent = pd.DataFrame(rates_all)
+-df_recent["time"] = pd.to_datetime(df_recent["time"], unit="s")
+-target_time = pd.to_datetime("2026-10-26 20:45:00")
+-matching = df_recent[df_recent["time"] == target_time]
+-if len(matching) > 0:
+-    target_idx = matching.index[0]
+-    # Since 0 is latest, pos from 0 is (len(df_recent) - 1 - target_idx)
+-    pos_offset = len(df_recent) - 1 - target_idx
+-    print(f"Found target bar at pos_offset = {pos_offset}")
+-else:
+-    pos_offset = 65
+-    print(f"Using default pos_offset = {pos_offset}")
+-
+-rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, pos_offset, 99999)
+-mt5.shutdown()
+-
+-df = pd.DataFrame(rates)
+-df["time"] = pd.to_datetime(df["time"], unit="s")
+-print(f"Data range: {df['time'].iloc[0]} to {df['time'].iloc[-1]} ({len(df)} bars)")
+-
+-closes = df["close"].to_numpy(dtype=np.float64)
+-highs = df["high"].to_numpy(dtype=np.float64)
+-lows = df["low"].to_numpy(dtype=np.float64)
+-opens = df["open"].to_numpy(dtype=np.float64)
+-volumes = df["tick_volume"].to_numpy(dtype=np.float64)
+-n = len(df)
+-
+-tr1 = highs[1:] - lows[1:]
+-tr2 = np.abs(highs[1:] - closes[:-1])
+-tr3 = np.abs(lows[1:] - closes[:-1])
+-tr = np.maximum(tr1, np.maximum(tr2, tr3))
+-atr14 = np.zeros(n)
+-atr14[14] = np.mean(tr[:14])
+-for idx in range(15, n):
+-    atr14[idx] = (atr14[idx - 1] * 13 + tr[idx - 1]) / 14.0
+-
+-def calc_ema(arr, period):
+-    res = np.zeros(len(arr))
+-    alpha = 2.0 / (period + 1.0)
+-    res[period - 1] = np.mean(arr[:period])
+-    for i in range(period, len(arr)):
+-        res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
+-    return res
+-
+-ema20 = calc_ema(closes, 20)
+-ema50 = calc_ema(closes, 50)
+-vol_ma20 = calc_ema(volumes, 20)
+-
+-up_move = highs[1:] - highs[:-1]
+-down_move = lows[:-1] - lows[1:]
+-plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+-minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+-tr_smooth = np.zeros(n)
+-p_dm_smooth = np.zeros(n)
+-m_dm_smooth = np.zeros(n)
+-tr_smooth[14] = np.sum(tr[:14])
+-p_dm_smooth[14] = np.sum(plus_dm[:14])
+-m_dm_smooth[14] = np.sum(minus_dm[:14])
+-for idx in range(15, n):
+-    tr_smooth[idx] = tr_smooth[idx - 1] - (tr_smooth[idx - 1] / 14.0) + tr[idx - 1]
+-    p_dm_smooth[idx] = p_dm_smooth[idx - 1] - (p_dm_smooth[idx - 1] / 14.0) + plus_dm[idx - 1]
+-    m_dm_smooth[idx] = m_dm_smooth[idx - 1] - (m_dm_smooth[idx - 1] / 14.0) + minus_dm[idx - 1]
+-
+-safe_tr = np.where(tr_smooth > 1e-9, tr_smooth, 1e-9)
+-plus_di = 100.0 * (p_dm_smooth / safe_tr)
+-minus_di = 100.0 * (m_dm_smooth / safe_tr)
+-di_sum = plus_di + minus_di
+-safe_di_sum = np.where(di_sum > 1e-9, di_sum, 1e-9)
+-dx = 100.0 * np.abs(plus_di - minus_di) / safe_di_sum
+-adx14 = np.zeros(n)
+-if n >= 28:
+-    adx14[27] = np.mean(dx[14:28])
+-    for idx in range(28, n):
+-        adx14[idx] = (adx14[idx - 1] * 13.0 + dx[idx]) / 14.0
+-
+-log_hl = np.log(highs / np.maximum(lows, 1e-9))
+-log_co = np.log(closes / np.maximum(opens, 1e-9))
+-gk_bar = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
+-gk_series = pd.Series(gk_bar).rolling(14).mean().fillna(0.0).to_numpy()
+-gk_vol = np.sqrt(np.maximum(0.0, gk_series)) * 1000.0
+-
+-price_diff = np.diff(closes, prepend=closes[0])
+-signed_vol = np.where(price_diff > 0, volumes, np.where(price_diff < 0, -volumes, 0.0))
+-cvd_10 = pd.Series(signed_vol).rolling(10).sum().fillna(0.0).to_numpy()
+-vol_sum_10 = pd.Series(volumes).rolling(10).sum().replace(0, 1.0).fillna(1.0).to_numpy()
+-cvd_proxy_ratio = cvd_10 / vol_sum_10
+-
+-pv = closes * volumes
+-rolling_pv = pd.Series(pv).rolling(96).sum().bfill()
+-rolling_v = pd.Series(volumes).rolling(96).sum().replace(0, 1.0).fillna(1.0)
+-vwap_24h = (rolling_pv / rolling_v).to_numpy()
+-safe_atr = np.where(atr14 > 1e-4, atr14, 1.0)
+-vwap_zscore = (closes - vwap_24h) / safe_atr
+-
+-candle_range = highs - lows
+-candle_range_safe = np.where(candle_range > 1e-4, candle_range, 1.0)
+-upper_wick = highs - np.maximum(closes, opens)
+-lower_wick = np.minimum(closes, opens) - lows
+-upper_wick_ratio = upper_wick / candle_range_safe
+-lower_wick_ratio = lower_wick / candle_range_safe
+-
+-roll_high_30 = pd.Series(highs).rolling(30).max().shift(1).bfill().to_numpy()
+-roll_low_30 = pd.Series(lows).rolling(30).min().shift(1).bfill().to_numpy()
+-hours = df["time"].dt.hour.to_numpy()
+-days_of_week = df["time"].dt.dayofweek.to_numpy()
+-
+-dynamic_cfg = {
+-    "vol_mult": 1.10,
+-    "adx_threshold": 16.0,
+-    "min_headroom_atr": 0.4,
+-    "session_filter": False,
+-}
+-
+-class VersionedWyckoff(WyckoffMomentumStrategy):
+-    def __init__(self, s_hr=6, e_hr=21):
+-        super().__init__(dynamic_cfg)
+-        self.s_hr = s_hr
+-        self.e_hr = e_hr
+-
+-    def analyze(self, window_df, macro_context=None):
+-        if "time" in window_df.columns:
+-            t = pd.to_datetime(window_df["time"].iloc[-1])
+-            if not (self.s_hr <= t.hour <= self.e_hr):
+-                res = super().analyze(window_df, macro_context)
+-                res.action = "HOLD"
+-                res.signal = "HOLD"
+-                return res
+-        return super().analyze(window_df, macro_context)
+-
+-strat = VersionedWyckoff(6, 21)
+-tester = EventDrivenBacktester(
+-    strategy=strat,
+-    initial_balance=100000.0,
+-    risk_per_trade_pct=1.0,
+-    commission_per_lot=7.0,
+-    slippage_pts=20.0,
+-    max_lot_cap=10.0,
+-)
+-
+-report = tester.run(df, symbol=symbol)
+-raw_trades = report.trade_records
+-
+-time_str_to_idx = {t.strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(df["time"])}
+-samples = []
+-for tr in raw_trades:
+-    entry_str = str(tr.get("signal_time",tr["entry_time"]))
+-    idx = time_str_to_idx.get(entry_str)
+-    if idx is None:
+-        continue
+-    side = tr["side"]
+-    is_buy = 1 if side == "BUY" else 0
+-    outcome = 1 if tr["outcome"] == "TP" else 0
+-    v_ratio = volumes[idx] / max(1.0, vol_ma20[idx])
+-    adx_val = adx14[idx]
+-    gk_val = gk_vol[idx]
+-    cvd_val = cvd_proxy_ratio[idx]
+-    vwap_z = vwap_zscore[idx]
+-    ema_spread = abs(ema20[idx] - ema50[idx]) / safe_atr[idx]
+-    if is_buy:
+-        headroom = (roll_high_30[idx] - closes[idx]) / safe_atr[idx]
+-        wick = upper_wick_ratio[idx]
+-    else:
+-        headroom = (closes[idx] - roll_low_30[idx]) / safe_atr[idx]
+-        wick = lower_wick_ratio[idx]
+-    samples.append({
+-        "trade_id": tr["trade_id"],
+-        "entry_time": tr["entry_time"],
+-        "exit_time": tr["exit_time"],
+-        "pnl": tr["pnl"],
+-        "outcome": outcome,
+-        "is_buy": is_buy,
+-        "vol_ratio": round(v_ratio, 3),
+-        "adx": round(adx_val, 2),
+-        "gk_vol": round(gk_val, 4),
+-        "cvd_proxy": round(cvd_val, 3),
+-        "vwap_zscore": round(vwap_z, 3),
+-        "ema_spread": round(ema_spread, 3),
+-        "headroom": round(headroom, 3),
+-        "wick_ratio": round(wick, 3),
+-        "hour": hours[idx],
+-        "dow": days_of_week[idx],
+-        "year": str(tr["entry_time"])[:4],
+-    })
+-
+-from backend.core.meta_features import build_meta_features
+-trades_by_time={str(t["entry_time"]):t for t in raw_trades}
+-for sample in samples:
+-    trade=trades_by_time[str(sample["entry_time"])]
+-    feature_time=str(trade.get('signal_time',trade['entry_time']))
+-    feature_idx=time_str_to_idx.get(feature_time)
+-    if feature_idx is None:
+-        raise ValueError('Missing signal timestamp for feature extraction')
+-    sample.update(build_meta_features(df.iloc[max(0,feature_idx-299):feature_idx+1],trade['side']))
+-
+-dataset_df = pd.DataFrame(samples)
+-feature_cols = [
+-    "is_buy", "vol_ratio", "adx", "gk_vol", "cvd_proxy",
+-    "vwap_zscore", "ema_spread", "headroom", "wick_ratio", "hour", "dow"
+-]
+-
+-years_list = ["2022", "2023", "2024", "2025", "2026"]
+-oos_predictions = []
+-
+-for step_idx in range(1, len(years_list)):
+-    train_years = years_list[:step_idx]
+-    test_year = years_list[step_idx]
+-    train_df = dataset_df[dataset_df["year"].isin(train_years)]
+-    train_df = train_df[pd.to_datetime(train_df["exit_time"]) < pd.Timestamp(f"{test_year}-01-01")]
+-    test_df = dataset_df[dataset_df["year"] == test_year]
+-    X_tr = train_df[feature_cols]
+-    y_tr = train_df["outcome"]
+-    X_te = test_df[feature_cols]
+-    train_data = lgb.Dataset(X_tr, label=y_tr)
+-    params = {
+-        "objective": "binary",
+-        "metric": "binary_logloss",
+-        "boosting_type": "gbdt",
+-        "learning_rate": 0.03,
+-        "num_leaves": 12,
+-        "max_depth": 3,
+-        "min_child_samples": 15,
+-        "feature_fraction": 0.8,
+-        "verbose": -1,
+-        "random_state": 42,
+-    }
+-    m = lgb.train(params, train_data, num_boost_round=80)
+-    preds = m.predict(X_te)
+-    for i, (_, row) in enumerate(test_df.iterrows()):
+-        oos_predictions.append({
+-            "trade_id": row["trade_id"],
+-            "year": test_year,
+-            "entry_time": row["entry_time"],
+-            "outcome": row["outcome"],
+-            "pnl": row["pnl"],
+-            "pred_prob": float(preds[i]),
+-        })
+-
+-oos_df = pd.DataFrame(oos_predictions)
+-oos_df = oos_df.sort_values("entry_time").reset_index(drop=True)
+-oos_df.to_parquet(PROJECT_ROOT / "research" / "oos_canonical_reproduced.parquet")
+-print(f"Total OOS trades: {len(oos_df)}")
+-
+-# Check threshold 0.0 and 0.38
+-for th in [0.0, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42]:
+-    f = oos_df[oos_df["pred_prob"] >= th] if th > 0 else oos_df
+-    print(f"Thresh {th}: trades={len(f)}, net=${f['pnl'].sum():,.2f}")
++if __name__ == '__main__':
++    main()
+--- a/research/run_expanding_walk_forward.py
++++ b/research/run_expanding_walk_forward.py
+@@ -1,337 +1,10 @@
+-# -*- coding: utf-8 -*-
++"""Canonical entry point: independent capital replay, validation-only tuning.
++The former cached-PnL aggregation is retained only in the original source ZIP.
+ """
+-STRICT EXPANDING-WINDOW OUT-OF-SAMPLE WALK-FORWARD VALIDATION
+-============================================================
+-Every single test prediction is 100% OUT-OF-SAMPLE:
+-- Train 2022 -> Predict 2023 strictly OOS
+-- Train 2022..2023 -> Predict 2024 strictly OOS
+-- Train 2022..2024 -> Predict 2025 strictly OOS
+-- Train 2022..2025 -> Predict 2026 strictly OOS
+-ZERO in-sample evaluation. Pure Institutional Proof per Marcos López de Prado.
+-"""
++import sys
++from pathlib import Path
++sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
++from research.walk_forward_pipeline import main
+ 
+-import sys
+-import json
+-from pathlib import Path
+-import numpy as np
+-import pandas as pd
+-import lightgbm as lgb
+-
+-if hasattr(sys.stdout, "reconfigure"):
+-    sys.stdout.reconfigure(encoding="utf-8")
+-if hasattr(sys.stderr, "reconfigure"):
+-    sys.stderr.reconfigure(encoding="utf-8")
+-
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+-if str(PROJECT_ROOT) not in sys.path:
+-    sys.path.insert(0, str(PROJECT_ROOT))
+-
+-from backend.infrastructure.brokers.mt5_safe import mt5
+-from backend.backtest.backtest_ict_pro import EventDrivenBacktester
+-from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
+-
+-print("=" * 80)
+-print("   STRICT OUT-OF-SAMPLE EXPANDING WALK-FORWARD VALIDATION")
+-print("   Marcos López de Prado: Zero In-Sample Leakage")
+-print("=" * 80)
+-
+-if not mt5.initialize():
+-    print("MT5 Init Failed")
+-    sys.exit(1)
+-
+-symbol = "XAUUSD"
+-bars_count = 99999
+-rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M15, 0, bars_count)
+-df = pd.DataFrame(rates)
+-df["time"] = pd.to_datetime(df["time"], unit="s")
+-
+-# Compute vectorized features
+-closes = df["close"].to_numpy(dtype=np.float64)
+-highs = df["high"].to_numpy(dtype=np.float64)
+-lows = df["low"].to_numpy(dtype=np.float64)
+-opens = df["open"].to_numpy(dtype=np.float64)
+-volumes = df["tick_volume"].to_numpy(dtype=np.float64)
+-n = len(df)
+-
+-tr1 = highs[1:] - lows[1:]
+-tr2 = np.abs(highs[1:] - closes[:-1])
+-tr3 = np.abs(lows[1:] - closes[:-1])
+-tr = np.maximum(tr1, np.maximum(tr2, tr3))
+-atr14 = np.zeros(n)
+-atr14[14] = np.mean(tr[:14])
+-for idx in range(15, n):
+-    atr14[idx] = (atr14[idx - 1] * 13 + tr[idx - 1]) / 14.0
+-
+-def calc_ema(arr, period):
+-    res = np.zeros(len(arr))
+-    alpha = 2.0 / (period + 1.0)
+-    res[period - 1] = np.mean(arr[:period])
+-    for i in range(period, len(arr)):
+-        res[i] = (arr[i] - res[i - 1]) * alpha + res[i - 1]
+-    return res
+-
+-ema20 = calc_ema(closes, 20)
+-ema50 = calc_ema(closes, 50)
+-vol_ma20 = calc_ema(volumes, 20)
+-
+-# Wilder ADX
+-up_move = highs[1:] - highs[:-1]
+-down_move = lows[:-1] - lows[1:]
+-plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+-minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+-tr_smooth = np.zeros(n)
+-p_dm_smooth = np.zeros(n)
+-m_dm_smooth = np.zeros(n)
+-tr_smooth[14] = np.sum(tr[:14])
+-p_dm_smooth[14] = np.sum(plus_dm[:14])
+-m_dm_smooth[14] = np.sum(minus_dm[:14])
+-for idx in range(15, n):
+-    tr_smooth[idx] = tr_smooth[idx - 1] - (tr_smooth[idx - 1] / 14.0) + tr[idx - 1]
+-    p_dm_smooth[idx] = p_dm_smooth[idx - 1] - (p_dm_smooth[idx - 1] / 14.0) + plus_dm[idx - 1]
+-    m_dm_smooth[idx] = m_dm_smooth[idx - 1] - (m_dm_smooth[idx - 1] / 14.0) + minus_dm[idx - 1]
+-
+-safe_tr = np.where(tr_smooth > 1e-9, tr_smooth, 1e-9)
+-plus_di = 100.0 * (p_dm_smooth / safe_tr)
+-minus_di = 100.0 * (m_dm_smooth / safe_tr)
+-di_sum = plus_di + minus_di
+-safe_di_sum = np.where(di_sum > 1e-9, di_sum, 1e-9)
+-dx = 100.0 * np.abs(plus_di - minus_di) / safe_di_sum
+-adx14 = np.zeros(n)
+-if n >= 28:
+-    adx14[27] = np.mean(dx[14:28])
+-    for idx in range(28, n):
+-        adx14[idx] = (adx14[idx - 1] * 13.0 + dx[idx]) / 14.0
+-
+-# Microstructure features
+-log_hl = np.log(highs / np.maximum(lows, 1e-9))
+-log_co = np.log(closes / np.maximum(opens, 1e-9))
+-gk_bar = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
+-gk_series = pd.Series(gk_bar).rolling(14).mean().fillna(0.0).to_numpy()
+-gk_vol = np.sqrt(np.maximum(0.0, gk_series)) * 1000.0
+-
+-price_diff = np.diff(closes, prepend=closes[0])
+-signed_vol = np.where(price_diff > 0, volumes, np.where(price_diff < 0, -volumes, 0.0))
+-cvd_10 = pd.Series(signed_vol).rolling(10).sum().fillna(0.0).to_numpy()
+-vol_sum_10 = pd.Series(volumes).rolling(10).sum().replace(0, 1.0).fillna(1.0).to_numpy()
+-cvd_proxy_ratio = cvd_10 / vol_sum_10
+-
+-pv = closes * volumes
+-rolling_pv = pd.Series(pv).rolling(96).sum().bfill()
+-rolling_v = pd.Series(volumes).rolling(96).sum().replace(0, 1.0).fillna(1.0)
+-vwap_24h = (rolling_pv / rolling_v).to_numpy()
+-safe_atr = np.where(atr14 > 1e-4, atr14, 1.0)
+-vwap_zscore = (closes - vwap_24h) / safe_atr
+-
+-candle_range = highs - lows
+-candle_range_safe = np.where(candle_range > 1e-4, candle_range, 1.0)
+-upper_wick = highs - np.maximum(closes, opens)
+-lower_wick = np.minimum(closes, opens) - lows
+-upper_wick_ratio = upper_wick / candle_range_safe
+-lower_wick_ratio = lower_wick / candle_range_safe
+-
+-roll_high_30 = pd.Series(highs).rolling(30).max().shift(1).bfill().to_numpy()
+-roll_low_30 = pd.Series(lows).rolling(30).min().shift(1).bfill().to_numpy()
+-hours = df["time"].dt.hour.to_numpy()
+-days_of_week = df["time"].dt.dayofweek.to_numpy()
+-
+-# Harvest trades from Dynamic
+-dynamic_cfg = {
+-    "vol_mult": 1.10,
+-    "adx_threshold": 16.0,
+-    "min_headroom_atr": 0.4,
+-    "session_filter": False,
+-}
+-
+-class VersionedWyckoff(WyckoffMomentumStrategy):
+-    def __init__(self, s_hr=6, e_hr=21):
+-        super().__init__(dynamic_cfg)
+-        self.s_hr = s_hr
+-        self.e_hr = e_hr
+-
+-    def analyze(self, window_df, macro_context=None):
+-        if "time" in window_df.columns:
+-            t = pd.to_datetime(window_df["time"].iloc[-1])
+-            if not (self.s_hr <= t.hour <= self.e_hr):
+-                res = super().analyze(window_df, macro_context)
+-                res.action = "HOLD"
+-                res.signal = "HOLD"
+-                return res
+-        return super().analyze(window_df, macro_context)
+-
+-strat = VersionedWyckoff(6, 21)
+-tester = EventDrivenBacktester(
+-    strategy=strat,
+-    initial_balance=100000.0,
+-    risk_per_trade_pct=1.0,
+-    commission_per_lot=7.0,
+-    slippage_pts=20.0,
+-    max_lot_cap=10.0,
+-)
+-
+-report = tester.run(df, symbol=symbol)
+-raw_trades = report.trade_records
+-
+-time_str_to_idx = {t.strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(df["time"])}
+-samples = []
+-for tr in raw_trades:
+-    entry_str = str(tr.get("signal_time",tr["entry_time"]))
+-    idx = time_str_to_idx.get(entry_str)
+-    if idx is None:
+-        continue
+-    side = tr["side"]
+-    is_buy = 1 if side == "BUY" else 0
+-    outcome = 1 if tr["outcome"] == "TP" else 0
+-    v_ratio = volumes[idx] / max(1.0, vol_ma20[idx])
+-    adx_val = adx14[idx]
+-    gk_val = gk_vol[idx]
+-    cvd_val = cvd_proxy_ratio[idx]
+-    vwap_z = vwap_zscore[idx]
+-    ema_spread = abs(ema20[idx] - ema50[idx]) / safe_atr[idx]
+-    if is_buy:
+-        headroom = (roll_high_30[idx] - closes[idx]) / safe_atr[idx]
+-        wick = upper_wick_ratio[idx]
+-    else:
+-        headroom = (closes[idx] - roll_low_30[idx]) / safe_atr[idx]
+-        wick = lower_wick_ratio[idx]
+-    hr = hours[idx]
+-    dow = days_of_week[idx]
+-    samples.append({
+-        "trade_id": tr["trade_id"],
+-        "entry_time": tr["entry_time"],
+-        "exit_time": tr["exit_time"],
+-        "pnl": tr["pnl"],
+-        "outcome": outcome,
+-        "is_buy": is_buy,
+-        "vol_ratio": round(v_ratio, 3),
+-        "adx": round(adx_val, 2),
+-        "gk_vol": round(gk_val, 4),
+-        "cvd_proxy": round(cvd_val, 3),
+-        "vwap_zscore": round(vwap_z, 3),
+-        "ema_spread": round(ema_spread, 3),
+-        "headroom": round(headroom, 3),
+-        "wick_ratio": round(wick, 3),
+-        "hour": hr,
+-        "dow": dow,
+-        "year": str(tr["entry_time"])[:4],
+-    })
+-
+-from backend.core.meta_features import build_meta_features
+-trades_by_time={str(t["entry_time"]):t for t in raw_trades}
+-for sample in samples:
+-    trade=trades_by_time[str(sample["entry_time"])]
+-    feature_time=str(trade.get('signal_time',trade['entry_time']))
+-    feature_idx=time_str_to_idx.get(feature_time)
+-    if feature_idx is None:
+-        raise ValueError('Missing signal timestamp for feature extraction')
+-    sample.update(build_meta_features(df.iloc[max(0,feature_idx-299):feature_idx+1],trade['side']))
+-
+-dataset_df = pd.DataFrame(samples)
+-feature_cols = [
+-    "is_buy", "vol_ratio", "adx", "gk_vol", "cvd_proxy",
+-    "vwap_zscore", "ema_spread", "headroom", "wick_ratio", "hour", "dow"
+-]
+-
+-# STRICT EXPANDING WALK-FORWARD
+-years_list = ["2022", "2023", "2024", "2025", "2026"]
+-oos_predictions = []
+-
+-for step_idx in range(1, len(years_list)):
+-    train_years = years_list[:step_idx]
+-    test_year = years_list[step_idx]
+-    
+-    train_df = dataset_df[dataset_df["year"].isin(train_years)]
+-    train_df = train_df[pd.to_datetime(train_df["exit_time"]) < pd.Timestamp(f"{test_year}-01-01")]
+-    test_df = dataset_df[dataset_df["year"] == test_year]
+-    
+-    X_tr = train_df[feature_cols]
+-    y_tr = train_df["outcome"]
+-    X_te = test_df[feature_cols]
+-    
+-    train_data = lgb.Dataset(X_tr, label=y_tr)
+-    params = {
+-        "objective": "binary",
+-        "metric": "binary_logloss",
+-        "boosting_type": "gbdt",
+-        "learning_rate": 0.03,
+-        "num_leaves": 12,
+-        "max_depth": 3,
+-        "min_child_samples": 15,
+-        "feature_fraction": 0.8,
+-        "verbose": -1,
+-        "random_state": 42,
+-    }
+-    m = lgb.train(params, train_data, num_boost_round=80)
+-    preds = m.predict(X_te)
+-    
+-    for i, (_, row) in enumerate(test_df.iterrows()):
+-        oos_predictions.append({
+-            "trade_id": row["trade_id"],
+-            "year": test_year,
+-            "outcome": row["outcome"],
+-            "pnl": row["pnl"],
+-            "pred_prob": float(preds[i]),
+-        })
+-
+-oos_df = pd.DataFrame(oos_predictions)
+-print(f"Generated {len(oos_df)} PURE OUT-OF-SAMPLE walk-forward trade predictions (2023-2026).")
+-
+-# Compare Unfiltered vs Filtered OOS
+-oos_summary = {}
+-for thresh in [0.0, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42]:
+-    filtered = oos_df[oos_df["pred_prob"] >= thresh] if thresh > 0.0 else oos_df
+-    balance = 100000.0
+-    curve = [balance]
+-    for _, r in filtered.iterrows():
+-        balance += r["pnl"]
+-        curve.append(balance)
+-    c_arr = np.array(curve)
+-    peak = np.maximum.accumulate(c_arr)
+-    dd_arr = np.where(peak > 0, (peak - c_arr) / peak, 0.0)
+-    max_dd = np.max(dd_arr) * 100.0
+-    
+-    wins = (filtered["outcome"] == 1).sum()
+-    total = len(filtered)
+-    wr = (wins / total * 100.0) if total > 0 else 0.0
+-    net = balance - 100000.0
+-    gp = filtered[filtered["pnl"] > 0]["pnl"].sum() if total > 0 else 0.0
+-    gl = abs(filtered[filtered["pnl"] < 0]["pnl"].sum()) if total > 0 else 0.0
+-    pf = (gp / gl) if gl > 0 else (99.0 if gp > 0 else 0.0)
+-    
+-    lbl = "Dynamic Goc (Khong ML)" if thresh == 0.0 else f"Dynamic + ML OOS (Thresh {thresh})"
+-    print(f"\n[{lbl}]")
+-    print(f"   Trades: {total:3d} | Winrate: {wr:4.1f}% | Net Profit: +${net:10,.2f} USD (+{net/1000.0:.1f}%) | Max DD: {max_dd:5.2f}% | PF: {pf:4.2f}")
+-    
+-    # Yearly
+-    yearly_data = {}
+-    for yr in ["2023", "2024", "2025", "2026"]:
+-        yr_f = filtered[filtered["year"] == yr]
+-        yr_w = int((yr_f["outcome"] == 1).sum())
+-        yr_t = len(yr_f)
+-        yr_pnl = float(yr_f["pnl"].sum())
+-        sign = "+" if yr_pnl >= 0 else "-"
+-        yr_wr = (yr_w / yr_t * 100.0) if yr_t > 0 else 0.0
+-        print(f"      Year {yr}: {yr_t:3d} trades ({yr_w:2d}W/{yr_t-yr_w:2d}L - {yr_wr:4.1f}% WR) -> PnL: {sign}${abs(yr_pnl):9,.2f} USD")
+-        yearly_data[yr] = {"trades": yr_t, "wins": yr_w, "winrate": round(yr_wr, 1), "pnl": round(yr_pnl, 2)}
+-        
+-    oos_summary[str(thresh)] = {
+-        "threshold": thresh,
+-        "total_trades": total,
+-        "wins": int(wins),
+-        "losses": int(total - wins),
+-        "winrate_pct": round(wr, 2),
+-        "net_profit_usd": round(net, 2),
+-        "return_pct": round(net / 1000.0, 2),
+-        "max_drawdown_pct": round(max_dd, 2),
+-        "profit_factor": round(pf, 2),
+-        "yearly": yearly_data
+-    }
+-
+-# Lưu kết quả OOS thực tế
+-oos_json_path = PROJECT_ROOT / "research" / "strict_walk_forward_oos_results.json"
+-with open(oos_json_path, "w", encoding="utf-8") as f:
+-    json.dump({
+-        "description": "STRICT EXPANDING WALK-FORWARD OUT-OF-SAMPLE VALIDATION (2023-2026)",
+-        "total_bars": 99999,
+-        "results": oos_summary
+-    }, f, indent=2, ensure_ascii=False)
+-print(f"\n[V] ĐÃ LƯU KẾT QUẢ WALK-FORWARD OOS THỰC TẾ VÀO: {oos_json_path.name}")
++if __name__ == '__main__':
++    main()
+--- a/tests/test_phase3_state_sync_memory_and_concurrency.py
++++ b/tests/test_phase3_state_sync_memory_and_concurrency.py
+@@ -1,220 +1,227 @@
+-"""
+-Unit Tests for Phase 3: State Sync, Concurrency, Memory Leak Prevention, and UI Tick Throttling.
+-Covers:
+-- SC-08: Partial Close (50% Close) updates remaining trade volume in DatabaseManager.
+-- SC-09: WatchlistManager buffers incoming ticks and caches yesterday's close to prevent UI thread starvation.
+-- SC-11: DatabaseManager applies high-concurrency WAL pragmas, busy_timeout=15000, and read_uncommitted=1.
+-- SC-12: ChartCanvas enforces LRU eviction cap (max 10 entries) on _rates_cache to prevent memory leaks during rapid symbol switching.
+-"""
+-
+-from unittest.mock import MagicMock, patch
+-import pytest
+-import sqlite3
+-import time
+-
+-from PySide6.QtWidgets import QApplication, QTreeWidget
+-from backend.database.db_manager import DatabaseManager
+-from backend.infrastructure.brokers.execution_manager import ExecutionManager
+-from frontend.controllers.watchlist.watchlist_controller import WatchlistManager
+-
+-
+-# ============================================================================
+-# SC-08 TESTS: Partial Close Volume Synchronization in SQLite
+-# ============================================================================
+-
+-def test_db_manager_update_trade_volume(tmp_path):
+-    """SC-08: DatabaseManager.update_trade_volume updates remaining volume for open position."""
+-    db_file = str(tmp_path / "test_partial_close.db")
+-    DatabaseManager.reset_instance()
+-    db = DatabaseManager(db_path=db_file)
+-
+-    # 1. Open trade with 0.20 lots
+-    db.record_open_trade(
+-        ticket=7001,
+-        symbol="XAUUSD",
+-        order_type="BUY",
+-        volume=0.20,
+-        open_price=2650.0,
+-        sl=2640.0,
+-        tp=2700.0,
+-        comment="VECTRA_Bot"
+-    )
+-
+-    open_trades = db.get_open_trades()
+-    assert len(open_trades) == 1
+-    assert open_trades[0]["volume"] == pytest.approx(0.20, 0.001)
+-
+-    # 2. Partial close: update remaining volume to 0.10 lots
+-    res = db.update_trade_volume(ticket=7001, remaining_volume=0.10)
+-    assert res is True
+-
+-    open_trades_after = db.get_open_trades()
+-    assert len(open_trades_after) == 1
+-    assert open_trades_after[0]["volume"] == pytest.approx(0.10, 0.001)
+-
+-    DatabaseManager.reset_instance()
+-
+-
+-def test_execution_manager_partial_close_syncs_db(tmp_path):
+-    """SC-08: ExecutionManager.close_position with partial volume syncs remaining volume to DatabaseManager."""
+-    db_file = str(tmp_path / "test_exec_partial.db")
+-    DatabaseManager.reset_instance()
+-    db = DatabaseManager(db_path=db_file)
+-    db.record_open_trade(
+-        ticket=7002, symbol="EURUSD", order_type="BUY", volume=0.50, open_price=1.0800, sl=1.0750, tp=1.0900
+-    )
+-
+-    exec_mgr = ExecutionManager(magic_number=999999)
+-
+-    class DummyLivePos:
+-        def __init__(self):
+-            self.ticket = 7002
+-            self.symbol = "EURUSD"
+-            self.type = 0  # BUY
+-            self.volume = 0.50
+-
+-    pos = DummyLivePos()
+-    mock_tick = MagicMock()
+-    mock_tick.bid = 1.0850
+-    mock_tick.ask = 1.0852
+-
+-    mock_info = MagicMock()
+-    mock_info.digits = 5
+-    mock_info.filling_mode = 1
+-
+-    mock_res = MagicMock()
+-    mock_res.retcode = 10009  # TRADE_RETCODE_DONE
+-    mock_res.deal = 8888
+-
+-    with patch("backend.infrastructure.brokers.execution_manager.mt5.positions_get", return_value=[pos]), \
+-         patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info_tick", return_value=mock_tick), \
+-         patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info", return_value=mock_info), \
+-         patch("backend.infrastructure.brokers.execution_manager.mt5.order_send", return_value=mock_res):
+-
+-        # Close 0.20 lots out of 0.50 lots
+-        res = exec_mgr.close_position(ticket=7002, volume=0.20)
+-        assert res["status"] == "success"
+-
+-        # Verify DB remaining volume is now 0.30 lots
+-        trades = db.get_open_trades()
+-        assert len(trades) == 1
+-        assert trades[0]["volume"] == pytest.approx(0.30, 0.001)
+-
+-    DatabaseManager.reset_instance()
+-
+-
+-# ============================================================================
+-# SC-11 TESTS: High-Concurrency SQLite WAL Pragmas
+-# ============================================================================
+-
+-def test_db_manager_wal_pragmas_and_busy_timeout(tmp_path):
+-    """SC-11: Every connection generated by DatabaseManager must have WAL and busy_timeout=15000 set."""
+-    db_file = str(tmp_path / "test_wal.db")
+-    DatabaseManager.reset_instance()
+-    db = DatabaseManager(db_path=db_file)
+-
+-    conn = db._get_connection()
+-    try:
+-        cursor = conn.cursor()
+-        cursor.execute("PRAGMA journal_mode;")
+-        mode = cursor.fetchone()[0]
+-        assert str(mode).upper() == "WAL"
+-
+-        cursor.execute("PRAGMA busy_timeout;")
+-        timeout_val = cursor.fetchone()[0]
+-        assert timeout_val >= 15000
+-    finally:
+-        conn.close()
+-
+-    DatabaseManager.reset_instance()
+-
+-
+-# ============================================================================
+-# SC-09 TESTS: Watchlist Tick Buffering and Y-Close Caching
+-# ============================================================================
+-
+-def test_watchlist_tick_buffering_and_y_close_caching():
+-    """SC-09: WatchlistManager buffers incoming ticks and avoids redundant copy_rates_from_pos calls."""
+-    _app = QApplication.instance() or QApplication([])
+-
+-    mock_window = MagicMock()
+-    mock_tree = QTreeWidget()
+-    mock_window.treeWatchlist = mock_tree
+-
+-    with patch("frontend.controllers.watchlist.watchlist_controller.WatchlistStore"):
+-        wm = WatchlistManager(mock_window)
+-
+-    # 1. Incoming ticks buffer into _pending_ticks
+-    wm.check_account_changed = MagicMock()
+-    wm.on_tick("XAUUSD", 2650.0, 2650.2)
+-    wm.on_tick("BTCUSD", 67000.0, 67005.0)
+-
+-    assert "XAUUSD" in wm._pending_ticks
+-    assert "BTCUSD" in wm._pending_ticks
+-    assert wm._pending_ticks["XAUUSD"] == (2650.0, 2650.2)
+-
+-    # 2. Yesterday close caching test
+-    mock_rates = [{"close": 2600.0}]
+-    with patch("frontend.controllers.watchlist.watchlist_controller.mt5.copy_rates_from_pos", return_value=mock_rates) as mock_copy:
+-        close_1 = wm._get_cached_yesterday_close("XAUUSD")
+-        assert close_1 == 2600.0
+-        assert mock_copy.call_count == 1
+-
+-        # Second call immediately should use cache (0 extra MT5 calls)
+-        close_2 = wm._get_cached_yesterday_close("XAUUSD")
+-        assert close_2 == 2600.0
+-        assert mock_copy.call_count == 1
+-
+-
+-def test_watchlist_flush_reentrancy_and_deleted_item_resilience():
+-    """SC-09: _flush_throttled_ticks must be reentrancy-safe and never raise on deleted items."""
+-    _app = QApplication.instance() or QApplication([])
+-
+-    mock_window = MagicMock()
+-    mock_tree = QTreeWidget()
+-    mock_window.treeWatchlist = mock_tree
+-
+-    with patch("frontend.controllers.watchlist.watchlist_controller.WatchlistStore"):
+-        wm = WatchlistManager(mock_window)
+-
+-    wm._pending_ticks["XAUUSD"] = (2650.0, 2650.2)
+-    # 1. Simulate reentrancy flag active: flush must return immediately without mutating buffer
+-    wm._is_flushing = True
+-    wm._flush_throttled_ticks()
+-    assert "XAUUSD" in wm._pending_ticks
+-
+-    # 2. Reset flag and flush with error in item update: must catch cleanly without raising
+-    wm._is_flushing = False
+-    with patch.object(wm, "_update_symbol_quote", side_effect=RuntimeError("Internal C++ object deleted")):
+-        wm._flush_throttled_ticks()
+-
+-    assert len(wm._pending_ticks) == 0
+-    assert wm._is_flushing is False
+-
+-
+-# ============================================================================
+-# SC-12 TESTS: Chart Canvas Memory Leak LRU Eviction
+-# ============================================================================
+-
+-def test_chart_canvas_rates_cache_lru_cap():
+-    """SC-12: _rates_cache must enforce max 10 entries to prevent memory leaks during rapid symbol switching."""
+-    mock_window = MagicMock()
+-    mock_window._rates_cache = {}
+-    mock_window.current_tf = 15
+-
+-    # Simulate rapid switching through 15 symbols
+-    for i in range(15):
+-        sym = f"SYM_{i}"
+-        rates = [(i, 1.0, 1.1, 0.9, 1.05)]
+-        
+-        # Exact logic implemented in chart_canvas.py
+-        if len(mock_window._rates_cache) >= 10 and (sym, mock_window.current_tf) not in mock_window._rates_cache:
+-            oldest_key = next(iter(mock_window._rates_cache))
+-            del mock_window._rates_cache[oldest_key]
+-        mock_window._rates_cache[(sym, mock_window.current_tf)] = (rates, time.time(), "12:00:00")
+-
+-    # Verify cache size never exceeded 10
+-    assert len(mock_window._rates_cache) == 10
+-    # The oldest symbols (SYM_0 through SYM_4) should have been evicted
+-    assert ("SYM_0", 15) not in mock_window._rates_cache
+-    assert ("SYM_14", 15) in mock_window._rates_cache
++"""
++Unit Tests for Phase 3: State Sync, Concurrency, Memory Leak Prevention, and UI Tick Throttling.
++Covers:
++- SC-08: Partial Close (50% Close) updates remaining trade volume in DatabaseManager.
++- SC-09: WatchlistManager buffers incoming ticks and caches yesterday's close to prevent UI thread starvation.
++- SC-11: DatabaseManager applies high-concurrency WAL pragmas, busy_timeout=15000, and read_uncommitted=1.
++- SC-12: ChartCanvas enforces LRU eviction cap (max 10 entries) on _rates_cache to prevent memory leaks during rapid symbol switching.
++"""
++
++from unittest.mock import MagicMock, patch
++import pytest
++import sqlite3
++import time
++
++from PySide6.QtWidgets import QApplication, QTreeWidget
++from backend.database.db_manager import DatabaseManager
++from backend.infrastructure.brokers.execution_manager import ExecutionManager
++from frontend.controllers.watchlist.watchlist_controller import WatchlistManager
++
++
++# ============================================================================
++# SC-08 TESTS: Partial Close Volume Synchronization in SQLite
++# ============================================================================
++
++def test_db_manager_update_trade_volume(tmp_path):
++    """SC-08: DatabaseManager.update_trade_volume updates remaining volume for open position."""
++    db_file = str(tmp_path / "test_partial_close.db")
++    DatabaseManager.reset_instance()
++    db = DatabaseManager(db_path=db_file)
++
++    # 1. Open trade with 0.20 lots
++    db.record_open_trade(
++        ticket=7001,
++        symbol="XAUUSD",
++        order_type="BUY",
++        volume=0.20,
++        open_price=2650.0,
++        sl=2640.0,
++        tp=2700.0,
++        comment="VECTRA_Bot"
++    )
++
++    open_trades = db.get_open_trades()
++    assert len(open_trades) == 1
++    assert open_trades[0]["volume"] == pytest.approx(0.20, 0.001)
++
++    # 2. Partial close: update remaining volume to 0.10 lots
++    res = db.update_trade_volume(ticket=7001, remaining_volume=0.10)
++    assert res is True
++
++    open_trades_after = db.get_open_trades()
++    assert len(open_trades_after) == 1
++    assert open_trades_after[0]["volume"] == pytest.approx(0.10, 0.001)
++
++    DatabaseManager.reset_instance()
++
++
++def test_execution_manager_partial_close_syncs_db(tmp_path):
++    """SC-08: ExecutionManager.close_position with partial volume syncs remaining volume to DatabaseManager."""
++    db_file = str(tmp_path / "test_exec_partial.db")
++    DatabaseManager.reset_instance()
++    db = DatabaseManager(db_path=db_file)
++    db.bind_account(123, 'test')
++    db.record_open_trade(
++        ticket=7002, symbol="EURUSD", order_type="BUY", volume=0.50, open_price=1.0800, sl=1.0750, tp=1.0900
++    )
++
++    exec_mgr = ExecutionManager(magic_number=999999)
++
++    class DummyLivePos:
++        def __init__(self):
++            self.ticket = 7002
++            self.symbol = "EURUSD"
++            self.type = 0  # BUY
++            self.volume = 0.50
++
++    pos = DummyLivePos()
++    mock_tick = MagicMock()
++    mock_tick.bid = 1.0850
++    mock_tick.ask = 1.0852
++
++    mock_info = MagicMock()
++    mock_info.digits = 5
++    mock_info.filling_mode = 1
++    mock_info.volume_min = .01
++    mock_info.volume_max = 100.
++    mock_info.volume_step = .01
++
++    mock_res = MagicMock()
++    mock_res.retcode = 10009  # TRADE_RETCODE_DONE
++    mock_res.deal = 8888
++    mock_res.volume = .20
++
++    from types import SimpleNamespace
++    with patch("backend.infrastructure.brokers.execution_manager.mt5.account_info", return_value=SimpleNamespace(login=123, server="test")), \
++         patch("backend.infrastructure.brokers.execution_manager.mt5.positions_get", return_value=[pos]), \
++         patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info_tick", return_value=mock_tick), \
++         patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info", return_value=mock_info), \
++         patch("backend.infrastructure.brokers.execution_manager.mt5.order_send", return_value=mock_res):
++
++        # Close 0.20 lots out of 0.50 lots
++        res = exec_mgr.close_position(ticket=7002, volume=0.20)
++        assert res["status"] == "success"
++
++        # Verify DB remaining volume is now 0.30 lots
++        trades = db.get_open_trades()
++        assert len(trades) == 1
++        assert trades[0]["volume"] == pytest.approx(0.30, 0.001)
++
++    DatabaseManager.reset_instance()
++
++
++# ============================================================================
++# SC-11 TESTS: High-Concurrency SQLite WAL Pragmas
++# ============================================================================
++
++def test_db_manager_wal_pragmas_and_busy_timeout(tmp_path):
++    """SC-11: Every connection generated by DatabaseManager must have WAL and busy_timeout=15000 set."""
++    db_file = str(tmp_path / "test_wal.db")
++    DatabaseManager.reset_instance()
++    db = DatabaseManager(db_path=db_file)
++
++    conn = db._get_connection()
++    try:
++        cursor = conn.cursor()
++        cursor.execute("PRAGMA journal_mode;")
++        mode = cursor.fetchone()[0]
++        assert str(mode).upper() == "WAL"
++
++        cursor.execute("PRAGMA busy_timeout;")
++        timeout_val = cursor.fetchone()[0]
++        assert timeout_val >= 15000
++    finally:
++        conn.close()
++
++    DatabaseManager.reset_instance()
++
++
++# ============================================================================
++# SC-09 TESTS: Watchlist Tick Buffering and Y-Close Caching
++# ============================================================================
++
++def test_watchlist_tick_buffering_and_y_close_caching():
++    """SC-09: WatchlistManager buffers incoming ticks and avoids redundant copy_rates_from_pos calls."""
++    _app = QApplication.instance() or QApplication([])
++
++    mock_window = MagicMock()
++    mock_tree = QTreeWidget()
++    mock_window.treeWatchlist = mock_tree
++
++    with patch("frontend.controllers.watchlist.watchlist_controller.WatchlistStore"):
++        wm = WatchlistManager(mock_window)
++
++    # 1. Incoming ticks buffer into _pending_ticks
++    wm.check_account_changed = MagicMock()
++    wm.on_tick("XAUUSD", 2650.0, 2650.2)
++    wm.on_tick("BTCUSD", 67000.0, 67005.0)
++
++    assert "XAUUSD" in wm._pending_ticks
++    assert "BTCUSD" in wm._pending_ticks
++    assert wm._pending_ticks["XAUUSD"] == (2650.0, 2650.2)
++
++    # 2. Yesterday close caching test
++    mock_rates = [{"close": 2600.0}]
++    with patch("frontend.controllers.watchlist.watchlist_controller.mt5.copy_rates_from_pos", return_value=mock_rates) as mock_copy:
++        close_1 = wm._get_cached_yesterday_close("XAUUSD")
++        assert close_1 == 2600.0
++        assert mock_copy.call_count == 1
++
++        # Second call immediately should use cache (0 extra MT5 calls)
++        close_2 = wm._get_cached_yesterday_close("XAUUSD")
++        assert close_2 == 2600.0
++        assert mock_copy.call_count == 1
++
++
++def test_watchlist_flush_reentrancy_and_deleted_item_resilience():
++    """SC-09: _flush_throttled_ticks must be reentrancy-safe and never raise on deleted items."""
++    _app = QApplication.instance() or QApplication([])
++
++    mock_window = MagicMock()
++    mock_tree = QTreeWidget()
++    mock_window.treeWatchlist = mock_tree
++
++    with patch("frontend.controllers.watchlist.watchlist_controller.WatchlistStore"):
++        wm = WatchlistManager(mock_window)
++
++    wm._pending_ticks["XAUUSD"] = (2650.0, 2650.2)
++    # 1. Simulate reentrancy flag active: flush must return immediately without mutating buffer
++    wm._is_flushing = True
++    wm._flush_throttled_ticks()
++    assert "XAUUSD" in wm._pending_ticks
++
++    # 2. Reset flag and flush with error in item update: must catch cleanly without raising
++    wm._is_flushing = False
++    with patch.object(wm, "_update_symbol_quote", side_effect=RuntimeError("Internal C++ object deleted")):
++        wm._flush_throttled_ticks()
++
++    assert len(wm._pending_ticks) == 0
++    assert wm._is_flushing is False
++
++
++# ============================================================================
++# SC-12 TESTS: Chart Canvas Memory Leak LRU Eviction
++# ============================================================================
++
++def test_chart_canvas_rates_cache_lru_cap():
++    """SC-12: _rates_cache must enforce max 10 entries to prevent memory leaks during rapid symbol switching."""
++    mock_window = MagicMock()
++    mock_window._rates_cache = {}
++    mock_window.current_tf = 15
++
++    # Simulate rapid switching through 15 symbols
++    for i in range(15):
++        sym = f"SYM_{i}"
++        rates = [(i, 1.0, 1.1, 0.9, 1.05)]
++        
++        # Exact logic implemented in chart_canvas.py
++        if len(mock_window._rates_cache) >= 10 and (sym, mock_window.current_tf) not in mock_window._rates_cache:
++            oldest_key = next(iter(mock_window._rates_cache))
++            del mock_window._rates_cache[oldest_key]
++        mock_window._rates_cache[(sym, mock_window.current_tf)] = (rates, time.time(), "12:00:00")
++
++    # Verify cache size never exceeded 10
++    assert len(mock_window._rates_cache) == 10
++    # The oldest symbols (SYM_0 through SYM_4) should have been evicted
++    assert ("SYM_0", 15) not in mock_window._rates_cache
++    assert ("SYM_14", 15) in mock_window._rates_cache
+--- /dev/null
++++ b/research/walk_forward_pipeline.py
+@@ -0,0 +1,227 @@
++"""Chronological validation and independent portfolio replay for Meta-Labeling.
++
++The seed model is trained on 2022. Thresholds are ranked ONLY on 2023-2024;
++one frozen threshold is evaluated on 2025-2026. Each forecast year's model
++uses completed labels strictly before a five-venue-bar boundary gap.
++
++Source OHLC is required. Cached trade PnLs are never used as a portfolio simulator.
++"""
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import numpy as np
++import pandas as pd
++
++from backend.backtest.backtest_ict_pro import EventDrivenBacktester
++from backend.core.meta_features import FEATURE_COLUMNS, FEATURE_VERSION, build_meta_features
++from backend.core.strategies.wyckoff_vectorized import WyckoffMomentumStrategy
++
++PARAMETERS = dict(objective='binary',metric='binary_logloss',learning_rate=.03,
++                  num_leaves=12,max_depth=3,min_child_samples=15,feature_fraction=.8,
++                  verbosity=-1,seed=42,num_threads=1)
++STRATEGY_PARAMETERS = dict(vol_mult=1.10,adx_threshold=16.,min_headroom_atr=.4,session_filter=False)
++
++
++class ResearchWyckoff(WyckoffMomentumStrategy):
++    def __init__(self):
++        super().__init__(STRATEGY_PARAMETERS)
++
++    def analyze(self, window, macro_context=None):
++        result=super().analyze(window,macro_context)
++        if not 6<=pd.Timestamp(window['time'].iloc[-1]).hour<=21:
++            result.signal='HOLD'
++        return result
++
++
++def validate_bars(df):
++    required={'time','open','high','low','close','tick_volume'}
++    if not required.issubset(df.columns):
++        raise ValueError(f'OHLC source is required; missing {sorted(required-set(df.columns))}')
++    df=df.copy()
++    df['time']=pd.to_datetime(df['time'],unit='s' if pd.api.types.is_numeric_dtype(df['time']) else None,utc=True).dt.tz_localize(None)
++    if not df['time'].is_monotonic_increasing or df['time'].duplicated().any():
++        raise ValueError('Bars must have unique ascending UTC timestamps')
++    intervals=df['time'].diff().dropna()
++    if intervals.empty or intervals.mode().iloc[0]!=pd.Timedelta(minutes=15):
++        raise ValueError('The versioned model pipeline requires M15 bars')
++    volumes=df['tick_volume'].to_numpy(float)
++    if not np.isfinite(volumes).all() or (volumes<0).any():
++        raise ValueError('Tick volume must be finite and nonnegative')
++    prices=df[['open','high','low','close']].to_numpy(float)
++    if not np.isfinite(prices).all() or (prices<=0).any():
++        raise ValueError('Prices must be finite and positive')
++    if ((df['high']<df[['open','close','low']].max(axis=1)) |
++            (df['low']>df[['open','close','high']].min(axis=1))).any():
++        raise ValueError('Invalid OHLC geometry')
++    if len(df)<150:
++        raise ValueError('At least 150 completed bars are required')
++    return df.reset_index(drop=True)
++
++
++def harvest_samples(df, symbol='XAUUSD', strategy_factory=ResearchWyckoff):
++    report=EventDrivenBacktester(strategy_factory()).run(df,symbol=symbol)
++    index={pd.Timestamp(t):i for i,t in enumerate(df['time'])}
++    rows=[]
++    for trade in report.trade_records:
++        signal_time=pd.Timestamp(trade['signal_time'])
++        i=index[signal_time]
++        feature=build_meta_features(df.iloc[max(0,i-299):i+1],trade['side'])
++        exit_index=index[pd.Timestamp(trade['exit_time'])]
++        label_end=(df['time'].iloc[exit_index+1] if exit_index+1<len(df) else
++                   df['time'].iloc[exit_index]+pd.Timedelta(minutes=15))
++        rows.append({**feature,'signal_time':signal_time,'entry_time':pd.Timestamp(trade['entry_time']),
++                     'exit_time':pd.Timestamp(trade['exit_time']),'label_end_time':label_end,
++                     'outcome':int(trade['outcome']=='TP')})
++    return pd.DataFrame(rows)
++
++
++def training_before(samples, bars, forecast_start, embargo_bars=5):
++    """Purge label overlaps and leave an explicit pre-test venue-bar gap.
++
++    For strictly expanding past-only training this is a boundary gap; there are
++    no future-side training rows on which a post-test embargo could operate.
++    """
++    if embargo_bars<0:
++        raise ValueError('embargo_bars must be nonnegative')
++    forecast_start=pd.Timestamp(forecast_start)
++    first=int(bars['time'].searchsorted(forecast_start))
++    if first<embargo_bars or first>=len(bars):
++        raise ValueError('Insufficient bars at forecast boundary')
++    cutoff=bars['time'].iloc[first-embargo_bars]
++    label_ends=samples['label_end_time'] if 'label_end_time' in samples else samples['exit_time']
++    training=samples[(samples['signal_time']<cutoff) & (label_ends<cutoff)].copy()
++    return training,cutoff
++
++
++def fit_model(training):
++    import lightgbm as lgb
++    if training.empty or training['outcome'].nunique()<2:
++        raise ValueError('Training requires completed labels from both classes')
++    return lgb.train(PARAMETERS,lgb.Dataset(training[FEATURE_COLUMNS],label=training['outcome']),num_boost_round=80)
++
++
++def replay_portfolio(bars,models,threshold,start,end,symbol='XAUUSD',strategy_factory=ResearchWyckoff):
++    """Regenerate signals, risk sizing and MTM after filtering, with independent cash."""
++    subset=bars[bars['time']<pd.Timestamp(end)].copy()
++    predictions=[]
++    def allow(window,result):
++        moment=pd.Timestamp(window['time'].iloc[-1])
++        # Forecast year is the earliest available execution bar, not label end.
++        next_index=int(subset['time'].searchsorted(moment,side='right'))
++        forecast_year=int(subset['time'].iloc[next_index].year)
++        model=models.get(forecast_year)
++        if model is None:
++            raise ValueError(f'No past-only model for {forecast_year}')
++        features=build_meta_features(window,result['signal'])
++        probability=float(model.predict(np.array([[features[c] for c in FEATURE_COLUMNS]]))[0])
++        if not np.isfinite(probability) or not 0<=probability<=1:
++            raise ValueError('Invalid forecast probability')
++        predictions.append(dict(signal_time=str(moment),probability=probability,threshold=threshold))
++        return probability>=threshold
++    tester=EventDrivenBacktester(strategy_factory(),initial_balance=100000.,risk_per_trade_pct=1.,
++                                 commission_per_lot=7.,slippage_pts=20.,max_holding_bars=20)
++    report=tester.run(subset,symbol=symbol,trading_start=start,
++                      signal_filter=None if threshold==0 else allow)
++    if report is None:
++        raise ValueError('Insufficient bars for independent replay')
++    # Drop warmup-only cash timestamps; report PnL and MTM are computed by the engine.
++    report.equity_curve=[v for t,v in zip(report.equity_times,report.equity_curve) if pd.Timestamp(t)>=pd.Timestamp(start)]
++    return report,predictions
++
++
++def summarize(report):
++    dd=report.max_drawdown_pct/100
++    return dict(trades=report.total_trades,wins=report.win_trades,losses=report.loss_trades,
++                net_profit_usd=report.total_net_profit,max_drawdown_pct=report.max_drawdown_pct,
++                profit_factor=report.profit_factor,winrate_pct=report.win_rate_pct,
++                objective=(report.total_net_profit/report.initial_balance)/dd if dd>0 else None)
++
++
++def choose_threshold(validation):
++    candidates=[(float(t),r) for t,r in validation.items() if float(t)>0 and r['trades']>0 and r['objective'] is not None]
++    if not candidates:
++        raise ValueError('Validation has no eligible threshold; do not evaluate/select using test results')
++    feasible=[item for item in candidates if item[1]['max_drawdown_pct']<=10]
++    if not feasible:
++        raise ValueError('No validation threshold meets the 10% drawdown cap; revise on validation only')
++    return max(feasible,key=lambda item:(item[1]['objective'],-item[0]))[0]
++
++
++def run_pipeline(bars,output,symbol='XAUUSD',export_model=None,strategy_factory=ResearchWyckoff):
++    bars=validate_bars(bars)
++    # Identity covers values and UTC timestamps, not just a mutable filename.
++    digest=hashlib.sha256(pd.util.hash_pandas_object(bars,index=False).values.tobytes()).hexdigest()
++    samples=harvest_samples(bars,symbol,strategy_factory)
++    if samples.empty:
++        raise ValueError('No primary events; no model or performance report can be validated')
++    models={};splits={}
++    for year in (2023,2024,2025,2026):
++        training,cutoff=training_before(samples,bars,f'{year}-01-01')
++        models[year]=fit_model(training)
++        splits[str(year)]=dict(train_samples=len(training),label_end_exclusive=str(cutoff),boundary_gap_bars=5)
++    output=Path(output);output.mkdir(parents=True,exist_ok=True)
++    validation={}
++    for threshold in (0.,.32,.34,.36,.38,.40,.42):
++        report,_=replay_portfolio(bars,models,threshold,'2023-01-01','2025-01-01',symbol,strategy_factory)
++        validation[str(threshold)]=summarize(report)
++    # Freeze selection BEFORE running the independent test portfolio.
++    threshold=choose_threshold(validation)
++    manifest=dict(dataset_sha256=digest,feature_version=FEATURE_VERSION,feature_columns=FEATURE_COLUMNS,
++                  symbol=symbol,timeframe='M15',holding_bars=20,parameters=PARAMETERS,
++                  strategy_parameters=STRATEGY_PARAMETERS,validation_start='2023-01-01',
++                  validation_end_exclusive='2025-01-01',test_start='2025-01-01',
++                  test_end_exclusive='2027-01-01',splits=splits,threshold=threshold,validation=validation)
++    (output/'frozen_validation_manifest.json').write_text(json.dumps(manifest,indent=2,allow_nan=False))
++    tests={}
++    for operating in (0.,threshold):
++        report,predictions=replay_portfolio(bars,models,operating,'2025-01-01','2027-01-01',symbol,strategy_factory)
++        tests[str(operating)]=summarize(report)
++        pd.DataFrame(report.trade_records).to_csv(output/f'test_trades_{operating}.csv',index=False)
++        pd.DataFrame(predictions).to_csv(output/f'test_predictions_{operating}.csv',index=False)
++    manifest['test']=tests
++    manifest['source_end']=str(bars['time'].max())
++    (output/'walk_forward_results.json').write_text(json.dumps(manifest,indent=2,allow_nan=False))
++    if export_model:
++        # This deployment fit is separate from every model used in the OOS reports.
++        deployment=fit_model(samples)
++        path=Path(export_model);path.parent.mkdir(parents=True,exist_ok=True)
++        deployment.save_model(str(path))
++        metadata=dict(strategy_id='builtin_wyckoff',feature_version=FEATURE_VERSION,
++                      feature_cols=FEATURE_COLUMNS,threshold=threshold,symbol=symbol,timeframe='M15',
++                      max_holding_bars=20,dataset_sha256=digest,trained_from=str(samples.signal_time.min()),
++                      trained_through=str(samples.label_end_time.max()),total_samples=len(samples),
++                      description='Deployment fit after chronological evaluation; not the models used for OOS forecasts')
++        path.with_suffix('.json').write_text(json.dumps(metadata,indent=2,allow_nan=False))
++    return manifest
++
++
++def main(argv=None):
++    parser=argparse.ArgumentParser(description=__doc__)
++    source=parser.add_mutually_exclusive_group(required=True)
++    source.add_argument('--data',help='Immutable CSV/parquet OHLC source with completed M15 bars')
++    source.add_argument('--mt5',action='store_true',help='Explicitly obtain completed bars from local MT5')
++    parser.add_argument('--output',default='research/verified_walk_forward')
++    parser.add_argument('--symbol',default='XAUUSD')
++    parser.add_argument('--export-model',help='Optional deployment .lgb path; never changes the bundled model by default')
++    args=parser.parse_args(argv)
++    if args.data:
++        path=Path(args.data)
++        bars=pd.read_parquet(path) if path.suffix=='.parquet' else pd.read_csv(path)
++    else:
++        from backend.infrastructure.brokers.mt5_safe import mt5
++        if not mt5.initialize():
++            raise RuntimeError('MT5 initialization failed')
++        try:
++            rates=mt5.copy_rates_from_pos(args.symbol,mt5.TIMEFRAME_M15,1,99999)
++            if rates is None:
++                raise RuntimeError('Completed OHLC source unavailable')
++            bars=pd.DataFrame(rates)
++        finally:
++            mt5.shutdown()
++    result=run_pipeline(bars,args.output,args.symbol,args.export_model)
++    print(json.dumps({'threshold':result['threshold'],'test':result['test']},indent=2))
++
++
++if __name__=='__main__':
++    main()
+--- /dev/null
++++ b/tests/test_review_findings.py
+@@ -0,0 +1,350 @@
++"""Safety regressions derived from the independent review, F01-F13.
++All broker calls use the offline fixture. Passing asserts the corrected contract.
++"""
++import json
++import pytest
++import time
++from datetime import datetime, timezone
++from types import SimpleNamespace as NS
++from unittest.mock import Mock
++
++from tests.test_repair_regressions import broker, defense_setup
++from backend.database.db_manager import DatabaseManager
++from backend.core.trading_commands import TradingCommandService
++from backend.core.circuit_breaker_guard import CircuitBreakerGuard
++from backend.core.state_recovery import StateRecoveryManager
++from backend.infrastructure.brokers.mt5_safe import mt5
++
++
++def test_regression_unknown_other_symbol_reserves_capacity(broker,monkeypatch):
++    broker.runtime.max_open_trades=1
++    raw=Mock(return_value={'status':'unknown','msg':'Broker reply lost'})
++    monkeypatch.setattr(broker.ex,'_execute_market_order_raw',raw)
++    first=broker.ex.execute_market_order('XAUUSD',True,.1,1990,2020,signal_key='first')
++    second=broker.ex.execute_market_order('EURUSD',True,.1,1990,2020,signal_key='second')
++    assert first['status']=='unknown' and second['status']=='error'
++    assert raw.call_count==1
++    assert len(DatabaseManager().get_unresolved_intents())==1
++
++
++def test_regression_full_gate_blocks_malformed_model_metadata(tmp_path,monkeypatch):
++    from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
++    from backend.core.meta_features import FEATURE_VERSION, FEATURE_COLUMNS
++    from backend.core.macro_context_bus import MacroContextBus
++    from backend.infrastructure.data_providers.asset_registry import AssetRegistry
++    gate=DecisionGate()
++    gate._models_dir=tmp_path
++    (tmp_path/'model.json').write_text(json.dumps({'feature_version':FEATURE_VERSION,'symbol':123}))
++    gate._get_or_load_meta_model=Mock(return_value=(Mock(),.38,FEATURE_COLUMNS,'model.lgb'))
++    gate._get_price_position=Mock(return_value=dict(position='AT_SUPPORT',price=100,support=90,resistance=120,pct_from_support=0))
++    gate._get_htf_bias=Mock(return_value='BULLISH')
++    gate._get_macro_bias=Mock(return_value='BULLISH')
++    monkeypatch.setattr(MacroContextBus.get_instance(),'check_pre_trade_news_compliance',lambda *a:(True,'CLEAR',''))
++    adapter=Mock()
++    adapter.generate_context_report.return_value={}
++    adapter.evaluate_risk_rules.return_value=(True,'')
++    monkeypatch.setattr(AssetRegistry,'get_adapter',lambda *a:adapter)
++    full=gate.evaluate('XAUUSD','BUY',gate_mode='FULL',strategy_id='known')
++    technical=gate.evaluate('XAUUSD','BUY',gate_mode='TECH_ONLY',strategy_id='known')
++    assert full['decision']=='WAIT'
++    assert technical['decision']=='WAIT'
++
++
++def pending_order():
++    return NS(ticket=42,symbol='XAUUSD',type=mt5.ORDER_TYPE_BUY_LIMIT,
++              price_open=1999.,sl=1990.,tp=2020.,volume_current=1.,
++              type_time=0,type_filling=2,comment='manual pending',magic=0)
++
++
++def test_regression_pending_modify_respects_halt_and_preserves_stops(broker,monkeypatch):
++    TradingCommandService.emergency_halt()
++    monkeypatch.setattr(mt5,'orders_get',Mock(return_value=[pending_order()]))
++    monkeypatch.setattr(mt5,'order_calc_profit',lambda action,symbol,vol,entry,stop:(stop-entry)*100*vol)
++    send=Mock(return_value=NS(retcode=10009))
++    monkeypatch.setattr(mt5,'order_send',send)
++    result=broker.ex.modify_pending_order(42,1999,1900,2020)
++    assert result['status']=='error'
++    send.assert_not_called()
++    # Omitted protection must be retained, including during a halt.
++    result=broker.ex.modify_pending_order(42,1999)
++    assert result['status']=='success',result
++    assert send.call_args.args[0]['sl']==1990
++    assert send.call_args.args[0]['tp']==2020
++
++
++def test_regression_defense_retries_be_at_minimum_remainder(broker,monkeypatch):
++    engine,execution,pos=defense_setup(broker,monkeypatch,2007)
++    pos.volume=.02
++    execution.close_position.return_value={'status':'success'}
++    execution.modify_position.side_effect=[{'status':'error'},{'status':'success'}]
++    assert engine.evaluate_pre_news_defense()==[]
++    pos.volume=.01  # First close was confirmed, first BE modification rejected.
++    assert len(engine.evaluate_pre_news_defense())==1
++    assert execution.close_position.call_count==1
++    assert execution.modify_position.call_count==2
++
++
++def test_regression_calendar_exception_invalidates_old_flag(monkeypatch):
++    from backend.core.event_risk_engine import EventRiskEngine
++    calendar=Mock()
++    calendar.fetch_events.side_effect=RuntimeError('network unavailable')
++    engine=EventRiskEngine(calendar_engine=calendar)
++    engine._calendar_valid=True  # Prior successful fetch.
++    engine._news_events_ts=0
++    engine._news_events_cache=[{'impact':2,'country':'US','sort_key':time.time(),'title':'NFP'}]
++    blocked,reason=engine.check_news_impact_for_symbol('XAUUSD')
++    assert blocked
++    assert not engine._calendar_valid
++
++
++def test_regression_account_switch_reloads_scoped_equity(broker,monkeypatch):
++    db=DatabaseManager()
++    guard=CircuitBreakerGuard(db,max_drawdown=5,max_daily_loss=0,max_losing_streak=0)
++    assert not guard.evaluate_circuit_breaker()  # A: equity=100000
++    db.bind_account(456,'test')
++    today=datetime.now(timezone.utc).strftime('%Y-%m-%d')
++    for key,value in {'start_of_day_date':today,'start_of_day_equity':'1000',
++                      'start_of_day_account':'456'}.items():
++        db.set_system_state(key,value)
++    broker.account.login=456
++    broker.account.equity=broker.account.balance=1000
++    assert not guard.evaluate_circuit_breaker()
++    assert guard.start_of_day_equity==1000
++    assert db.get_system_state('circuit_breaker_active')=='False'
++
++
++def test_regression_filled_pending_is_rebuilt_in_trade_ledger(broker,monkeypatch):
++    db=DatabaseManager()
++    db.bind_account(123,'test')
++    intent=db.reserve_intent('pending','XAUUSD',{'broker_tag':'V2_pending'})
++    db.finish_intent(intent,'UNKNOWN',{'request':{'broker_tag':'V2_pending'}})
++    def deal(ticket,entry,price):
++        return NS(ticket=ticket,position_id=88,order=77,time=int(time.time()),time_msc=int(time.time()*1000),
++                  comment='V2_pending',entry=entry,price=price,volume=.1,profit=0,commission=0,swap=0,fee=0,
++                  symbol='XAUUSD',type=0,magic=999999)
++    # Pending order filled and position closed between two reconciliation polls.
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[deal(1,0,2000),deal(2,1,2010)]))
++    summary=StateRecoveryManager(db).reconcile_on_startup()
++    assert summary['status']=='SUCCESS'
++    with db._connection() as c:
++        assert c.execute('SELECT status FROM order_intents').fetchone()[0]=='FILLED'
++        assert c.execute('SELECT count(*) FROM broker_deals').fetchone()[0]==2
++        assert c.execute('SELECT count(*) FROM trades').fetchone()[0]==1
++        assert c.execute('SELECT status FROM trades').fetchone()[0]=='CLOSED'
++
++
++def test_regression_admission_uses_current_runtime_session_config(broker):
++    broker.runtime.allowed_sessions=['LONDON']
++    effective=TradingCommandService._config(broker.runtime)
++    assert tuple(effective.allowed_sessions)==('LONDON',)
++
++
++def test_regression_full_close_partial_fill_updates_remaining_volume(broker,monkeypatch):
++    db=DatabaseManager()
++    db.bind_account(123,'test')
++    db.record_open_trade(7,'XAUUSD','BUY',.1,2000,sl=1990)
++    pos=NS(ticket=7,symbol='XAUUSD',type=0,volume=.1)
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[pos]))
++    monkeypatch.setattr(mt5,'order_send',Mock(return_value=NS(retcode=10010,deal=22,volume=.04)))
++    result=broker.ex.close_position(7)
++    assert result['status']=='partial' and result['partial_fill']
++    assert result['remaining_volume']==pytest.approx(.06)
++    assert db.get_open_trades()[0]['volume']==pytest.approx(.06)
++
++
++def test_regression_statistics_merge_identifier_and_ticket(broker,monkeypatch):
++    from backend.core.stats_engine import StatsEngine
++    db=DatabaseManager()
++    db.bind_account(123,'test')
++    db.record_open_trade(99,'XAUUSD','SELL',.1,2000,sl=2010,position_id=88)
++    db.record_close_trade(99,1990,100)
++    common=dict(position_id=88,symbol='XAUUSD',volume=.1,commission=0,swap=0,fee=0)
++    opening=NS(**common,entry=0,type=1,time=100,price=2000,profit=0)
++    closing=NS(**common,entry=1,type=0,time=200,price=1990,profit=100)
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[opening,closing]))
++    history=StatsEngine().get_full_history()
++    assert len(history)==1
++    assert history[0]['ticket']==88
++    assert history[0]['pnl']==100
++    assert history[0]['type']=='Sell'
++
++
++def test_regression_live_h20_time_exit_is_durable(broker,monkeypatch):
++    import numpy as np
++    from backend.core.position_guard import PositionGuard
++    old_position=NS(ticket=7,identifier=7,symbol='XAUUSD',magic=999999,
++                    time=int(time.time()-2*86400),volume=.1)
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[old_position]))
++    bars=np.array([(old_position.time+i*900,) for i in range(22)],dtype=[('time','i8')])
++    monkeypatch.setattr(mt5,'copy_rates_from_pos',Mock(return_value=bars))
++    db=DatabaseManager();db.bind_account(123,'test')
++    db.record_open_trade(7,'XAUUSD','BUY',.1,2000,position_id=7)
++    db.attach_execution_policy(7,7,{'holding_policy':{'timeframe':15,'max_holding_bars':20}})
++    execution=Mock(magic=999999)
++    execution.close_position.return_value={'status':'unknown'}
++    guard=PositionGuard(execution,db,enable_trailing_stop=False)
++    guard.manage_positions(['XAUUSD'])
++    guard.manage_positions(['XAUUSD'])
++    execution.close_position.assert_called_once_with(7)
++
++
++def test_regression_known_pending_retains_initial_stop_on_fill(broker,monkeypatch):
++    db=DatabaseManager()
++    db.bind_account(123,'test')
++    intent=db.reserve_intent('pending','XAUUSD',{'broker_tag':'V2_pending','sl':1990,'volume':.1,'strategy_id':'builtin_wyckoff'})
++    pos=NS(ticket=7,identifier=7,symbol='XAUUSD',magic=999999,type=0,time=int(time.time()),
++           volume=.1,price_open=2000,sl=1990,tp=2020)
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[pos]))
++    deal=NS(ticket=1,position_id=7,order=77,time=int(time.time()),time_msc=int(time.time()*1000),comment='V2_pending')
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[deal]))
++    StateRecoveryManager(db).reconcile_on_startup()
++    trade=db.get_open_trades()[0]
++    assert trade['initial_sl']==1990
++    assert trade['broker_order_id']==77
++    assert trade['strategy_id']=='builtin_wyckoff'
++
++
++def test_regression_pending_uses_return_fill_policy(broker,monkeypatch):
++    send=Mock(return_value=NS(retcode=10008,order=77))
++    monkeypatch.setattr(mt5,'order_send',send)
++    result=broker.ex._execute_pending_order_raw('XAUUSD','BUY_LIMIT',1999,.1,1990,2020,max_retries=1)
++    assert result['status']=='success'
++    assert send.call_args.args[0]['type_filling']==mt5.ORDER_FILLING_RETURN
++
++
++def test_regression_accepted_queued_market_stays_unresolved(broker,monkeypatch):
++    monkeypatch.setattr(mt5,'order_send',Mock(return_value=NS(retcode=10008,order=77,comment='Placed')))
++    result=broker.ex.execute_market_order('XAUUSD',True,.1,1990,2020)
++    assert result['status']=='unknown'
++    db=DatabaseManager()
++    assert db.has_unresolved_intent('XAUUSD')
++    with db._connection() as c:
++        assert c.execute('SELECT status FROM order_intents').fetchone()[0]=='UNKNOWN'
++
++
++def test_amendment_rejects_over_budget_without_broker_rpc(broker,monkeypatch):
++    monkeypatch.setattr(mt5,'orders_get',Mock(return_value=[pending_order()]))
++    monkeypatch.setattr(mt5,'order_calc_profit',lambda action,symbol,vol,entry,stop:(stop-entry)*100*vol)
++    send=Mock();monkeypatch.setattr(mt5,'order_send',send)
++    result=broker.ex.modify_pending_order(42,1999,1900,2020)
++    assert result['status']=='error' and 'budget' in result['msg']
++    send.assert_not_called()
++
++
++def test_unknown_amendment_is_durable_and_not_sent_again(broker,monkeypatch):
++    monkeypatch.setattr(mt5,'orders_get',Mock(return_value=[pending_order()]))
++    monkeypatch.setattr(mt5,'order_calc_profit',lambda action,symbol,vol,entry,stop:(stop-entry)*100*vol)
++    send=Mock(return_value=None);monkeypatch.setattr(mt5,'order_send',send)
++    assert broker.ex.modify_pending_order(42,1999,1991,2020)['status']=='unknown'
++    assert broker.ex.modify_pending_order(42,1999,1991,2020)['status']=='error'
++    assert send.call_count==1
++    db=DatabaseManager()
++    saved=db.get_unresolved_intents()
++    assert len(saved)==1 and json.loads(saved[0]['payload'])['amendment']['pending']
++
++
++def test_pending_closed_between_polls_reconciliation_is_idempotent(broker,monkeypatch):
++    db=DatabaseManager();db.bind_account(123,'test')
++    intent=db.reserve_intent('closed-between-polls','XAUUSD',{'broker_tag':'V2_closed','sl':1990})
++    now=int(time.time())
++    common=dict(position_id=88,order=77,symbol='XAUUSD',type=1,magic=999999,time=now,time_msc=now*1000,
++                volume=.1,swap=0,fee=0,comment='V2_closed')
++    opening=NS(**common,ticket=1,entry=0,price=2000,profit=0,commission=-.35)
++    closing=NS(**common,ticket=2,entry=1,price=1990,profit=100,commission=-.35)
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[opening,closing]))
++    recovery=StateRecoveryManager(db)
++    recovery.reconcile_on_startup();recovery.reconcile_on_startup()
++    closed=db.get_closed_trades()
++    assert len(closed)==1 and closed[0]['pnl']==pytest.approx(99.3)
++    assert closed[0]['order_type']=='SELL'
++    assert not db.has_unresolved_intent('XAUUSD')
++
++
++def test_incomplete_pending_history_does_not_release_reservation(broker,monkeypatch):
++    db=DatabaseManager();db.bind_account(123,'test')
++    db.reserve_intent('missing-exit','XAUUSD',{'broker_tag':'V2_missing'})
++    now=int(time.time())
++    opening=NS(ticket=1,position_id=88,order=77,time=now,time_msc=now*1000,
++               symbol='XAUUSD',entry=0,type=0,price=2000,volume=.1,comment='V2_missing')
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[opening]))
++    StateRecoveryManager(db).reconcile_on_startup()
++    assert db.has_unresolved_intent('XAUUSD')
++    assert db.get_closed_trades()==[]
++
++
++def test_holding_policy_does_not_apply_to_legacy_or_manual(broker,monkeypatch):
++    from backend.core.position_guard import PositionGuard
++    old=NS(ticket=7,identifier=7,symbol='XAUUSD',magic=999999,time=1,volume=.1)
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[old]))
++    execution=Mock(magic=999999)
++    guard=PositionGuard(execution,DatabaseManager(),enable_trailing_stop=False)
++    guard.manage_positions(['XAUUSD'])
++    execution.close_position.assert_not_called()
++
++
++def test_placed_market_reconciles_by_order_id_when_comment_is_stripped(broker,monkeypatch):
++    monkeypatch.setattr(mt5,'order_send',Mock(return_value=NS(retcode=10008,order=77,comment='Placed')))
++    assert broker.ex.execute_market_order('XAUUSD',True,.1,1990,2020)['status']=='unknown'
++    now=int(time.time())
++    pos=NS(ticket=99,identifier=88,symbol='XAUUSD',magic=999999,type=0,time=now,
++           volume=.1,price_open=2000,sl=1990,tp=2020)
++    deal=NS(ticket=22,position_id=88,order=77,time=now,time_msc=now*1000,entry=0,
++            symbol='XAUUSD',type=0,price=2000,volume=.1,comment='broker replaced comment')
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[pos]))
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[deal]))
++    db=DatabaseManager()
++    StateRecoveryManager(db).reconcile_on_startup()
++    assert not db.has_unresolved_intent('XAUUSD')
++    row=db.get_open_trades()[0]
++    assert row['initial_sl']==1990 and row['position_id']==88
++    assert db.get_system_state('position_policy:88')
++
++
++def test_amendment_positive_broker_snapshot_clears_unknown_marker(broker,monkeypatch):
++    order=pending_order()
++    monkeypatch.setattr(mt5,'orders_get',Mock(return_value=[order]))
++    monkeypatch.setattr(mt5,'order_calc_profit',lambda action,symbol,vol,entry,stop:(stop-entry)*100*vol)
++    monkeypatch.setattr(mt5,'order_send',Mock(return_value=None))
++    assert broker.ex.modify_pending_order(42,1999,1991,2020)['status']=='unknown'
++    order.sl=1991
++    monkeypatch.setattr(mt5,'history_deals_get',Mock(return_value=[]))
++    db=DatabaseManager()
++    StateRecoveryManager(db).reconcile_intents()
++    payload=json.loads(db.get_unresolved_intents()[0]['payload'])
++    assert not payload.get('amendment',{}).get('pending')
++    assert payload['request']['sl']==1991
++    assert db.has_unresolved_intent('XAUUSD')  # Working order still consumes capacity.
++
++
++def test_stop_mode_switch_during_validation_cannot_send(broker,monkeypatch):
++    def change(*args):
++        broker.runtime.execution_mode='MANUAL'
++        return 100
++    monkeypatch.setattr(mt5,'order_calc_margin',change)
++    send=Mock();monkeypatch.setattr(mt5,'order_send',send)
++    result=broker.ex.execute_market_order('XAUUSD',True,.1,1990,2020)
++    assert result['status']=='error'
++    send.assert_not_called()
++
++
++def test_saved_checkbox_sessions_are_used_without_runtime():
++    from backend.core.engine_config import BotRunConfig
++    config=BotRunConfig.from_dict({'session_asian':False,'session_london':True,'session_ny':False})
++    assert config.allowed_sessions==('LONDON',)
++
++
++def test_halt_blocks_pending_entry_reprice_even_if_stop_loss_is_smaller(broker,monkeypatch):
++    monkeypatch.setattr(mt5,'orders_get',Mock(return_value=[pending_order()]))
++    monkeypatch.setattr(mt5,'order_calc_profit',lambda action,symbol,vol,entry,stop:(stop-entry)*100*vol)
++    TradingCommandService.emergency_halt()
++    send=Mock();monkeypatch.setattr(mt5,'order_send',send)
++    result=broker.ex.modify_pending_order(42,1998,1990,2020)
++    assert result['status']=='error'
++    send.assert_not_called()
++
++
++def test_accepted_close_stays_unknown_until_broker_confirmation(broker,monkeypatch):
++    pos=NS(ticket=7,symbol='XAUUSD',type=0,volume=.1)
++    monkeypatch.setattr(mt5,'positions_get',Mock(return_value=[pos]))
++    monkeypatch.setattr(mt5,'order_send',Mock(return_value=NS(retcode=10008,order=77,comment='Placed')))
++    assert broker.ex.close_position(7)['status']=='unknown'
+--- /dev/null
++++ b/tests/test_walk_forward_replay.py
+@@ -0,0 +1,109 @@
++"""Numeric checks for independent sizing, MTM and chronological label exclusion."""
++from types import SimpleNamespace as NS
++import numpy as np
++import pandas as pd
++import pytest
++from backend.backtest.backtest_ict_pro import EventDrivenBacktester
++from research.walk_forward_pipeline import training_before,choose_threshold,validate_bars,fit_model
++from backend.core.meta_features import FEATURE_COLUMNS
++
++
++def bars(n=180):
++    return pd.DataFrame(dict(time=pd.date_range('2026-01-05',periods=n,freq='15min'),
++        open=np.full(n,100.),high=np.full(n,101.),low=np.full(n,99.),close=np.full(n,100.),tick_volume=np.full(n,100)))
++
++
++class TwoSignals:
++    def analyze(self,window,macro_context=None):
++        t=window.time.iloc[-1]
++        minute=(t-pd.Timestamp('2026-01-05')).total_seconds()/900
++        if minute==99:
++            return dict(signal='BUY',sl=90,tp=110)
++        if minute==101:
++            return dict(signal='SELL',sl=110,tp=90)
++        return dict(signal='HOLD')
++
++
++def test_filter_recalculates_volume_and_cash_instead_of_summing_base_pnl():
++    df=bars()
++    df.loc[100,['open','high','low','close']]=[100,101,90,100]
++    df.loc[102,['open','high','low','close']]=[100,101,90,100]
++    base=EventDrivenBacktester(TwoSignals(),commission_per_lot=0,slippage_pts=0).run(df)
++    filtered=EventDrivenBacktester(TwoSignals(),commission_per_lot=0,slippage_pts=0).run(
++        df,signal_filter=lambda window,res:res['signal']=='SELL')
++    assert base.total_trades==2
++    assert filtered.total_trades==1
++    assert base.trade_records[1]['volume']==pytest.approx(.99)
++    assert filtered.trade_records[0]['volume']==pytest.approx(1.)
++    assert base.trade_records[1]['pnl']==pytest.approx(990.)
++    assert filtered.total_net_profit==pytest.approx(1000.)
++
++
++def test_validation_drawdown_includes_filtered_open_loss():
++    df=bars()
++    df.loc[101,['open','high','low','close']]=[100,101,91,92]
++    class Once:
++        used=False
++        def analyze(self,window,macro_context=None):
++            if self.used:return dict(signal='HOLD')
++            self.used=True
++            return dict(signal='BUY',sl=90,tp=120)
++    report=EventDrivenBacktester(Once(),commission_per_lot=0,slippage_pts=0).run(
++        df,signal_filter=lambda *a:True)
++    assert report.total_net_profit==0
++    assert report.max_drawdown_pct>0
++    assert len(report.equity_times)==len(report.equity_curve)
++
++
++def test_boundary_gap_uses_venue_bars_across_weekend_and_purges_label_ends():
++    times=list(pd.date_range('2022-12-30 19:30',periods=10,freq='15min'))
++    times+=list(pd.date_range('2023-01-02',periods=10,freq='15min'))
++    source=pd.DataFrame({'time':times})
++    samples=pd.DataFrame({'signal_time':[times[0],times[1],times[9]],
++                          'exit_time':[times[4],times[5],times[11]],'outcome':[0,1,0]})
++    training,cutoff=training_before(samples,source,'2023-01-01',embargo_bars=5)
++    assert cutoff==times[5]
++    assert len(training)==1 and training.iloc[0]['exit_time']==times[4]
++
++
++def test_threshold_selection_rejects_empty_or_risk_cap_failure():
++    val={'0.0':dict(trades=100,objective=3,max_drawdown_pct=3),
++         '.32':dict(trades=10,objective=.1,max_drawdown_pct=8),
++         '.38':dict(trades=8,objective=.3,max_drawdown_pct=7)}
++    assert choose_threshold(val)==.38
++    with pytest.raises(ValueError):
++        choose_threshold({'.38':dict(trades=8,objective=.3,max_drawdown_pct=15)})
++
++
++def test_raw_ohlc_required_not_cached_trade_pnl():
++    with pytest.raises(ValueError,match='OHLC source'):
++        validate_bars(pd.DataFrame({'pnl':[100,200],'pred_prob':[.5,.7]}))
++    df=bars();df.loc[0,'low']=102
++    with pytest.raises(ValueError,match='OHLC geometry'):
++        validate_bars(df)
++
++
++def test_training_contract_with_real_lightgbm():
++    rng=np.random.default_rng(8)
++    data=pd.DataFrame(rng.normal(size=(100,len(FEATURE_COLUMNS))),columns=FEATURE_COLUMNS)
++    data['outcome']=[0,1]*50
++    model=fit_model(data)
++    pred=model.predict(data[FEATURE_COLUMNS])
++    assert len(pred)==100 and np.isfinite(pred).all() and ((pred>=0)&(pred<=1)).all()
++
++
++def test_m15_volume_contract_and_actual_label_availability():
++    df=bars()
++    df['time']=pd.date_range('2026-01-05',periods=len(df),freq='5min')
++    with pytest.raises(ValueError,match='M15'):
++        validate_bars(df)
++    df=bars();df.loc[0,'tick_volume']=-1
++    with pytest.raises(ValueError,match='volume'):
++        validate_bars(df)
++    source=pd.DataFrame({'time':pd.date_range('2022-12-31 20:00',periods=40,freq='15min')})
++    boundary=pd.Timestamp('2023-01-01')
++    first=int(source.time.searchsorted(boundary));cut=source.time.iloc[first-5]
++    samples=pd.DataFrame({'signal_time':[source.time.iloc[0]],'exit_time':[cut-pd.Timedelta(minutes=15)],
++                          'label_end_time':[cut]})
++    training,_=training_before(samples,source,boundary)
++    assert training.empty  # An exit-bar timestamp before cutoff is insufficient.

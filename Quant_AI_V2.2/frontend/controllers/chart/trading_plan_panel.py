@@ -120,7 +120,7 @@ def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 
 
     target_risk_dlr = balance * (risk_pct / 100.0)
     if sl_points <= 0.00001:
-        return 0.01, target_risk_dlr
+        return 0.0, target_risk_dlr
 
     info = mt5.symbol_info(symbol) if mt5.terminal_info() is not None else None
     mult = get_symbol_multiplier(symbol, info)
@@ -138,10 +138,12 @@ def calculate_manual_quant_lot(symbol: str, sl_points: float, risk_pct: float = 
     )
     vol_step = float(v_step) if isinstance(v_step, (int, float)) and v_step > 0 else 0.01
 
-    calc_lot = target_risk_dlr / (sl_points * mult)
-    if vol_step > 0:
-        calc_lot = round(round(calc_lot / vol_step) * vol_step, 2)
-    lot = max(vol_min, min(calc_lot, vol_max))
+    from decimal import Decimal, ROUND_FLOOR
+    if not __import__('math').isfinite(float(risk_pct)) or risk_pct<=0:
+        return 0.0,target_risk_dlr
+    step=Decimal(str(vol_step))
+    calc_lot=float((Decimal(str(target_risk_dlr/(sl_points*mult)))/step).to_integral_value(rounding=ROUND_FLOOR)*step)
+    lot=min(calc_lot,vol_max) if calc_lot>=vol_min else 0.0
 
     # Free Margin & Leverage Cap: Prevent MT5 retcode 10019 (NO_MONEY)
     acc = mt5.account_info() if mt5.terminal_info() is not None else None

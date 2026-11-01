@@ -27,12 +27,12 @@ class TestExecutionVolumeNormalization:
         assert em.normalize_volume("EURUSD", 1.50) == 1.50
 
         # Fractional rounding
-        assert em.normalize_volume("EURUSD", 0.0154) == 0.02
+        assert em.normalize_volume("EURUSD", 0.0154) == 0.01
         assert em.normalize_volume("EURUSD", 0.0149) == 0.01
 
         # Min clamp
-        assert em.normalize_volume("EURUSD", 0.002) == 0.01
-        assert em.normalize_volume("EURUSD", -0.5) == 0.01
+        assert em.normalize_volume("EURUSD", 0.002) == 0.0
+        assert em.normalize_volume("EURUSD", -0.5) == 0.0
 
         # Max clamp
         assert em.normalize_volume("EURUSD", 150.0) == 100.0
@@ -49,10 +49,10 @@ class TestExecutionVolumeNormalization:
 
         # Step quantization
         assert em.normalize_volume("US500", 0.24) == 0.2
-        assert em.normalize_volume("US500", 0.26) == 0.3
+        assert em.normalize_volume("US500", 0.26) == 0.2
 
         # Below min clamps to min
-        assert em.normalize_volume("US500", 0.05) == 0.1
+        assert em.normalize_volume("US500", 0.05) == 0.0
 
         # Above max clamps to max
         assert em.normalize_volume("US500", 99.0) == 50.0
@@ -68,8 +68,8 @@ class TestExecutionVolumeNormalization:
         em = ExecutionManager()
 
         assert em.normalize_volume("XAU_FUT", 1.4) == 1.0
-        assert em.normalize_volume("XAU_FUT", 1.8) == 2.0
-        assert em.normalize_volume("XAU_FUT", 0.3) == 1.0
+        assert em.normalize_volume("XAU_FUT", 1.8) == 1.0
+        assert em.normalize_volume("XAU_FUT", 0.3) == 0.0
 
     def test_close_position_partial_volume_normalization(self, monkeypatch):
         """Partial close quantizes request and avoids orphan fragments below min_step."""
@@ -110,7 +110,7 @@ class TestExecutionVolumeNormalization:
         # Remaining = 0.03 - 0.02 = 0.01 >= min_step (0.01) -> partial close
         res = em.close_position(12345, volume=0.015)
         assert res["status"] == "success"
-        assert sent_request["volume"] == 0.02
+        assert sent_request["volume"] == 0.01
         assert "Quant_Close_Partial" in sent_request["comment"]
 
         # Partial close where remaining would be < 0.01:
@@ -119,5 +119,5 @@ class TestExecutionVolumeNormalization:
         mock_pos.volume = 0.02
         res2 = em.close_position(12345, volume=0.015)
         assert res2["status"] == "success"
-        assert sent_request["volume"] == 0.02
-        assert "Quant_Close_Single" in sent_request["comment"]
+        assert sent_request["volume"] == 0.01
+        assert "Quant_Close_Partial" in sent_request["comment"]

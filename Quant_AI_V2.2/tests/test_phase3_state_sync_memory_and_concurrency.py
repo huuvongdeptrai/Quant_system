@@ -60,6 +60,7 @@ def test_execution_manager_partial_close_syncs_db(tmp_path):
     db_file = str(tmp_path / "test_exec_partial.db")
     DatabaseManager.reset_instance()
     db = DatabaseManager(db_path=db_file)
+    db.bind_account(123, 'test')
     db.record_open_trade(
         ticket=7002, symbol="EURUSD", order_type="BUY", volume=0.50, open_price=1.0800, sl=1.0750, tp=1.0900
     )
@@ -81,12 +82,18 @@ def test_execution_manager_partial_close_syncs_db(tmp_path):
     mock_info = MagicMock()
     mock_info.digits = 5
     mock_info.filling_mode = 1
+    mock_info.volume_min = .01
+    mock_info.volume_max = 100.
+    mock_info.volume_step = .01
 
     mock_res = MagicMock()
     mock_res.retcode = 10009  # TRADE_RETCODE_DONE
     mock_res.deal = 8888
+    mock_res.volume = .20
 
-    with patch("backend.infrastructure.brokers.execution_manager.mt5.positions_get", return_value=[pos]), \
+    from types import SimpleNamespace
+    with patch("backend.infrastructure.brokers.execution_manager.mt5.account_info", return_value=SimpleNamespace(login=123, server="test")), \
+         patch("backend.infrastructure.brokers.execution_manager.mt5.positions_get", return_value=[pos]), \
          patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info_tick", return_value=mock_tick), \
          patch("backend.infrastructure.brokers.execution_manager.mt5.symbol_info", return_value=mock_info), \
          patch("backend.infrastructure.brokers.execution_manager.mt5.order_send", return_value=mock_res):

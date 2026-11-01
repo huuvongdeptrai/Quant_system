@@ -1,0 +1,512 @@
+[
+  {
+    "module": "test_ai_manual_tab_isolation.py",
+    "exit_code": 0,
+    "seconds": 2.925,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_backtest_pipeline_and_strategy_dispatch.py",
+    "exit_code": 0,
+    "seconds": 9.397,
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 14
+  },
+  {
+    "module": "test_blotter_dock_alignment.py",
+    "exit_code": 0,
+    "seconds": 2.373,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_bot_orchestrator_watchlist_scan.py",
+    "exit_code": 0,
+    "seconds": 1.069,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_chart_context_trading.py",
+    "exit_code": 0,
+    "seconds": 3.076,
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 12
+  },
+  {
+    "module": "test_drawing_engine_persistence_and_deletion.py",
+    "exit_code": 0,
+    "seconds": 2.329,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_engine_config_schema.py",
+    "exit_code": 0,
+    "seconds": 1.169,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_execution_modes_and_dedup.py",
+    "exit_code": 0,
+    "seconds": 2.526,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_execution_volume_normalization.py",
+    "exit_code": 0,
+    "seconds": 1.019,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_fvg_engine.py",
+    "exit_code": 0,
+    "seconds": 2.273,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_header_ribbon_alignment.py",
+    "exit_code": 0,
+    "seconds": 2.524,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_indicator_catalog_and_math.py",
+    "exit_code": 0,
+    "seconds": 2.223,
+    "tests": 18,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 18
+  },
+  {
+    "module": "test_institutional_macro_calendar.py",
+    "exit_code": 0,
+    "seconds": 2.374,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_macro_calendar_fixes.py",
+    "exit_code": 0,
+    "seconds": 2.423,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_macro_context_bus_and_risk_gate.py",
+    "exit_code": 0,
+    "seconds": 2.323,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_manual_quant_copilot.py",
+    "exit_code": 0,
+    "seconds": 2.873,
+    "tests": 44,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 44
+  },
+  {
+    "module": "test_market_profile_value_area.py",
+    "exit_code": 0,
+    "seconds": 2.123,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_market_state_store.py",
+    "exit_code": 0,
+    "seconds": 1.02,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_ml_meta_labeling_model_registry.py",
+    "exit_code": 0,
+    "seconds": 1.975,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_modify_order_dialog_stops_validation.py",
+    "exit_code": 0,
+    "seconds": 1.471,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_mt5_shortcuts_execution.py",
+    "exit_code": 0,
+    "seconds": 2.223,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_multi_asset_data_feed.py",
+    "exit_code": 0,
+    "seconds": 1.07,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_multi_asset_watchlist_and_icons.py",
+    "exit_code": 0,
+    "seconds": 2.223,
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 8
+  },
+  {
+    "module": "test_phase1_order_ownership_and_guard_isolation.py",
+    "exit_code": 0,
+    "seconds": 0.97,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_phase2_circuit_breaker_defense_and_drawdown.py",
+    "exit_code": 0,
+    "seconds": 2.224,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_phase3_state_sync_memory_and_concurrency.py",
+    "exit_code": 0,
+    "seconds": 2.324,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_phase4_ui_styling_and_warning_cleansing.py",
+    "exit_code": 0,
+    "seconds": 1.17,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_repair_regressions.py",
+    "exit_code": 0,
+    "seconds": 1.572,
+    "tests": 38,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 38
+  },
+  {
+    "module": "test_run_headless.py",
+    "exit_code": 0,
+    "seconds": 1.17,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_scalp_pullback_and_copilot.py",
+    "exit_code": 0,
+    "seconds": 2.272,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_splash_and_startup_resilience.py",
+    "exit_code": 0,
+    "seconds": 1.672,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_stage1_unit_math.py",
+    "exit_code": 0,
+    "seconds": 1.122,
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  {
+    "module": "test_stage2_backtest.py",
+    "exit_code": 0,
+    "seconds": 1.169,
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  {
+    "module": "test_stage3_execution_resilience.py",
+    "exit_code": 0,
+    "seconds": 1.069,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 2
+  },
+  {
+    "module": "test_stage4_resource_profiling.py",
+    "exit_code": 0,
+    "seconds": 19.532,
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 2
+  },
+  {
+    "module": "test_stage5_state_recovery_and_watchdog.py",
+    "exit_code": 0,
+    "seconds": 1.175,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_stage6_unbiased_backtest.py",
+    "exit_code": 0,
+    "seconds": 1.121,
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  {
+    "module": "test_stage7_event_risk_engine.py",
+    "exit_code": 0,
+    "seconds": 1.178,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  },
+  {
+    "module": "test_stage8_options_integration.py",
+    "exit_code": 0,
+    "seconds": 2.273,
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 9
+  },
+  {
+    "module": "test_strategy_lifecycle_and_ingestion.py",
+    "exit_code": 0,
+    "seconds": 1.225,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_strategy_macro_injection.py",
+    "exit_code": 0,
+    "seconds": 2.223,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_system_market_structure_engine.py",
+    "exit_code": 0,
+    "seconds": 1.22,
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 12
+  },
+  {
+    "module": "test_system_performance_optimizations.py",
+    "exit_code": 0,
+    "seconds": 2.331,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 3
+  },
+  {
+    "module": "test_system_tray_manager.py",
+    "exit_code": 0,
+    "seconds": 2.174,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5,
+    "passed": 0
+  },
+  {
+    "module": "test_timeframe_catalog.py",
+    "exit_code": 0,
+    "seconds": 1.071,
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 3
+  },
+  {
+    "module": "test_timezone_synchronization.py",
+    "exit_code": 0,
+    "seconds": 1.121,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_trading_plan_stepper_and_clean_market.py",
+    "exit_code": 0,
+    "seconds": 2.527,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_ui_cohesion_watchlist_calendar.py",
+    "exit_code": 0,
+    "seconds": 2.375,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_weekend_filter_and_thread_safety.py",
+    "exit_code": 0,
+    "seconds": 2.073,
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 5
+  },
+  {
+    "module": "test_wyckoff_institutional_upgrade.py",
+    "exit_code": 0,
+    "seconds": 1.019,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  {
+    "module": "test_xauusd_forex_data_pipeline.py",
+    "exit_code": 0,
+    "seconds": 1.08,
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 7
+  }
+]

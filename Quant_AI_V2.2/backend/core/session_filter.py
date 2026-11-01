@@ -102,7 +102,9 @@ class SessionFilter:
         now = datetime.now(timezone.utc)
         closed_tickets = []
         if now.weekday() == 4 and now.hour >= 21:
-            for sym in symbols:
+            all_positions=mt5.positions_get()
+            managed={p.symbol for p in (all_positions or ()) if getattr(p,'magic',None)==execution_manager.magic}
+            for sym in set(symbols)|managed:
                 try:
                     from backend.infrastructure.data_providers.asset_registry import AssetRegistry, AssetClass
                     if AssetRegistry.identify(sym) == AssetClass.CRYPTO:
@@ -112,6 +114,8 @@ class SessionFilter:
                 positions = mt5.positions_get(symbol=sym)
                 if positions:
                     for pos in positions:
+                        if pos.magic != execution_manager.magic or 'manual' in str(pos.comment).lower():
+                            continue
                         res = execution_manager.close_position(pos.ticket)
                         if res.get("status") == "success":
                             closed_tickets.append(pos.ticket)

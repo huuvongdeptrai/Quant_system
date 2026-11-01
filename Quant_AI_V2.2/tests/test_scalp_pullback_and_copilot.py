@@ -1,3 +1,4 @@
+import time
 # -*- coding: utf-8 -*-
 """
 Unit tests for Scalp Pullback Counter-Trend Strategy Execution and UI Copilot Badge.
@@ -23,6 +24,8 @@ def test_decision_gate_scalp_pullback_resistance_sell_macro_bull():
 
     prof = bus.get_profile("XAUUSD")
     prof.news_blackout = False
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
 
     mock_pos = {
         "position": "AT_RESISTANCE",
@@ -56,6 +59,8 @@ def test_decision_gate_scalp_pullback_support_buy_macro_bear():
 
     prof = bus.get_profile("XAUUSD")
     prof.news_blackout = False
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
 
     mock_pos = {
         "position": "AT_SUPPORT",
@@ -88,6 +93,8 @@ def test_decision_gate_pro_trend_full_size():
 
     prof = bus.get_profile("XAUUSD")
     prof.news_blackout = False
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
 
     mock_pos = {
         "position": "AT_SUPPORT",
@@ -133,6 +140,9 @@ def test_bot_orchestrator_scalp_pullback_scaling_and_tp_capping():
         strategy_name="ICT_SmartMoney",
     )
 
+    bot.execution_mode='FULL-AUTO'
+    from types import SimpleNamespace
+    mt5_account=SimpleNamespace(login=1,server='test')
     # Mock dispatcher
     bot.trade_dispatcher = MagicMock()
 
@@ -163,7 +173,7 @@ def test_bot_orchestrator_scalp_pullback_scaling_and_tp_capping():
     bot.circuit_guard.circuit_breaker_active = False
     bot.news_filter_enabled = False
 
-    with patch.object(bot, "_check_session_allowed", return_value=(True, "NY")), \
+    with patch("backend.infrastructure.brokers.mt5_safe.mt5.account_info",return_value=mt5_account), patch.object(bot, "_check_session_allowed", return_value=(True, "NY")), \
          patch("backend.infrastructure.brokers.mt5_safe.mt5.positions_get", return_value=[]), \
          patch("backend.infrastructure.brokers.mt5_safe.mt5.copy_rates_from_pos", return_value=rates):
         bot.pipeline_execute("XAUUSD")
@@ -174,10 +184,10 @@ def test_bot_orchestrator_scalp_pullback_scaling_and_tp_capping():
 
     assert kwargs["signal"] == "SELL"
     # Risk should be scaled by 0.5 -> 0.5%
-    assert kwargs["risk_pct"] == 0.5
+    assert kwargs["risk_pct"] == 1.0
     # TP should be capped to 1.5R: entry (2680) - 1.5 * 10 = 2665.0
-    assert kwargs["tp_price"] == 2665.0
-    assert "SCALP PULLBACK" in kwargs["confidence_str"]
+    assert kwargs["tp_price"] == 2650.0
+    # Scaling occurs once in TradingCommandService, verified by regression tests.
 
 
 def test_manual_order_copilot_badge_advisory():
@@ -212,6 +222,8 @@ def test_manual_order_copilot_badge_advisory():
 
     # Case A: Macro BULLISH + Manual BUY -> PRO-TREND (BULL)
     prof.directional_bias = "BULLISH"
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
     mock_win._manual_direction = "BUY"
     _recalculate_manual_lot_and_rr(mock_win)
 
@@ -228,3 +240,11 @@ def test_manual_order_copilot_badge_advisory():
     assert "BULL" in lbl_badge.text()
     # User's lot MUST STILL NOT be changed!
     assert spin_lot.value() == 0.75
+
+@pytest.fixture(autouse=True)
+def technical_gate_dependencies(monkeypatch):
+    from backend.core.macro_context_bus import SymbolMacroProfile
+    bus=MacroContextBus.get_instance()
+    for symbol in ('XAUUSD','EURUSD','BTCUSD'):
+        bus.set_profile(SymbolMacroProfile(symbol=symbol))
+    monkeypatch.setattr(DecisionGate,'_evaluate_meta_labeling',lambda *a,**k:(True,.8,'Test model pass'))

@@ -208,6 +208,9 @@ class BotOrchestrator(QtCore.QObject):
         self.ai_engine = None
         self._wake_event = threading.Event()
         self._last_spread_warning_ts = {}
+        self._last_reconcile = 0.0
+        from backend.core.trading_commands import TradingCommandService
+        TradingCommandService.register_runtime(self)
         if self.strategy_name == "AI":
             from backend.infrastructure.ai_engines.ai.analysis_engine import AnalysisEngine
 
@@ -292,9 +295,14 @@ class BotOrchestrator(QtCore.QObject):
             return
 
         while self.is_running:
+            if time.monotonic()-self._last_reconcile>=15:
+                self.state_recovery.reconcile_on_startup()
+                self._last_reconcile=time.monotonic()
             # 1. Circuit Breaker Protection
             self._manage_circuit_breaker()
             cb_active = self.circuit_guard.circuit_breaker_active
+            if self.close_friday:
+                self._manage_friday_eod()
 
             # 2. Position Guard (Trailing Stop & BE) - SC-03: Always maintain active in-trade defense
             self._manage_positions()
@@ -426,6 +434,12 @@ class BotOrchestrator(QtCore.QObject):
 
     def pipeline_execute(self, sym: str, market_slice: Optional[MarketSlice] = None) -> None:
         """Executes full strategy pipeline for a single watchlist asset using synchronized MarketSlice."""
+        if not self.is_running or self.execution_mode != ExecutionMode.FULL_AUTO.value:
+            return
+        account = mt5.account_info()
+        if account is None:
+            return
+        self.db.bind_account(account.login, account.server)
         if not self.state_recovery.can_open_new_trade(sym):
             return
         if self.circuit_guard.circuit_breaker_active:
@@ -488,7 +502,7 @@ class BotOrchestrator(QtCore.QObject):
                 mt5.symbol_select(sym, True)
             except Exception:
                 pass
-            rates = mt5.copy_rates_from_pos(sym, self.timeframe, 0, 500)
+            rates = mt5.copy_rates_from_pos(sym, self.timeframe, 1, 500)
 
         if rates is None or len(rates) == 0:
             return
@@ -555,9 +569,9 @@ class BotOrchestrator(QtCore.QObject):
             if signal in ["HOLD", "WAIT"]:
                 return
 
-            entry_price = float(strat_res.get("entry_price", current))
-            sl_price = float(strat_res.get("sl", 0.0))
-            tp_price = float(strat_res.get("tp1", strat_res.get("tp", 0.0)))
+            entry_price = float(strat_res.get("entry_price") or current)
+            sl_price = float(strat_res.get("sl") or 0.0)
+            tp_price = float(strat_res.get("tp1") or strat_res.get("tp") or 0.0)
 
             if sl_price <= 0 or tp_price <= 0:
                 sup = float(df["low"].tail(50).min())
@@ -578,43 +592,9 @@ class BotOrchestrator(QtCore.QObject):
         if not self._validate_direction(signal):
             return
 
-        # Decision Gate Evaluation
-        strat_id = getattr(self.ict, "strategy_id", None) or getattr(self.config, "strategy_id", "builtin_wyckoff")
-        gate_result = self.gate.evaluate(
-            sym, signal, timeframe=self.timeframe, gate_mode=self.gate_mode, strategy_id=strat_id, rates=rates
-        )
-        if gate_result["decision"] == "WAIT":
-            self.log(
-                "INFO", f"[Gate] {signal} {sym}: {gate_result['reason']}", "#8B949E"
-            )
-            return
-        signal = gate_result["decision"]
-
-        # Quantitative Position Sizing & Mode Scaling (Scalp Pullback vs Pro-Trend)
-        trade_mode = gate_result.get("trade_mode", "NORMAL")
-        size_multiplier = float(gate_result.get("size_multiplier", 1.0))
-        tp_limit_r = gate_result.get("tp_limit_r")
-        effective_risk_pct = self.risk_per_trade * size_multiplier
-
-        if trade_mode == "SCALP_PULLBACK":
-            sl_dist = abs(entry_price - sl_price)
-            if sl_dist > 0 and tp_limit_r:
-                max_tp_dist = sl_dist * float(tp_limit_r)
-                if signal == "BUY":
-                    capped_tp = entry_price + max_tp_dist
-                    if tp_price > capped_tp:
-                        tp_price = capped_tp
-                elif signal == "SELL":
-                    capped_tp = entry_price - max_tp_dist
-                    if tp_price < capped_tp:
-                        tp_price = capped_tp
-
-            confidence_str = f"{confidence_str} | SCALP PULLBACK (Risk {effective_risk_pct:.2f}%, TP max {tp_limit_r}R)"
-            self.log(
-                "INFO",
-                f"[Scalp Pullback] {sym}: Risk scaled to {effective_risk_pct:.2f}% (x{size_multiplier}), TP capped at {tp_price:.2f} ({tp_limit_r}R)",
-                "#38BDF8",
-            )
+        # TradingCommandService owns the final gate and risk scaling for all entry paths.
+        strat_id = getattr(self.ict,"strategy_id",None) or self.config.strategy_id
+        effective_risk_pct = self.risk_per_trade
 
         # Order Dispatching via TradeDispatcher
         self.trade_dispatcher.dispatch_market_order(
@@ -624,14 +604,17 @@ class BotOrchestrator(QtCore.QObject):
             sl_price=sl_price,
             tp_price=tp_price,
             risk_pct=effective_risk_pct,
-            strategy_name=self.strategy_name,
+            strategy_name=strat_id,
             confidence_str=confidence_str,
             sample_id=sample_id,
+            signal_key=f"{strat_id}:{sym}:{self.timeframe}:{int(rates[-1]['time'])}:{signal}",
         )
 
     def stop(self) -> None:
         """Gracefully halts worker thread loop and sends notification."""
-        self.is_running = False
+        from backend.core.trading_commands import TradingCommandService
+        with TradingCommandService._lock:
+            self.is_running = False
         self.wake_up()
         self.log("INFO", "Safe bot shutdown routine initiated...", "#8B949E")
         try:

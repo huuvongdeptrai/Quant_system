@@ -341,3 +341,18 @@ class TestIndicatorDialogUI:
         _refresh_indicators(win, sample_market_df)
         assert win.lbl_chart_studies.isVisible() is False
 
+
+
+@pytest.fixture(autouse=True)
+def dispose_indicator_widgets(qapp):
+    """Destroy native graphics while QApplication is still alive."""
+    previous = {id(widget) for widget in QApplication.topLevelWidgets()}
+    yield
+    from PySide6.QtCore import QCoreApplication, QEvent
+    for widget in QApplication.topLevelWidgets():
+        if id(widget) in previous:
+            continue
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    qapp.processEvents()

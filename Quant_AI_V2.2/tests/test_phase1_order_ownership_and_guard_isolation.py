@@ -32,12 +32,13 @@ class DummyPosition:
 class DummyDeal:
     def __init__(self, ticket, entry, profit, commission, swap, magic=999999, comment="VECTRA"):
         self.ticket = ticket
+        self.position_id = ticket
         self.entry = entry  # 1 = EXIT
         self.profit = profit
         self.commission = commission
         self.swap = swap
         self.fee = 0.0
-        self.time = 1000
+        self.time = ticket
         self.price = 2650.0
         self.magic = magic
         self.comment = comment
@@ -110,7 +111,7 @@ def test_circuit_breaker_ignores_manual_losing_deals():
     # 1 bot winning deal
     bot_deal1 = DummyDeal(ticket=4, entry=1, profit=100.0, commission=-2.0, swap=0.0, magic=999999, comment="VECTRA")
 
-    with patch("backend.core.circuit_breaker_guard.mt5.history_deals_get", return_value=[manual_deal1, manual_deal2, manual_deal3, bot_deal1]):
+    with patch("backend.core.circuit_breaker_guard.mt5.positions_get", return_value=()), patch("backend.core.circuit_breaker_guard.mt5.history_deals_get", side_effect=position_history([manual_deal1, manual_deal2, manual_deal3, bot_deal1])):
         triggered, streak = cb_guard.check_losing_streak()
         # Even though there are 3 consecutive manual losses, the bot has 0 losses!
         assert not triggered
@@ -131,7 +132,7 @@ def test_circuit_breaker_triggers_only_on_bot_losing_deals():
     b2 = DummyDeal(ticket=2, entry=1, profit=-30.0, commission=-2.0, swap=0.0, magic=999999, comment="VECTRA")
     b3 = DummyDeal(ticket=3, entry=1, profit=-40.0, commission=-2.0, swap=0.0, magic=999999, comment="VECTRA")
 
-    with patch("backend.core.circuit_breaker_guard.mt5.history_deals_get", return_value=[b1, b2, b3]):
+    with patch("backend.core.circuit_breaker_guard.mt5.positions_get", return_value=()), patch("backend.core.circuit_breaker_guard.mt5.history_deals_get", side_effect=position_history([b1, b2, b3])):
         triggered, streak = cb_guard.check_losing_streak()
         assert triggered
         assert streak == 3
@@ -216,7 +217,7 @@ def test_manual_order_execution_assigns_magic_zero():
          patch("backend.infrastructure.brokers.execution_manager.mt5.order_send", return_value=mock_res) as mock_send:
 
         # Case A: Explicit magic=0
-        exec_mgr.execute_market_order(
+        exec_mgr._execute_market_order_raw(
             symbol="XAUUSD",
             is_buy=True,
             volume=0.1,
@@ -228,7 +229,7 @@ def test_manual_order_execution_assigns_magic_zero():
         assert mock_send.call_args[0][0]["magic"] == 0
 
         # Case B: comment contains 'manual' without explicit magic
-        exec_mgr.execute_market_order(
+        exec_mgr._execute_market_order_raw(
             symbol="XAUUSD",
             is_buy=True,
             volume=0.1,
@@ -239,7 +240,7 @@ def test_manual_order_execution_assigns_magic_zero():
         assert mock_send.call_args[0][0]["magic"] == 0
 
         # Case C: Automated bot order uses exec_mgr.magic (999999)
-        exec_mgr.execute_market_order(
+        exec_mgr._execute_market_order_raw(
             symbol="XAUUSD",
             is_buy=True,
             volume=0.1,
@@ -248,3 +249,13 @@ def test_manual_order_execution_assigns_magic_zero():
             comment="ICT_Strategy"
         )
         assert mock_send.call_args[0][0]["magic"] == 999999
+
+
+def position_history(exits):
+    def get(*args, **kwargs):
+        if "position" not in kwargs:
+            return exits
+        d = next(d for d in exits if d.position_id == kwargs["position"])
+        opening = DummyDeal(d.ticket, 0, 0, -1, 0, magic=d.magic, comment=d.comment)
+        return [opening, d]
+    return get

@@ -54,11 +54,70 @@ class PositionGuard:
 
     def manage_positions(self, symbols: List[str]) -> None:
         """Inspects all open positions for trailing stop adjustments and syncs closed trades."""
+        live=mt5.positions_get()
+        if live is not None:
+            self._apply_time_barriers(live)
+        managed={p.symbol for p in (live or ()) if getattr(p,'magic',None)==self.bot_magic}
         if self.enable_trailing_stop and (self.trailing_pips > 0 or self.breakeven_pips > 0):
-            for sym in symbols:
+            for sym in set(symbols)|managed:
                 self._apply_trailing_for_symbol(sym)
 
         self.sync_closed_trades()
+
+    def _apply_time_barriers(self, positions):
+        """Count completed venue bars, not wall-clock hours across market closures.
+
+        Only our persisted automatic execution policy arms a time exit. Legacy,
+        manual and unrelated positions do not acquire a new exit rule on restart.
+        """
+        import json
+        account=mt5.account_info()
+        if account is None:
+            return
+        self.db.bind_account(account.login,account.server)
+        for pos in positions:
+            if getattr(pos,'magic',None)!=self.bot_magic:
+                continue
+            pid=getattr(pos,'identifier',pos.ticket)
+            raw=self.db.get_system_state(f'position_policy:{pid}',default='')
+            if not raw:
+                continue
+            try:
+                policy=json.loads(raw)
+                limit=int(policy['max_holding_bars'])
+                timeframe=int(policy['timeframe'])
+                if not 1<=limit<=10000:
+                    continue
+                rates=mt5.copy_rates_from_pos(pos.symbol,timeframe,0,limit+2)
+                if rates is None or len(rates)<2:
+                    continue
+                times=sorted(int(r['time']) for r in rates)
+                opened=int(pos.time)
+                if opened>=times[-1]:
+                    continue  # No completed holding bar yet.
+                containing=max((i for i,t in enumerate(times[:-1]) if t<=opened),default=-1)
+                completed=len(times)-1-containing if containing>=0 else len(times)-1
+                if completed<limit:
+                    continue
+                key=f'time_exit:{pid}'
+                saved=self.db.get_system_state(key,default='')
+                if saved:
+                    pending=json.loads(saved)
+                    expected=pending.get('remaining')
+                    if expected is None or abs(pos.volume-float(expected))>1e-8:
+                        continue  # An ambiguous prior close must not be sent twice.
+                if not self.db.set_system_state(key,json.dumps({'remaining':None})):
+                    continue
+                result=self.exec_mgr.close_position(pos.ticket)
+                if result.get('status')=='partial':
+                    # Broker confirmed a partial execution. A later poll must see
+                    # that exact remaining exposure before another close is admitted.
+                    self.db.set_system_state(key,json.dumps({'remaining':result['remaining_volume']}))
+                elif result.get('status')=='error':
+                    self.db.set_system_state(key,'')
+                self._log('INFO',f'Time barrier close #{pos.ticket}: {result.get("status")}')
+            except (ValueError,TypeError,KeyError) as exc:
+                self._log('WARNING',f'Invalid time-exit policy for #{pos.ticket}: {exc}')
 
     def _apply_trailing_for_symbol(self, sym: str) -> None:
         positions = mt5.positions_get(symbol=sym)
@@ -74,7 +133,7 @@ class PositionGuard:
         offset_tr = self.trailing_pips * point * 10
 
         # SC-07: Institutional Break-Even Buffer
-        # Ensures that moving SL to Breakeven covers spread and broker commission so net realized PnL is non-negative.
+        # Quote buffer only; commissions/swap and gap slippage can still produce a net loss.
         spread_pts = (float(info.spread) * point) if (hasattr(info, "spread") and isinstance(info.spread, (int, float)) and info.spread > 0) else (10 * point)
         be_buffer = max(spread_pts * 0.5, 5 * point)
 
@@ -105,7 +164,7 @@ class PositionGuard:
                 if self.trailing_pips > 0 and profit_distance > 0:
                     potential_sl = current_price - offset_tr
                     if potential_sl > current_sl and potential_sl > open_price:
-                        new_sl = potential_sl
+                        new_sl = max(new_sl, potential_sl)
             else:
                 profit_distance = open_price - current_price
                 if (
@@ -119,7 +178,7 @@ class PositionGuard:
                     potential_sl = current_price + offset_tr
                     if potential_sl < current_sl or current_sl == 0:
                         if potential_sl < open_price:
-                            new_sl = potential_sl
+                            new_sl = min(new_sl, potential_sl) if new_sl > 0 else potential_sl
 
             if new_sl != current_sl and abs(new_sl - current_sl) > point * 5:
                 request = {
@@ -143,6 +202,10 @@ class PositionGuard:
     def sync_closed_trades(self) -> None:
         """Audits database open trades against live broker positions to record outcomes."""
         try:
+            account=mt5.account_info()
+            if account is None:
+                return
+            self.db.bind_account(account.login,account.server)
             db_open = self.db.get_open_trades()
             if not db_open:
                 return
@@ -152,12 +215,12 @@ class PositionGuard:
                 # API connection drop - abort sync to protect open trades
                 return
 
-            live_tickets = {p.ticket for p in live_positions}
+            live_ids = {getattr(p,"identifier",p.ticket) for p in live_positions}
 
             for trade in db_open:
                 tk = trade["ticket"]
-                if tk not in live_tickets:
-                    deals = mt5.history_deals_get(position=tk)
+                if (trade.get("position_id") or tk) not in live_ids:
+                    deals = mt5.history_deals_get(position=trade.get("position_id") or tk)
                     if not deals:
                         # Missing deals: do not overwrite with 0.0 / 0.0
                         continue
@@ -174,11 +237,17 @@ class PositionGuard:
                         for d in deals
                     )
                     out_deals = [d for d in deals if getattr(d, "entry", 0) in (1, 3)]
+                    if not out_deals:
+                        continue
+                    self.db.record_deals(deals)
                     exit_deal = max(out_deals, key=lambda x: getattr(x, "time_msc", getattr(x, "time", 0))) if out_deals else deals[-1]
                     exit_price = float(getattr(exit_deal, "price", 0.0) or 0.0)
                     reason = getattr(exit_deal, "comment", "CLOSED") or "CLOSED"
 
-                    self.db.record_close_trade(ticket=tk, close_price=exit_price, pnl=pnl)
+                    from datetime import datetime, timezone
+                    closed_at=datetime.fromtimestamp(exit_deal.time,timezone.utc).isoformat()
+                    if not self.db.record_close_trade(ticket=tk, close_price=exit_price, pnl=pnl,close_time=closed_at):
+                        continue
 
                     try:
                         from backend.infrastructure.ai_engines.dataset_recorder import (
@@ -222,5 +291,5 @@ class PositionGuard:
                         )
                     except Exception as e_tg:
                         logger.debug(f"[PositionGuard] Telegram close notification error: {e_tg}")
-        except (KeyError, ValueError, RuntimeError) as exc:
+        except (KeyError, ValueError, RuntimeError, OSError) as exc:
             logger.debug(f"[PositionGuard] Trade synchronization non-fatal exception: {exc}")

@@ -72,7 +72,7 @@ def test_crypto_24_7_exempt_from_weekend_closure():
         assert reason_btc == "CRYPTO_24_7"
 
 
-def test_spread_warning_throttling():
+def test_spread_warning_throttling(monkeypatch):
     """Verifies that SPREAD EXPANDED warnings are throttled to at most once every 60s per asset."""
     bot = BotOrchestrator(
         strategy=MagicMock(),
@@ -82,6 +82,11 @@ def test_spread_warning_throttling():
         decision_gate=MagicMock(),
         symbols=["XAUUSD"],
     )
+    bot.execution_mode='FULL-AUTO'
+    bot.is_running=True
+    from backend.infrastructure.brokers.mt5_safe import mt5
+    from types import SimpleNamespace
+    monkeypatch.setattr(mt5,'account_info',lambda:SimpleNamespace(login=1,server='test'))
     bot.trade_mode = "BUY_SELL"
 
     logged_warnings = []

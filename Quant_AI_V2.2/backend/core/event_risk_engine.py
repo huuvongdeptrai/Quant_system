@@ -15,6 +15,9 @@ Institutional Risk Layer for Quant_AI V2.2:
 """
 
 import time
+import json
+import math
+from decimal import Decimal, ROUND_FLOOR
 from datetime import datetime, timezone
 from loguru import logger
 from backend.infrastructure.brokers.mt5_safe import mt5
@@ -69,21 +72,24 @@ class EventRiskEngine:
 
         self._news_events_cache = []
         self._news_events_ts = 0.0
+        self._calendar_valid=False
         # Ghi nhận các vị thế đã được phòng thủ để tránh gọi lặp lại mỗi chu kỳ
         self._defended_positions = {}  # {ticket: {"action": "breakeven"|"partial", "event_ts": ts}}
 
     def refresh_events_if_needed(self):
         """Cache events trong 10 phút để tránh spam request đến Calendar API."""
         now = time.time()
-        if not self._news_events_cache or (now - self._news_events_ts) > 600:
+        if (now - self._news_events_ts) > 600:
             if not self.cal_engine:
                 from backend.infrastructure.data_providers.macro.calendar_engine import CalendarEngine
                 self.cal_engine = CalendarEngine()
             try:
                 self._news_events_cache = self.cal_engine.fetch_events()
+                self._calendar_valid=getattr(self.cal_engine,"last_fetch_success",False) is True
                 self._news_events_ts = now
             except Exception as e:
                 logger.warning(f"[EventRisk] Calendar fetch failed: {e}")
+                self._calendar_valid = False
                 self._news_events_cache = []
                 self._news_events_ts = now
 
@@ -121,6 +127,8 @@ class EventRiskEngine:
             pass
 
         self.refresh_events_if_needed()
+        if not self._calendar_valid and not self._news_events_cache and self.pause_window_mins>0:
+            return True,"Calendar data unavailable"
         if not self._news_events_cache or self.pause_window_mins <= 0:
             return False, ""
 
@@ -184,6 +192,13 @@ class EventRiskEngine:
             return []
 
         defense_results = []
+        account=mt5.account_info()
+        if account is None:
+            return []
+        identity=(account.server,account.login)
+        if getattr(self,'_defense_account',None)!=identity:
+            self._defended_positions.clear()
+            self._defense_account=identity
 
         for pos in positions:
             # SC-04 & SC-06: Do NOT defend or modify user manual trades
@@ -208,7 +223,7 @@ class EventRiskEngine:
             if not impacting_event:
                 continue
 
-            event_id = f"{ticket}_{impacting_event.get('sort_key', 0)}"
+            event_id = f"{getattr(pos,'identifier',ticket)}_{impacting_event.get('sort_key', 0)}"
             if event_id in self._defended_positions:
                 continue  # Đã phòng vệ lệnh này cho sự kiện này rồi
 
@@ -226,14 +241,20 @@ class EventRiskEngine:
             open_price = pos.price_open
             sl_price = pos.sl
 
-            # Khoảng cách R rủi ro ban đầu
-            if sl_price and sl_price > 0:
-                risk_dist = abs(open_price - sl_price)
-            else:
-                risk_dist = 20.0 * point * 10  # Fallback 20 pips
-
-            if risk_dist <= 0:
-                risk_dist = 20.0 * point * 10
+            from backend.database.db_manager import DatabaseManager
+            db=DatabaseManager()
+            acc=mt5.account_info()
+            if acc is None:
+                continue
+            db.bind_account(acc.login,acc.server)
+            saved=next((t for t in db.get_open_trades() if t.get('position_id')==getattr(pos,'identifier',ticket) or t['ticket']==ticket),None)
+            if not saved or not saved.get('initial_sl'):
+                continue
+            initial_sl=saved['initial_sl']
+            # Use original risk even after trailing/BE or manual removal of the current SL.
+            risk_dist = abs(open_price - initial_sl)
+            if not math.isfinite(risk_dist) or risk_dist <= 0:
+                continue
 
             # Khoảng lãi hiện tại
             profit_dist = (curr_price - open_price) if is_buy else (open_price - curr_price)
@@ -247,6 +268,9 @@ class EventRiskEngine:
 
             # QUY TẮC 1: Lệnh đang lãi >= be_r_threshold (mặc định 1.5R) -> Tự động dời SL về Hòa vốn (Breakeven)
             threshold_be = getattr(self, "be_r_threshold", 1.5)
+            persisted_key='defense:'+event_id
+            if db.get_system_state(persisted_key,default='')=='DONE':
+                continue
             if r_multiple >= threshold_be:
                 # Chỉ dời nếu SL mới tốt hơn SL hiện tại
                 should_move = (be_sl > sl_price) if is_buy else (be_sl < sl_price or sl_price == 0)
@@ -256,6 +280,9 @@ class EventRiskEngine:
                         f"[EventRisk] AUTO-BREAKEVEN: Ticket #{ticket} ({sym}) profit +{r_multiple:.2f}R >= {threshold_be}R. "
                         f"SL moved to {be_sl} before '{news_title}'."
                     )
+                    if not res or res.get('status')!='success':
+                        continue
+                    db.set_system_state(persisted_key,'DONE')
                     self._defended_positions[event_id] = {"action": "breakeven", "r": r_multiple}
                     defense_results.append({
                         "ticket": ticket,
@@ -268,15 +295,42 @@ class EventRiskEngine:
 
             # QUY TẮC 2: Lệnh đang lãi nhẹ 0.5R - be_r_threshold -> Chốt 50% Volume & dời phần còn lại về Breakeven
             elif 0.5 <= r_multiple < threshold_be:
-                half_vol = round(pos.volume * 0.5, 2)
-                min_vol = info.volume_min if info else 0.01
-                step_vol = info.volume_step if info else 0.01
-                half_vol = round(round(half_vol / step_vol) * step_vol, 2)
+                previous=db.get_system_state(persisted_key,default='')
+                partial_done=previous=='PARTIAL_DONE'
+                if previous.startswith('PARTIAL_PENDING:'):
+                    original,target=json.loads(previous.split(':',1)[1])
+                    if pos.volume<=target+1e-9:
+                        partial_done=True
+                        if not db.set_system_state(persisted_key,'PARTIAL_DONE'):
+                            continue
+                    else:
+                        continue
+                min_vol = info.volume_min
+                step_vol = info.volume_step
+                if not math.isfinite(step_vol) or step_vol <= 0:
+                    continue
+                half_vol = float((Decimal(str(pos.volume)) / 2 / Decimal(str(step_vol))).to_integral_value(rounding=ROUND_FLOOR) * Decimal(str(step_vol)))
 
-                if half_vol >= min_vol and (pos.volume - half_vol) >= min_vol:
-                    close_res = self.exec_mgr.close_position(ticket, volume=half_vol)
+                if partial_done or (half_vol >= min_vol and (pos.volume - half_vol) >= min_vol):
+                    if partial_done:
+                        close_res={'status':'success'}
+                    else:
+                        if not db.set_system_state(persisted_key,'PARTIAL_PENDING:'+json.dumps([pos.volume,pos.volume-half_vol])):
+                            continue  # No irreversible action without a durable recovery marker.
+                        close_res = self.exec_mgr.close_position(ticket, volume=half_vol)
+                        if not close_res or close_res.get('status')!='success':
+                            if close_res and close_res.get('status')=='error' and close_res.get('retcode'):
+                                db.set_system_state(persisted_key,'')
+                            continue
+                        if close_res.get('partial_fill'):
+                            continue
+                        db.set_system_state(persisted_key,'PARTIAL_DONE')
                     # Dời SL phần còn lại về Breakeven
-                    be_res = self.exec_mgr.modify_position(ticket, sl=be_sl, tp=pos.tp)
+                    protected=max(sl_price,be_sl) if is_buy else (min(sl_price,be_sl) if sl_price>0 else be_sl)
+                    be_res = self.exec_mgr.modify_position(ticket, sl=protected, tp=pos.tp)
+                    if not be_res or be_res.get('status')!='success':
+                        continue
+                    db.set_system_state(persisted_key,'DONE')
                     logger.info(
                         f"[EventRisk] PARTIAL CLOSE 50%: Ticket #{ticket} ({sym}) profit +{r_multiple:.2f}R. "
                         f"Closed {half_vol} lots & moved remaining to BE before '{news_title}'."
@@ -303,7 +357,7 @@ class EventRiskEngine:
         """
         info = mt5.symbol_info(symbol)
         if not info:
-            return True, 0, 0
+            return False, 0, 0
 
         curr_spread = info.spread
         path = getattr(info, "path", "").lower() if info else ""

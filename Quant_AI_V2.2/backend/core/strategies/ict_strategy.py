@@ -82,6 +82,8 @@ class ICTZonesProStrategy(BaseStrategy):
         self.hpz_threshold = self.config.get("hpz_threshold", 80.0)
         self.momentum_period = self.config.get("momentum_period", 50)
         self.fvg_threshold_per = self.config.get("fvg_threshold_per", 0.1)
+        self.fvg_atr_mult = float(self.config.get("fvg_atr_mult", 0.15))
+        self.use_dynamic_atr_fvg = bool(self.config.get("use_dynamic_atr_fvg", True))
         self.min_confluence = self.config.get("min_confluence", 1)
         self.require_pa = self.config.get("require_pa", True)
         self.lookback_bars = self.config.get("lookback_bars", 300)  # Khôi phục trạng thái từ 300 nến
@@ -317,20 +319,30 @@ class ICTZonesProStrategy(BaseStrategy):
             if h_i > sw_high_arr[i] and c_i < sw_high_arr[i]:
                 last_bear_sweep_idx = i
 
-            # 2. Phát hiện vùng FVG
-            thresh = self.fvg_threshold_per / 100
-
-            is_bull_fvg = (
-                (l_i > prev2_h)
-                and (prev_c > prev2_h)
-                and ((l_i - prev2_h) / prev2_h > thresh)
-            )
-
-            is_bear_fvg = (
-                (h_i < prev2_l)
-                and (prev_c < prev2_l)
-                and ((prev2_l - h_i) / h_i > thresh)
-            )
+            # 2. Phát hiện vùng FVG (Chuẩn hóa vi cấu trúc thích ứng ATR động 14 chu kỳ)
+            atr_i = atr_arr[i] if not np.isnan(atr_arr[i]) and atr_arr[i] > 0 else 1.0
+            if self.use_dynamic_atr_fvg:
+                min_gap = self.fvg_atr_mult * atr_i
+                is_bull_fvg = (
+                    (l_i - prev2_h > min_gap)
+                    and (prev_c > c_arr[i - 2])
+                )
+                is_bear_fvg = (
+                    (prev2_l - h_i > min_gap)
+                    and (prev_c < c_arr[i - 2])
+                )
+            else:
+                thresh = self.fvg_threshold_per / 100
+                is_bull_fvg = (
+                    (l_i > prev2_h)
+                    and (prev_c > prev2_h)
+                    and ((l_i - prev2_h) / prev2_h > thresh)
+                )
+                is_bear_fvg = (
+                    (h_i < prev2_l)
+                    and (prev_c < prev2_l)
+                    and ((prev2_l - h_i) / h_i > thresh)
+                )
 
             if is_bull_fvg:
                 active_fvgs.insert(0, FVG(top=l_i, btm=prev2_h, is_bull=True, start_idx=i - 2))

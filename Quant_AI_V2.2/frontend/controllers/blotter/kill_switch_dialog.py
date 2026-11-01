@@ -96,6 +96,8 @@ class KillSwitchHandler:
         btn.setText("LIQUIDATING...")
         btn.setEnabled(False)
 
+        from backend.core.trading_commands import TradingCommandService
+        TradingCommandService.emergency_halt()
         # 1. Panic close all open positions and pending orders on MT5 broker
         results = []
         is_live = mt5.terminal_info() is not None

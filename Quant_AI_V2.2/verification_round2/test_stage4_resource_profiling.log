@@ -1,0 +1,12 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_____ TestStage4ResourceProfiling.test_1000_cycles_stress_and_memory_leak ______
+tests/test_stage4_resource_profiling.py:99: in test_1000_cycles_stress_and_memory_leak
+    calculate_sr_levels(rates, current_price=curr_price, n_bars=8)
+backend/infrastructure/ai_engines/ai/sr_calculator.py:42: in calculate_sr_levels
+    abs(float(rates[k]["high"]) - float(rates[k - 1]["close"])),
+        ^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: Timeout (>25.0s) from pytest-timeout.
+=========================== short test summary info ============================
+FAILED tests/test_stage4_resource_profiling.py::TestStage4ResourceProfiling::test_1000_cycles_stress_and_memory_leak
+1 failed, 1 passed in 25.94s
