@@ -80,3 +80,68 @@ def test_analysis_engine_analyze_catches_invalid_schema():
     assert "error" in result
     assert "Invalid trend_macro value" in result["error"]
     assert "XAUUSD" not in engine.cache
+
+def test_analysis_engine_cache_hit_when_fresh():
+    import time
+    engine = AnalysisEngine(model_name="gemini-1.5-flash", cache_ttl_seconds=3600.0)
+    engine.client = Mock()
+    cached_result = {
+        "trend_macro": "BULLISH",
+        "trend_intraday": "BULLISH",
+        "scenario_a": "Buy dips",
+        "scenario_b": "Cut below support",
+    }
+    engine.cache["XAUUSD"] = {
+        "timestamp": time.time() - 300,  # 5 minutes old (< 3600s TTL)
+        "result": cached_result,
+        "support": 1980.0,
+        "resistance": 2020.0,
+    }
+    tech_data = {
+        "current_price": 2000.0,  # in range [1980, 2020]
+        "resistance": 2020.0,
+        "support": 1980.0,
+    }
+    result = engine.analyze("XAUUSD", force_refresh=False, tech_data=tech_data)
+    assert result == cached_result
+    engine.client.chat.completions.create.assert_not_called()
+
+
+def test_analysis_engine_cache_invalidated_when_expired():
+    import time
+    engine = AnalysisEngine(model_name="gemini-1.5-flash", cache_ttl_seconds=3600.0)
+    fresh_response = Mock()
+    fresh_response.choices = [
+        Mock(message=Mock(content='{"trend_macro": "SIDEWAYS", "trend_intraday": "BEARISH", "scenario_a": "Fresh A", "scenario_b": "Fresh B"}'))
+    ]
+    engine.client = Mock()
+    engine.client.chat.completions.create.return_value = fresh_response
+
+    stale_result = {
+        "trend_macro": "BULLISH",
+        "trend_intraday": "BULLISH",
+        "scenario_a": "Stale A",
+        "scenario_b": "Stale B",
+    }
+    stale_ts = time.time() - 4000  # 4000s old (> 3600s TTL)
+    engine.cache["XAUUSD"] = {
+        "timestamp": stale_ts,
+        "result": stale_result,
+        "support": 1980.0,
+        "resistance": 2020.0,
+    }
+    tech_data = {
+        "current_price": 2000.0,  # still in range [1980, 2020]
+        "resistance": 2020.0,
+        "support": 1980.0,
+        "ema_50": 1995.0,
+        "ema_position": "ABOVE",
+        "structure": "BULLISH",
+        "math_trend": "BULLISH",
+        "session": "London Session",
+    }
+    result = engine.analyze("XAUUSD", force_refresh=False, tech_data=tech_data)
+    assert result["trend_macro"] == "SIDEWAYS"
+    assert result["scenario_a"] == "Fresh A"
+    engine.client.chat.completions.create.assert_called_once()
+    assert engine.cache["XAUUSD"]["timestamp"] > stale_ts

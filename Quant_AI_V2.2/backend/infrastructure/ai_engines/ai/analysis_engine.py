@@ -82,8 +82,9 @@ class AnalysisEngine:
 
     _warned_ollama_offline = False
 
-    def __init__(self, model_name="qwen2.5"):
+    def __init__(self, model_name="qwen2.5", cache_ttl_seconds=3600.0):
         self.model_name = model_name
+        self.cache_ttl_seconds = float(cache_ttl_seconds)
 
         self.macro_engine = MacroRegimeEngine()
 
@@ -276,25 +277,34 @@ Analyze {symbol} based on the following intermarket and price action inputs. Ret
             return {"error": "Failed to fetch MT5 market data"}
 
         current_price = tech_data["current_price"]
+        now_ts = time.time()
 
         if not force_refresh and symbol in self.cache:
 
             cached = self.cache[symbol]
+            cache_age = now_ts - cached.get("timestamp", 0)
+            in_range = cached["support"] <= current_price <= cached["resistance"]
+            is_valid = in_range and (cache_age < self.cache_ttl_seconds)
 
-            if cached["support"] <= current_price <= cached["resistance"]:
+            if is_valid:
 
-                logger.info(f"[{symbol}] Cache hit")
+                logger.info(f"[{symbol}] Cache hit (age: {int(cache_age)}s, TTL: {int(self.cache_ttl_seconds)}s)")
 
                 return cached["result"]
 
             else:
 
-                logger.info(f"[{symbol}] S/R breakout -> re-analyze")
+                if cache_age >= self.cache_ttl_seconds:
+                    logger.info(f"[{symbol}] Cache expired by TTL ({int(cache_age)}s >= {int(self.cache_ttl_seconds)}s) -> re-analyze")
+                    reason_msg = f"Cache expired ({int(cache_age)}s >= {int(self.cache_ttl_seconds)}s)"
+                else:
+                    logger.info(f"[{symbol}] S/R breakout -> re-analyze")
+                    reason_msg = "Breakout S/R"
 
                 event_bus.log_event.emit(
                     datetime.now().strftime("%H:%M:%S"),
                     "INFO",
-                    f"Breakout S/R! Triggering AI Macro re-evaluation for {symbol}...",
+                    f"{reason_msg}! Triggering AI Macro re-evaluation for {symbol}...",
                     "#E3A536",
                 )
 
