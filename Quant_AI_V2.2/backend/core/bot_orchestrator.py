@@ -36,16 +36,20 @@ from backend.infrastructure.data_providers.multi_asset_data_feed import (
     MarketSlice,
 )
 
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
-logger.add(
-    log_dir / "bot_worker.log",
-    rotation="5 MB",
-    compression="zip",
-    retention=5,
-    enqueue=False,
-    encoding="utf-8",
-)
+try:
+    log_dir = Path(__file__).resolve().parents[2] / "logs"
+    log_dir.mkdir(exist_ok=True)
+    if os.environ.get("QUANT_TESTING") != "1":
+        logger.add(
+            log_dir / "bot_worker.log",
+            rotation="5 MB",
+            compression="zip",
+            retention=5,
+            enqueue=False,
+            encoding="utf-8",
+        )
+except Exception:
+    pass
 
 DEFAULT_LOOKBACK_BARS = 300
 

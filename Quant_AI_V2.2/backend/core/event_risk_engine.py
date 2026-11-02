@@ -363,13 +363,20 @@ class EventRiskEngine:
         path = getattr(info, "path", "").lower() if info else ""
         sym_upper = symbol.upper().split(".")[0].replace("/", "")
 
+        digits = getattr(info, "digits", 2)
+        if not isinstance(digits, int):
+            digits = 2
+
         is_crypto = "crypto" in path or any(c in sym_upper for c in ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB"])
+        is_index = any(idx in path for idx in ["index", "indic"]) or any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX", "GER40", "DAX"])
+        is_metal = any(k in path for k in ["metal", "commodit"]) or "XAU" in sym_upper or "GOLD" in sym_upper
+
         if is_crypto:
             base_safe_spread = 6000
-        elif any(idx in path for idx in ["index", "indic"]) or any(idx in sym_upper for idx in ["US30", "NAS100", "US500", "SPX", "GER40", "DAX"]):
+        elif is_index:
             base_safe_spread = 80
-        elif any(k in path for k in ["metal", "commodit"]) or "XAU" in sym_upper or "GOLD" in sym_upper:
-            base_safe_spread = 45 if getattr(info, "digits", 2) == 2 else 450
+        elif is_metal:
+            base_safe_spread = 45 if digits == 2 else 450
         elif "stock" in path or "equity" in path:
             base_safe_spread = 50
         else:
@@ -379,6 +386,11 @@ class EventRiskEngine:
         if user_lim > 0:
             if is_crypto:
                 max_allowed = max(base_safe_spread, user_lim * 100)
+            elif is_index:
+                max_allowed = max(base_safe_spread, user_lim)
+            elif is_metal and digits == 3:
+                scaled_lim = (user_lim * 10) if user_lim < 100 else user_lim
+                max_allowed = max(base_safe_spread, scaled_lim)
             else:
                 max_allowed = user_lim
         else:
