@@ -452,8 +452,12 @@ class DecisionGate:
                 reason = f'[KT] Gia tai Khang cu {price_info["resistance"]:.2f}. Ban tai bien tren.'
 
             elif position == "MIDDLE":
-
-                reason = f'[KT] Gia o giua vung ({price_info["pct_from_support"]}% tu HT). Cho.'
+                decision = signal_from_strategy
+                trade_mode = "NORMAL"
+                size_multiplier = 1.0
+                tp_limit_r = 2.5
+                be_trigger_r = 1.5
+                reason = f'[KT] Tin hieu {signal_from_strategy} tiep dien trong kenh ({price_info["pct_from_support"]}% tu HT).'
 
             else:
 
@@ -574,10 +578,28 @@ class DecisionGate:
         be_trigger_r = 0.0
 
         if position == "MIDDLE":
-
-            decision = "WAIT"
-
-            reason = f'Gia o giua vung ({price_info["pct_from_support"]}% tu HT). Khong co loi the vi tri.'
+            if signal_from_strategy == "BUY":
+                if combined_bias in ["BULLISH", "NEUTRAL"]:
+                    decision = "BUY"
+                    trade_mode = "NORMAL"
+                    size_multiplier = 1.0
+                    tp_limit_r = 2.5
+                    be_trigger_r = 1.5
+                    reason = f"Xu huong {combined_bias} + Strategy BUY tiep dien dong thuan ({price_info.get('pct_from_support', 0.5):.1%} tu HT)."
+                else:
+                    decision = "WAIT"
+                    reason = f"Strategy BUY giua vung nguoc xu huong Macro {combined_bias}."
+            elif signal_from_strategy == "SELL":
+                if combined_bias in ["BEARISH", "NEUTRAL"]:
+                    decision = "SELL"
+                    trade_mode = "NORMAL"
+                    size_multiplier = 1.0
+                    tp_limit_r = 2.5
+                    be_trigger_r = 1.5
+                    reason = f"Xu huong {combined_bias} + Strategy SELL tiep dien dong thuan ({price_info.get('pct_from_support', 0.5):.1%} tu HT)."
+                else:
+                    decision = "WAIT"
+                    reason = f"Strategy SELL giua vung nguoc xu huong Macro {combined_bias}." 
 
         elif position == "AT_SUPPORT":
 
@@ -615,10 +637,16 @@ class DecisionGate:
                     )
 
                 else:
-
-                    decision = "WAIT"
-
-                    reason = f"Strategy ra SELL ngay tai Ho tro {price_info['support']:.2f}. Cho breakdown xac nhan."
+                    if combined_bias == "BEARISH":
+                        decision = "SELL"
+                        trade_mode = "NORMAL"
+                        size_multiplier = 1.0
+                        tp_limit_r = 2.5
+                        be_trigger_r = 1.5
+                        reason = f"Breakdown Ho tro {price_info['support']:.2f} thuan xu huong Macro BEARISH."
+                    else:
+                        decision = "WAIT"
+                        reason = f"Strategy ra SELL ngay tai Ho tro {price_info['support']:.2f}. Cho breakdown xac nhan."
 
         elif position == "AT_RESISTANCE":
 
@@ -656,10 +684,16 @@ class DecisionGate:
                     )
 
                 else:
-
-                    decision = "WAIT"
-
-                    reason = f"Strategy ra BUY ngay tai Khang cu {price_info['resistance']:.2f}. Cho breakout xac nhan."
+                    if combined_bias == "BULLISH":
+                        decision = "BUY"
+                        trade_mode = "NORMAL"
+                        size_multiplier = 1.0
+                        tp_limit_r = 2.5
+                        be_trigger_r = 1.5
+                        reason = f"Breakout Khang cu {price_info['resistance']:.2f} thuan xu huong Macro BULLISH."
+                    else:
+                        decision = "WAIT"
+                        reason = f"Strategy ra BUY ngay tai Khang cu {price_info['resistance']:.2f}. Cho breakout xac nhan."
 
         # Pre-Trade Compliance: Event Risk / News Blackout Gate
         if decision in ["BUY", "SELL"]:

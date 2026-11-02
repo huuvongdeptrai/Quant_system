@@ -248,3 +248,91 @@ def technical_gate_dependencies(monkeypatch):
     for symbol in ('XAUUSD','EURUSD','BTCUSD'):
         bus.set_profile(SymbolMacroProfile(symbol=symbol))
     monkeypatch.setattr(DecisionGate,'_evaluate_meta_labeling',lambda *a,**k:(True,.8,'Test model pass'))
+
+
+def test_decision_gate_admits_mid_range_pro_trend_continuations_and_breakouts():
+    """
+    Verifies institutional alignment: DecisionGate does not falsely block
+    valid mid-range strategy trend continuations or aligned breakouts.
+    """
+    dg = DecisionGate()
+    bus = MacroContextBus.get_instance()
+    bus.set_manual_override(False)
+
+    prof = bus.get_profile("XAUUSD")
+    prof.news_blackout = False
+    prof.timestamp = time.time()
+    bus.set_profile(prof)
+
+    # 1. Middle position with Bullish Macro + BUY signal -> ADMITTED (NORMAL, 100% volume)
+    mock_pos_middle = {
+        "position": "MIDDLE",
+        "price": 2650.0,
+        "support": 2620.0,
+        "resistance": 2680.0,
+        "pct_from_support": 0.50,
+        "pct_from_resistance": 0.50,
+    }
+
+    with patch.object(dg, "_get_price_position", return_value=mock_pos_middle), \
+         patch.object(dg, "_get_htf_bias", return_value="BULLISH"), \
+         patch.object(dg, "_get_macro_bias", return_value="BULLISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "")):
+
+        res_mid_buy = dg.evaluate("XAUUSD", "BUY", gate_mode="FULL")
+        assert res_mid_buy["decision"] == "BUY"
+        assert res_mid_buy["trade_mode"] == "NORMAL"
+        assert res_mid_buy["size_multiplier"] == 1.0
+
+    # 2. Middle position with Bearish Macro + SELL signal -> ADMITTED (NORMAL, 100% volume)
+    with patch.object(dg, "_get_price_position", return_value=mock_pos_middle), \
+         patch.object(dg, "_get_htf_bias", return_value="BEARISH"), \
+         patch.object(dg, "_get_macro_bias", return_value="BEARISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "")):
+
+        res_mid_sell = dg.evaluate("XAUUSD", "SELL", gate_mode="FULL")
+        assert res_mid_sell["decision"] == "SELL"
+        assert res_mid_sell["trade_mode"] == "NORMAL"
+        assert res_mid_sell["size_multiplier"] == 1.0
+
+    # 3. Support Breakdown with Bearish Macro + SELL signal -> ADMITTED (NORMAL, 100% volume)
+    mock_pos_support = {
+        "position": "AT_SUPPORT",
+        "price": 2620.0,
+        "support": 2620.0,
+        "resistance": 2680.0,
+        "pct_from_support": 0.0,
+        "pct_from_resistance": 1.0,
+    }
+
+    with patch.object(dg, "_get_price_position", return_value=mock_pos_support), \
+         patch.object(dg, "_get_htf_bias", return_value="BEARISH"), \
+         patch.object(dg, "_get_macro_bias", return_value="BEARISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "")):
+
+        res_breakdown = dg.evaluate("XAUUSD", "SELL", gate_mode="FULL")
+        assert res_breakdown["decision"] == "SELL"
+        assert res_breakdown["trade_mode"] == "NORMAL"
+        assert res_breakdown["size_multiplier"] == 1.0
+        assert "Breakdown" in res_breakdown["reason"]
+
+    # 4. Resistance Breakout with Bullish Macro + BUY signal -> ADMITTED (NORMAL, 100% volume)
+    mock_pos_resistance = {
+        "position": "AT_RESISTANCE",
+        "price": 2680.0,
+        "support": 2620.0,
+        "resistance": 2680.0,
+        "pct_from_support": 1.0,
+        "pct_from_resistance": 0.0,
+    }
+
+    with patch.object(dg, "_get_price_position", return_value=mock_pos_resistance), \
+         patch.object(dg, "_get_htf_bias", return_value="BULLISH"), \
+         patch.object(dg, "_get_macro_bias", return_value="BULLISH"), \
+         patch("backend.infrastructure.data_providers.adapters.precious_metals_adapter.PreciousMetalsAdapter.evaluate_risk_rules", return_value=(True, "")):
+
+        res_breakout = dg.evaluate("XAUUSD", "BUY", gate_mode="FULL")
+        assert res_breakout["decision"] == "BUY"
+        assert res_breakout["trade_mode"] == "NORMAL"
+        assert res_breakout["size_multiplier"] == 1.0
+        assert "Breakout" in res_breakout["reason"]
