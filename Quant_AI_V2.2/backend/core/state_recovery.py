@@ -44,6 +44,23 @@ class StateRecoveryManager:
         live_positions = mt5.positions_get()
         if live_positions is None:
             err_code, err_str = mt5.last_error()
+            if err_code in (-10001, -10002, -10004):
+                logger.warning(
+                    f"[StateRecovery] Lỗi IPC ({err_code}: {err_str}) khi truy vấn vị thế sàn. "
+                    "Đang thử tái thiết lập kênh kết nối MT5..."
+                )
+                try:
+                    mt5.shutdown()
+                    if mt5.initialize():
+                        account = mt5.account_info()
+                        if account is not None and isinstance(getattr(account, 'login', None), int):
+                            self.db.bind_account(account.login, account.server)
+                        live_positions = mt5.positions_get()
+                except Exception as e_rec:
+                    logger.debug(f"[StateRecovery] Ngoại lệ phục hồi IPC: {e_rec}")
+
+        if live_positions is None:
+            err_code, err_str = mt5.last_error()
             logger.critical(
                 f"[StateRecovery] LỖI KẾT NỐI API: mt5.positions_get() trả về None "
                 f"(Mã lỗi: {err_code} - {err_str}). DỪNG ĐỐI SOÁT ĐỂ BẢO VỆ CSDL!"

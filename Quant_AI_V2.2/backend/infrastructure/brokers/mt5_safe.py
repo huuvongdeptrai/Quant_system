@@ -263,6 +263,13 @@ class MT5SafeController:
                 user32.SetThreadDesktop(hdesk)
 
             mt5_pids = self._get_mt5_pids()
+            if not mt5_pids:
+                logger.info("[MT5Safe] Tiến trình MT5 chưa chạy. Đang tự động khởi chạy MT5...")
+                self.initialize()
+                import time
+                time.sleep(1.0)
+                mt5_pids = self._get_mt5_pids()
+
             shown = []
 
             def enum_proc(hwnd, lParam):
@@ -278,6 +285,9 @@ class MT5SafeController:
                     if length > 0:
                         user32.ShowWindow(hwnd, 5)  # SW_SHOW = 5
                         user32.SetForegroundWindow(hwnd)
+                        h_menu = user32.GetSystemMenu(hwnd, False)
+                        if h_menu:
+                            user32.EnableMenuItem(h_menu, 0xF060, 0x00000000 | 0x00000001)  # SC_CLOSE, MF_GRAYED
                         shown.append(hwnd)
                 return True
 

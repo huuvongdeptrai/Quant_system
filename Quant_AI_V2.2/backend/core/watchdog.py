@@ -30,6 +30,25 @@ class MT5Watchdog:
         self._on_disconnect_callback: Optional[Callable] = None
         self._on_reconnect_callback: Optional[Callable] = None
 
+    def _try_auto_login(self):
+        try:
+            import os, json
+            from pathlib import Path
+            root_d = Path(__file__).resolve().parents[2]
+            cfg_p = root_d / "config" / "ai_config.json"
+            if cfg_p.exists():
+                with open(cfg_p, "r", encoding="utf-8") as f:
+                    cfg_data = json.load(f)
+                srv = cfg_data.get("MT5_SERVER")
+                acc_num = cfg_data.get("MT5_ACCOUNT")
+                pwd_enc = cfg_data.get("MT5_PASSWORD")
+                from backend.core.security_guard import decrypt_secret
+                pwd_dec = decrypt_secret(pwd_enc) if pwd_enc else None
+                if srv and acc_num and pwd_dec:
+                    mt5.login(int(acc_num), password=pwd_dec, server=srv)
+        except Exception as e:
+            logger.debug(f"[Watchdog] Auto-login fallback error: {e}")
+
     def check_health(self) -> bool:
         """Kiểm tra tức thời tình trạng kết nối tới MT5."""
         term_info = mt5.terminal_info()
@@ -70,6 +89,8 @@ class MT5Watchdog:
             try:
                 mt5.shutdown()
                 if mt5.initialize():
+                    if mt5.account_info() is None:
+                        self._try_auto_login()
                     if self.check_health():
                         logger.info(
                             f"[Watchdog] TÁI KẾT NỐI THÀNH CÔNG ở lần thử thứ {attempt}!"

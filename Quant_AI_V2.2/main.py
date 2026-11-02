@@ -202,6 +202,14 @@ class QuantTerminal(QObject):
         # Background MT5 Headless Guard: ensure broker terminal remains silently hidden
         QTimer.singleShot(1500, self._ensure_headless_mt5)
 
+        # 7. Start MT5 Connection Watchdog & Auto-Recovery
+        from backend.core.watchdog import MT5Watchdog
+        self.watchdog = MT5Watchdog(check_interval_sec=2.5, max_reconnect_retries=5)
+        self.watchdog._on_reconnect_callback = self._on_watchdog_reconnected
+        self.watchdog._on_disconnect_callback = self._on_watchdog_disconnected
+        if os.environ.get("QUANT_TESTING") != "1":
+            self.watchdog.start()
+
         # Ensure default active workspace at launch is always TERMINAL (tab2)
         if hasattr(self, "btnNavTerminal"):
             self._switch_nav_tab(self.window.tab2, self.btnNavTerminal, "TERMINAL")
@@ -1379,9 +1387,15 @@ class QuantTerminal(QObject):
         self._is_shutting_down = True
         logger.info("[QuantTerminal] Initiating graceful shutdown of all threads and services...")
 
-        # 1. Stop tick timer
+        # 1. Stop tick timer and watchdog
         if hasattr(self, "_tick_timer") and self._tick_timer.isActive():
             self._tick_timer.stop()
+        if hasattr(self, "watchdog") and self.watchdog:
+            try:
+                self.watchdog.stop()
+            except Exception:
+                pass
+            self.watchdog = None
 
         # 2. Stop and join BotOrchestratorThread
         if hasattr(self, "bot_worker") and self.bot_worker:
@@ -1477,6 +1491,21 @@ class QuantTerminal(QObject):
         self.shutdown()
         if event:
             event.accept()
+
+    def _on_watchdog_reconnected(self):
+        logger.info("[QuantTerminal] Watchdog confirmed broker connection restored.")
+        try:
+            if hasattr(self, "header") and hasattr(self.header, "_refresh_top_ticker"):
+                self.header._refresh_top_ticker()
+            if hasattr(self, "blotter"):
+                self.blotter._render_blotter()
+            if self.bot_worker and hasattr(self.bot_worker, "state_recovery"):
+                self.bot_worker.state_recovery.reconcile_on_startup()
+        except Exception as e:
+            logger.debug(f"[QuantTerminal] Watchdog reconnect callback error: {e}")
+
+    def _on_watchdog_disconnected(self):
+        logger.warning("[QuantTerminal] Watchdog detected broker disconnection.")
 
     def _ensure_headless_mt5(self):
         """Silently tucks MT5 desktop window into background if headless_mt5 is enabled."""
