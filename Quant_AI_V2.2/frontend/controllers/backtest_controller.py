@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QApplication, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget, QCheckBox, QGridLayout
+    QApplication, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget, QCheckBox
 )
 from PySide6.QtCore import Qt, QUrl, QSize, QDate
 from PySide6.QtGui import QColor, QFont, QIcon, QDesktopServices
@@ -273,127 +273,77 @@ class BacktestWorkbenchController:
                 if lbl.text().strip().lower() == "sample:":
                     lbl.setVisible(False)
 
-        # ---------------------------------------------------------------------
-        # RESTRUCTURED INSTITUTIONAL MASTER 2-COLUMN LAYOUT (80% LEFT : 20% RIGHT)
-        # Eliminates broken vertical grid seam; aligns all containers seamlessly.
-        # ---------------------------------------------------------------------
-        frame_equity = getattr(self.window, "frameBtEquity", None)
-        frame_returns = getattr(self.window, "frameBtReturns", None)
-        frame_bench = getattr(self.window, "frameBtBenchmark", None)
-        frame_stress = getattr(self.window, "frameBtStress", None)
-        frame_console = getattr(self.window, "frameBtConsole", None) or getattr(self.window, "frameBtLog", None)
+        # Cài đặt khoảng cách và tỷ lệ co giãn cho verticalLayout_tab5
+        if hasattr(self.window, "verticalLayout_tab5"):
+            self.window.verticalLayout_tab5.setSpacing(6)
+            self.window.verticalLayout_tab5.setContentsMargins(6, 4, 6, 6)
+            self.window.verticalLayout_tab5.setStretch(0, 0)
+            self.window.verticalLayout_tab5.setStretch(1, 13)
+            self.window.verticalLayout_tab5.setStretch(2, 7)
 
-        if hasattr(self.window, "tab_5") and self.window.tab_5.layout():
-            vl_tab5 = self.window.tab_5.layout()
-            vl_tab5.setContentsMargins(6, 4, 6, 6)
-            vl_tab5.setSpacing(6)
+        # Cài đặt tỷ lệ co giãn cân đối cho hàng biểu đồ và bảng chỉ số
+        if hasattr(self.window, "horizontalLayout_btCharts"):
+            self.window.horizontalLayout_btCharts.setSpacing(6)
+            self.window.horizontalLayout_btCharts.setStretch(0, 5)
+            self.window.horizontalLayout_btCharts.setStretch(1, 4)
+            self.window.horizontalLayout_btCharts.setStretch(2, 2)
 
-            # Ensure frameBtParams is wrapped in scrollBtParams at index 0
-            if hasattr(self.window, "frameBtParams") and not hasattr(self.window, "scrollBtParams"):
-                self.window.frameBtParams.setTitle("")
-                self.window.frameBtParams.setFixedHeight(36)
-                self.window.frameBtParams.setStyleSheet("""
-                    QGroupBox#frameBtParams {
-                        background-color: #ffffff;
-                        border: 1px solid #cbd5e1;
-                        border-radius: 2px;
-                        margin: 0px;
-                        padding: 0px;
-                    }
-                """)
-                if self.window.frameBtParams.layout():
-                    self.window.frameBtParams.layout().setContentsMargins(6, 2, 6, 2)
-                    self.window.frameBtParams.layout().setSpacing(4)
+        if hasattr(self.window, "horizontalLayout_btBottom"):
+            self.window.horizontalLayout_btBottom.setSpacing(6)
+            self.window.horizontalLayout_btBottom.setStretch(0, 3)
+            self.window.horizontalLayout_btBottom.setStretch(1, 7)
 
-                vl_tab5.removeWidget(self.window.frameBtParams)
-                scroll_bt = QScrollArea(self.window.tab_5)
-                scroll_bt.setObjectName("scrollBtParams")
-                scroll_bt.setWidget(self.window.frameBtParams)
-                scroll_bt.setWidgetResizable(True)
-                scroll_bt.setFixedHeight(36)
-                scroll_bt.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                scroll_bt.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                scroll_bt.setFrameShape(QFrame.NoFrame)
-                scroll_bt.setStyleSheet("""
-                    QScrollArea#scrollBtParams {
-                        border: none;
-                        background: transparent;
-                        margin: 0px;
-                        padding: 0px;
-                    }
-                    QScrollArea#scrollBtParams > QWidget > QWidget {
-                        background: transparent;
-                        border: none;
-                    }
-                    QScrollBar {
-                        height: 0px;
-                        width: 0px;
-                        background: transparent;
-                        border: none;
-                    }
-                """)
-                self.window.scrollBtParams = scroll_bt
-                vl_tab5.insertWidget(0, scroll_bt)
+        # Chuẩn hóa frameBtParams thành thanh công cụ phẳng hiện đại (loại bỏ khoảng trống trên)
+        if hasattr(self.window, "frameBtParams"):
+            self.window.frameBtParams.setTitle("")
+            self.window.frameBtParams.setFixedHeight(36)
+            self.window.frameBtParams.setStyleSheet("""
+                QGroupBox#frameBtParams {
+                    background-color: #ffffff;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 2px;
+                    margin: 0px;
+                    padding: 0px;
+                }
+            """)
+            if self.window.frameBtParams.layout():
+                self.window.frameBtParams.layout().setContentsMargins(6, 2, 6, 2)
+                self.window.frameBtParams.layout().setSpacing(4)
+            # Wrap frameBtParams in QScrollArea so its controls never enforce a huge minimum window width
+            if hasattr(self.window, "tab_5") and not hasattr(self.window, "scrollBtParams"):
+                vl_tab5 = self.window.tab_5.layout()
+                if vl_tab5:
+                    vl_tab5.removeWidget(self.window.frameBtParams)
+                    scroll_bt = QScrollArea(self.window.tab_5)
+                    scroll_bt.setObjectName("scrollBtParams")
+                    scroll_bt.setWidget(self.window.frameBtParams)
+                    scroll_bt.setWidgetResizable(True)
+                    scroll_bt.setFixedHeight(36)
+                    scroll_bt.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    scroll_bt.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                    scroll_bt.setFrameShape(QFrame.NoFrame)
+                    scroll_bt.setStyleSheet("""
+                        QScrollArea#scrollBtParams {
+                            border: none;
+                            background: transparent;
+                            margin: 0px;
+                            padding: 0px;
+                        }
+                        QScrollArea#scrollBtParams > QWidget > QWidget {
+                            background: transparent;
+                            border: none;
+                        }
+                        QScrollBar {
+                            height: 0px;
+                            width: 0px;
+                            background: transparent;
+                            border: none;
+                        }
+                    """)
+                    self.window.scrollBtParams = scroll_bt
+                    vl_tab5.insertWidget(0, scroll_bt)
 
-            # Build Master 2-Column Row if not already built
-            if not hasattr(self.window, "btMasterContainer"):
-                # Hide legacy standalone stress box
-                if frame_stress:
-                    frame_stress.setVisible(False)
-
-                master_container = QWidget(self.window.tab_5)
-                master_container.setObjectName("btMasterContainer")
-                self.window.btMasterContainer = master_container
-
-                master_layout = QHBoxLayout(master_container)
-                master_layout.setContentsMargins(0, 0, 0, 0)
-                master_layout.setSpacing(6)
-
-                # Column 1: LEFT WORKBENCH (80% Total Width: Charts Top 65% + Log Bottom 35%)
-                col_left = QWidget(master_container)
-                col_left.setObjectName("btLeftColContainer")
-                self.window.btLeftColContainer = col_left
-                lay_left = QVBoxLayout(col_left)
-                lay_left.setContentsMargins(0, 0, 0, 0)
-                lay_left.setSpacing(6)
-
-                # Top Charts Row: Equity (55% Total / ~68% Left) : Distribution (25% Total / ~32% Left)
-                charts_row = QWidget(col_left)
-                charts_row.setObjectName("btChartsRowContainer")
-                self.window.btChartsRowContainer = charts_row
-                lay_charts = QHBoxLayout(charts_row)
-                lay_charts.setContentsMargins(0, 0, 0, 0)
-                lay_charts.setSpacing(6)
-
-                if frame_equity:
-                    lay_charts.addWidget(frame_equity, 11)
-                if frame_returns:
-                    lay_charts.addWidget(frame_returns, 5)
-
-                lay_left.addWidget(charts_row, 13)
-
-                # Bottom Row: SIMULATION LOG spanning full 80% left column
-                if frame_console:
-                    frame_console.setMaximumHeight(16777215)
-                    frame_console.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-                    lay_left.addWidget(frame_console, 7)
-
-                master_layout.addWidget(col_left, 1)
-
-                # Column 2: RIGHT PERFORMANCE & AUDIT RAIL (20% Total Width)
-                if frame_bench:
-                    frame_bench.setMinimumWidth(265)
-                    frame_bench.setMaximumWidth(285)
-                    frame_bench.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-                    master_layout.addWidget(frame_bench, 0)
-
-                # Remove legacy layouts from vl_tab5 and mount master_container
-                while vl_tab5.count() > 1:
-                    it = vl_tab5.takeAt(1)
-
-                vl_tab5.addWidget(master_container, 1)
-
-        # Header helper
+        # Loại bỏ tai thỏ QGroupBox và áp dụng thanh tiêu đề phẳng bên trong
         def _add_flat_card_header(container, title_text):
             if not container or not container.layout():
                 return
@@ -415,147 +365,97 @@ class BacktestWorkbenchController:
             container.layout().setContentsMargins(0, 0, 0, 0)
             container.layout().setSpacing(0)
 
-        _add_flat_card_header(frame_equity, "EQUITY GROWTH CURVE")
-        _add_flat_card_header(frame_returns, "PROFIT / LOSS DISTRIBUTION")
+        _add_flat_card_header(getattr(self.window, "frameBtEquity", None), "EQUITY GROWTH CURVE")
+        _add_flat_card_header(getattr(self.window, "frameBtReturns", None), "PROFIT / LOSS DISTRIBUTION")
+        _add_flat_card_header(getattr(self.window, "frameBtStress", None), "STRESS TESTS")
         for log_attr in ("frameBtConsole", "frameBtLog"):
             _add_flat_card_header(getattr(self.window, log_attr, None), "SIMULATION LOG")
 
-        # Cột phải: Khởi tạo Lưới 2x2 KPI Cards + Chi tiết rủi ro + System & Stress Audit
-        if frame_bench and frame_bench.layout():
-            while frame_bench.layout().count():
-                it = frame_bench.layout().takeAt(0)
-                if it.widget():
-                    it.widget().deleteLater()
+        # Cột phải CHỈ SỐ HIỆU NĂNG CỐT LÕI: Chuyển đổi thành Bảng dòng phẳng (Flat Key-Value Rows) đồng bộ Tab 2
+        bm_container = getattr(self.window, "frameBtBenchmark", None)
+        if bm_container:
+            bm_container.setTitle("")
+            bm_container.setStyleSheet("QGroupBox { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 2px; margin-top: 0px; padding: 0px; }")
+            bm_container.setMinimumWidth(260)
+            bm_container.setMaximumWidth(280)
+            bm_container.setMaximumHeight(16777215)
+            bm_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
-            bm_layout = frame_bench.layout()
-            bm_layout.setContentsMargins(0, 0, 0, 0)
-            bm_layout.setSpacing(0)
+            if bm_container.layout():
+                while bm_container.layout().count():
+                    it = bm_container.layout().takeAt(0)
+                    if it.widget():
+                        it.widget().deleteLater()
 
-            # Header 1: PERFORMANCE SUMMARY
-            h_bm1 = QFrame()
-            h_bm1.setObjectName("hdrBtPerfSummary")
-            h_bm1.setFixedHeight(24)
-            h_bm1.setStyleSheet("background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;")
-            hl_bm1 = QHBoxLayout(h_bm1)
-            hl_bm1.setContentsMargins(8, 0, 8, 0)
-            lbl_h_bm1 = QLabel("PERFORMANCE SUMMARY")
-            lbl_h_bm1.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;")
-            hl_bm1.addWidget(lbl_h_bm1)
-            hl_bm1.addStretch()
-            bm_layout.addWidget(h_bm1)
+                bm_layout = bm_container.layout()
+                bm_layout.setContentsMargins(0, 0, 0, 0)
+                bm_layout.setSpacing(0)
 
-            # 2x2 Grid of 4 Core KPI Cards
-            kpi_container = QWidget()
-            kpi_container.setObjectName("kpiCardsContainer")
-            kpi_grid = QGridLayout(kpi_container)
-            kpi_grid.setContentsMargins(6, 6, 6, 6)
-            kpi_grid.setSpacing(5)
+                h_bm = QFrame()
+                h_bm.setFixedHeight(24)
+                h_bm.setStyleSheet("background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;")
+                hl_bm = QHBoxLayout(h_bm)
+                hl_bm.setContentsMargins(8, 0, 8, 0)
+                lbl_h_bm = QLabel("PERFORMANCE METRICS")
+                lbl_h_bm.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;")
+                hl_bm.addWidget(lbl_h_bm)
+                hl_bm.addStretch()
+                bm_layout.addWidget(h_bm)
 
-            def make_kpi_card(title, obj_name, default_val, val_color):
-                card = QFrame()
-                card.setObjectName(f"card_{obj_name}")
-                card.setFixedHeight(44)
-                card.setStyleSheet("""
-                    QFrame {
-                        background-color: #f8fafc;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 2px;
-                    }
-                """)
-                c_lay = QVBoxLayout(card)
-                c_lay.setContentsMargins(6, 3, 6, 3)
-                c_lay.setSpacing(1)
+                def add_bench_row(key, label_str, default_val):
+                    row = QFrame()
+                    row.setFixedHeight(26)
+                    row.setStyleSheet("background-color: transparent; border-bottom: 1px solid #e2e8f0;")
+                    rl = QHBoxLayout(row)
+                    rl.setContentsMargins(10, 0, 12, 0)
+                    lbl_t = QLabel(label_str)
+                    lbl_t.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 10px; font-weight: 600;")
+                    rl.addWidget(lbl_t)
+                    rl.addStretch()
+                    lbl_v = QLabel(default_val)
+                    lbl_v.setObjectName(key)
+                    lbl_v.setStyleSheet("color: #334155; font-family: 'Consolas', monospace; font-size: 10.5px; font-weight: 700;")
+                    rl.addWidget(lbl_v)
+                    bm_layout.addWidget(row)
+                    setattr(self.window, key, lbl_v)
+                    return lbl_v
 
-                lbl_title = QLabel(title)
-                lbl_title.setStyleSheet("color: #64748b; font-family: 'Consolas', monospace; font-size: 8.5px; font-weight: 700; border: none; background: transparent;")
-                c_lay.addWidget(lbl_title)
+                self.valBtNetReturn = add_bench_row("valBtNetReturn", "NET PROFIT", "--")
+                self.valBtSharpe = add_bench_row("valBtSharpe", "SHARPE RATIO", "--")
+                self.valBtMaxDD = add_bench_row("valBtMaxDD", "MAX DRAWDOWN", "--")
+                self.valBtTrades = add_bench_row("valBtTrades", "TOTAL TRADES", "--")
+                self.valBtWinRate = add_bench_row("valBtWinRate", "WIN RATE", "--")
+                self.valBtProfitFactor = add_bench_row("valBtProfitFactor", "PROFIT FACTOR", "--")
+                self.valBtSpeed = add_bench_row("valBtSpeed", "PROCESSING SPEED", "--")
+                self.valBtMemory = add_bench_row("valBtMemory", "MEMORY USAGE", "--")
 
-                lbl_val = QLabel(default_val)
-                lbl_val.setObjectName(obj_name)
-                lbl_val.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                lbl_val.setStyleSheet(f"color: {val_color}; font-family: 'Consolas', monospace; font-size: 13.5px; font-weight: 700; border: none; background: transparent;")
-                c_lay.addWidget(lbl_val)
+                # Section 2: RISK & TRADE BREAKDOWN (Fills the lower 55% dead space)
+                h_bm2 = QFrame()
+                h_bm2.setFixedHeight(24)
+                h_bm2.setStyleSheet("background-color: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #e2e8f0;")
+                hl_bm2 = QHBoxLayout(h_bm2)
+                hl_bm2.setContentsMargins(8, 0, 8, 0)
+                lbl_h_bm2 = QLabel("RISK & TRADES")
+                lbl_h_bm2.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;")
+                hl_bm2.addWidget(lbl_h_bm2)
+                hl_bm2.addStretch()
+                bm_layout.addWidget(h_bm2)
 
-                setattr(self.window, obj_name, lbl_val)
-                setattr(self, obj_name, lbl_val)
-                return card, lbl_val
+                self.valBtSortino = add_bench_row("valBtSortino", "SORTINO RATIO", "--")
+                self.valBtCalmar = add_bench_row("valBtCalmar", "CALMAR RATIO", "--")
+                self.valBtExpectancy = add_bench_row("valBtExpectancy", "EXPECTANCY", "--")
+                self.valBtRR = add_bench_row("valBtRR", "PROFIT / LOSS RATIO", "--")
+                self.valBtAvgWin = add_bench_row("valBtAvgWin", "AVG WINNING TRADE", "--")
+                self.valBtAvgLoss = add_bench_row("valBtAvgLoss", "AVG LOSING TRADE", "--")
+                self.valBtWinStreak = add_bench_row("valBtWinStreak", "MAX WIN STREAK", "--")
+                self.valBtLossStreak = add_bench_row("valBtLossStreak", "MAX LOSS STREAK", "--")
+                bm_layout.addStretch()
 
-            card_net, self.valBtNetReturn = make_kpi_card("NET RETURN", "valBtNetReturn", "--", "#15803d")
-            card_dd, self.valBtMaxDD = make_kpi_card("MAX DRAWDOWN", "valBtMaxDD", "--", "#dc2626")
-            card_wr, self.valBtWinRate = make_kpi_card("WIN RATE", "valBtWinRate", "--", "#334155")
-            card_pf, self.valBtProfitFactor = make_kpi_card("PROFIT FACTOR", "valBtProfitFactor", "--", "#334155")
+        if hasattr(self.window, "frameBtStress"):
+            self.window.frameBtStress.setFixedWidth(340)
+            self.window.frameBtStress.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
 
-            kpi_grid.addWidget(card_net, 0, 0)
-            kpi_grid.addWidget(card_dd, 0, 1)
-            kpi_grid.addWidget(card_wr, 1, 0)
-            kpi_grid.addWidget(card_pf, 1, 1)
-            bm_layout.addWidget(kpi_container)
-
-            # Section 2: Header RISK & TRADES
-            h_bm2 = QFrame()
-            h_bm2.setObjectName("hdrBtRiskTrades")
-            h_bm2.setFixedHeight(22)
-            h_bm2.setStyleSheet("background-color: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #e2e8f0;")
-            hl_bm2 = QHBoxLayout(h_bm2)
-            hl_bm2.setContentsMargins(8, 0, 8, 0)
-            lbl_h_bm2 = QLabel("RISK & TRADES")
-            lbl_h_bm2.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
-            hl_bm2.addWidget(lbl_h_bm2)
-            hl_bm2.addStretch()
-            bm_layout.addWidget(h_bm2)
-
-            def add_bench_row(key, label_str, default_val, text_col="#334155"):
-                row = QFrame()
-                row.setFixedHeight(22)
-                row.setStyleSheet("background-color: transparent; border-bottom: 1px solid #f1f5f9;")
-                rl = QHBoxLayout(row)
-                rl.setContentsMargins(8, 0, 10, 0)
-                lbl_t = QLabel(label_str)
-                lbl_t.setStyleSheet("color: #64748b; font-family: 'Consolas', monospace; font-size: 9px; font-weight: 600; border: none; background: transparent;")
-                rl.addWidget(lbl_t)
-                rl.addStretch()
-                lbl_v = QLabel(default_val)
-                lbl_v.setObjectName(key)
-                lbl_v.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                lbl_v.setStyleSheet(f"color: {text_col}; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; border: none; background: transparent;")
-                rl.addWidget(lbl_v)
-                bm_layout.addWidget(row)
-                setattr(self.window, key, lbl_v)
-                setattr(self, key, lbl_v)
-                return lbl_v
-
-            self.valBtTrades = add_bench_row("valBtTrades", "TOTAL TRADES", "--")
-            self.valBtSharpe = add_bench_row("valBtSharpe", "SHARPE RATIO", "--")
-            self.valBtSortino = add_bench_row("valBtSortino", "SORTINO RATIO", "--")
-            self.valBtCalmar = add_bench_row("valBtCalmar", "CALMAR RATIO", "--")
-            self.valBtExpectancy = add_bench_row("valBtExpectancy", "EXPECTANCY", "--")
-            self.valBtRR = add_bench_row("valBtRR", "PROFIT / LOSS RATIO", "--")
-            self.valBtAvgWin = add_bench_row("valBtAvgWin", "AVG WINNING TRADE", "--", "#15803d")
-            self.valBtAvgLoss = add_bench_row("valBtAvgLoss", "AVG LOSING TRADE", "--", "#dc2626")
-            self.valBtWinStreak = add_bench_row("valBtWinStreak", "MAX WIN STREAK", "--")
-            self.valBtLossStreak = add_bench_row("valBtLossStreak", "MAX LOSS STREAK", "--")
-
-            # Section 3: Header SYSTEM & STRESS AUDIT
-            h_bm3 = QFrame()
-            h_bm3.setObjectName("hdrBtSystemAudit")
-            h_bm3.setFixedHeight(22)
-            h_bm3.setStyleSheet("background-color: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #e2e8f0;")
-            hl_bm3 = QHBoxLayout(h_bm3)
-            hl_bm3.setContentsMargins(8, 0, 8, 0)
-            lbl_h_bm3 = QLabel("SYSTEM & STRESS AUDIT")
-            lbl_h_bm3.setStyleSheet("color: #475569; font-family: 'Consolas', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
-            hl_bm3.addWidget(lbl_h_bm3)
-            hl_bm3.addStretch()
-            bm_layout.addWidget(h_bm3)
-
-            self.valBtSpeed = add_bench_row("valBtSpeed", "PROCESSING SPEED", "--")
-            self.valBtMemory = add_bench_row("valBtMemory", "MEMORY USAGE", "--")
-            self.valBtStressNet = add_bench_row("valBtStressNet", "NETWORK RECOVERY", "PASS 0.02s", "#15803d")
-            self.valBtStressSchema = add_bench_row("valBtStressSchema", "SCHEMA VALIDATION", "PASS 100%", "#15803d")
-            self.valBtStressNews = add_bench_row("valBtStressNews", "NEWS IMPACT GUARD", "ARMED", "#15803d")
-
-            bm_layout.addStretch()
-
+        # Chuẩn hóa danh sách mẫu nến và hậu tố trượt giá
         if hasattr(self.window, "comboBtSample"):
             curr_idx = self.window.comboBtSample.currentIndex()
             self.window.comboBtSample.clear()
@@ -881,31 +781,6 @@ class BacktestWorkbenchController:
         """Switch chart backgrounds, axis colors, and curve brushes between Dark and Light mode."""
         self.is_dark_theme = is_dark
 
-        # Sync Master 2-column layout & KPI Cards styling
-        bg_card = "#101524" if is_dark else "#f8fafc"
-        border_card = "#1e293b" if is_dark else "#e2e8f0"
-        bg_container = "#070a12" if is_dark else "#ffffff"
-        border_container = "#1e293b" if is_dark else "#cbd5e1"
-        hdr_bg = "#101524" if is_dark else "#f8fafc"
-        hdr_txt = "#94a3b8" if is_dark else "#475569"
-        lbl_txt = "#64748b" if is_dark else "#64748b"
-        val_txt = "#cbd5e1" if is_dark else "#334155"
-
-        for c_name in ("frameBtEquity", "frameBtReturns", "frameBtConsole", "frameBtLog", "frameBtBenchmark"):
-            c = getattr(self.window, c_name, None)
-            if c:
-                c.setStyleSheet(f"QGroupBox #{c_name} {{ background-color: {bg_container}; border: 1px solid {border_container}; border-radius: 2px; margin: 0px; padding: 0px; }}")
-
-        for card_id in ("card_valBtNetReturn", "card_valBtMaxDD", "card_valBtWinRate", "card_valBtProfitFactor"):
-            if hasattr(self.window, "frameBtBenchmark"):
-                for crd in self.window.frameBtBenchmark.findChildren(QFrame, card_id):
-                    crd.setStyleSheet(f"QFrame#{card_id} {{ background-color: {bg_card}; border: 1px solid {border_card}; border-radius: 2px; }}")
-
-        for hdr_id in ("hdrBtPerfSummary", "hdrBtRiskTrades", "hdrBtSystemAudit", "flatCardHeader"):
-            if hasattr(self.window, "tab_5"):
-                for h in self.window.tab_5.findChildren(QFrame, hdr_id):
-                    h.setStyleSheet(f"background-color: {hdr_bg}; border-bottom: 1px solid {border_card};")
-
         if hasattr(self, "chkBtMetaLabeling") and self.chkBtMetaLabeling:
             text_col = "#cbd5e1" if is_dark else "#334155"
             ind_bg = "#1e293b" if is_dark else "#ffffff"
@@ -936,7 +811,7 @@ class BacktestWorkbenchController:
             tokens = ThemeEngine.get_tokens(is_dark)
             if hasattr(self.window, "valBtNetReturn"):
                 color = tokens.pnl_profit if self.last_report.total_return_pct >= 0 else tokens.pnl_loss
-                self.window.valBtNetReturn.setStyleSheet(f"color: {color}; font-family: 'Consolas', monospace; font-size: 13.5px; font-weight: 700; border: none; background: transparent;")
+                self.window.valBtNetReturn.setStyleSheet(f"color: {color};")
 
         if hasattr(self, "pw_equity") and self.pw_equity:
             ThemeEngine.sync_pyqtgraph_plot(self.pw_equity, is_dark)
