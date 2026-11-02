@@ -514,5 +514,5 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setEnabled(True)
             self.window.btnRunBacktest.setText("▶ RUN")
-            self.window.btnRunBacktest.setFixedWidth(86)
+            self.window.btnRunBacktest.setFixedWidth(84)
 

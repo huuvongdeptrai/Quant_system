@@ -245,33 +245,208 @@ class BacktestWorkbenchController:
             self.spinBtComm.setFixedHeight(32)
             self.spinBtComm.setFixedWidth(102)
 
-        # Reorder layout to guarantee strict sequence:
-        # [Symbol ▾] [TF ▾] [Strategy ▾] [Mode ▾] From: [Date] To: [Date] Capital: [$] Slip: [pts] Comm: [$ /lot] ... Actions
+        # Build High-Density Flat Command Strip (Height: 28px per segment, locked 2px radius)
         if hasattr(self.window, "frameBtParams") and self.window.frameBtParams.layout():
             layout = self.window.frameBtParams.layout()
-            layout.insertWidget(0, self.comboBtSymbol)
-            if hasattr(self.window, "comboBtTf"):
-                layout.insertWidget(1, self.window.comboBtTf)
-            if hasattr(self.window, "comboBtEngine"):
-                layout.insertWidget(2, self.window.comboBtEngine)
-            if hasattr(self, "comboBtMode"):
-                layout.insertWidget(3, self.comboBtMode)
-            if hasattr(self, "chkBtMetaLabeling"):
-                layout.insertWidget(4, self.chkBtMetaLabeling)
 
-            for i in range(layout.count()):
-                sp = layout.itemAt(i).spacerItem()
-                if sp:
-                    sp.changeSize(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+            # Hide redundant standalone labels
+            for lbl_name in [
+                "lblBtFrom", "lblBtTo", "lblBtCapital", "lblBtSlippage", 
+                "lblBtComm", "lblBtSymbol", "lblBtTf", "lblBtStrategy"
+            ]:
+                lbl = getattr(self.window, lbl_name, None)
+                if lbl:
+                    lbl.setVisible(False)
+            for lbl in self.window.frameBtParams.findChildren(QLabel):
+                t_low = lbl.text().strip().lower()
+                if t_low in ("sample:", "from:", "to:", "capital:", "slip:", "slippage:", "comm:", "commission:", "tf:", "strategy:"):
+                    lbl.setVisible(False)
+
+            # Clear all current items from frameBtParams.layout() without deleting widgets
+            while layout.count():
+                layout.takeAt(0)
+
+            layout.setContentsMargins(4, 2, 4, 2)
+            layout.setSpacing(6)
+
+            # --- SEGMENT 1: ASSET & PERIOD [ XAUUSD | M15 ] ---
+            seg_asset = QFrame(self.window.frameBtParams)
+            seg_asset.setObjectName("frameBtAssetSegment")
+            seg_asset.setFixedHeight(28)
+            l_asset = QHBoxLayout(seg_asset)
+            l_asset.setContentsMargins(2, 0, 2, 0)
+            l_asset.setSpacing(0)
+
+            self.comboBtSymbol.setFixedHeight(26)
+            self.comboBtSymbol.setFixedWidth(78)
+            l_asset.addWidget(self.comboBtSymbol)
+
+            vl1 = QFrame(seg_asset)
+            vl1.setFrameShape(QFrame.VLine)
+            vl1.setFixedWidth(1)
+            vl1.setObjectName("segSepLine")
+            l_asset.addWidget(vl1)
+
+            if hasattr(self.window, "comboBtTf"):
+                self.window.comboBtTf.setFixedHeight(26)
+                self.window.comboBtTf.setFixedWidth(52)
+                l_asset.addWidget(self.window.comboBtTf)
+
+            layout.addWidget(seg_asset)
+
+            # --- SEGMENT 2: LOGIC & ML GATE [ STRATEGY | MODE | ML GATE ] ---
+            seg_logic = QFrame(self.window.frameBtParams)
+            seg_logic.setObjectName("frameBtLogicSegment")
+            seg_logic.setFixedHeight(28)
+            l_logic = QHBoxLayout(seg_logic)
+            l_logic.setContentsMargins(2, 0, 2, 0)
+            l_logic.setSpacing(0)
+
+            if hasattr(self.window, "comboBtEngine"):
+                self.window.comboBtEngine.setFixedHeight(26)
+                self.window.comboBtEngine.setFixedWidth(160)
+                l_logic.addWidget(self.window.comboBtEngine)
+
+            vl2a = QFrame(seg_logic)
+            vl2a.setFrameShape(QFrame.VLine)
+            vl2a.setFixedWidth(1)
+            vl2a.setObjectName("segSepLine")
+            l_logic.addWidget(vl2a)
+
+            if hasattr(self, "comboBtMode"):
+                self.comboBtMode.setFixedHeight(26)
+                self.comboBtMode.setFixedWidth(92)
+                l_logic.addWidget(self.comboBtMode)
+
+            vl2b = QFrame(seg_logic)
+            vl2b.setFrameShape(QFrame.VLine)
+            vl2b.setFixedWidth(1)
+            vl2b.setObjectName("segSepLine")
+            l_logic.addWidget(vl2b)
+
+            if hasattr(self, "chkBtMetaLabeling"):
+                self.chkBtMetaLabeling.setFixedHeight(26)
+                self.chkBtMetaLabeling.setFixedWidth(102)
+                self.chkBtMetaLabeling.setText("ML GATE: ACTIVE" if self.chkBtMetaLabeling.isChecked() else "ML GATE: OFF")
+                if not getattr(self.chkBtMetaLabeling, "_has_toggled_connected", False):
+                    self.chkBtMetaLabeling.toggled.connect(self._sync_ml_gate_ui)
+                    self.chkBtMetaLabeling._has_toggled_connected = True
+                l_logic.addWidget(self.chkBtMetaLabeling)
+
+            layout.addWidget(seg_logic)
+
+            # --- SEGMENT 3: DATE RANGE [ 2026-10-03 -> 2026-11-02 ] ---
+            seg_date = QFrame(self.window.frameBtParams)
+            seg_date.setObjectName("frameBtDateSegment")
+            seg_date.setFixedHeight(28)
+            l_date = QHBoxLayout(seg_date)
+            l_date.setContentsMargins(4, 0, 4, 0)
+            l_date.setSpacing(2)
+
+            if hasattr(self, "dateBtFrom") and self.dateBtFrom:
+                self.dateBtFrom.setFixedHeight(26)
+                self.dateBtFrom.setFixedWidth(82)
+                self.dateBtFrom.setDisplayFormat("yyyy-MM-dd")
+                l_date.addWidget(self.dateBtFrom)
+
+            lbl_arr = QLabel("->", seg_date)
+            lbl_arr.setObjectName("lblBtDateArrow")
+            lbl_arr.setFixedWidth(16)
+            lbl_arr.setAlignment(Qt.AlignCenter)
+            l_date.addWidget(lbl_arr)
+
+            if hasattr(self, "dateBtTo") and self.dateBtTo:
+                self.dateBtTo.setFixedHeight(26)
+                self.dateBtTo.setFixedWidth(82)
+                self.dateBtTo.setDisplayFormat("yyyy-MM-dd")
+                l_date.addWidget(self.dateBtTo)
+
+            layout.addWidget(seg_date)
+
+            # --- SEGMENT 4: FRICTION & PARAMETERS [ CAP | SLIP | COMM ] ---
+            seg_env = QFrame(self.window.frameBtParams)
+            seg_env.setObjectName("frameBtEnvSegment")
+            seg_env.setFixedHeight(28)
+            l_env = QHBoxLayout(seg_env)
+            l_env.setContentsMargins(4, 0, 4, 0)
+            l_env.setSpacing(0)
+
+            lbl_cap = QLabel("CAP:", seg_env)
+            lbl_cap.setObjectName("lblParamPrefix")
+            l_env.addWidget(lbl_cap)
+
+            if hasattr(self, "spinBtCapital") and self.spinBtCapital:
+                self.spinBtCapital.setFixedHeight(26)
+                self.spinBtCapital.setFixedWidth(72)
+                self.spinBtCapital.setPrefix("$")
+                self.spinBtCapital.setDecimals(0)
+                self.spinBtCapital.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                l_env.addWidget(self.spinBtCapital)
+
+            vl4a = QFrame(seg_env)
+            vl4a.setFrameShape(QFrame.VLine)
+            vl4a.setFixedWidth(1)
+            vl4a.setObjectName("segSepLine")
+            l_env.addWidget(vl4a)
+
+            lbl_slip = QLabel("SLIP:", seg_env)
+            lbl_slip.setObjectName("lblParamPrefix")
+            l_env.addWidget(lbl_slip)
+
+            if hasattr(self, "spinBtSlippage") and self.spinBtSlippage:
+                self.spinBtSlippage.setFixedHeight(26)
+                self.spinBtSlippage.setFixedWidth(52)
+                self.spinBtSlippage.setSuffix(" pts")
+                self.spinBtSlippage.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                l_env.addWidget(self.spinBtSlippage)
+
+            vl4b = QFrame(seg_env)
+            vl4b.setFrameShape(QFrame.VLine)
+            vl4b.setFixedWidth(1)
+            vl4b.setObjectName("segSepLine")
+            l_env.addWidget(vl4b)
+
+            lbl_comm = QLabel("COMM:", seg_env)
+            lbl_comm.setObjectName("lblParamPrefix")
+            l_env.addWidget(lbl_comm)
+
+            if hasattr(self, "spinBtComm") and self.spinBtComm:
+                self.spinBtComm.setFixedHeight(26)
+                self.spinBtComm.setFixedWidth(64)
+                self.spinBtComm.setPrefix("$")
+                self.spinBtComm.setSuffix("/L")
+                self.spinBtComm.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                l_env.addWidget(self.spinBtComm)
+
+            layout.addWidget(seg_env)
+
+            # Spacer to push action buttons right
+            layout.addStretch()
+
+            # --- ACTIONS: IMPORT, EXPORT, RUN ---
+            if hasattr(self.window, "btnImportStrat"):
+                self.window.btnImportStrat.setFixedHeight(28)
+                self.window.btnImportStrat.setFixedWidth(62)
+                self.window.btnImportStrat.setText("IMPORT")
+                layout.addWidget(self.window.btnImportStrat)
+
+            if hasattr(self.window, "btnExportReport"):
+                self.window.btnExportReport.setFixedHeight(28)
+                self.window.btnExportReport.setFixedWidth(62)
+                self.window.btnExportReport.setText("EXPORT")
+                layout.addWidget(self.window.btnExportReport)
+
+            if hasattr(self.window, "btnRunBacktest"):
+                self.window.btnRunBacktest.setFixedHeight(28)
+                self.window.btnRunBacktest.setFixedWidth(84)
+                self.window.btnRunBacktest.setText("▶ RUN")
+                layout.addWidget(self.window.btnRunBacktest)
+
             layout.invalidate()
 
         # Hide legacy comboBtSample if present
         if hasattr(self.window, "comboBtSample") and self.window.comboBtSample:
             self.window.comboBtSample.setVisible(False)
-        if hasattr(self.window, "frameBtParams"):
-            for lbl in self.window.frameBtParams.findChildren(QLabel):
-                if lbl.text().strip().lower() == "sample:":
-                    lbl.setVisible(False)
 
         # Cài đặt khoảng cách và tỷ lệ co giãn cho verticalLayout_tab5
         if hasattr(self.window, "verticalLayout_tab5"):
@@ -483,7 +658,7 @@ class BacktestWorkbenchController:
         # Chuẩn hóa nhãn các nút điều khiển
         if hasattr(self.window, "btnRunBacktest"):
             self.window.btnRunBacktest.setText("▶ RUN")
-            self.window.btnRunBacktest.setFixedWidth(86)
+            self.window.btnRunBacktest.setFixedWidth(84)
         if hasattr(self.window, "btnExportReport"):
             self.window.btnExportReport.setText("EXPORT")
             self.window.btnExportReport.setFixedWidth(74)
@@ -569,7 +744,7 @@ class BacktestWorkbenchController:
             self.btn_import_strat = self.window.btnImportStrat
             self.btn_import_strat.setText("IMPORT")
             self.btn_import_strat.setIcon(QIcon())
-            self.btn_import_strat.setFixedSize(74, 32)
+            self.btn_import_strat.setFixedSize(62, 28)
             self.btn_import_strat.setToolTip("Open Strategy Manager & Import (.py)")
             self.btn_import_strat.setCursor(Qt.PointingHandCursor)
             if not getattr(self.btn_import_strat, "_has_click_connected", False):
@@ -579,13 +754,13 @@ class BacktestWorkbenchController:
         if hasattr(self.window, "btnExportReport"):
             self.btnExportReport = self.window.btnExportReport
             self.btnExportReport.setText("EXPORT")
-            self.btnExportReport.setFixedSize(74, 32)
+            self.btnExportReport.setFixedSize(62, 28)
             self.btnExportReport.setCursor(Qt.PointingHandCursor)
 
         if hasattr(self.window, "btnRunBacktest"):
             self.btnRunBacktest = self.window.btnRunBacktest
             self.btnRunBacktest.setText("▶ RUN")
-            self.btnRunBacktest.setFixedSize(86, 32)
+            self.btnRunBacktest.setFixedSize(84, 28)
             self.btnRunBacktest.setCursor(Qt.PointingHandCursor)
 
         if hasattr(self.window, "btnOpenStratFolder"):
@@ -775,37 +950,200 @@ class BacktestWorkbenchController:
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log(f"[{now_str}] [STORAGE] Strategy directory: {user_dir}")
 
-    def update_theme(self, is_dark: bool = False):
-        is_dark = False
-        self.is_dark_theme = False
-        """Switch chart backgrounds, axis colors, and curve brushes between Dark and Light mode."""
-        self.is_dark_theme = is_dark
-
-        if hasattr(self, "chkBtMetaLabeling") and self.chkBtMetaLabeling:
-            text_col = "#cbd5e1" if is_dark else "#334155"
-            ind_bg = "#1e293b" if is_dark else "#ffffff"
-            ind_border = "#475569" if is_dark else "#94a3b8"
+    def _sync_ml_gate_ui(self, checked: bool = False):
+        if not hasattr(self, "chkBtMetaLabeling") or not self.chkBtMetaLabeling:
+            return
+        is_dark = getattr(self, "is_dark_theme", False)
+        if checked:
+            self.chkBtMetaLabeling.setText("ML GATE: ACTIVE")
+            txt_col = "#60a5fa" if is_dark else "#1d4ed8"
+            bg_col = "#101f3d" if is_dark else "#eff6ff"
+            border_col = "#1e3a8a" if is_dark else "#93c5fd"
             self.chkBtMetaLabeling.setStyleSheet(f"""
                 QCheckBox#chkBtMetaLabeling {{
-                    font-family: 'Segoe UI', -apple-system, sans-serif;
-                    font-size: 11px;
-                    font-weight: 600;
-                    color: {text_col};
-                    padding-left: 4px;
-                    padding-right: 6px;
+                    font-family: 'Consolas', monospace;
+                    font-size: 9.5px;
+                    font-weight: 700;
+                    color: {txt_col};
+                    background-color: {bg_col};
+                    border: 1px solid {border_col};
+                    border-radius: 2px;
+                    padding: 0px 4px;
+                    margin: 1px;
                 }}
                 QCheckBox#chkBtMetaLabeling::indicator {{
-                    width: 14px;
-                    height: 14px;
-                    border: 1px solid {ind_border};
-                    border-radius: 2px;
-                    background-color: {ind_bg};
-                }}
-                QCheckBox#chkBtMetaLabeling::indicator:checked {{
-                    background-color: #2563eb;
-                    border-color: #2563eb;
+                    width: 0px;
+                    height: 0px;
                 }}
             """)
+        else:
+            self.chkBtMetaLabeling.setText("ML GATE: OFF")
+            txt_col = "#94a3b8" if is_dark else "#64748b"
+            self.chkBtMetaLabeling.setStyleSheet(f"""
+                QCheckBox#chkBtMetaLabeling {{
+                    font-family: 'Consolas', monospace;
+                    font-size: 9.5px;
+                    font-weight: 600;
+                    color: {txt_col};
+                    background-color: transparent;
+                    border: none;
+                    padding: 0px 4px;
+                    margin: 1px;
+                }}
+                QCheckBox#chkBtMetaLabeling::indicator {{
+                    width: 0px;
+                    height: 0px;
+                }}
+            """)
+
+    def update_theme(self, is_dark: bool = False):
+        """Switch chart backgrounds, axis colors, toolbar segments, and curve brushes between Dark and Light mode."""
+        self.is_dark_theme = is_dark
+
+        bg_bar = "#030407" if is_dark else "#ffffff"
+        border_bar = "#1e293b" if is_dark else "#cbd5e1"
+        bg_seg = "#070a12" if is_dark else "#ffffff"
+        border_seg = "#1e293b" if is_dark else "#cbd5e1"
+        sep_col = "#1e293b" if is_dark else "#e2e8f0"
+        txt_main = "#f8fafc" if is_dark else "#0f172a"
+        txt_sub = "#94a3b8" if is_dark else "#64748b"
+
+        if hasattr(self.window, "frameBtParams"):
+            self.window.frameBtParams.setStyleSheet(f"""
+                QGroupBox#frameBtParams {{
+                    background-color: {bg_bar};
+                    border: 1px solid {border_bar};
+                    border-radius: 2px;
+                    margin: 0px;
+                    padding: 0px;
+                }}
+            """)
+            for seg_id in ("frameBtAssetSegment", "frameBtLogicSegment", "frameBtDateSegment", "frameBtEnvSegment"):
+                for seg in self.window.frameBtParams.findChildren(QFrame, seg_id):
+                    seg.setStyleSheet(f"""
+                        QFrame#{seg_id} {{
+                            background-color: {bg_seg};
+                            border: 1px solid {border_seg};
+                            border-radius: 2px;
+                        }}
+                    """)
+
+            for v in self.window.frameBtParams.findChildren(QFrame, "segSepLine"):
+                v.setStyleSheet(f"background-color: {sep_col}; border: none;")
+
+            for lbl in self.window.frameBtParams.findChildren(QLabel, "lblParamPrefix"):
+                lbl.setStyleSheet(f"color: {txt_sub}; font-family: 'Consolas', monospace; font-size: 8.5px; font-weight: 700; border: none; background: transparent; padding-left: 2px;")
+
+            for lbl in self.window.frameBtParams.findChildren(QLabel, "lblBtDateArrow"):
+                lbl.setStyleSheet(f"color: {txt_sub}; font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; border: none; background: transparent;")
+
+            for cb in self.window.frameBtParams.findChildren(QComboBox):
+                cb.setStyleSheet(f"""
+                    QComboBox {{
+                        background: transparent;
+                        border: none;
+                        color: {txt_main};
+                        font-family: 'Segoe UI', -apple-system, sans-serif;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding-left: 4px;
+                    }}
+                    QComboBox::drop-down {{
+                        border: none;
+                        width: 14px;
+                    }}
+                    QComboBox QAbstractItemView {{
+                        background-color: {bg_seg};
+                        color: {txt_main};
+                        selection-background-color: {'#1e293b' if is_dark else '#e2e8f0'};
+                        border: 1px solid {border_seg};
+                    }}
+                """)
+
+            for sp in (getattr(self, "spinBtCapital", None), getattr(self, "spinBtSlippage", None), getattr(self, "spinBtComm", None)):
+                if sp:
+                    sp.setStyleSheet(f"""
+                        QAbstractSpinBox {{
+                            background: transparent;
+                            border: none;
+                            color: {txt_main};
+                            font-family: 'Consolas', monospace;
+                            font-size: 10px;
+                            font-weight: 700;
+                            padding-right: 2px;
+                        }}
+                        QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{
+                            width: 0px;
+                            height: 0px;
+                            border: none;
+                        }}
+                    """)
+
+            for dt in (getattr(self, "dateBtFrom", None), getattr(self, "dateBtTo", None)):
+                if dt:
+                    dt.setStyleSheet(f"""
+                        QDateEdit {{
+                            background: transparent;
+                            border: none;
+                            color: {txt_main};
+                            font-family: 'Consolas', monospace;
+                            font-size: 10px;
+                            font-weight: 600;
+                            padding-left: 2px;
+                        }}
+                        QDateEdit::drop-down {{
+                            width: 0px;
+                            height: 0px;
+                            border: none;
+                        }}
+                    """)
+
+            for btn_name in ("btnImportStrat", "btnExportReport"):
+                btn = getattr(self.window, btn_name, None)
+                if btn:
+                    btn_bg = "#101524" if is_dark else "#ffffff"
+                    btn_hover = "#1e293b" if is_dark else "#f1f5f9"
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {btn_bg};
+                            color: {txt_main};
+                            border: 1px solid {border_seg};
+                            border-radius: 2px;
+                            font-family: 'Segoe UI', -apple-system, sans-serif;
+                            font-size: 10px;
+                            font-weight: 700;
+                            letter-spacing: 0.5px;
+                        }}
+                        QPushButton:hover {{
+                            background-color: {btn_hover};
+                        }}
+                    """)
+
+            btn_run = getattr(self.window, "btnRunBacktest", None)
+            if btn_run:
+                run_bg = "#16a34a" if is_dark else "#0f172a"
+                run_hover = "#22c55e" if is_dark else "#1e293b"
+                btn_run.setStyleSheet(f"""
+                    QPushButton#btnRunBacktest {{
+                        background-color: {run_bg};
+                        color: #ffffff;
+                        border: 1px solid {run_bg};
+                        border-radius: 2px;
+                        font-family: 'Segoe UI', -apple-system, sans-serif;
+                        font-size: 11px;
+                        font-weight: 700;
+                        letter-spacing: 0.5px;
+                    }}
+                    QPushButton#btnRunBacktest:hover {{
+                        background-color: {run_hover};
+                    }}
+                    QPushButton#btnRunBacktest:disabled {{
+                        background-color: {'#334155' if is_dark else '#64748b'};
+                        border-color: {'#334155' if is_dark else '#64748b'};
+                    }}
+                """)
+
+        self._sync_ml_gate_ui(self.chkBtMetaLabeling.isChecked() if hasattr(self, "chkBtMetaLabeling") and self.chkBtMetaLabeling else False)
 
         if hasattr(self, "last_report") and self.last_report:
             tokens = ThemeEngine.get_tokens(is_dark)
@@ -935,7 +1273,7 @@ class BacktestWorkbenchController:
             if hasattr(self.window, "btnRunBacktest"):
                 self.window.btnRunBacktest.setEnabled(False)
                 self.window.btnRunBacktest.setText("RUNNING...")
-                self.window.btnRunBacktest.setFixedWidth(86)
+                self.window.btnRunBacktest.setFixedWidth(84)
             QApplication.setOverrideCursor(Qt.WaitCursor)
             QApplication.processEvents()
             self._run_stress_test_network()
@@ -953,7 +1291,7 @@ class BacktestWorkbenchController:
             if hasattr(self.window, "btnRunBacktest"):
                 self.window.btnRunBacktest.setEnabled(True)
                 self.window.btnRunBacktest.setText("▶ RUN")
-                self.window.btnRunBacktest.setFixedWidth(86)
+                self.window.btnRunBacktest.setFixedWidth(84)
 
     def _run_simulation_internal(self, is_initial: bool = False):
         if getattr(self, "_is_simulating", False):
