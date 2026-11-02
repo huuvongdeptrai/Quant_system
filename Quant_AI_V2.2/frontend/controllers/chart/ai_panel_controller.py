@@ -221,6 +221,37 @@ class AIAnalyzerThread(QtCore.QThread):
                     result["_strategy_res"] = res_strat
                     result["_strategy_name"] = strat_display
                     result["_macro_context"] = macro_ctx
+
+                    # Extract Deep Quantitative Macro Telemetry when Ollama is offline or as fallback
+                    try:
+                        from backend.infrastructure.data_providers.asset_registry import AssetRegistry
+                        adapter = AssetRegistry.get_adapter(self.sym)
+                        rep = adapter.generate_context_report(self.sym)
+                        macro_bias = adapter.get_macro_bias(self.sym)
+                        if macro_bias in ("BULLISH", "BEARISH", "NEUTRAL"):
+                            m_bias_vn = {"BULLISH": "TĂNG", "BEARISH": "GIẢM", "NEUTRAL": "ĐI NGANG"}.get(macro_bias, "ĐI NGANG")
+                            result["trend_macro"] = m_bias_vn
+
+                        if result.get("ai_offline", False):
+                            prof = bus.get_profile(self.sym)
+                            if "Real_Yields" in rep:  # Gold / Metals
+                                ry = rep.get("Real_Yields", {})
+                                basket = rep.get("Gold_ETF_Basket", {})
+                                mkt = rep.get("Market", {})
+                                mon = rep.get("Monetary", {})
+                                result["scenario_a"] = f"Vĩ mô Vàng ({m_bias_vn}): Lãi suất thực TIP: {ry.get('bias', 'NEUT')} · DXY: {mkt.get('dxy_trend', '--')} · VIX: {mkt.get('state', '--')} · ETF Flow: {basket.get('composite_stance', '--')}"
+                                result["scenario_b"] = f"Chính sách tiền tệ: {str(mon.get('state', 'N/A'))[:55]} · Tin tức: {prof.badge_text} ({prof.next_event_title or 'An toàn'})"
+                            elif "Crypto_Metrics" in rep or "Fear_and_Greed" in rep or "Funding_Rate" in rep:  # Crypto
+                                fng = rep.get("Fear_and_Greed", {})
+                                fund = rep.get("Funding_Rate", {})
+                                result["scenario_a"] = f"Vĩ mô Crypto ({m_bias_vn}): Funding: {fund.get('funding_rate_pct', 0.0):.4f}% · F&G: {fng.get('score', 50)} ({fng.get('sentiment', 'NEUTRAL')})"
+                                result["scenario_b"] = f"Rủi ro sự kiện: {prof.badge_text} ({prof.next_event_title or 'An toàn'})"
+                            elif "Forex_Metrics" in rep or "Interest_Rates" in rep:  # Forex
+                                fx = rep.get("Forex_Metrics", {})
+                                result["scenario_a"] = f"Vĩ mô Forex ({m_bias_vn}): DXY Vector: {fx.get('dxy_direction', '--')} · Lãi suất & Bất ngờ kinh tế"
+                                result["scenario_b"] = f"Tin tức: {prof.badge_text} ({prof.next_event_title or 'An toàn'})"
+                    except Exception as e_adapt:
+                        logger.debug(f"[AIAnalysisThread] Adapter summary error: {e_adapt}")
             except Exception as e_strat:
                 logger.debug(f"[AIAnalysisThread] Strategy analysis: {e_strat}")
 
