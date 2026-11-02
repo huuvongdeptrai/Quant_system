@@ -276,7 +276,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         if hasattr(self, "valBtNetReturn") and self.valBtNetReturn:
             ret_color = tokens.pnl_profit if report.total_return_pct >= 0 else tokens.pnl_loss
             self.valBtNetReturn.setText(fmt_percent(report.total_return_pct, sign=True))
-            self.valBtNetReturn.setStyleSheet(f"color: {ret_color}; font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700;")
+            self.valBtNetReturn.setStyleSheet(f"color: {ret_color}; font-family: 'Consolas', monospace; font-size: 13.5px; font-weight: 700; border: none; background: transparent;")
 
         if hasattr(self, "valBtSharpe") and self.valBtSharpe:
             self.valBtSharpe.setText(f"{report.sharpe_ratio:.2f}")
@@ -317,18 +317,18 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                     return f"-${abs(val):,.2f}"
                 return "$0.00"
             self.valBtExpectancy.setText(fmt_signed_curr(report.mathematical_expectancy))
-            self.valBtExpectancy.setStyleSheet(f"color: {exp_col}; font-family: 'Consolas', monospace; font-size: 10.5px; font-weight: 700;")
+            self.valBtExpectancy.setStyleSheet(f"color: {exp_col}; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; border: none; background: transparent;")
 
         if hasattr(self, "valBtRR") and self.valBtRR:
             self.valBtRR.setText(f"{report.risk_reward_ratio:.2f}")
 
         if hasattr(self, "valBtAvgWin") and self.valBtAvgWin:
             self.valBtAvgWin.setText(f"+${report.avg_win:,.2f}")
-            self.valBtAvgWin.setStyleSheet("color: #15803d; font-family: 'Consolas', monospace; font-size: 10.5px; font-weight: 700;")
+            self.valBtAvgWin.setStyleSheet("color: #15803d; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; border: none; background: transparent;")
 
         if hasattr(self, "valBtAvgLoss") and self.valBtAvgLoss:
             self.valBtAvgLoss.setText(f"-${abs(report.avg_loss):,.2f}")
-            self.valBtAvgLoss.setStyleSheet("color: #dc2626; font-family: 'Consolas', monospace; font-size: 10.5px; font-weight: 700;")
+            self.valBtAvgLoss.setStyleSheet("color: #dc2626; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: 700; border: none; background: transparent;")
 
         # Calculate win/loss streak from report.trades
         max_w, max_l, cur_w, cur_l = 0, 0, 0, 0
