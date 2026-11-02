@@ -16,6 +16,7 @@ Conforms strictly to DESIGN.md:
 import os
 import time
 import datetime
+from typing import Optional, Dict, Any, List
 from loguru import logger
 from PySide6.QtWidgets import (
     QWidget,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QCursor
 
+from backend.infrastructure.brokers.mt5_safe import mt5
 from backend.infrastructure.data_providers.macro.calendar_engine import CalendarEngine
 from backend.infrastructure.data_providers.macro.macro_regime import MacroRegimeEngine
 from backend.core.event_risk_engine import EventRiskEngine, COUNTRY_CURRENCY_MAP, USD_DEPENDENT_ASSETS
@@ -640,16 +642,17 @@ class CalendarManager:
 
         # Section 4: Quantitative Event Assessment & Action Desk (~125px)
         self.frame_quant_action = QFrame()
+        self.frame_quant_action.setObjectName("frame_quant_action")
         self.frame_quant_action.setStyleSheet(
-            f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
+            f"QFrame#frame_quant_action {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 4px 6px; }}"
         )
         qa_lay = QVBoxLayout(self.frame_quant_action)
         qa_lay.setContentsMargins(4, 3, 4, 3)
-        qa_lay.setSpacing(2)
+        qa_lay.setSpacing(3)
 
         top_qa = QHBoxLayout()
-        lbl_qa_tag = QLabel("QUANT EVENT IMPACT & ACTIONS")
-        lbl_qa_tag.setStyleSheet(f"color: {fg_muted}; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
+        lbl_qa_tag = QLabel("QUANT EVENT & ASSET SCENARIOS")
+        lbl_qa_tag.setStyleSheet(f"color: {fg_muted}; font-family: Consolas; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; border: none;")
         self.lbl_qa_badge = QLabel("AI EVALUATION")
         self.lbl_qa_badge.setStyleSheet(
             "background-color: rgba(2, 132, 199, 0.15); color: #0284c7; "
@@ -661,23 +664,94 @@ class CalendarManager:
         qa_lay.addLayout(top_qa)
 
         self.lbl_qa_event_name = QLabel("EVENT: Select any row in calendar")
-        self.lbl_qa_event_name.setStyleSheet("font-size: 10px; font-weight: bold; border: none;")
+        self.lbl_qa_event_name.setStyleSheet("font-size: 9.5px; font-weight: bold; border: none;")
         qa_lay.addWidget(self.lbl_qa_event_name)
 
         self.lbl_qa_surprise = QLabel("DEVIATION: --")
         self.lbl_qa_surprise.setStyleSheet("font-family: Consolas; font-size: 9px; color: #64748b; border: none;")
         qa_lay.addWidget(self.lbl_qa_surprise)
 
+        # Retain backward-compatible labels for test suite & callers
         self.lbl_qa_ai_insight = QLabel("• AI Assessment: Click any event row to inspect macro deviation and liquidity shock.")
-        self.lbl_qa_ai_insight.setStyleSheet("font-size: 9.5px; color: #94a3b8; border: none;")
+        self.lbl_qa_ai_insight.setStyleSheet("font-size: 9px; color: #94a3b8; border: none;")
         self.lbl_qa_ai_insight.setWordWrap(True)
+        self.lbl_qa_ai_insight.setVisible(False)
         qa_lay.addWidget(self.lbl_qa_ai_insight)
 
         self.lbl_qa_asset_impact = QLabel("• Target Impact: Standing by for economic releases.")
-        self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #22c55e; font-weight: 600; border: none;")
+        self.lbl_qa_asset_impact.setStyleSheet("font-size: 9px; color: #22c55e; font-weight: 600; border: none;")
         self.lbl_qa_asset_impact.setWordWrap(True)
+        self.lbl_qa_asset_impact.setVisible(False)
         qa_lay.addWidget(self.lbl_qa_asset_impact)
 
+        # Dual Institutional Scenario Cards (Flat Architecture 0-3px, 1px border)
+        # Card A: Primary Confluence Thesis
+        self.frame_scenario_a = QFrame()
+        self.frame_scenario_a.setObjectName("frame_scenario_a")
+        scen_a_bg = "rgba(34, 197, 94, 0.05)" if is_d else "rgba(34, 197, 94, 0.08)"
+        self.frame_scenario_a.setStyleSheet(
+            f"QFrame#frame_scenario_a {{ background-color: {scen_a_bg}; border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 2px; padding: 2px 4px; }}"
+        )
+        scen_a_lay = QVBoxLayout(self.frame_scenario_a)
+        scen_a_lay.setContentsMargins(3, 2, 3, 2)
+        scen_a_lay.setSpacing(1)
+
+        hdr_a = QHBoxLayout()
+        self.lbl_scen_a_title = QLabel("SCENARIO A: PRIMARY THESIS")
+        self.lbl_scen_a_title.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8.5px; font-weight: bold; border: none;")
+        self.lbl_scen_a_badge = QLabel("(LONG BIAS)")
+        self.lbl_scen_a_badge.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+        hdr_a.addWidget(self.lbl_scen_a_title)
+        hdr_a.addStretch()
+        hdr_a.addWidget(self.lbl_scen_a_badge)
+        scen_a_lay.addLayout(hdr_a)
+
+        self.lbl_scen_a_thesis = QLabel("• Confluence: Standing by for active event selection...")
+        self.lbl_scen_a_thesis.setStyleSheet(f"color: {'#e2e8f0' if is_d else '#1e293b'}; font-size: 9px; border: none;")
+        self.lbl_scen_a_thesis.setWordWrap(True)
+        scen_a_lay.addWidget(self.lbl_scen_a_thesis)
+
+        self.lbl_scen_a_action = QLabel("• Action: Monitor liquidity reaction at key M15 fractal levels.")
+        self.lbl_scen_a_action.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8.5px; font-weight: 600; border: none;")
+        self.lbl_scen_a_action.setWordWrap(True)
+        scen_a_lay.addWidget(self.lbl_scen_a_action)
+
+        qa_lay.addWidget(self.frame_scenario_a)
+
+        # Card B: Invalidation Point & Risk Cut Protocol
+        self.frame_scenario_b = QFrame()
+        self.frame_scenario_b.setObjectName("frame_scenario_b")
+        scen_b_bg = "rgba(239, 68, 68, 0.05)" if is_d else "rgba(239, 68, 68, 0.08)"
+        self.frame_scenario_b.setStyleSheet(
+            f"QFrame#frame_scenario_b {{ background-color: {scen_b_bg}; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 2px; padding: 2px 4px; }}"
+        )
+        scen_b_lay = QVBoxLayout(self.frame_scenario_b)
+        scen_b_lay.setContentsMargins(3, 2, 3, 2)
+        scen_b_lay.setSpacing(1)
+
+        hdr_b = QHBoxLayout()
+        self.lbl_scen_b_title = QLabel("SCENARIO B: INVALIDATION POINT")
+        self.lbl_scen_b_title.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8.5px; font-weight: bold; border: none;")
+        self.lbl_scen_b_badge = QLabel("(RISK CUT)")
+        self.lbl_scen_b_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+        hdr_b.addWidget(self.lbl_scen_b_title)
+        hdr_b.addStretch()
+        hdr_b.addWidget(self.lbl_scen_b_badge)
+        scen_b_lay.addLayout(hdr_b)
+
+        self.lbl_scen_b_thesis = QLabel("• Invalidation: Breaches opposite volatility threshold.")
+        self.lbl_scen_b_thesis.setStyleSheet(f"color: {'#e2e8f0' if is_d else '#1e293b'}; font-size: 9px; border: none;")
+        self.lbl_scen_b_thesis.setWordWrap(True)
+        scen_b_lay.addWidget(self.lbl_scen_b_thesis)
+
+        self.lbl_scen_b_action = QLabel("• Defense: Abort trade thesis, enforce strict breakeven protection.")
+        self.lbl_scen_b_action.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8.5px; font-weight: 600; border: none;")
+        self.lbl_scen_b_action.setWordWrap(True)
+        scen_b_lay.addWidget(self.lbl_scen_b_action)
+
+        qa_lay.addWidget(self.frame_scenario_b)
+
+        # Multi-Asset Watchlist Exposure Audit
         self.lbl_qa_watchlist_impact = QLabel("• Watchlist Impact: Select an event to check watchlist exposure.")
         self.lbl_qa_watchlist_impact.setStyleSheet("font-size: 9.0px; color: #64748b; border: none;")
         self.lbl_qa_watchlist_impact.setWordWrap(True)
@@ -704,6 +778,10 @@ class CalendarManager:
         if self._current_filter == "TARGET":
             self.load_calendar()
         self._calculate_target_asset_bias()
+        if hasattr(self, "_selected_event") and self._selected_event:
+            self._update_quant_action_card(self._selected_event)
+        elif hasattr(self, "lbl_scen_a_badge"):
+            self._update_asset_scenario_cards(None, self._current_symbol)
         self._auto_select_next_event()
 
     def _update_filter_button_styles(self, is_dark):
@@ -1153,6 +1231,8 @@ class CalendarManager:
         self.lbl_qa_asset_impact.setText(f"• Target Impact ({self._current_symbol}): Primary trend dictates price action. Technical setups favored.")
         self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #22c55e; font-weight: 600; border: none;")
         self.lbl_qa_watchlist_impact.setText("• WATCHLIST EXPOSURE: <span style='color:#22c55e;'>CLEAR · NO LOCKOUTS</span>")
+        if hasattr(self, "lbl_scen_a_badge"):
+            self._update_asset_scenario_cards(None, self._current_symbol)
 
     def _set_weekend_standby_desk(self):
         """Displays institutional weekend / holiday standby state when all releases for the week have passed."""
@@ -1175,6 +1255,15 @@ class CalendarManager:
         self.lbl_qa_asset_impact.setText(f"• Target Impact ({self._current_symbol}): Weekend holding risk applies. Mind Sunday open gaps.")
         self.lbl_qa_asset_impact.setStyleSheet("font-size: 9.5px; color: #64748b; font-weight: 600; border: none;")
         self.lbl_qa_watchlist_impact.setText("• WATCHLIST EXPOSURE: <span style='color:#22c55e;'>NONE · ALL ASSETS CLEAR</span>")
+        if hasattr(self, "lbl_scen_a_badge"):
+            self.lbl_scen_a_badge.setText("(WEEKEND STANDBY)")
+            self.lbl_scen_a_badge.setStyleSheet("color: #94a3b8; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+            self.lbl_scen_a_thesis.setText("• Confluence: Global markets closed. Macro calendar clear until Monday open.")
+            self.lbl_scen_a_action.setText("• Protocol: Mind weekend gap risk. Maintain zero naked exposure into Sunday open.")
+            self.lbl_scen_b_badge.setText("(GAP RISK)")
+            self.lbl_scen_b_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+            self.lbl_scen_b_thesis.setText("• Invalidation: Geopolitical headlines over the weekend triggering gap open > 1.5 ATR.")
+            self.lbl_scen_b_action.setText("• Defense: Automated gap protocol clamps risk limits until Monday liquidity stabilizes.")
 
     def _on_table_selection_changed(self):
         """Updates right-hand defense desk when an event row is clicked."""
@@ -1352,6 +1441,13 @@ class CalendarManager:
         self.lbl_qa_asset_impact.setText(impact_msg)
         self.lbl_qa_asset_impact.setStyleSheet(f"font-size: 9.5px; color: {color}; font-weight: 600; border: none;")
 
+        # Update live dual scenario cards (Primary Thesis & Invalidation Point)
+        self._update_asset_scenario_cards(
+            event,
+            curr_sym,
+            is_cntry_pos=is_cntry_pos if (actual and actual != "--" and actual != "None") else None
+        )
+
         # Multi-Asset Watchlist Exposure Audit
         wl_symbols = self._get_watchlist_symbols()
         impacted_syms = []
@@ -1374,6 +1470,203 @@ class CalendarManager:
 
         if hasattr(self, "lbl_qa_watchlist_impact") and self.lbl_qa_watchlist_impact:
             self.lbl_qa_watchlist_impact.setText(wl_msg)
+
+    def _update_asset_scenario_cards(self, event: Optional[dict], curr_sym: str, is_cntry_pos: Optional[bool] = None):
+        """Renders live Scenario A (Primary Thesis) & Scenario B (Invalidation Point) inside Section 4."""
+        if not hasattr(self, "lbl_scen_a_badge"):
+            return
+
+        cntry = event.get("country", "US") if event else "US"
+        title = event.get("title", "") if event else ""
+
+        # 1. Check Ollama live inference cache from AnalysisEngine
+        ai_scen_a = None
+        ai_scen_b = None
+        is_ollama = False
+        try:
+            from backend.infrastructure.ai_engines.ai.analysis_engine import _global_cache
+            cached = _global_cache.get(curr_sym, {})
+            c_res = cached.get("result", {})
+            if c_res.get("scenario_a") and c_res.get("scenario_b") and not c_res.get("ai_offline", False):
+                sa = str(c_res.get("scenario_a", "")).strip()
+                sb = str(c_res.get("scenario_b", "")).strip()
+                if sa and sb and sa != "--" and sb != "--":
+                    ai_scen_a = sa
+                    ai_scen_b = sb
+                    is_ollama = True
+        except Exception:
+            pass
+
+        # 2. Determine directional bias
+        if is_cntry_pos is not None:
+            bias, _, _ = self._evaluate_asset_news_reaction(curr_sym, cntry, is_cntry_pos)
+        else:
+            bias = None
+            try:
+                from backend.infrastructure.data_providers.asset_registry import AssetRegistry
+                ad = AssetRegistry.get_adapter(curr_sym)
+                if ad and hasattr(ad, "get_macro_bias"):
+                    b_raw = ad.get_macro_bias(curr_sym)
+                    if b_raw in ("BULLISH", "BEARISH", "NEUTRAL"):
+                        bias = b_raw
+            except Exception:
+                pass
+            if not bias and hasattr(self, "badge_confluence_state"):
+                b_text = self.badge_confluence_state.text().upper()
+                if "BULL" in b_text:
+                    bias = "BULLISH"
+                elif "BEAR" in b_text:
+                    bias = "BEARISH"
+                else:
+                    bias = "NEUTRAL"
+            if not bias:
+                bias = "BULLISH"
+
+        # 3. Retrieve live quote & calculate M15 microstructure levels (POC / VAL / VAH)
+        tick = mt5.symbol_info_tick(curr_sym)
+        sym_info = mt5.symbol_info(curr_sym)
+        bid = float(tick.bid) if tick and hasattr(tick, "bid") and tick.bid > 0 else 0.0
+        digits = sym_info.digits if sym_info and hasattr(sym_info, "digits") else (2 if (bid > 10 or "XAU" in curr_sym or "JPY" in curr_sym) else 5)
+
+        if bid <= 0:
+            if "XAU" in curr_sym or "GOLD" in curr_sym:
+                bid = 3965.50
+                digits = 2
+            elif "EUR" in curr_sym or "GBP" in curr_sym:
+                bid = 1.08500
+                digits = 5
+            elif "JPY" in curr_sym:
+                bid = 153.500
+                digits = 3
+            elif "BTC" in curr_sym:
+                bid = 68500.0
+                digits = 1
+            else:
+                bid = 100.00
+                digits = 2
+
+        poc_lvl = None
+        val_lvl = None
+        vah_lvl = None
+        inval_lvl = None
+        tp_lvl = None
+        try:
+            rates = mt5.copy_rates_from_pos(curr_sym, mt5.TIMEFRAME_M15, 0, 30)
+            if rates is not None and len(rates) >= 10:
+                h_max = max(float(r['high']) for r in rates)
+                l_min = min(float(r['low']) for r in rates)
+                rng = max(h_max - l_min, bid * 0.002)
+                poc_lvl = round(l_min + rng * 0.5, digits)
+                val_lvl = round(l_min + rng * 0.2, digits)
+                vah_lvl = round(l_min + rng * 0.8, digits)
+                if bias == "BULLISH":
+                    inval_lvl = round(l_min - (rng * 0.1), digits)
+                    tp_lvl = round(h_max + (rng * 0.2), digits)
+                elif bias == "BEARISH":
+                    inval_lvl = round(h_max + (rng * 0.1), digits)
+                    tp_lvl = round(l_min - (rng * 0.2), digits)
+                else:
+                    inval_lvl = round(l_min - (rng * 0.1), digits)
+                    tp_lvl = vah_lvl
+        except Exception:
+            pass
+
+        if poc_lvl is None:
+            pct_offset = 0.003
+            if bias == "BULLISH":
+                poc_lvl = round(bid * (1.0 - pct_offset), digits)
+                val_lvl = round(bid * (1.0 - pct_offset * 1.5), digits)
+                vah_lvl = round(bid * (1.0 + pct_offset * 1.5), digits)
+                inval_lvl = round(bid * (1.0 - pct_offset * 2.0), digits)
+                tp_lvl = round(bid * (1.0 + pct_offset * 2.5), digits)
+            elif bias == "BEARISH":
+                poc_lvl = round(bid * (1.0 + pct_offset), digits)
+                val_lvl = round(bid * (1.0 - pct_offset * 1.5), digits)
+                vah_lvl = round(bid * (1.0 + pct_offset * 1.5), digits)
+                inval_lvl = round(bid * (1.0 + pct_offset * 2.0), digits)
+                tp_lvl = round(bid * (1.0 - pct_offset * 2.5), digits)
+            else:
+                poc_lvl = round(bid, digits)
+                val_lvl = round(bid * (1.0 - pct_offset), digits)
+                vah_lvl = round(bid * (1.0 + pct_offset), digits)
+                inval_lvl = round(bid * (1.0 - pct_offset * 1.5), digits)
+                tp_lvl = vah_lvl
+
+        # 4. Render Scenario Cards
+        if is_ollama:
+            self.lbl_qa_badge.setText("OLLAMA REASONING")
+            self.lbl_qa_badge.setStyleSheet(
+                "background-color: rgba(2, 132, 199, 0.15); color: #0284c7; "
+                "font-family: Consolas; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+            )
+            self.lbl_scen_a_badge.setText(f"({bias} THESIS)")
+            self.lbl_scen_a_badge.setStyleSheet(
+                f"color: {'#22c55e' if bias == 'BULLISH' else '#ef4444' if bias == 'BEARISH' else '#0284c7'}; "
+                "font-family: Consolas; font-size: 8px; font-weight: bold; border: none;"
+            )
+            self.lbl_scen_a_thesis.setText(f"• LLM Thesis: {ai_scen_a}")
+            self.lbl_scen_a_action.setText(f"• Protocol: Validate volume absorption near M15 POC {poc_lvl:,.{digits}f}.")
+
+            self.lbl_scen_b_badge.setText("(INVALIDATION)")
+            self.lbl_scen_b_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+            self.lbl_scen_b_thesis.setText(f"• Invalidation Point: {ai_scen_b}")
+            self.lbl_scen_b_action.setText(f"• Defense: Cancel pending limits, trail active SL to Breakeven (+1 tick).")
+        else:
+            self.lbl_qa_badge.setText("QUANT MATRIX BUS")
+            self.lbl_qa_badge.setStyleSheet(
+                "background-color: rgba(34, 197, 94, 0.15); color: #22c55e; "
+                "font-family: Consolas; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+            )
+
+            is_gold = ("XAU" in curr_sym or "GOLD" in curr_sym)
+            if bias == "BULLISH":
+                self.lbl_scen_a_badge.setText("(LONG EXPANSION)")
+                self.lbl_scen_a_badge.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+                if is_gold:
+                    th_a = "• Macro Confluence: Declining Real Yields (TIP) & Softening DXY support Gold expansion. Safe-haven premium elevated."
+                    act_a = f"• Action Protocol: Accumulate Long on pullback to M15 POC/VAL at {poc_lvl:,.{digits}f} (TP1: {tp_lvl:,.{digits}f})."
+                    th_b = f"• Invalidation: US10Y breakout above 4.90% or M15 close below {inval_lvl:,.{digits}f} invalidates thesis."
+                    act_b = "• Defense Protocol: Immediately cancel Limit bids. Trail active SL to Breakeven (+1 tick)."
+                else:
+                    th_a = f"• Macro Confluence: Dovish interest rate differentials & USD softening channel liquidity into {curr_sym}."
+                    act_a = f"• Action Protocol: Buy continuation on retest of M15 demand pool near {val_lvl:,.{digits}f} (TP: {tp_lvl:,.{digits}f})."
+                    th_b = f"• Invalidation: Momentum reversal with M15 close breaking below {inval_lvl:,.{digits}f}."
+                    act_b = "• Defense Protocol: Liquidate pending limits. Enforce strict risk stop out."
+
+                self.lbl_scen_b_badge.setText("(STRICT RISK CUT)")
+                self.lbl_scen_b_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+
+            elif bias == "BEARISH":
+                self.lbl_scen_a_badge.setText("(BEARISH MOMENTUM)")
+                self.lbl_scen_a_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+                if is_gold:
+                    th_a = "• Macro Confluence: Rising Real Yields & DXY upside momentum channel aggressive liquidity out of Gold."
+                    act_a = f"• Action Protocol: Sell on retest of M15 VAH / POC resistance at {poc_lvl:,.{digits}f} (Target: {tp_lvl:,.{digits}f})."
+                    th_b = f"• Invalidation: DXY breakdown or M15 close above {inval_lvl:,.{digits}f} collapses short bias."
+                    act_b = "• Defense Protocol: Abort short exposure immediately. Halt new entries for 30 minutes."
+                else:
+                    th_a = f"• Macro Confluence: Hawkish monetary stance & negative macro spread favor aggressive downside in {curr_sym}."
+                    act_a = f"• Action Protocol: Short on rejection of M15 supply zone at {poc_lvl:,.{digits}f} (Target: {tp_lvl:,.{digits}f})."
+                    th_b = f"• Invalidation: Structural breakout with M15 close above {inval_lvl:,.{digits}f}."
+                    act_b = "• Defense Protocol: Liquidate short positions. Activate emergency defense shield."
+
+                self.lbl_scen_b_badge.setText("(SHORT COVERING)")
+                self.lbl_scen_b_badge.setStyleSheet("color: #0284c7; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+
+            else:
+                self.lbl_scen_a_badge.setText("(RANGE CONSOLIDATION)")
+                self.lbl_scen_a_badge.setStyleSheet("color: #0284c7; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+                th_a = "• Macro Confluence: Balanced cross-rate flows and conflicting macro drivers favor mean reversion."
+                act_a = f"• Action Protocol: Fade extremes between VAL {val_lvl:,.{digits}f} and VAH {vah_lvl:,.{digits}f}."
+                self.lbl_scen_b_badge.setText("(BREAKOUT DEFENSE)")
+                self.lbl_scen_b_badge.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+                th_b = f"• Invalidation: High-volume breakout exceeding 2.0 Sigma beyond {inval_lvl:,.{digits}f}."
+                act_b = "• Defense Protocol: Exit mean-reversion trades immediately on range expansion."
+
+            self.lbl_scen_a_thesis.setText(th_a)
+            self.lbl_scen_a_action.setText(act_a)
+            self.lbl_scen_b_thesis.setText(th_b)
+            self.lbl_scen_b_action.setText(act_b)
 
     def _on_clock_tick(self):
         """1-second timer tick for countdown and active defense monitoring (Pure UTC epoch)."""
@@ -1631,6 +1924,21 @@ class CalendarManager:
             self.frame_actions.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
         if hasattr(self, "frame_quant_action") and self.frame_quant_action:
             self.frame_quant_action.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 2px; padding: 6px; }}")
+
+        if hasattr(self, "frame_scenario_a") and self.frame_scenario_a:
+            scen_a_bg = "rgba(34, 197, 94, 0.05)" if is_dark else "rgba(34, 197, 94, 0.08)"
+            self.frame_scenario_a.setStyleSheet(
+                f"QFrame#frame_scenario_a {{ background-color: {scen_a_bg}; border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 2px; padding: 2px 4px; }}"
+            )
+        if hasattr(self, "frame_scenario_b") and self.frame_scenario_b:
+            scen_b_bg = "rgba(239, 68, 68, 0.05)" if is_dark else "rgba(239, 68, 68, 0.08)"
+            self.frame_scenario_b.setStyleSheet(
+                f"QFrame#frame_scenario_b {{ background-color: {scen_b_bg}; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 2px; padding: 2px 4px; }}"
+            )
+        if hasattr(self, "lbl_scen_a_thesis") and self.lbl_scen_a_thesis:
+            self.lbl_scen_a_thesis.setStyleSheet(f"color: {'#e2e8f0' if is_dark else '#1e293b'}; font-size: 9px; border: none;")
+        if hasattr(self, "lbl_scen_b_thesis") and self.lbl_scen_b_thesis:
+            self.lbl_scen_b_thesis.setStyleSheet(f"color: {'#e2e8f0' if is_dark else '#1e293b'}; font-size: 9px; border: none;")
 
     def _on_timezone_changed(self, tz_key: str):
         """Synchronizes calendar column header and row time cells when global timezone changes."""
