@@ -207,8 +207,8 @@ class BacktestWorkbenchController:
         today = QDate.currentDate()
         self.dateBtFrom = getattr(self.window, "dateBtFrom", None)
         if self.dateBtFrom:
-            self.dateBtFrom.setFixedHeight(32)
-            self.dateBtFrom.setFixedWidth(102)
+            self.dateBtFrom.setFixedHeight(28)
+            self.dateBtFrom.setMaximumDate(today)
             self.dateBtFrom.setDate(today.addDays(-30))
             cal_from = self.dateBtFrom.calendarWidget()
             if cal_from:
@@ -217,8 +217,8 @@ class BacktestWorkbenchController:
 
         self.dateBtTo = getattr(self.window, "dateBtTo", None)
         if self.dateBtTo:
-            self.dateBtTo.setFixedHeight(32)
-            self.dateBtTo.setFixedWidth(102)
+            self.dateBtTo.setFixedHeight(28)
+            self.dateBtTo.setMaximumDate(today)
             self.dateBtTo.setDate(today)
             cal_to = self.dateBtTo.calendarWidget()
             if cal_to:
@@ -345,7 +345,7 @@ class BacktestWorkbenchController:
 
             if hasattr(self, "dateBtFrom") and self.dateBtFrom:
                 self.dateBtFrom.setFixedHeight(26)
-                self.dateBtFrom.setFixedWidth(82)
+                self.dateBtFrom.setFixedWidth(92)
                 self.dateBtFrom.setDisplayFormat("yyyy-MM-dd")
                 l_date.addWidget(self.dateBtFrom)
 
@@ -357,7 +357,7 @@ class BacktestWorkbenchController:
 
             if hasattr(self, "dateBtTo") and self.dateBtTo:
                 self.dateBtTo.setFixedHeight(26)
-                self.dateBtTo.setFixedWidth(82)
+                self.dateBtTo.setFixedWidth(92)
                 self.dateBtTo.setDisplayFormat("yyyy-MM-dd")
                 l_date.addWidget(self.dateBtTo)
 

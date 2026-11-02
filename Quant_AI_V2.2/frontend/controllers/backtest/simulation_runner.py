@@ -31,15 +31,25 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
     q_from = self.dateBtFrom.date() if hasattr(self, "dateBtFrom") else None
     q_to = self.dateBtTo.date() if hasattr(self, "dateBtTo") else None
 
+    now_dt = datetime.now()
     if q_from and q_to:
         d_from = datetime(q_from.year(), q_from.month(), q_from.day(), 0, 0, 0)
         d_to = datetime(q_to.year(), q_to.month(), q_to.day(), 23, 59, 59)
-        if d_from > d_to:
-            d_from, d_to = d_to, d_from
-            self.dateBtFrom.setDate(q_to)
-            self.dateBtTo.setDate(q_from)
+        # Cap future dates to now
+        if d_to > now_dt:
+            d_to = now_dt
+        if d_from >= d_to:
+            d_from = d_to - timedelta(days=30)
+            if hasattr(self, "dateBtFrom") and self.dateBtFrom:
+                self.dateBtFrom.blockSignals(True)
+                self.dateBtFrom.setDate(QDate(d_from.year, d_from.month, d_from.day))
+                self.dateBtFrom.blockSignals(False)
+            if hasattr(self, "dateBtTo") and self.dateBtTo:
+                self.dateBtTo.blockSignals(True)
+                self.dateBtTo.setDate(QDate(d_to.year, d_to.month, d_to.day))
+                self.dateBtTo.blockSignals(False)
     else:
-        d_to = datetime.now()
+        d_to = now_dt
         d_from = d_to - timedelta(days=30)
 
     from_str = d_from.strftime("%Y-%m-%d")
@@ -129,16 +139,19 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             if rates is None or len(rates) == 0:
                 rates = mt5.copy_rates_from_pos(self.current_symbol, selected_tf, 0, 1000)
 
-        if rates is None or len(rates) < 30:
-            self._log(f"[{now_str}] [ERROR] Insufficient bar data from MetaTrader 5 ({self.current_symbol}) for {from_str} to {to_str}.")
-            self._log(f"[{now_str}] [CANCELLED] Simulation aborted due to missing MT5 market data.")
+        if rates is None or len(rates) < 60:
+            self._log(f"[{now_str}] [ERROR] Dữ liệu nến từ MetaTrader 5 ({self.current_symbol}) chỉ có {len(rates) if rates is not None else 0} nến (từ {from_str} đến {to_str}).")
+            self._log(f"[{now_str}] [CANCELLED] Yêu cầu tối thiểu 60 nến cho Vectorized và 150 nến cho Event-Driven. Vui lòng mở rộng khoảng thời gian lùi về quá khứ.")
             if not is_initial:
                 from PySide6.QtWidgets import QMessageBox
                 QMessageBox.warning(
                     self.window,
-                    "Missing MT5 Data",
-                    f"Unable to load historical bars from MetaTrader 5 for {self.current_symbol} between {from_str} and {to_str}.\n\n"
-                    "Please ensure MT5 is connected and history is loaded for this symbol and period."
+                    "Insufficient MT5 Data",
+                    f"Only {len(rates) if rates is not None else 0} bars loaded from MetaTrader 5 for {self.current_symbol} between {from_str} and {to_str}.\n\n"
+                    "Quantitative indicators (EMA, ATR, ICT Zones, Wyckoff Phases) require a minimum warmup window:\n"
+                    "• Minimum 60 bars for Vectorized Engine\n"
+                    "• Minimum 150 bars for Event-Driven / ML Gate\n\n"
+                    "Please extend the start date (From Date) to include more historical trading days."
                 )
             if hasattr(self, "btn_run_sim"):
                 self.btn_run_sim.setEnabled(True)
@@ -266,6 +279,20 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                 symbol=self.current_symbol,
                 fill_on_next_open=True,
             )
+
+        if report is None:
+            self._log(f"[{now_str}] [ERROR] Không thể hoàn tất mô phỏng: Dữ liệu nến ({len(df)} nến) không đủ để tính toán chỉ báo (yêu cầu tối thiểu 60 nến).")
+            self._log(f"[{now_str}] [RECOMMENDATION] Vui lòng nới rộng khoảng thời gian kiểm thử (lùi 'From Date').")
+            if not is_initial:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self.window,
+                    "Insufficient Historical Data",
+                    f"The backtesting engine requires at least 60 bars (150 bars for Event-Driven/ML) to calculate indicators.\n"
+                    f"Current dataset contains only {len(df)} bars.\n\n"
+                    "Please extend the 'From Date' to load more historical bars."
+                )
+            return None
 
         self.last_report = report
         exec_time = (time.perf_counter() - t0) * 1000.0
