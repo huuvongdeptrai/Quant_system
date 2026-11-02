@@ -79,7 +79,7 @@ class OptionsDialog(QDialog):
         f_lay.setContentsMargins(4, 2, 4, 4)
         f_lay.setSpacing(6)
 
-        self.lblDialogStatus = QLabel("Ready")
+        self.lblDialogStatus = QLabel("")
         self.lblDialogStatus.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 10.5px; color: #64748b;")
         f_lay.addWidget(self.lblDialogStatus)
         f_lay.addStretch()
@@ -250,8 +250,7 @@ class OptionsDialog(QDialog):
         self.tab_execution.load_values(data, DEFAULTS)
         self.tab_notification.load_values(data, DEFAULTS, fallback_token=fb_tok, fallback_chat=fb_cid)
         self.refresh_telemetry()
-        self.lblDialogStatus.setText("Configuration ready")
-        self.lblDialogStatus.setStyleSheet("font-family: Consolas, monospace; font-size: 9.5px; color: #64748b; font-weight: bold;")
+        self.lblDialogStatus.setText("")
 
     def refresh_telemetry(self):
         """Delegates telemetry refresh to Tab Broker."""
