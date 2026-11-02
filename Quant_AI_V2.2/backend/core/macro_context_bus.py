@@ -9,6 +9,7 @@ Provides:
 4. Autonomous In-Trade Position Defense triggering at T-15m before High-Impact events.
 """
 import copy
+import os
 import time
 import threading
 from dataclasses import dataclass, field
@@ -242,6 +243,8 @@ class MacroContextBus:
 
     def _trigger_async_refresh(self, clean_sym: str) -> None:
         """Schedules asynchronous profile calculation in background thread without blocking callers."""
+        if os.environ.get("QUANT_TESTING") == "1":
+            return
         with self._data_lock:
             if clean_sym in self._pending_symbols:
                 return

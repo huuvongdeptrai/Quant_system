@@ -127,6 +127,10 @@ class TelegramNotifier:
             target=self._poll_updates, args=(event_bus,), daemon=True
         ).start()
 
+    def stop_listening(self):
+        """Signals the background polling loop to terminate gracefully."""
+        self._is_listening = False
+
     def _poll_updates(self, event_bus):
         offset = None
         while self._is_listening:

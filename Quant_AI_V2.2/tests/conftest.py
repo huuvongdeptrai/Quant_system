@@ -99,6 +99,12 @@ def persistent_qt_application():
     try:
         from PySide6.QtCore import QThreadPool
         QThreadPool.globalInstance().waitForDone(2000)
+        for w in list(QApplication.topLevelWidgets()):
+            try:
+                w.close()
+                w.deleteLater()
+            except Exception:
+                pass
         _qt_app.processEvents()
     except Exception:
         pass

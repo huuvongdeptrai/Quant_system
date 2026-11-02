@@ -1372,57 +1372,109 @@ class QuantTerminal(QObject):
 
             self.stats.refresh()
 
-    def closeEvent(self, event):
-        # Prevent accidental trade disconnection if bot is actively running
-        if self.bot_thread and self.bot_thread.isRunning():
-            if hasattr(self, "tray_manager") and self.tray_manager and self.tray_manager.tray_icon:
-                event.ignore()
-                self.tray_manager.minimize_to_tray()
-                return
+    def shutdown(self):
+        """Idempotent, synchronous, graceful shutdown of all background threads and resources."""
+        if getattr(self, "_is_shutting_down", False):
+            return
+        self._is_shutting_down = True
+        logger.info("[QuantTerminal] Initiating graceful shutdown of all threads and services...")
+
+        # 1. Stop tick timer
         if hasattr(self, "_tick_timer") and self._tick_timer.isActive():
             self._tick_timer.stop()
-        if self.bot_thread and self.bot_thread.isRunning():
-            if self.bot_worker:
+
+        # 2. Stop and join BotOrchestratorThread
+        if hasattr(self, "bot_worker") and self.bot_worker:
+            try:
                 self.bot_worker.stop()
-            if self.bot_thread:
-                self.bot_thread.quit()
-                if not self.bot_thread.wait(3000):
-                    logger.warning("[QuantTerminal] Bot thread did not terminate within 3s, terminating...")
-                    self.bot_thread.terminate()
-                    self.bot_thread.wait(1000)
+            except Exception as e:
+                logger.debug(f"[QuantTerminal] Error stopping bot worker: {e}")
+
+        if hasattr(self, "bot_thread") and self.bot_thread:
+            try:
+                if self.bot_thread.isRunning():
+                    self.bot_thread.quit()
+                    if not self.bot_thread.wait(3000):
+                        logger.warning("[QuantTerminal] Bot thread did not terminate within 3s, terminating...")
+                        self.bot_thread.terminate()
+                        self.bot_thread.wait(1000)
+            except Exception as e:
+                logger.debug(f"[QuantTerminal] Error waiting on bot thread: {e}")
             self.bot_thread = None
             self.bot_worker = None
 
-        # Cho phep cac luong AI hoan tat truoc khi giai phong de tranh warning
+        # 3. Stop telegram background polling
+        try:
+            telegram_notifier.stop_listening()
+        except Exception:
+            pass
+
+        # 4. Stop all active AI threads
         if hasattr(self.window, "_active_ai_threads") and self.window._active_ai_threads:
             for t in list(self.window._active_ai_threads):
                 if t and t.isRunning():
-                    if hasattr(t, "stop"):
-                        t.stop()
-                    t.quit()
-                    if not t.wait(2000):
-                        t.terminate()
-                        t.wait(500)
+                    try:
+                        if hasattr(t, "stop"):
+                            t.stop()
+                        t.quit()
+                        if not t.wait(2000):
+                            t.terminate()
+                            t.wait(500)
+                    except Exception:
+                        pass
             self.window._active_ai_threads.clear()
         elif (
             hasattr(self.window, "ai_thread")
             and self.window.ai_thread
             and self.window.ai_thread.isRunning()
         ):
-            if hasattr(self.window.ai_thread, "stop"):
-                self.window.ai_thread.stop()
-            self.window.ai_thread.quit()
-            if not self.window.ai_thread.wait(2000):
-                self.window.ai_thread.terminate()
-                self.window.ai_thread.wait(500)
+            try:
+                if hasattr(self.window.ai_thread, "stop"):
+                    self.window.ai_thread.stop()
+                self.window.ai_thread.quit()
+                if not self.window.ai_thread.wait(2000):
+                    self.window.ai_thread.terminate()
+                    self.window.ai_thread.wait(500)
+            except Exception:
+                pass
 
-        # Cho phep init_worker hoan tat neu dong ung dung ngay khi mo
+        # 5. Stop splash init worker if still running
         if hasattr(self, "init_worker") and self.init_worker and self.init_worker.isRunning():
-            self.init_worker.quit()
-            if not self.init_worker.wait(2000):
-                self.init_worker.terminate()
-                self.init_worker.wait(500)
+            try:
+                self.init_worker.quit()
+                if not self.init_worker.wait(2000):
+                    self.init_worker.terminate()
+                    self.init_worker.wait(500)
+            except Exception:
+                pass
 
+        # 6. Release system tray and OS power locks
+        if hasattr(self, "tray_manager") and self.tray_manager:
+            try:
+                self.tray_manager.set_keep_awake(False)
+                if self.tray_manager.tray_icon:
+                    self.tray_manager.tray_icon.hide()
+            except Exception:
+                pass
+
+        logger.info("[QuantTerminal] Graceful shutdown completed cleanly.")
+
+    def closeEvent(self, event):
+        # If force-quitting via tray or system shutdown, proceed with full cleanup
+        if getattr(self, "_is_force_quitting", False):
+            self.shutdown()
+            if event:
+                event.accept()
+            return
+
+        # Prevent accidental trade disconnection if bot is actively running
+        if self.bot_thread and self.bot_thread.isRunning():
+            if hasattr(self, "tray_manager") and self.tray_manager and self.tray_manager.tray_icon:
+                event.ignore()
+                self.tray_manager.minimize_to_tray()
+                return
+
+        self.shutdown()
         if event:
             event.accept()
 
@@ -1443,9 +1495,15 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))
 
+    import signal
+    signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
+
     from frontend.widgets.splash_screen import InitWorker
 
     terminal = QuantTerminal(with_overlay=True)
+
+    # Guarantee clean thread join whenever Qt starts to quit
+    app.aboutToQuit.connect(terminal.shutdown)
 
     worker = InitWorker()
     worker.setObjectName("InitWorkerThread")
@@ -1455,5 +1513,7 @@ if __name__ == "__main__":
         worker.init_done.connect(lambda: terminal.overlay.fade_out_and_destroy(350))
     worker.start()
 
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    terminal.shutdown()
+    sys.exit(exit_code)
 

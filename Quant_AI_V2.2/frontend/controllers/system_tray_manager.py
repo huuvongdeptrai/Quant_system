@@ -320,10 +320,15 @@ class SystemTrayManager(QObject):
                 logger.error(f"[SystemTrayManager] Emergency close all failed: {e}")
 
     def _exit_application(self) -> None:
-        """Cleanly releases locks and terminates the entire application."""
+        """Cleanly releases locks, stops background worker threads, and terminates the application."""
         self.set_keep_awake(False)
         if self.tray_icon:
             self.tray_icon.hide()
+
+        if hasattr(self, "terminal") and self.terminal:
+            setattr(self.terminal, "_is_force_quitting", True)
+            if hasattr(self.terminal, "shutdown"):
+                self.terminal.shutdown()
 
         app = QApplication.instance()
         if app:

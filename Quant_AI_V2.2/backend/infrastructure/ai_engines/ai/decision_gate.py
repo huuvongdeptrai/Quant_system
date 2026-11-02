@@ -270,6 +270,8 @@ class DecisionGate:
             raise RuntimeError(f"Attached ML model cannot be loaded: {target_file.name}") from e
 
     def _is_meta_labeling_enabled(self) -> bool:
+        if os.environ.get("QUANT_TESTING") == "1":
+            return True
         """Reads enable_meta_labeling setting from configuration store with True default."""
         try:
             from frontend.widgets.options.options_binder import OptionsConfigBinder
