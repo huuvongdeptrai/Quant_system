@@ -127,6 +127,7 @@ class AIAnalyzerThread(QtCore.QThread):
                     "_price": self.tech_data.get("current_price", 0) if self.tech_data else 0,
                     "_resistance": self.tech_data.get("resistance", 0) if self.tech_data else 0,
                     "_support": self.tech_data.get("support", 0) if self.tech_data else 0,
+                    "trend_macro": "ĐI NGANG",
                     "trend_intraday": self.tech_data.get("math_trend", "SIDEWAYS") if self.tech_data else "SIDEWAYS",
                     "scenario_a": "Local Quant Model active (Ollama offline).",
                     "scenario_b": "Technical analysis via quantitative strategy.",
@@ -185,6 +186,9 @@ class AIAnalyzerThread(QtCore.QThread):
                     result["_pct_resistance"] = price_info.get("pct_from_resistance", 0)
 
                 result["_htf_bias"] = htf_bias
+                if not result.get("trend_macro") or result.get("trend_macro") in ("--", "ĐI NGANG"):
+                    macro_map = {"BULLISH": "TĂNG", "BEARISH": "GIẢM", "NEUTRAL": "ĐI NGANG"}
+                    result["trend_macro"] = macro_map.get(htf_bias, "ĐI NGANG")
 
             except Exception:
 
