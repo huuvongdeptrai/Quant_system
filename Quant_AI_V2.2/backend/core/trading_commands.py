@@ -164,7 +164,8 @@ class TradingCommandService:
             from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
             bars=mt5.copy_rates_from_pos(symbol,config.timeframe,1,300)
             gate=DecisionGate().evaluate(symbol,'BUY' if is_buy else 'SELL',timeframe=config.timeframe,
-                gate_mode=config.gate_mode.value,rates=bars,strategy_id=strategy_id or config.strategy_id)
+                gate_mode=config.gate_mode.value,rates=bars,strategy_id=strategy_id or config.strategy_id,
+                enable_meta_labeling=getattr(config, 'enable_meta_labeling', True))
             if gate.get('decision') != ('BUY' if is_buy else 'SELL'):
                 return self._error(gate.get('reason','Decision gate rejected entry'))
             multiplier=float(gate.get('size_multiplier',1))

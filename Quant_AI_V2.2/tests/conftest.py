@@ -43,6 +43,11 @@ def isolate_mt5_environment():
     """Ensures MT5 connection state does not leak across test modules and boundaries."""
     yield
     try:
+        from backend.core.market_state_store import MarketStateStore
+        MarketStateStore.get_instance().reset()
+    except Exception:
+        pass
+    try:
         mt5.shutdown()
     except Exception:
         pass
@@ -55,6 +60,8 @@ def isolated_trading_state(tmp_path, monkeypatch):
     DatabaseManager(str(tmp_path / "isolated.sqlite"))
     TradingCommandService._runtime = None
     TradingCommandService._emergency_halt = False
+    from backend.core.market_state_store import MarketStateStore
+    MarketStateStore.get_instance().reset()
     monkeypatch.setenv("QUANT_TESTING", "1")
     from backend.core.macro_context_bus import MacroContextBus
     MacroContextBus._instance=None
@@ -89,9 +96,17 @@ def persistent_qt_application():
     from PySide6.QtWidgets import QApplication
     _qt_app=QApplication.instance() or QApplication([])
     yield _qt_app
-    from PySide6.QtCore import QThreadPool
-    QThreadPool.globalInstance().waitForDone(5000)
-    _qt_app.processEvents()
+    try:
+        from PySide6.QtCore import QThreadPool
+        QThreadPool.globalInstance().waitForDone(2000)
+        _qt_app.processEvents()
+    except Exception:
+        pass
+    try:
+        from loguru import logger
+        logger.complete()
+    except Exception:
+        pass
 
 @pytest.fixture(autouse=True)
 def nonblocking_offscreen_dialogs(monkeypatch):

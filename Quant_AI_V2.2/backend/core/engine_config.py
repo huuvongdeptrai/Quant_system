@@ -147,6 +147,7 @@ class BotRunConfig:
     news_defense_enabled: bool = True
     defense_window_mins: int = 15
     news_defense_be_r: float = 1.5
+    enable_meta_labeling: bool = True
 
     # Session Controls
     allowed_sessions: Tuple[str, ...] = ("ASIAN", "LONDON", "NY")
@@ -247,6 +248,7 @@ class BotRunConfig:
             news_defense_enabled=_to_bool(data.get("news_defense_enabled"), True),
             defense_window_mins=_to_int(data.get("defense_window_mins"), 15),
             news_defense_be_r=_to_float(data.get("news_defense_be_r"), 1.5),
+            enable_meta_labeling=_to_bool(data.get("enable_meta_labeling"), True),
             allowed_sessions=sessions_tuple,
         )
 
@@ -276,5 +278,6 @@ class BotRunConfig:
             "news_defense_enabled": self.news_defense_enabled,
             "defense_window_mins": self.defense_window_mins,
             "news_defense_be_r": self.news_defense_be_r,
+            "enable_meta_labeling": self.enable_meta_labeling,
             "allowed_sessions": list(self.allowed_sessions),
         }

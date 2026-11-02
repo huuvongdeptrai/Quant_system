@@ -95,10 +95,19 @@ class ExecutionSettingsTab(QWidget):
         self.spinSignalExpiry.setSuffix(" sec")
         self.spinSignalExpiry.setValue(60)
 
+        self.chkEnableMetaLabeling = QCheckBox("Filter signals with ML Meta-Labeling Gate")
+        self.chkEnableMetaLabeling.setStyleSheet("font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #334155;")
+        self.chkEnableMetaLabeling.setToolTip(
+            "When enabled, secondary LightGBM Meta-Labeling evaluates trade probability.\n"
+            "Signals with win probability below threshold are filtered to prevent drawdowns.\n"
+            "When disabled, signals pass purely based on strategy rules (Baseline A/B mode)."
+        )
+
         lay_strat.addWidget(self._create_row("Strategy:", self.comboStrategy))
         lay_strat.addWidget(self._create_row("Timeframe:", self.comboTradingTimeframe))
         lay_strat.addWidget(self._create_row("Mode:", self.comboExecutionMode))
         lay_strat.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
+        lay_strat.addWidget(self._create_row("ML Meta Gate:", self.chkEnableMetaLabeling))
         lay_strat.addStretch()
 
         # ----------------------------------------------------------------------
@@ -204,6 +213,7 @@ class ExecutionSettingsTab(QWidget):
         self.spinMaxSpread.setValue(int(data.get("max_spread", defaults["max_spread"])))
         self.spinSlippage.setValue(int(data.get("slippage", defaults["slippage"])))
         self.spinSignalExpiry.setValue(int(data.get("signal_expiry_sec", defaults["signal_expiry_sec"])))
+        self.chkEnableMetaLabeling.setChecked(bool(data.get("enable_meta_labeling", defaults.get("enable_meta_labeling", True))))
 
         ts_enabled = bool(data.get("enable_trailing_stop", defaults.get("enable_trailing_stop", False)))
         self.chkEnableTrailing.setChecked(ts_enabled)
@@ -239,6 +249,7 @@ class ExecutionSettingsTab(QWidget):
             "max_spread": self.spinMaxSpread.value(),
             "slippage": self.spinSlippage.value(),
             "signal_expiry_sec": self.spinSignalExpiry.value(),
+            "enable_meta_labeling": self.chkEnableMetaLabeling.isChecked(),
             "enable_trailing_stop": is_ts_active,
             "breakeven_pips": self.spinBreakevenPips.value(),
             "trailing_pips": self.spinTrailingPips.value(),

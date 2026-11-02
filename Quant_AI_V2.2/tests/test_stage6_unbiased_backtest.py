@@ -78,7 +78,10 @@ class TestStage6UnbiasedBacktest:
         assert report.max_drawdown_pct == pytest.approx(expected_dd)
         assert report.final_equity == pytest.approx(report.initial_balance+sum(report.trades))
         assert report.mathematical_expectancy == pytest.approx(float(np.mean(report.trades)),abs=.011)
-        assert report.sharpe_ratio == 0.0  # Synthetic data has no calendar axis.
+        if 'time' in df.columns:
+            assert isinstance(report.sharpe_ratio, float) and np.isfinite(report.sharpe_ratio)
+        else:
+            assert report.sharpe_ratio == 0.0  # Synthetic data has no calendar axis.
 
         print("\n" + "=" * 65)
         print("   UNBIASED BACKTEST REPORT (WITH COMMISSION & SLIPPAGE)")

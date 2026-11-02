@@ -50,6 +50,7 @@ DEFAULTS = {
     "signal_expiry_sec": 60,
     "strategy": "builtin_ict_pro",
     "timeframe": 15,
+    "enable_meta_labeling": True,
 }
 
 

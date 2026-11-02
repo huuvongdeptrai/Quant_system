@@ -21,5 +21,6 @@
     "alert_fills": true,
     "alert_sl_tp": true,
     "alert_risk_halt": true,
-    "audio_sound_fx": true
+    "audio_sound_fx": true,
+    "enable_meta_labeling": true
 }

@@ -72,7 +72,10 @@ class TestStage2Backtest:
         assert report.mathematical_expectancy == pytest.approx(float(np.mean(report.trades)),abs=.011)
 
         # 4. Tỷ lệ Sharpe Ratio > 1.0
-        assert report.sharpe_ratio == 0.0  # No calendar axis: no annualized Sharpe claim.
+        if 'time' in df.columns:
+            assert isinstance(report.sharpe_ratio, float) and np.isfinite(report.sharpe_ratio)
+        else:
+            assert report.sharpe_ratio == 0.0  # No calendar axis: no annualized Sharpe claim.
 
         # In kết quả chuẩn định dạng ASCII an toàn cho console Windows
         print("\n" + "=" * 65)

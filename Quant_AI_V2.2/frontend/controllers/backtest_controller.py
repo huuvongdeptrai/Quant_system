@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PySide6.QtWidgets import (
-    QApplication, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget
+    QApplication, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QPushButton, QLabel, QComboBox, QSizePolicy, QDoubleSpinBox, QFrame, QWidget, QScrollArea, QCalendarWidget, QCheckBox
 )
 from PySide6.QtCore import Qt, QUrl, QSize, QDate
 from PySide6.QtGui import QColor, QFont, QIcon, QDesktopServices
@@ -157,6 +157,47 @@ class BacktestWorkbenchController:
         self.comboBtMode.blockSignals(False)
         self.comboBtMode.currentIndexChanged.connect(self._on_mode_changed)
 
+        # 2c. ML Meta-Labeling Filter Checkbox (A/B Testing Gate)
+        if hasattr(self.window, "chkBtMetaLabeling"):
+            self.chkBtMetaLabeling = self.window.chkBtMetaLabeling
+        else:
+            self.chkBtMetaLabeling = QCheckBox("ML Filter")
+            self.chkBtMetaLabeling.setObjectName("chkBtMetaLabeling")
+            setattr(self.window, "chkBtMetaLabeling", self.chkBtMetaLabeling)
+
+        self.chkBtMetaLabeling.setFixedHeight(32)
+        self.chkBtMetaLabeling.setCursor(Qt.PointingHandCursor)
+        self.chkBtMetaLabeling.setChecked(False)
+        self.chkBtMetaLabeling.setToolTip(
+            "KIỂM THỬ ĐỐI CHỨNG A/B - BỘ LỌC HỌC MÁY META-LABELING (LightGBM):\n\n"
+            "• TẮT (Baseline - Nhóm A):\n"
+            "  Chạy tín hiệu nguyên bản từ chiến lược (Raw Strategy Signals) không qua bộ lọc ML.\n\n"
+            "• BẬT (Filtered - Nhóm B):\n"
+            "  Kích hoạt mô hình học máy Meta-Labeling (11 đặc trưng vi cấu trúc & chế độ thị trường).\n"
+            "  Chỉ cho phép vào lệnh khi xác suất thắng dự báo vượt ngưỡng tin cậy (P >= Threshold) nhằm giảm Max Drawdown."
+        )
+        self.chkBtMetaLabeling.setStyleSheet("""
+            QCheckBox#chkBtMetaLabeling {
+                font-family: 'Segoe UI', -apple-system, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
+                color: #334155;
+                padding-left: 4px;
+                padding-right: 6px;
+            }
+            QCheckBox#chkBtMetaLabeling::indicator {
+                width: 14px;
+                height: 14px;
+                border: 1px solid #94a3b8;
+                border-radius: 2px;
+                background-color: #ffffff;
+            }
+            QCheckBox#chkBtMetaLabeling::indicator:checked {
+                background-color: #2563eb;
+                border-color: #2563eb;
+            }
+        """)
+
         # Hide self-explanatory labels (TF:, Strategy:, Symbol:, Sample:)
         for lbl_name in ["lblBtTf", "lblBtStrategy", "lblBtSymbol"]:
             if hasattr(self.window, lbl_name):
@@ -215,6 +256,8 @@ class BacktestWorkbenchController:
                 layout.insertWidget(2, self.window.comboBtEngine)
             if hasattr(self, "comboBtMode"):
                 layout.insertWidget(3, self.comboBtMode)
+            if hasattr(self, "chkBtMetaLabeling"):
+                layout.insertWidget(4, self.chkBtMetaLabeling)
 
             for i in range(layout.count()):
                 sp = layout.itemAt(i).spacerItem()
@@ -737,6 +780,32 @@ class BacktestWorkbenchController:
         self.is_dark_theme = False
         """Switch chart backgrounds, axis colors, and curve brushes between Dark and Light mode."""
         self.is_dark_theme = is_dark
+
+        if hasattr(self, "chkBtMetaLabeling") and self.chkBtMetaLabeling:
+            text_col = "#cbd5e1" if is_dark else "#334155"
+            ind_bg = "#1e293b" if is_dark else "#ffffff"
+            ind_border = "#475569" if is_dark else "#94a3b8"
+            self.chkBtMetaLabeling.setStyleSheet(f"""
+                QCheckBox#chkBtMetaLabeling {{
+                    font-family: 'Segoe UI', -apple-system, sans-serif;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: {text_col};
+                    padding-left: 4px;
+                    padding-right: 6px;
+                }}
+                QCheckBox#chkBtMetaLabeling::indicator {{
+                    width: 14px;
+                    height: 14px;
+                    border: 1px solid {ind_border};
+                    border-radius: 2px;
+                    background-color: {ind_bg};
+                }}
+                QCheckBox#chkBtMetaLabeling::indicator:checked {{
+                    background-color: #2563eb;
+                    border-color: #2563eb;
+                }}
+            """)
 
         if hasattr(self, "last_report") and self.last_report:
             tokens = ThemeEngine.get_tokens(is_dark)

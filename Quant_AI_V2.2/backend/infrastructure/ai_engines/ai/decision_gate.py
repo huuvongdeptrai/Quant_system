@@ -269,8 +269,18 @@ class DecisionGate:
             logger.error(f"[DecisionGate] Failed to load ML model {target_file.name}: {e}")
             raise RuntimeError(f"Attached ML model cannot be loaded: {target_file.name}") from e
 
+    def _is_meta_labeling_enabled(self) -> bool:
+        """Reads enable_meta_labeling setting from configuration store with True default."""
+        try:
+            from frontend.widgets.options.options_binder import OptionsConfigBinder
+            cfg, _, _ = OptionsConfigBinder.load_settings()
+            return bool(cfg.get("enable_meta_labeling", True))
+        except Exception:
+            return True
+
     def _evaluate_meta_labeling(
-        self, symbol: str, signal: str, strategy_id: Optional[str] = None, rates=None, timeframe=None
+        self, symbol: str, signal: str, strategy_id: Optional[str] = None, rates=None, timeframe=None,
+        strict_version: bool = True
     ) -> Tuple[bool, float, str]:
         """
         Evaluates trade probability using the auto-discovered Meta-Labeling model.
@@ -296,7 +306,7 @@ class DecisionGate:
                 raise ValueError('Model feature columns must be a list of names')
         except Exception as exc:
             return False,0.0,f'Model metadata unavailable: {exc}'
-        if metadata.get('feature_version') != FEATURE_VERSION:
+        if strict_version and metadata.get('feature_version') != FEATURE_VERSION:
             return False,0.0,'Model feature version mismatch; retraining is required'
         if not math.isfinite(threshold) or not 0 <= threshold <= 1:
             return False,0.0,'Invalid model threshold'
@@ -334,7 +344,7 @@ class DecisionGate:
             logger.error(f"[DecisionGate] Error computing ML features: {e}")
             return False, 0.0, f"ML Evaluation Error (Blocked: {e})"
 
-    def _evaluate_technical(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
+    def _evaluate_technical(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, enable_meta_labeling=True, strict_version=True, **kwargs):
         """
 
         Diem vao chinh: kiem duyet tin hieu tu Strategy.
@@ -730,10 +740,11 @@ class DecisionGate:
 
 
         # Kiem tra Machine Learning Meta-Labeling (Model Registry Drop-in Hook)
-        if decision in ["BUY", "SELL"]:
+        if decision in ["BUY", "SELL"] and enable_meta_labeling:
             try:
                 is_ml_pass, ml_prob, ml_msg = self._evaluate_meta_labeling(
-                    symbol, decision, strategy_id=strategy_id, rates=rates, timeframe=timeframe
+                    symbol, decision, strategy_id=strategy_id, rates=rates, timeframe=timeframe,
+                    strict_version=strict_version
                 )
                 if not is_ml_pass:
                     logger.info(f"[DecisionGate] {symbol}: {ml_msg}")
@@ -750,6 +761,8 @@ class DecisionGate:
                 trade_mode = 'BLOCKED'
                 size_multiplier = 0.0
                 reason = f'ML evaluation unavailable: {e}'
+        elif decision in ["BUY", "SELL"] and not enable_meta_labeling:
+            reason += " [MLMetaGate: Bypassed (A/B Test / Disabled)]" 
 
         logger.info(
             f"[DecisionGate] {symbol}: GateMode=FULL, Strategy={signal_from_strategy}, "
@@ -771,16 +784,26 @@ class DecisionGate:
             "be_trigger_r": be_trigger_r,
         }
 
-    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, **kwargs):
+    def evaluate(self, symbol, signal_from_strategy, timeframe=None, gate_mode="FULL", rates=None, strategy_id=None, enable_meta_labeling=None, strict_version=True, **kwargs):
+        if enable_meta_labeling is None:
+            enable_meta_labeling = kwargs.get('enable_meta_labeling')
+        if enable_meta_labeling is None:
+            enable_meta_labeling = self._is_meta_labeling_enabled()
+
         strategy_id=strategy_id or '__unconfigured__'
         aliases={'BYPASS':'FREE','TECH_ONLY':'TECHNICAL'}
         mode=aliases.get(str(gate_mode).upper(),str(gate_mode).upper())
         if mode not in ('FREE','TECHNICAL','TREND','FULL') or signal_from_strategy not in ('BUY','SELL'):
             return {'decision':'WAIT','reason':'Invalid gate mode or signal','trade_mode':'BLOCKED','size_multiplier':0}
         try:
-            result=self._evaluate_technical(symbol,signal_from_strategy,timeframe,mode,rates,strategy_id,**kwargs)
-            if result['decision'] in ('BUY','SELL') and mode in ('TECHNICAL','TREND'):
-                passed,prob,reason=self._evaluate_meta_labeling(symbol,result['decision'],strategy_id,rates,timeframe)
+            result=self._evaluate_technical(
+                symbol,signal_from_strategy,timeframe,mode,rates,strategy_id,
+                enable_meta_labeling=enable_meta_labeling,strict_version=strict_version,**kwargs
+            )
+            if result['decision'] in ('BUY','SELL') and mode in ('TECHNICAL','TREND') and enable_meta_labeling:
+                passed,prob,reason=self._evaluate_meta_labeling(
+                    symbol,result['decision'],strategy_id,rates,timeframe,strict_version=strict_version
+                )
                 if not passed:
                     result.update(decision='WAIT',reason=reason,trade_mode='BLOCKED',size_multiplier=0)
             return result

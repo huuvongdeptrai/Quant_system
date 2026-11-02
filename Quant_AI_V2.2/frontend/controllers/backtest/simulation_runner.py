@@ -154,6 +154,13 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
         init_cap = self.spinBtCapital.value() if hasattr(self, "spinBtCapital") else 100000.0
         comm_val = self.spinBtComm.value() if hasattr(self, "spinBtComm") else 7.0
 
+        # Determine A/B Test toggle: Group A (Raw Baseline) vs Group B (ML Meta-Labeling Filter)
+        use_ml = False
+        if hasattr(self.window, "chkBtMetaLabeling") and self.window.chkBtMetaLabeling and self.window.chkBtMetaLabeling.isChecked():
+            use_ml = True
+        elif hasattr(self, "chkBtMetaLabeling") and self.chkBtMetaLabeling and self.chkBtMetaLabeling.isChecked():
+            use_ml = True
+
         # Determine engine mode from UI selector: Mode 1 (Vectorized) vs Mode 2 (Event-Driven)
         bt_mode = "vectorized"
         if hasattr(self, "comboBtMode") and self.comboBtMode:
@@ -162,11 +169,15 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             bt_mode = self.window.comboBtMode.currentData() or ("event_driven" if "event" in self.window.comboBtMode.currentText().lower() else "vectorized")
 
         is_event_driven = (bt_mode == "event_driven")
+        if use_ml and not is_event_driven:
+            self._log(f"[{now_str}] [BACKTEST] [A/B TEST: GROUP B] Bộ lọc ML Meta-Labeling yêu cầu kiểm thử Bar-by-Bar -> Tự động kích hoạt Event-Driven Engine.")
+            is_event_driven = True
 
         if is_event_driven:
             self._log(f"[{now_str}] [BACKTEST] ĐỘNG CƠ: Chế độ 2 - Event-Driven Engine (engine_event_driven.py / backtest_ict_pro.py)")
             self._log(f"[{now_str}] [BACKTEST] Phương thức: Bơm từng nến qua đúng hàm analyze() của {strat_name} (Mô phỏng 100% chuẩn Live)")
 
+            strat_id = strat_data.get("id") if isinstance(strat_data, dict) else strat_name
             strat_inst_or_key = strat_name
             if strat_data:
                 file_p = strat_data.get("file_path")
@@ -180,6 +191,34 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
 
             df_event = df.copy().reset_index(drop=True)
             self._log(f"[{now_str}] [EVENT-DRIVEN] Bắt đầu kiểm thử Bar-by-Bar toàn bộ {len(df_event):,} nến từ {from_str} đến {to_str}...")
+
+            signal_filter_cb = None
+            if use_ml:
+                from backend.infrastructure.ai_engines.ai.decision_gate import DecisionGate
+                gate = DecisionGate()
+                model_info = gate._get_or_load_meta_model(strat_id or strat_name)
+                if model_info:
+                    booster, threshold, feature_cols, model_filename = model_info
+                    self._log(f"[{now_str}] [BACKTEST] [A/B TEST: GROUP B] Meta-Labeling ML Filter KÍCH HOẠT: {model_filename} (Ngưỡng P >= {threshold:.2f})")
+                else:
+                    self._log(f"[{now_str}] [BACKTEST] [A/B TEST: GROUP B] Meta-Labeling ML Filter KÍCH HOẠT: Sử dụng bộ lọc xác suất Meta-Labeling chuẩn.")
+
+                def _meta_label_filter(feature_window, res):
+                    sig = res.get('signal')
+                    if sig not in ('BUY', 'SELL'):
+                        return True
+                    is_pass, prob, reason = gate._evaluate_meta_labeling(
+                        symbol=self.current_symbol,
+                        signal=sig,
+                        strategy_id=strat_id or strat_name,
+                        rates=feature_window,
+                        strict_version=False,
+                    )
+                    return is_pass
+
+                signal_filter_cb = _meta_label_filter
+            else:
+                self._log(f"[{now_str}] [BACKTEST] [A/B TEST: GROUP A] Raw Strategy Baseline (Bộ lọc ML ĐANG TẮT)")
 
             def _on_event_prog(cur, tot):
                 from PySide6.QtWidgets import QApplication
@@ -195,7 +234,7 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
                 commission_per_lot=comm_val,
                 slippage_pts=float(slippage_pts),
             )
-            report = bt_event.run(df_event, symbol=self.current_symbol, progress_callback=_on_event_prog)
+            report = bt_event.run(df_event, symbol=self.current_symbol, progress_callback=_on_event_prog, signal_filter=signal_filter_cb)
             if report is None:
                 self._log(f"[{now_str}] [BACKTEST] Cần tối thiểu 150 nến để chạy Event-Driven bar-by-bar, chuyển sang Vectorized...")
                 bt_vec = VectorizedBacktester(
@@ -435,8 +474,9 @@ def run_simulation_internal(ctrl, is_initial: bool = False):
             date_rng = pd.date_range(end=pd.Timestamp.now(), periods=len(ret), freq="15min")
             self.daily_returns = pd.Series(ret, index=date_rng).resample("D").sum().dropna()
 
+        ab_tag = "[A/B TEST: NHÓM B - ML FILTERED]" if use_ml else "[A/B TEST: NHÓM A - RAW BASELINE]"
         self._log(
-            f"[{now_str}] [QUANT METRICS] Return: {fmt_percent(report.total_return_pct, sign=True)} | "
+            f"[{now_str}] {ab_tag} Return: {fmt_percent(report.total_return_pct, sign=True)} | "
             f"Sharpe Ratio: {report.sharpe_ratio:.2f} | Max Drawdown: {fmt_percent(abs(report.max_drawdown_pct))} | "
             f"Total Trades: {report.total_trades} (Win Rate: {report.win_rate_pct:.1f}%)"
         )
