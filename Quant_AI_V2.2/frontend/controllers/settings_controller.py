@@ -878,7 +878,7 @@ class SettingsManager:
         except Exception:
             pass
 
-        self._set_status("CONFIGURATION READY", "#475569")
+        self._set_status("", "#475569")
 
     def _hot_reload_live_bot(self, data: dict):
         from backend.core.trading_commands import TradingCommandService

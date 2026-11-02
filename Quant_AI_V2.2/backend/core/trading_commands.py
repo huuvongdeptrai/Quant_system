@@ -121,7 +121,9 @@ class TradingCommandService:
         if info is None or tick is None or tick.bid<=0 or tick.ask<=0:
             return self._error('Quote unavailable')
         tick_time = getattr(tick,'time',0)
-        if not isinstance(tick_time,(int,float)) or time.time()-tick_time > 120 or tick_time-time.time()>5:
+        broker_offset = int(round((tick_time - time.time()) / 3600.0)) * 3600
+        broker_now = time.time() + broker_offset
+        if not isinstance(tick_time,(int,float)) or broker_now-tick_time > 120 or tick_time-broker_now>5:
             return self._error('Quote is stale or has an invalid timestamp')
         price = float(pending_price if pending_type else (tick.ask if is_buy else tick.bid))
         if not math.isfinite(price) or price<=0 or not (sl<price<tp if is_buy else tp<price<sl):
@@ -287,7 +289,12 @@ class TradingCommandService:
                     return self._error('Invalid pending order geometry')
                 config = self._config(self._runtime)
                 info, tick = mt5.symbol_info(symbol), mt5.symbol_info_tick(symbol)
-                if info is None or tick is None or abs(time.time()-tick.time)>120:
+                if info is None or tick is None:
+                    return self._error('Quote unavailable or stale')
+                tick_time = getattr(tick, 'time', 0)
+                broker_offset = int(round((tick_time - time.time()) / 3600.0)) * 3600
+                broker_now = time.time() + broker_offset
+                if not isinstance(tick_time, (int, float)) or abs(broker_now - tick_time) > 120:
                     return self._error('Quote unavailable or stale')
                 step = float(info.trade_tick_size)
                 if step <= 0 or any(abs(v/step-round(v/step))>1e-6 for v in (price,sl,tp)):

@@ -142,6 +142,10 @@ class MT5SafeController:
         Returns offset such that: broker_time = utc_time + offset.
         Defaults to +7200 (2h) if disconnected.
         """
+        import time
+        now = time.time()
+        if hasattr(self, "_cached_broker_utc_offset") and (now - getattr(self, "_last_offset_check_ts", 0) < 300):
+            return self._cached_broker_utc_offset
         try:
             with self._mt5_lock:
                 from datetime import datetime, timezone
@@ -151,10 +155,13 @@ class MT5SafeController:
                         utc_now = datetime.now(timezone.utc).timestamp()
                         diff = tick.time - utc_now
                         offset_hours = round(diff / 3600.0)
-                        return int(offset_hours * 3600)
+                        val = int(offset_hours * 3600)
+                        self._cached_broker_utc_offset = val
+                        self._last_offset_check_ts = now
+                        return val
         except Exception as e:
             logger.debug(f"[MT5Safe] Error determining broker UTC offset: {e}")
-        return 7200
+        return getattr(self, "_cached_broker_utc_offset", 7200)
 
 
 
