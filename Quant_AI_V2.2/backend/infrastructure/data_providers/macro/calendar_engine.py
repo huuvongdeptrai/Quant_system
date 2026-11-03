@@ -42,7 +42,8 @@ class CalendarEngine:
             'SERVICES ACTIVITY', 'MANUFACTURING ACTIVITY', 'BUSINESS OUTLOOK',
             'SURVEY', 'MORTGAGE', 'WEEKLY', 'REDBOOK',
             'CRUDE OIL INVENTORIES', 'EIA', 'API', 'NATURAL GAS',
-            'AUCTION', 'HOLIDAY', 'CAR REGISTRATIONS'
+            'AUCTION', 'HOLIDAY', 'CAR REGISTRATIONS',
+            'ELECTION', 'ELECTIONS', 'BANK HOLIDAY', 'PUBLIC HOLIDAY', 'DAY OFF'
         ]
         if any(kw in title_upper for kw in demote_to_low):
             return 0

@@ -325,16 +325,39 @@ class MacroContextBus:
         Pre-Trade Gate validation specifically for News Defense.
         Returns: (is_passed: bool, status_val: 'PASS' | 'BLOCKED' | 'OVERRIDE', message: str)
         """
-        prof = self.get_profile(symbol)
-        if time.time()-prof.timestamp > 120:
-            return False, "BLOCKED", "News context unavailable or stale"
+        clean_sym = symbol.upper().split(".")[0].replace("/", "").strip()
+        prof = self.get_profile(clean_sym)
+
+        # 1. Respect manual override permission first
+        if self.get_manual_override() or getattr(prof, "manual_override_lock", False):
+            return True, "OVERRIDE", f"News Lockout Bypassed: {prof.next_event_title} (Manual Override Active)"
+
+        # 2. Check explicitly active / simulated blackout on profile with recent timestamp
+        if prof.news_blackout and (time.time() - prof.timestamp <= 120):
+            return False, "BLOCKED", f"News Defense: Locked ({prof.next_event_title or 'High-Impact'} Blackout ±15m)"
+
+        # 3. Direct real-time EventRiskEngine check (avoids false blocks due to slow-cycle background cache latency)
+        try:
+            is_impacted, news_title = self._event_risk_engine.check_news_impact_for_symbol(clean_sym)
+            if is_impacted:
+                with self._data_lock:
+                    if clean_sym in self._profiles:
+                        self._profiles[clean_sym].news_blackout = True
+                        self._profiles[clean_sym].next_event_title = news_title
+                        self._profiles[clean_sym].timestamp = time.time()
+                return False, "BLOCKED", f"News Defense: Locked ({news_title} Blackout ±15m)"
+            else:
+                with self._data_lock:
+                    if clean_sym in self._profiles:
+                        self._profiles[clean_sym].news_blackout = False
+                return True, "PASS", "News Defense: Clear (No blackout)"
+        except Exception as e:
+            logger.debug(f"[MacroContextBus] Direct event check error for {clean_sym}: {e}")
+
         if not prof.news_blackout:
             return True, "PASS", "News Defense: Clear (No blackout)"
 
-        if prof.manual_override_lock:
-            return True, "OVERRIDE", f"News Lockout Bypassed: {prof.next_event_title} (Manual Override Active)"
-
-        return False, "BLOCKED", f"News Defense: Locked ({prof.next_event_title} Blackout ?15m)"
+        return False, "BLOCKED", f"News Defense: Locked ({prof.next_event_title} Blackout ±15m)"
 
     def get_macro_context(self, symbol: str) -> Dict[str, Any]:
         """

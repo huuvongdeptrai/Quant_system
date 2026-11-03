@@ -1188,14 +1188,14 @@ class CalendarManager:
                         min_any_med_gap = gap
                         best_any_med = r
 
-        # Hierarchical Selection
+        # Hierarchical Selection: prioritize direct target symbol releases before foreign events
         selected_row = -1
         if best_target_high != -1:
             selected_row = best_target_high
-        elif best_any_high != -1:
-            selected_row = best_any_high
         elif best_target_med != -1:
             selected_row = best_target_med
+        elif best_any_high != -1:
+            selected_row = best_any_high
         elif best_any_med != -1:
             selected_row = best_any_med
 
@@ -1312,9 +1312,9 @@ class CalendarManager:
                 "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
             )
         else:
-            self.badge_target_relevance.setText(f"TARGET: INDIRECT ({cntry})")
+            self.badge_target_relevance.setText(f"TARGET: UNEXPOSED ({curr_sym} CLEAR)")
             self.badge_target_relevance.setStyleSheet(
-                "background-color: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); "
+                "background-color: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); "
                 "font-family: Consolas; font-size: 8.5px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
             )
 
@@ -1326,7 +1326,11 @@ class CalendarManager:
         if cntry.upper() == "US":
             affected.extend(["XAUUSD", "US30", "NAS100", "BTCUSD"])
 
-        self.lbl_desk_assets.setText("AFFECTED ASSETS: " + (", ".join(affected) if affected else f"{cntry} DOMESTIC"))
+        aff_str = ", ".join(affected) if affected else f"{cntry} DOMESTIC"
+        if is_direct:
+            self.lbl_desk_assets.setText(f"AFFECTED ASSETS: {aff_str}")
+        else:
+            self.lbl_desk_assets.setText(f"AFFECTED ASSETS: {aff_str} · ({curr_sym} UNEXPOSED)")
 
         # Update quantitative assessment card for clicked event
         self._update_quant_action_card(event)
@@ -1399,6 +1403,7 @@ class CalendarManager:
         prev = str(event.get("previous", "")).strip()
         surprise = event.get("surprise", 0.0)
         curr_sym = self._current_symbol.upper()
+        is_direct = self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title)
 
         self.lbl_qa_event_name.setText(f"EVENT: {cntry} · {title.upper()}")
 
@@ -1425,17 +1430,33 @@ class CalendarManager:
                 status_word = "positive" if surprise > 0 else "negative"
                 eval_msg = f"• AI Assessment: {cntry} economic data printed {status_word} relative to consensus forecast."
 
-            if surprise != 0:
-                _, impact_msg, color = self._evaluate_asset_news_reaction(curr_sym, cntry, is_cntry_pos)
+            if is_direct:
+                if surprise != 0:
+                    _, impact_msg, color = self._evaluate_asset_news_reaction(curr_sym, cntry, is_cntry_pos)
+                else:
+                    impact_msg = f"• Target Impact ({curr_sym}): Normal price action. Respects prevailing M15 chart structure."
+                    color = "#0284c7"
             else:
-                impact_msg = f"• Target Impact ({curr_sym}): Normal price action. Respects prevailing M15 chart structure."
-                color = "#0284c7"
+                impact_msg = f"• Target Impact ({curr_sym}): UNEXPOSED ({cntry} Domestic Release) · Normal risk controls apply."
+                color = "#22c55e"
         else:
             # Upcoming scheduled release
+            now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            sort_key = event.get("sort_key", 0.0)
+            diff_sec = sort_key - now_ts
+
             self.lbl_qa_surprise.setText(f"FORECAST: {forecast or 'N/A'}  |  PREVIOUS: {prev or '--'}")
-            eval_msg = "• AI Assessment: Event monitored within active volatility and liquidity window."
-            impact_msg = f"• Action Protocol ({curr_sym}): Automated T-15M defense shield arms 15 minutes prior to release."
-            color = "#f59e0b"
+            eval_msg = f"• AI Assessment: {cntry} macro event monitored within active volatility window."
+            if is_direct:
+                if 0 <= diff_sec <= 900:
+                    impact_msg = f"• Action Protocol ({curr_sym}): T-15M defense shield ARMED · Auto-trailing & breakeven protection active."
+                    color = "#ef4444"
+                else:
+                    impact_msg = f"• Action Protocol ({curr_sym}): Automated T-15M defense shield arms 15 minutes prior to release."
+                    color = "#f59e0b"
+            else:
+                impact_msg = f"• Action Protocol ({curr_sym}): UNEXPOSED ({cntry} Domestic Event) · Standard risk parameters apply."
+                color = "#22c55e"
 
         self.lbl_qa_ai_insight.setText(eval_msg)
         self.lbl_qa_asset_impact.setText(impact_msg)
@@ -1461,7 +1482,13 @@ class CalendarManager:
 
         if impacted_syms:
             badges_html = " ".join([f"<span style='background-color:rgba(245,158,11,0.15); color:#f59e0b; padding:1px 5px; border:1px solid rgba(245,158,11,0.3); border-radius:2px; font-family:Consolas; font-weight:bold;'>[{s}]</span>" for s in impacted_syms])
-            wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#f59e0b; font-size:8.5px;'>· T-15M LOCK</span>"
+            now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            sort_key = event.get("sort_key", 0.0)
+            diff_sec = sort_key - now_ts
+            if 0 <= diff_sec <= 900:
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#ef4444; font-size:8.5px; font-weight:bold;'>· T-15M LOCK ARMED</span>"
+            else:
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#f59e0b; font-size:8.5px;'>· EXPOSED (STANDBY - ARMS AT T-15M)</span>"
             if safe_syms and len(safe_syms) > 0:
                 safe_badges = " ".join([f"<span style='color:#64748b; font-family:Consolas;'>[{s}]</span>" for s in safe_syms[:4]])
                 wl_msg += f"<br>• UNEXPOSED: {safe_badges}"
@@ -1593,6 +1620,31 @@ class CalendarManager:
                 tp_lvl = vah_lvl
 
         # 4. Render Scenario Cards
+        is_direct = self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title) if event else True
+        if not is_direct:
+            self.lbl_qa_badge.setText("UNEXPOSED ASSET")
+            self.lbl_qa_badge.setStyleSheet(
+                "background-color: rgba(34, 197, 94, 0.15); color: #22c55e; "
+                "font-family: Consolas; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: none;"
+            )
+            self.lbl_scen_a_title.setText("SCENARIO A: TARGET CONFLUENCE")
+            self.lbl_scen_a_badge.setText(f"({curr_sym} UNEXPOSED)")
+            self.lbl_scen_a_badge.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+            self.lbl_scen_a_thesis.setText(f"• Confluence: {curr_sym} operates independently of {cntry} domestic event. Primary trend dictates execution.")
+            self.lbl_scen_a_action.setText(f"• Action: Standard trading permitted. Respect prevailing M15 chart structure near {poc_lvl:,.{digits}f}.")
+            self.lbl_scen_a_action.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 8.5px; font-weight: 600; border: none;")
+
+            self.lbl_scen_b_title.setText("SCENARIO B: CROSS-RATE SPILLOVER")
+            self.lbl_scen_b_badge.setText("(SECONDARY FLOW)")
+            self.lbl_scen_b_badge.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 8px; font-weight: bold; border: none;")
+            self.lbl_scen_b_thesis.setText(f"• Spillover: Cross-rate volatility absorbed unless {cntry} yields surge > 3.0 Sigma.")
+            self.lbl_scen_b_action.setText(f"• Defense: Standard Stop-Loss active at {inval_lvl:,.{digits}f}. No emergency news lockout required.")
+            self.lbl_scen_b_action.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 8.5px; font-weight: 600; border: none;")
+            return
+
+        self.lbl_scen_a_title.setText("SCENARIO A: PRIMARY THESIS")
+        self.lbl_scen_b_title.setText("SCENARIO B: INVALIDATION POINT")
+
         if is_ollama:
             self.lbl_qa_badge.setText("OLLAMA REASONING")
             self.lbl_qa_badge.setStyleSheet(
@@ -1684,6 +1736,10 @@ class CalendarManager:
         diff_sec = int(sort_key - now_utc_ts)
 
         impact = event.get("impact", 0)
+        cntry = event.get("country", "US")
+        title = event.get("title", "")
+        curr_sym = self._current_symbol.upper()
+        is_direct = self.risk_engine.is_symbol_impacted_by_event(curr_sym, cntry, title)
 
         if diff_sec > 0:
             hrs = diff_sec // 3600
@@ -1693,17 +1749,25 @@ class CalendarManager:
 
             # Within T-15m defense window
             if diff_sec <= 900 and impact == 2:
-                if self._override_active:
-                    self.lbl_countdown_val.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
-                    self.lbl_lockout_status.setText("STATUS: OVERRIDE ACTIVE (TRADING ALLOWED)")
-                    self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+                if is_direct:
+                    if self._override_active:
+                        self.lbl_countdown_val.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
+                        self.lbl_lockout_status.setText(f"STATUS: OVERRIDE ACTIVE ({curr_sym} UNLOCKED)")
+                        self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+                    else:
+                        self.lbl_countdown_val.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
+                        self.lbl_lockout_status.setText(f"STATUS: T-15M DEFENSE ARMED ({curr_sym} LOCKED)")
+                        self.lbl_lockout_status.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
                 else:
-                    self.lbl_countdown_val.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
-                    self.lbl_lockout_status.setText("STATUS: T-15M DEFENSE ARMED (ORDERS LOCKED)")
-                    self.lbl_lockout_status.setStyleSheet("color: #ef4444; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
+                    self.lbl_countdown_val.setStyleSheet("color: #38bdf8; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
+                    self.lbl_lockout_status.setText(f"STATUS: MONITORING · {curr_sym} CLEAR ({cntry} ASSETS PROTECTED)")
+                    self.lbl_lockout_status.setStyleSheet("color: #38bdf8; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
             else:
                 self.lbl_countdown_val.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
-                self.lbl_lockout_status.setText("STATUS: MONITORING · WINDOW CLEAR")
+                if is_direct:
+                    self.lbl_lockout_status.setText("STATUS: MONITORING · WINDOW CLEAR")
+                else:
+                    self.lbl_lockout_status.setText(f"STATUS: MONITORING · {curr_sym} CLEAR ({cntry} DOMESTIC)")
                 self.lbl_lockout_status.setStyleSheet("color: #22c55e; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
         else:
             abs_past = abs(diff_sec)
@@ -1721,7 +1785,7 @@ class CalendarManager:
 
             self.lbl_countdown_val.setText(time_past_str)
             self.lbl_countdown_val.setStyleSheet("color: #64748b; font-family: Consolas; font-size: 20px; font-weight: 900; border: none;")
-            if abs_past <= 900 and impact == 2 and not self._override_active:
+            if abs_past <= 900 and impact == 2 and is_direct and not self._override_active:
                 self.lbl_lockout_status.setText("STATUS: POST-NEWS SPREAD RECOVERY")
                 self.lbl_lockout_status.setStyleSheet("color: #f59e0b; font-family: Consolas; font-size: 9.5px; font-weight: bold; border: none;")
             else:
