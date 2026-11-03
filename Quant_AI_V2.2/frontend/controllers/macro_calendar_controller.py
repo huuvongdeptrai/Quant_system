@@ -1486,9 +1486,13 @@ class CalendarManager:
             sort_key = event.get("sort_key", 0.0)
             diff_sec = sort_key - now_ts
             if 0 <= diff_sec <= 900:
-                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#ef4444; font-size:8.5px; font-weight:bold;'>· T-15M LOCK ARMED</span>"
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#ef4444; font-size:8.5px; font-weight:bold;'>· T-15M LOCK: ARMED</span>"
+            elif actual and actual != "--" and actual != "None":
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#22c55e; font-size:8.5px;'>· T-15M LOCK: POST-RELEASE</span>"
+            elif diff_sec < 0:
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#22c55e; font-size:8.5px;'>· T-15M LOCK: POST-RELEASE</span>"
             else:
-                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#f59e0b; font-size:8.5px;'>· EXPOSED (STANDBY - ARMS AT T-15M)</span>"
+                wl_msg = f"• WATCHLIST EXPOSURE: {badges_html} <span style='color:#f59e0b; font-size:8.5px;'>· T-15M LOCK: STANDBY (ARMS AT T-15M)</span>"
             if safe_syms and len(safe_syms) > 0:
                 safe_badges = " ".join([f"<span style='color:#64748b; font-family:Consolas;'>[{s}]</span>" for s in safe_syms[:4]])
                 wl_msg += f"<br>• UNEXPOSED: {safe_badges}"

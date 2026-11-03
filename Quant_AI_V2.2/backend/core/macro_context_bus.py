@@ -332,6 +332,10 @@ class MacroContextBus:
         if self.get_manual_override() or getattr(prof, "manual_override_lock", False):
             return True, "OVERRIDE", f"News Lockout Bypassed: {prof.next_event_title} (Manual Override Active)"
 
+        # Check stale profile (> 120s)
+        if time.time() - prof.timestamp > 120:
+            return False, "BLOCKED", "News context unavailable or stale"
+
         # 2. Check explicitly active / simulated blackout on profile with recent timestamp
         if prof.news_blackout and (time.time() - prof.timestamp <= 120):
             return False, "BLOCKED", f"News Defense: Locked ({prof.next_event_title or 'High-Impact'} Blackout ±15m)"

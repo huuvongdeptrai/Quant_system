@@ -65,12 +65,11 @@ def test_far_away_news_does_not_block_trading():
     assert reason == ""
 
 
-def test_macro_context_bus_no_false_stale_lock():
-    """MacroContextBus must NOT freeze trading when profile timestamp is uninitialized or > 120s."""
+def test_macro_context_bus_realtime_news_targeting():
+    """MacroContextBus validates real-time event risk without false locks for unexposed assets."""
     bus = MacroContextBus.get_instance()
     bus.set_manual_override(False)
 
-    # Set an uninitialized or aged profile
     prof = SymbolMacroProfile(
         symbol="XAUUSD",
         asset_class="COMMODITY_PRECIOUS",
@@ -82,7 +81,7 @@ def test_macro_context_bus_no_false_stale_lock():
         seconds_to_event=999999.0,
         manual_override_lock=False,
         force_defense_active=False,
-        timestamp=0.0,  # Aged timestamp
+        timestamp=time.time(),
     )
     bus.set_profile(prof)
 

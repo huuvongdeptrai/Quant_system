@@ -113,8 +113,10 @@ class TradingCommandService:
         visible_symbols = {p.symbol for p in positions} | {o.symbol for o in orders}
         reserved_symbols = {i['symbol'] for i in self.db.get_unresolved_intents()}
         reserved_slots = len(reserved_symbols - visible_symbols)
-        if len(positions)+len(orders)+reserved_slots >= config.max_open_trades:
+        if not manual and (len(positions)+len(orders)+reserved_slots >= config.max_open_trades):
             return self._error('Capacity or unresolved execution blocks entry')
+        elif manual and (len(positions)+len(orders) >= config.max_open_trades):
+            return self._error(f'Max open trades limit reached ({len(positions)+len(orders)}/{config.max_open_trades})')
         if not manual and self.db.has_unresolved_intent(symbol):
             return self._error('Capacity or unresolved execution blocks entry')
         if not manual and any(t['symbol']==symbol for t in self.db.get_open_trades()):
