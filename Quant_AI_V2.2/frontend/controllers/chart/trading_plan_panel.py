@@ -1680,6 +1680,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
     # Interactive [×] dismiss handler on chart labels
     def _dismiss_manual_preview(ev=None):
         window._show_manual_preview = False
+        window._manual_preview_explicitly_requested = False
         clear_manual_chart_lines(window)
         if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
             window.btnManualClearPreview.setText("SHOW PREVIEW")
@@ -1923,8 +1924,25 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         except Exception:
             pass
 
-    # Also update chart lines (suppress manual preview lines when modifying an existing broker ticket)
-    if getattr(window, "_show_manual_preview", True) and not getattr(window, "_modifying_ticket", None):
+    # Also update chart lines (suppress manual preview lines when modifying an existing broker ticket OR when a live position exists unless explicitly requested)
+    has_live_pos = False
+    if mt5.terminal_info() is not None:
+        try:
+            live_p = mt5.positions_get(symbol=clean_sym)
+            live_o = mt5.orders_get(symbol=clean_sym)
+            if (live_p and len(live_p) > 0) or (live_o and len(live_o) > 0):
+                has_live_pos = True
+        except Exception:
+            pass
+
+    should_show = getattr(window, "_show_manual_preview", True)
+    if has_live_pos and not getattr(window, "_manual_preview_explicitly_requested", False):
+        should_show = False
+        window._show_manual_preview = False
+        if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+            window.btnManualClearPreview.setText("SHOW PREVIEW")
+
+    if should_show and not getattr(window, "_modifying_ticket", None):
         _setup_chart_manual_lines(window, clean_sym, is_buy, lot, sl_val, tp_val)
     else:
         clear_manual_chart_lines(window)
@@ -2525,6 +2543,14 @@ def execute_manual_quant_order(window):
 
     if order_res and order_res.get("status") == "success":
         ticket = order_res.get("ticket", "OK")
+        # Institutional UX: Instantly dismiss draft preview lines upon fill so they never obscure real broker position lines
+        window._show_manual_preview = False
+        window._manual_preview_explicitly_requested = False
+        clear_manual_chart_lines(window)
+        if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+            window.btnManualClearPreview.setText("SHOW PREVIEW")
+        if hasattr(window, "sync_chart_orders"):
+            window.sync_chart_orders()
         if hasattr(window, "btnManualExecute"):
             window.btnManualExecute.setText(f"FILLED #{ticket}")
             window.btnManualExecute.setEnabled(False)
@@ -3750,6 +3776,7 @@ def setup_trading_plan_cards(window, is_dark=False):
         cur_vis = getattr(window, "_show_manual_preview", True)
         new_vis = not cur_vis
         window._show_manual_preview = new_vis
+        window._manual_preview_explicitly_requested = new_vis
         if new_vis:
             btn_m_clear_preview.setText("HIDE PREVIEW")
             _recalculate_manual_lot_and_rr(window)

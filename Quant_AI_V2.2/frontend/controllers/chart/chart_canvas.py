@@ -1942,6 +1942,16 @@ def setup_chart_ui(window):
         elif not getattr(win, "is_live_position", False):
             win.is_pending_order = False
 
+        if (positions or pending_orders) and not getattr(win, "_manual_preview_explicitly_requested", False):
+            win._show_manual_preview = False
+            try:
+                from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                clear_manual_chart_lines(win)
+                if hasattr(win, "btnManualClearPreview") and win.btnManualClearPreview:
+                    win.btnManualClearPreview.setText("SHOW PREVIEW")
+            except Exception:
+                pass
+
         def _upsert_line(key, price, color, style, label_str, movable, tkt, l_type, is_pos, action_str, vol, pos_ratio, border_color=None, entry_p=None):
             active_keys.add(key)
             border_c = border_color or color
@@ -3173,6 +3183,16 @@ def setup_chart_ui(window):
                         window.pending_ticket = tkt
                         window.pending_order_type = order_type_str
                         window.pending_price = target_price
+                        # Dismiss manual draft preview lines
+                        window._show_manual_preview = False
+                        window._manual_preview_explicitly_requested = False
+                        try:
+                            from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+                            clear_manual_chart_lines(window)
+                            if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+                                window.btnManualClearPreview.setText("SHOW PREVIEW")
+                        except Exception:
+                            pass
                         if hasattr(window, "refresh_active_orders"):
                             window.refresh_active_orders()
                     else:
