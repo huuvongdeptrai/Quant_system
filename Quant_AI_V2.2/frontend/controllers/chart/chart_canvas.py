@@ -2106,7 +2106,7 @@ def setup_chart_ui(window):
                 is_pos=True,
                 action_str=act_name,
                 vol=vol,
-                pos_ratio=0.92,
+                pos_ratio=0.96,
                 border_color=dir_c,
                 entry_p=open_p
             )
@@ -2125,7 +2125,7 @@ def setup_chart_ui(window):
                     is_pos=True,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.84,
+                    pos_ratio=0.96,
                     border_color=bear_color,
                     entry_p=open_p
                 )
@@ -2144,7 +2144,7 @@ def setup_chart_ui(window):
                     is_pos=True,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.76,
+                    pos_ratio=0.96,
                     border_color=bull_color,
                     entry_p=open_p
                 )
@@ -2184,7 +2184,7 @@ def setup_chart_ui(window):
                 is_pos=False,
                 action_str=act_name,
                 vol=vol,
-                pos_ratio=0.92,
+                pos_ratio=0.96,
                 border_color=dir_c,
                 entry_p=open_p
             )
@@ -2203,7 +2203,7 @@ def setup_chart_ui(window):
                     is_pos=False,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.84,
+                    pos_ratio=0.96,
                     border_color=bear_color,
                     entry_p=open_p
                 )
@@ -2222,7 +2222,7 @@ def setup_chart_ui(window):
                     is_pos=False,
                     action_str=act_name,
                     vol=vol,
-                    pos_ratio=0.76,
+                    pos_ratio=0.96,
                     border_color=bull_color,
                     entry_p=open_p
                 )
@@ -2350,6 +2350,12 @@ def setup_chart_ui(window):
                 window.lblSignalExpiry.setStyleSheet("color: #10b981; font-family: 'Consolas', monospace; font-size: 9.5px; font-weight: bold;")
             event_bus.log_event.emit("", "SUCCESS", f"Order filled: {side_str} {lot_size:.2f} lots {sym} #{ticket}", "#10b981")
             window.order_proposal_active = False
+            from frontend.controllers.chart.trading_plan_panel import clear_manual_chart_lines
+            clear_manual_chart_lines(window)
+            window._show_manual_preview = False
+            window._manual_preview_explicitly_requested = False
+            if hasattr(window, "btnManualClearPreview") and window.btnManualClearPreview:
+                window.btnManualClearPreview.setText("SHOW PREVIEW")
             for l_name in ("line_order_entry", "line_order_sl", "line_order_tp"):
                 if hasattr(window, l_name):
                     l_obj = getattr(window, l_name)

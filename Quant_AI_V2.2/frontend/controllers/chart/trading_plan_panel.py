@@ -658,7 +658,7 @@ def update_order_proposal_html(
                     window.line_order_entry.label.setColor("#f8fafc")
                     window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
                     window.line_order_entry.label.border = pg.mkPen(color=dir_c, width=1.0)
-                    window.line_order_entry.label.setPosition(0.92)
+                    window.line_order_entry.label.setPosition(0.96)
                     window.line_order_entry.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                 if hasattr(window, "plot_widget"):
                     try:
@@ -678,7 +678,7 @@ def update_order_proposal_html(
                         window.line_order_sl.label.setColor("#f8fafc")
                         window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
                         window.line_order_sl.label.border = pg.mkPen(color=bear_c, width=1.0)
-                        window.line_order_sl.label.setPosition(0.84)
+                        window.line_order_sl.label.setPosition(0.96)
                         window.line_order_sl.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                     if hasattr(window, "plot_widget"):
                         try:
@@ -705,7 +705,7 @@ def update_order_proposal_html(
                         window.line_order_tp.label.setColor("#f8fafc")
                         window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
                         window.line_order_tp.label.border = pg.mkPen(color=bull_c, width=1.0)
-                        window.line_order_tp.label.setPosition(0.76)
+                        window.line_order_tp.label.setPosition(0.96)
                         window.line_order_tp.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
                     if hasattr(window, "plot_widget"):
                         try:
@@ -1623,7 +1623,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_entry.label.setColor("#f8fafc")
             window.line_order_entry.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_entry.label.border = pg.mkPen(color=dir_c, width=1.0)
-            window.line_order_entry.label.setPosition(0.92)
+            window.line_order_entry.label.setPosition(0.96)
             window.line_order_entry.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_entry.setVisible(True)
         if window.line_order_entry not in window.plot_widget.items():
@@ -1647,7 +1647,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_sl.label.setColor("#f8fafc")
             window.line_order_sl.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_sl.label.border = pg.mkPen(color=bear_c, width=1.0)
-            window.line_order_sl.label.setPosition(0.84)
+            window.line_order_sl.label.setPosition(0.96)
             window.line_order_sl.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_sl.setVisible(True)
         if window.line_order_sl not in window.plot_widget.items():
@@ -1671,7 +1671,7 @@ def _setup_chart_manual_lines(window, sym, is_buy, lot, sl, tp):
             window.line_order_tp.label.setColor("#f8fafc")
             window.line_order_tp.label.fill = pg.mkBrush(15, 23, 42, 235)
             window.line_order_tp.label.border = pg.mkPen(color=bull_c, width=1.0)
-            window.line_order_tp.label.setPosition(0.76)
+            window.line_order_tp.label.setPosition(0.96)
             window.line_order_tp.label.setFont(pg.Qt.QtGui.QFont("Consolas", 8))
         window.line_order_tp.setVisible(True)
         if window.line_order_tp not in window.plot_widget.items():
