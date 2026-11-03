@@ -51,6 +51,7 @@ DEFAULTS = {
     "strategy": "builtin_ict_pro",
     "timeframe": 15,
     "enable_meta_labeling": True,
+    "manual_compliance_mode": "DISCRETIONARY",
 }
 
 

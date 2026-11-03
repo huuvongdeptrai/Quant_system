@@ -152,6 +152,9 @@ class BotRunConfig:
     # Session Controls
     allowed_sessions: Tuple[str, ...] = ("ASIAN", "LONDON", "NY")
 
+    # Manual Trading Compliance Mode ("DISCRETIONARY" or "SYSTEM_GUARD")
+    manual_compliance_mode: str = "DISCRETIONARY" 
+
     def __post_init__(self):
         if not math.isfinite(self.risk_per_trade) or not 0 < self.risk_per_trade <= 100:
             raise ValueError('risk_per_trade must be finite and in (0,100]')
@@ -250,6 +253,7 @@ class BotRunConfig:
             news_defense_be_r=_to_float(data.get("news_defense_be_r"), 1.5),
             enable_meta_labeling=_to_bool(data.get("enable_meta_labeling"), True),
             allowed_sessions=sessions_tuple,
+            manual_compliance_mode=str(data.get("manual_compliance_mode") or "DISCRETIONARY").upper(),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -280,4 +284,5 @@ class BotRunConfig:
             "news_defense_be_r": self.news_defense_be_r,
             "enable_meta_labeling": self.enable_meta_labeling,
             "allowed_sessions": list(self.allowed_sessions),
+            "manual_compliance_mode": self.manual_compliance_mode,
         }

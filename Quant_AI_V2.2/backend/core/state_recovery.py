@@ -282,8 +282,15 @@ class StateRecoveryManager:
                     self.db.finish_intent(intent['intent_id'],'UNKNOWN',payload)
                 else:
                     continue
-            start=datetime.fromisoformat(intent['updated_at'])-timedelta(minutes=5)
-            end=datetime.now(timezone.utc)+timedelta(minutes=1)
+            updated_str = intent.get('updated_at') or ''
+            try:
+                updated_dt = datetime.fromisoformat(updated_str)
+                if updated_dt.tzinfo is None:
+                    updated_dt = updated_dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                updated_dt = datetime.now(timezone.utc)
+            start = updated_dt - timedelta(minutes=5)
+            end = datetime.now(timezone.utc) + timedelta(minutes=1)
             # A historical position query below supplies its entire entry/exit lifecycle.
             deals=mt5.history_deals_get(start,end)
             if deals is None:
@@ -369,6 +376,10 @@ class StateRecoveryManager:
                     continue
                 self.db.finish_intent(intent['intent_id'],'CANCELED',{
                     'request':request,'broker_order':terminal[-1].ticket})
+            elif (datetime.now(timezone.utc) - updated_dt).total_seconds() > 60:
+                # Orphaned intent: Not working in broker, no deals, and no terminal order in history
+                self.db.finish_intent(intent['intent_id'], 'CANCELED', {
+                    'request': request, 'reason': 'Orphaned intent timed out after 60s'})
 
     def can_open_new_trade(self, symbol: str) -> bool:
         """

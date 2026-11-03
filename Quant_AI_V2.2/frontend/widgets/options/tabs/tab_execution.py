@@ -108,6 +108,16 @@ class ExecutionSettingsTab(QWidget):
         lay_strat.addWidget(self._create_row("Mode:", self.comboExecutionMode))
         lay_strat.addWidget(self._create_row("Signal Expiry:", self.spinSignalExpiry))
         lay_strat.addWidget(self._create_row("ML Meta Gate:", self.chkEnableMetaLabeling))
+
+        self.comboManualComplianceMode = QComboBox()
+        self.comboManualComplianceMode.addItem("Discretionary (100% Trader Freedom)", "DISCRETIONARY")
+        self.comboManualComplianceMode.addItem("System Guard (Auto 50% Vol on Counter-Trend)", "SYSTEM_GUARD")
+        self.comboManualComplianceMode.setToolTip(
+            "Manual Trading Compliance Mode:\n"
+            "• Discretionary: 100% human discretion, full volume regardless of macro trend.\n"
+            "• System Guard: Automatically scales lot size to 50% when trading counter-trend."
+        )
+        lay_strat.addWidget(self._create_row("Manual Mode:", self.comboManualComplianceMode))
         lay_strat.addStretch()
 
         # ----------------------------------------------------------------------
@@ -215,6 +225,11 @@ class ExecutionSettingsTab(QWidget):
         self.spinSignalExpiry.setValue(int(data.get("signal_expiry_sec", defaults["signal_expiry_sec"])))
         self.chkEnableMetaLabeling.setChecked(bool(data.get("enable_meta_labeling", defaults.get("enable_meta_labeling", True))))
 
+        cm = data.get("manual_compliance_mode", defaults.get("manual_compliance_mode", "DISCRETIONARY"))
+        idx_cm = self.comboManualComplianceMode.findData(cm)
+        if idx_cm >= 0:
+            self.comboManualComplianceMode.setCurrentIndex(idx_cm)
+
         ts_enabled = bool(data.get("enable_trailing_stop", defaults.get("enable_trailing_stop", False)))
         self.chkEnableTrailing.setChecked(ts_enabled)
         if ts_enabled:
@@ -250,6 +265,7 @@ class ExecutionSettingsTab(QWidget):
             "slippage": self.spinSlippage.value(),
             "signal_expiry_sec": self.spinSignalExpiry.value(),
             "enable_meta_labeling": self.chkEnableMetaLabeling.isChecked(),
+            "manual_compliance_mode": self.comboManualComplianceMode.currentData() or "DISCRETIONARY",
             "enable_trailing_stop": is_ts_active,
             "breakeven_pips": self.spinBreakevenPips.value(),
             "trailing_pips": self.spinTrailingPips.value(),

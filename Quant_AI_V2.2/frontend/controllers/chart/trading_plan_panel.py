@@ -904,6 +904,36 @@ def update_ai_reasoning(window, is_dark=None):
     update_order_proposal_html(window, is_dark=is_dark)
 
 
+def _update_manual_mode_button_style(window):
+    """Refreshes flat institutional toggle styling for manual compliance mode button."""
+    btn = getattr(window, "btnManualModeToggle", None)
+    if not btn:
+        return
+    cur_m = getattr(window, "_manual_compliance_mode", "DISCRETIONARY")
+    is_d = getattr(window, "is_dark_theme", False)
+    if cur_m == "SYSTEM_GUARD":
+        txt = "[ MODE: SYSTEM GUARD ]"
+        bg = "rgba(245, 158, 11, 0.15)" if is_d else "rgba(217, 119, 6, 0.12)"
+        fg = "#f59e0b" if is_d else "#b45309"
+        border = "rgba(245, 158, 11, 0.4)" if is_d else "#d97706"
+        tip = "System Guard Active: Counter-trend orders are automatically scaled down to 50% volume to protect capital.\nClick to switch to Discretionary Mode."
+    else:
+        txt = "[ MODE: DISCRETIONARY ]"
+        bg = "rgba(56, 189, 248, 0.12)" if is_d else "rgba(2, 132, 199, 0.10)"
+        fg = "#38bdf8" if is_d else "#0284c7"
+        border = "rgba(56, 189, 248, 0.3)" if is_d else "#0284c7"
+        tip = "Discretionary Mode Active: 100% trader autonomy, orders execute with full volume.\nClick to switch to System Guard Mode."
+
+    btn.setText(txt)
+    btn.setToolTip(tip)
+    btn.setStyleSheet(
+        f"QPushButton {{ background-color: {bg}; color: {fg}; border: 1px solid {border}; "
+        f"border-radius: 2px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; "
+        f"padding: 1px 6px; }} "
+        f"QPushButton:hover {{ background-color: {fg}; color: {'#000000' if is_d else '#ffffff'}; }}"
+    )
+
+
 def apply_playbook_cards_theme(window, is_dark: bool):
     """Apply strict institutional palette to the 3-Card Trading Plan Playbook."""
     assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
@@ -1226,6 +1256,8 @@ def apply_playbook_cards_theme(window, is_dark: bool):
         if sp:
             sp.style().unpolish(sp)
             sp.style().polish(sp)
+
+    _update_manual_mode_button_style(window)
 
     # Volume Stepper Buttons
     lot_step_style = (
@@ -1750,6 +1782,8 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
     multiplier = get_symbol_multiplier(clean_sym, info)
     pip_unit = get_symbol_pip_unit(clean_sym, digits, point)
 
+    min_lot = float(info.volume_min) if (info and hasattr(info, "volume_min") and info.volume_min) else 0.01
+
     if from_user_lot_change and hasattr(window, "spinManualLot") and window.spinManualLot:
         window._user_custom_lot = True
         lot = round(window.spinManualLot.value(), 2)
@@ -1758,10 +1792,30 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         lot = round(window.spinManualLot.value(), 2)
     else:
         lot, _ = calculate_manual_quant_lot(clean_sym, sl_pts, risk_pct, balance=balance)
-        if hasattr(window, "spinManualLot") and window.spinManualLot:
-            window.spinManualLot.blockSignals(True)
-            window.spinManualLot.setValue(lot)
-            window.spinManualLot.blockSignals(False)
+
+    # Compliance Mode Evaluation: DISCRETIONARY vs SYSTEM GUARD
+    compliance_mode = getattr(window, "_manual_compliance_mode", "DISCRETIONARY")
+    macro_bias = "NEUTRAL"
+    is_pro_trend = False
+    is_counter_trend = False
+    try:
+        from backend.core.macro_context_bus import MacroContextBus
+        prof = MacroContextBus.get_instance().get_profile(clean_sym)
+        if prof and hasattr(prof, "directional_bias"):
+            macro_bias = prof.directional_bias.upper()
+        is_pro_trend = (is_buy and "BULL" in macro_bias) or (not is_buy and "BEAR" in macro_bias)
+        is_counter_trend = (is_buy and "BEAR" in macro_bias) or (not is_buy and "BULL" in macro_bias)
+    except Exception:
+        pass
+
+    # If in SYSTEM GUARD and counter-trend, automatically scale down volume by 50%
+    if compliance_mode == "SYSTEM_GUARD" and is_counter_trend:
+        lot = max(min_lot, round(lot * 0.5, 2))
+
+    if hasattr(window, "spinManualLot") and window.spinManualLot:
+        window.spinManualLot.blockSignals(True)
+        window.spinManualLot.setValue(lot)
+        window.spinManualLot.blockSignals(False)
 
     risk_dlr = round(sl_pts * lot * multiplier, 2)
     risk_pct = round((risk_dlr / balance) * 100.0, 1) if balance > 0 else 1.0
@@ -1848,41 +1902,42 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
         window.btnManualExecute.style().unpolish(window.btnManualExecute)
         window.btnManualExecute.style().polish(window.btnManualExecute)
 
-    # Update Macro Copilot Advisory Badge (Strictly non-intrusive, advisory only)
+    # Update Macro Copilot Advisory Badge (Dynamic mode awareness: DISCRETIONARY vs SYSTEM GUARD)
     if hasattr(window, "lblManualCopilotBadge") and window.lblManualCopilotBadge:
         try:
-            from backend.core.macro_context_bus import MacroContextBus
-            bus = MacroContextBus.get_instance()
-            prof = bus.get_profile(clean_sym)
-            macro_bias = prof.directional_bias.upper()
-
-            if macro_bias == "BULLISH":
-                if is_buy:
-                    badge_t = "PRO-TREND (BULL)"
+            bias_tag = "BULL" if "BULL" in macro_bias else ("BEAR" if "BEAR" in macro_bias else "NEUT")
+            if compliance_mode == "SYSTEM_GUARD":
+                if is_counter_trend:
+                    badge_t = f"⚠️ COUNTER-TREND ({bias_tag} · 50% VOL)"
+                    b_color = "#f59e0b" if is_d else "#b45309"
+                    b_bg = "#241805" if is_d else "#fef3c7"
+                    b_bdr = "#b45309" if is_d else "#fcd34d"
+                elif is_pro_trend:
+                    badge_t = f"PRO-TREND ({bias_tag} · 100% VOL)"
                     b_color = "#22c55e" if is_d else "#15803d"
                     b_bg = "#0d2818" if is_d else "#f0fdf4"
                     b_bdr = "#15803d" if is_d else "#86efac"
                 else:
-                    badge_t = "⚠️ COUNTER-TREND (BULL)"
-                    b_color = "#f59e0b" if is_d else "#b45309"
-                    b_bg = "#241805" if is_d else "#fef3c7"
-                    b_bdr = "#b45309" if is_d else "#fcd34d"
-            elif macro_bias == "BEARISH":
-                if not is_buy:
-                    badge_t = "PRO-TREND (BEAR)"
-                    b_color = "#22c55e" if is_d else "#15803d"
-                    b_bg = "#0d2818" if is_d else "#f0fdf4"
-                    b_bdr = "#15803d" if is_d else "#86efac"
-                else:
-                    badge_t = "⚠️ COUNTER-TREND (BEAR)"
-                    b_color = "#f59e0b" if is_d else "#b45309"
-                    b_bg = "#241805" if is_d else "#fef3c7"
-                    b_bdr = "#b45309" if is_d else "#fcd34d"
+                    badge_t = "SYSTEM GUARD (NEUTRAL)"
+                    b_color = "#94a3b8" if is_d else "#64748b"
+                    b_bg = "#1e293b" if is_d else "#f1f5f9"
+                    b_bdr = "#334155" if is_d else "#cbd5e1"
             else:
-                badge_t = "MACRO NEUTRAL"
-                b_color = "#94a3b8" if is_d else "#64748b"
-                b_bg = "#1e293b" if is_d else "#f1f5f9"
-                b_bdr = "#334155" if is_d else "#cbd5e1"
+                if is_counter_trend:
+                    badge_t = f"⚠️ COUNTER-TREND ({bias_tag})"
+                    b_color = "#f59e0b" if is_d else "#b45309"
+                    b_bg = "#241805" if is_d else "#fef3c7"
+                    b_bdr = "#b45309" if is_d else "#fcd34d"
+                elif is_pro_trend:
+                    badge_t = f"PRO-TREND ({bias_tag})"
+                    b_color = "#22c55e" if is_d else "#15803d"
+                    b_bg = "#0d2818" if is_d else "#f0fdf4"
+                    b_bdr = "#15803d" if is_d else "#86efac"
+                else:
+                    badge_t = "MACRO NEUTRAL"
+                    b_color = "#94a3b8" if is_d else "#64748b"
+                    b_bg = "#1e293b" if is_d else "#f1f5f9"
+                    b_bdr = "#334155" if is_d else "#cbd5e1"
 
             window.lblManualCopilotBadge.setText(badge_t)
             window.lblManualCopilotBadge.setStyleSheet(
@@ -1890,10 +1945,11 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
                 f"font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; "
                 f"border-radius: 2px; padding: 1px 5px;"
             )
+            mode_desc = "System Guard Active: Counter-trend orders automatically scale down to 50% volume." if compliance_mode == "SYSTEM_GUARD" else "Discretionary Active: 100% human discretion, full volume."
             window.lblManualCopilotBadge.setToolTip(
+                f"Compliance Mode: {compliance_mode}\n"
                 f"Macro Directional Bias: {macro_bias}\n"
-                f"Regime: {prof.macro_regime}\n"
-                f"Advisory notice only. Manual orders preserve 100% human discretion."
+                f"{mode_desc}"
             )
         except Exception:
             pass
@@ -2882,8 +2938,15 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_spd = QLabel("SPREAD: 14.0 PTS")
     lbl_spd.setObjectName("lblManualSpread")
     lbl_spd.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    btn_manual_mode = QPushButton("[ MODE: DISCRETIONARY ]")
+    btn_manual_mode.setObjectName("btnManualModeToggle")
+    btn_manual_mode.setFixedHeight(18)
+    btn_manual_mode.setCursor(Qt.PointingHandCursor)
+
     row_md_top.addWidget(lbl_md_title)
-    row_md_top.addSpacing(6)
+    row_md_top.addSpacing(4)
+    row_md_top.addWidget(btn_manual_mode)
+    row_md_top.addSpacing(4)
     row_md_top.addWidget(lbl_copilot_badge)
     row_md_top.addStretch()
     row_md_top.addWidget(lbl_spd)
@@ -3401,6 +3464,7 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.lblManualHeaderTitle = lbl_md_title
     window.lblManualExecBadge = lbl_md_badge
     window.lblManualCopilotBadge = lbl_copilot_badge
+    window.btnManualModeToggle = btn_manual_mode
     window.btnManualBuy = btn_buy
     window.lblManualBuyText = lbl_buy_t
     window.lblManualAskPrice = lbl_ask_p
@@ -3558,6 +3622,30 @@ def setup_trading_plan_cards(window, is_dark=False):
 
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
         sync_manual_copilot_quotes(window)
+
+    def _toggle_manual_compliance_mode():
+        cur_m = getattr(window, "_manual_compliance_mode", "DISCRETIONARY")
+        new_m = "SYSTEM_GUARD" if cur_m == "DISCRETIONARY" else "DISCRETIONARY"
+        window._manual_compliance_mode = new_m
+        _update_manual_mode_button_style(window)
+        try:
+            from frontend.widgets.options.options_binder import OptionsConfigBinder
+            OptionsConfigBinder.save_settings({"manual_compliance_mode": new_m})
+        except Exception as e:
+            logger.debug(f"[TradingPlanPanel] Failed to persist manual_compliance_mode: {e}")
+        _recalculate_manual_lot_and_rr(window)
+
+    btn_manual_mode.clicked.connect(_toggle_manual_compliance_mode)
+
+    init_mode = "DISCRETIONARY"
+    try:
+        from frontend.widgets.options.options_binder import OptionsConfigBinder
+        s_data, _, _ = OptionsConfigBinder.load_settings()
+        init_mode = s_data.get("manual_compliance_mode", "DISCRETIONARY")
+    except Exception:
+        pass
+    window._manual_compliance_mode = init_mode
+    _update_manual_mode_button_style(window)
 
     btn_buy.clicked.connect(lambda: _set_dir("BUY"))
     btn_sell.clicked.connect(lambda: _set_dir("SELL"))

@@ -261,12 +261,13 @@ class DatabaseManager:
 
     def reserve_intent(self, signal_key, symbol, payload):
         intent_id=uuid.uuid4().hex
+        status = 'MANUAL_SUBMITTING' if payload.get('manual') else 'SUBMITTING'
         with self._db_lock, self._connection() as conn:
             try:
                 conn.execute("INSERT INTO order_intents VALUES (?,?,?,?,?,?,?)",
-                    (self.account_id,intent_id,signal_key,symbol,'SUBMITTING',json.dumps(payload,allow_nan=False),self._now()))
+                    (self.account_id,intent_id,signal_key,symbol,status,json.dumps(payload,allow_nan=False),self._now()))
                 conn.execute("INSERT INTO execution_events(account_id,intent_id,status,payload,timestamp) VALUES (?,?,?,?,?)",
-                    (self.account_id,intent_id,'SUBMITTING',json.dumps(payload,allow_nan=False),self._now()))
+                    (self.account_id,intent_id,status,json.dumps(payload,allow_nan=False),self._now()))
                 return intent_id
             except sqlite3.IntegrityError:
                 return None

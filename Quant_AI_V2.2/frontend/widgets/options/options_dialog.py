@@ -127,6 +127,7 @@ class OptionsDialog(QDialog):
         self.comboStrategy = self.tab_execution.comboStrategy
         self.comboTradingTimeframe = self.tab_execution.comboTradingTimeframe
         self.comboExecutionMode = self.tab_execution.comboExecutionMode
+        self.comboManualComplianceMode = self.tab_execution.comboManualComplianceMode
         self.chkSessionAsian = self.tab_execution.chkSessionAsian
         self.chkSessionLondon = self.tab_execution.chkSessionLondon
         self.chkSessionNY = self.tab_execution.chkSessionNY

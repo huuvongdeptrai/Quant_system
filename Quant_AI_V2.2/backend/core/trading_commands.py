@@ -107,15 +107,17 @@ class TradingCommandService:
         positions, orders = mt5.positions_get(), mt5.orders_get()
         if positions is None or orders is None:
             return self._error('Broker exposure is unavailable')
-        if any(p.symbol == symbol for p in positions) or any(o.symbol == symbol for o in orders):
+        if not manual and (any(p.symbol == symbol for p in positions) or any(o.symbol == symbol for o in orders)):
             return self._error('Existing position or pending order')
         # Count an unresolved symbol once even if its order/position is already visible.
         visible_symbols = {p.symbol for p in positions} | {o.symbol for o in orders}
         reserved_symbols = {i['symbol'] for i in self.db.get_unresolved_intents()}
         reserved_slots = len(reserved_symbols - visible_symbols)
-        if len(positions)+len(orders)+reserved_slots >= config.max_open_trades or self.db.has_unresolved_intent(symbol):
+        if len(positions)+len(orders)+reserved_slots >= config.max_open_trades:
             return self._error('Capacity or unresolved execution blocks entry')
-        if any(t['symbol']==symbol for t in self.db.get_open_trades()):
+        if not manual and self.db.has_unresolved_intent(symbol):
+            return self._error('Capacity or unresolved execution blocks entry')
+        if not manual and any(t['symbol']==symbol for t in self.db.get_open_trades()):
             return self._error('Persisted position requires reconciliation')
         info, tick = mt5.symbol_info(symbol), mt5.symbol_info_tick(symbol)
         if info is None or tick is None or tick.bid<=0 or tick.ask<=0:
@@ -195,14 +197,17 @@ class TradingCommandService:
         payload=dict(symbol=symbol,is_buy=is_buy,volume=lot,price=price,sl=sl,tp=tp,
                      comment=comment,strategy_id=strategy_id or config.strategy_id,
                      risk_pct=selected_risk, pending_type=pending_type, magic=0 if manual else
-                     (self.execution.magic if magic is None else magic))
+                     (self.execution.magic if magic is None else magic), manual=manual)
         if not manual:
             payload['holding_policy'] = {'timeframe':config.timeframe, 'max_holding_bars':20}
         if signal_key is None:
-            bars=mt5.copy_rates_from_pos(symbol,config.timeframe,1,1)
-            if bars is None or len(bars)==0:
-                return self._error('Signal timestamp unavailable')
-            signal_key=json.dumps([strategy_id or config.strategy_id,symbol,config.timeframe,int(bars[-1]['time']),is_buy,manual,pending_type])
+            if manual:
+                signal_key=json.dumps(["MANUAL",symbol,time.time_ns(),is_buy,pending_type])
+            else:
+                bars=mt5.copy_rates_from_pos(symbol,config.timeframe,1,1)
+                if bars is None or len(bars)==0:
+                    return self._error('Signal timestamp unavailable')
+                signal_key=json.dumps([strategy_id or config.strategy_id,symbol,config.timeframe,int(bars[-1]['time']),is_buy,manual,pending_type])
         key=hashlib.sha256(str(signal_key).encode()).hexdigest()
         payload['broker_tag']='V2_'+key[:20]
         intent=self.db.reserve_intent(key,symbol,payload)
@@ -245,7 +250,7 @@ class TradingCommandService:
                     result.update(ticket=pos.ticket,position_id=pos.identifier,volume=pos.volume,
                                   price=pos.price_open,sl=pos.sl,tp=pos.tp)
             if pending_type and result.get('status')=='success':
-                state='UNKNOWN'  # Keep reservation until broker order/position reconciliation.
+                state='FILLED' if manual else 'UNKNOWN'  # Manual finishes immediately; bot awaits reconciliation.
             self.db.finish_intent(intent,state,{**result,'request':payload})
             return result
         except Exception as exc:
