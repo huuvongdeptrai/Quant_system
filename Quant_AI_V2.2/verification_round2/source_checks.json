@@ -1,9 +1,0 @@
-{
-  "compiled_python_files": 301,
-  "compile_errors": [],
-  "protected_originals_unchanged": {
-    "backend/database/quant_system.db": true,
-    "storage/models/builtin_wyckoff_meta.lgb": true,
-    "storage/models/builtin_wyckoff_meta.json": true
-  }
-}

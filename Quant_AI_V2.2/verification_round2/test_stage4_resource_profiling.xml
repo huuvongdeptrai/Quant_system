@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="25.939" timestamp="2026-11-01T06:41:36.612080+00:00" hostname="3be93c385fc6"><testcase classname="tests.test_stage4_resource_profiling.TestStage4ResourceProfiling" name="test_single_cycle_resource_consumption" time="0.381" /><testcase classname="tests.test_stage4_resource_profiling.TestStage4ResourceProfiling" name="test_1000_cycles_stress_and_memory_leak" time="25.002"><failure message="Failed: Timeout (&gt;25.0s) from pytest-timeout.">tests/test_stage4_resource_profiling.py:99: in test_1000_cycles_stress_and_memory_leak
-    calculate_sr_levels(rates, current_price=curr_price, n_bars=8)
-backend/infrastructure/ai_engines/ai/sr_calculator.py:42: in calculate_sr_levels
-    abs(float(rates[k]["high"]) - float(rates[k - 1]["close"])),
-        ^^^^^^^^^^^^^^^^^^^^^^^
-E   Failed: Timeout (&gt;25.0s) from pytest-timeout.</failure></testcase></testsuite></testsuites>
