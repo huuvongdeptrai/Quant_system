@@ -904,36 +904,6 @@ def update_ai_reasoning(window, is_dark=None):
     update_order_proposal_html(window, is_dark=is_dark)
 
 
-def _update_manual_mode_button_style(window):
-    """Refreshes flat institutional toggle styling for manual compliance mode button."""
-    btn = getattr(window, "btnManualModeToggle", None)
-    if not btn:
-        return
-    cur_m = getattr(window, "_manual_compliance_mode", "DISCRETIONARY")
-    is_d = getattr(window, "is_dark_theme", False)
-    if cur_m == "SYSTEM_GUARD":
-        txt = "[ MODE: SYSTEM GUARD ]"
-        bg = "rgba(245, 158, 11, 0.15)" if is_d else "rgba(217, 119, 6, 0.12)"
-        fg = "#f59e0b" if is_d else "#b45309"
-        border = "rgba(245, 158, 11, 0.4)" if is_d else "#d97706"
-        tip = "System Guard Active: Counter-trend orders are automatically scaled down to 50% volume to protect capital.\nClick to switch to Discretionary Mode."
-    else:
-        txt = "[ MODE: DISCRETIONARY ]"
-        bg = "rgba(56, 189, 248, 0.12)" if is_d else "rgba(2, 132, 199, 0.10)"
-        fg = "#38bdf8" if is_d else "#0284c7"
-        border = "rgba(56, 189, 248, 0.3)" if is_d else "#0284c7"
-        tip = "Discretionary Mode Active: 100% trader autonomy, orders execute with full volume.\nClick to switch to System Guard Mode."
-
-    btn.setText(txt)
-    btn.setToolTip(tip)
-    btn.setStyleSheet(
-        f"QPushButton {{ background-color: {bg}; color: {fg}; border: 1px solid {border}; "
-        f"border-radius: 2px; font-family: Consolas, monospace; font-size: 8.5px; font-weight: bold; "
-        f"padding: 1px 6px; }} "
-        f"QPushButton:hover {{ background-color: {fg}; color: {'#000000' if is_d else '#ffffff'}; }}"
-    )
-
-
 def apply_playbook_cards_theme(window, is_dark: bool):
     """Apply strict institutional palette to the 3-Card Trading Plan Playbook."""
     assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets")
@@ -1257,7 +1227,6 @@ def apply_playbook_cards_theme(window, is_dark: bool):
             sp.style().unpolish(sp)
             sp.style().polish(sp)
 
-    _update_manual_mode_button_style(window)
 
     # Volume Stepper Buttons
     lot_step_style = (
@@ -1908,7 +1877,7 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
             bias_tag = "BULL" if "BULL" in macro_bias else ("BEAR" if "BEAR" in macro_bias else "NEUT")
             if compliance_mode == "SYSTEM_GUARD":
                 if is_counter_trend:
-                    badge_t = f"⚠️ COUNTER-TREND ({bias_tag} · 50% VOL)"
+                    badge_t = f"COUNTER-TREND ({bias_tag} · 50% VOL)"
                     b_color = "#f59e0b" if is_d else "#b45309"
                     b_bg = "#241805" if is_d else "#fef3c7"
                     b_bdr = "#b45309" if is_d else "#fcd34d"
@@ -1924,7 +1893,7 @@ def _recalculate_manual_lot_and_rr(window, from_user_lot_change: bool = False):
                     b_bdr = "#334155" if is_d else "#cbd5e1"
             else:
                 if is_counter_trend:
-                    badge_t = f"⚠️ COUNTER-TREND ({bias_tag})"
+                    badge_t = f"COUNTER-TREND ({bias_tag})"
                     b_color = "#f59e0b" if is_d else "#b45309"
                     b_bg = "#241805" if is_d else "#fef3c7"
                     b_bdr = "#b45309" if is_d else "#fcd34d"
@@ -2938,15 +2907,8 @@ def setup_trading_plan_cards(window, is_dark=False):
     lbl_spd = QLabel("SPREAD: 14.0 PTS")
     lbl_spd.setObjectName("lblManualSpread")
     lbl_spd.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-    btn_manual_mode = QPushButton("[ MODE: DISCRETIONARY ]")
-    btn_manual_mode.setObjectName("btnManualModeToggle")
-    btn_manual_mode.setFixedHeight(18)
-    btn_manual_mode.setCursor(Qt.PointingHandCursor)
-
     row_md_top.addWidget(lbl_md_title)
-    row_md_top.addSpacing(4)
-    row_md_top.addWidget(btn_manual_mode)
-    row_md_top.addSpacing(4)
+    row_md_top.addSpacing(6)
     row_md_top.addWidget(lbl_copilot_badge)
     row_md_top.addStretch()
     row_md_top.addWidget(lbl_spd)
@@ -3464,7 +3426,6 @@ def setup_trading_plan_cards(window, is_dark=False):
     window.lblManualHeaderTitle = lbl_md_title
     window.lblManualExecBadge = lbl_md_badge
     window.lblManualCopilotBadge = lbl_copilot_badge
-    window.btnManualModeToggle = btn_manual_mode
     window.btnManualBuy = btn_buy
     window.lblManualBuyText = lbl_buy_t
     window.lblManualAskPrice = lbl_ask_p
@@ -3623,29 +3584,12 @@ def setup_trading_plan_cards(window, is_dark=False):
         apply_playbook_cards_theme(window, getattr(window, "is_dark_theme", False))
         sync_manual_copilot_quotes(window)
 
-    def _toggle_manual_compliance_mode():
-        cur_m = getattr(window, "_manual_compliance_mode", "DISCRETIONARY")
-        new_m = "SYSTEM_GUARD" if cur_m == "DISCRETIONARY" else "DISCRETIONARY"
-        window._manual_compliance_mode = new_m
-        _update_manual_mode_button_style(window)
-        try:
-            from frontend.widgets.options.options_binder import OptionsConfigBinder
-            OptionsConfigBinder.save_settings({"manual_compliance_mode": new_m})
-        except Exception as e:
-            logger.debug(f"[TradingPlanPanel] Failed to persist manual_compliance_mode: {e}")
-        _recalculate_manual_lot_and_rr(window)
-
-    btn_manual_mode.clicked.connect(_toggle_manual_compliance_mode)
-
-    init_mode = "DISCRETIONARY"
     try:
         from frontend.widgets.options.options_binder import OptionsConfigBinder
         s_data, _, _ = OptionsConfigBinder.load_settings()
-        init_mode = s_data.get("manual_compliance_mode", "DISCRETIONARY")
+        window._manual_compliance_mode = s_data.get("manual_compliance_mode", "DISCRETIONARY")
     except Exception:
-        pass
-    window._manual_compliance_mode = init_mode
-    _update_manual_mode_button_style(window)
+        window._manual_compliance_mode = "DISCRETIONARY"
 
     btn_buy.clicked.connect(lambda: _set_dir("BUY"))
     btn_sell.clicked.connect(lambda: _set_dir("SELL"))

@@ -12,7 +12,7 @@ import uuid
 from contextvars import ContextVar
 from contextlib import contextmanager
 from datetime import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from loguru import logger
@@ -283,11 +283,24 @@ class DatabaseManager:
             conn.execute("INSERT INTO execution_events(account_id,intent_id,status,payload,timestamp) VALUES (?,?,?,?,?)",
                 (self.account_id,intent_id,status,json.dumps(payload,default=str),self._now()))
 
+    def prune_stale_intents(self, ttl_seconds: int = 60) -> int:
+        """TTL Stale Pruning: If an intent is in SUBMITTING/UNKNOWN for > ttl_seconds, mark it CANCELED."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=ttl_seconds)).isoformat()
+        with self._db_lock, self._connection() as conn:
+            cur = conn.execute(
+                "UPDATE order_intents SET status='CANCELED', updated_at=? "
+                "WHERE status IN ('SUBMITTING','UNKNOWN','MANUAL_SUBMITTING') AND updated_at < ?",
+                (self._now(), cutoff)
+            )
+            return cur.rowcount
+
     def has_unresolved_intent(self, symbol):
+        self.prune_stale_intents(ttl_seconds=60)
         with self._db_lock, self._connection() as conn:
             return conn.execute("SELECT 1 FROM order_intents WHERE account_id=? AND symbol=? AND status IN ('SUBMITTING','UNKNOWN')",(self.account_id,symbol)).fetchone() is not None
 
     def get_unresolved_intents(self):
+        self.prune_stale_intents(ttl_seconds=60)
         with self._db_lock, self._connection() as conn:
             return [dict(r) for r in conn.execute("SELECT * FROM order_intents WHERE account_id=? AND status IN ('SUBMITTING','UNKNOWN')",(self.account_id,))]
 

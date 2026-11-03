@@ -3,7 +3,7 @@ Unit and Integration Tests for Manual Compliance Mode & Order Unblocking:
 1. Config Schema & Options Persistence (DISCRETIONARY vs SYSTEM_GUARD).
 2. StateRecoveryManager Ghost/Orphaned Intent Timeout.
 3. TradingCommandService Manual Autonomy (Unblocked by bot intents / existing positions).
-4. TradingPlanPanel Card M1 Compliance Mode & 50% Lot Scaling on Counter-Trend.
+4. TradingPlanPanel Options Compliance Mode & 50% Lot Scaling on Counter-Trend.
 """
 
 import json
@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QDoubleSpinBox, QPushButton
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QDoubleSpinBox
 from backend.core.engine_config import BotRunConfig
 from frontend.widgets.options.options_binder import OptionsConfigBinder, DEFAULTS
 from backend.database.db_manager import DatabaseManager
@@ -55,16 +55,17 @@ def test_state_recovery_orphaned_intent_timeout(monkeypatch):
     db = DatabaseManager()
     db.bind_account(999999, "TestServer")
 
-    # Reserve intent older than 60s
-    old_time = (datetime.now(timezone.utc) - timedelta(seconds=70)).isoformat()
+    # Reserve fresh intent
     intent_id = db.reserve_intent("test_orphan_key", "XAUUSD", {"broker_tag": "V2_orphan", "symbol": "XAUUSD"})
     db.finish_intent(intent_id, "UNKNOWN", {"request": {"broker_tag": "V2_orphan"}})
 
-    # Manually backdate updated_at in order_intents
+    # Before backdating, intent is active and unresolved
+    assert db.has_unresolved_intent("XAUUSD")
+
+    # Manually backdate updated_at in order_intents to > 60s
+    old_time = (datetime.now(timezone.utc) - timedelta(seconds=70)).isoformat()
     with db._connection() as conn:
         conn.execute("UPDATE order_intents SET updated_at=? WHERE intent_id=?", (old_time, intent_id))
-
-    assert db.has_unresolved_intent("XAUUSD")
 
     # Mock MT5 to return valid account info, empty live orders, empty deals, and empty history
     monkeypatch.setattr(mt5, "account_info", Mock(return_value=NS(login=999999, server="TestServer")))
@@ -76,7 +77,7 @@ def test_state_recovery_orphaned_intent_timeout(monkeypatch):
     recovery = StateRecoveryManager(db)
     recovery.reconcile_intents()
 
-    # The orphaned intent must have timed out and changed to CANCELED
+    # The orphaned intent must have timed out and changed to CANCELED via TTL Stale Pruning
     assert not db.has_unresolved_intent("XAUUSD")
     with db._connection() as conn:
         row = conn.execute("SELECT status FROM order_intents WHERE intent_id=?", (intent_id,)).fetchone()
@@ -154,10 +155,7 @@ def test_trading_commands_manual_allows_concurrent_and_ignores_bot_intent(monkey
 def test_trading_plan_panel_compliance_mode_lot_scaling(monkeypatch):
     app = QApplication.instance() or QApplication([])
 
-    from frontend.controllers.chart.trading_plan_panel import (
-        _recalculate_manual_lot_and_rr,
-        _update_manual_mode_button_style,
-    )
+    from frontend.controllers.chart.trading_plan_panel import _recalculate_manual_lot_and_rr
     from backend.core.macro_context_bus import MacroContextBus, SymbolMacroProfile
 
     # Set up mock window
@@ -184,9 +182,6 @@ def test_trading_plan_panel_compliance_mode_lot_scaling(monkeypatch):
     lbl_badge = QLabel()
     win.lblManualCopilotBadge = lbl_badge
 
-    btn_toggle = QPushButton()
-    win.btnManualModeToggle = btn_toggle
-
     # Mock symbol info
     sym_info = Mock()
     sym_info.digits = 2
@@ -209,6 +204,8 @@ def test_trading_plan_panel_compliance_mode_lot_scaling(monkeypatch):
     assert win.spinManualLot.value() == 0.5
     assert "COUNTER-TREND" in win.lblManualCopilotBadge.text()
     assert "50% VOL" in win.lblManualCopilotBadge.text()
+    # Confirm zero emoji in badge text
+    assert "\u26a0" not in win.lblManualCopilotBadge.text()
 
     # 2. Change direction to SELL (pro-trend): full 100% volume
     win._manual_direction = "SELL"
@@ -220,9 +217,8 @@ def test_trading_plan_panel_compliance_mode_lot_scaling(monkeypatch):
     # 3. Switch to DISCRETIONARY mode: BUY should now be full 100% volume
     win._manual_direction = "BUY"
     win._manual_compliance_mode = "DISCRETIONARY"
-    _update_manual_mode_button_style(win)
-    assert "[ MODE: DISCRETIONARY ]" in win.btnManualModeToggle.text()
 
     _recalculate_manual_lot_and_rr(win)
     assert win.spinManualLot.value() == 1.0
     assert "COUNTER-TREND" in win.lblManualCopilotBadge.text()
+    assert "\u26a0" not in win.lblManualCopilotBadge.text()

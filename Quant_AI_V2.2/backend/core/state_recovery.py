@@ -365,6 +365,14 @@ class StateRecoveryManager:
                 continue
             if working:
                 continue
+            # Direct TTL Stale Pruning: if not active in orders or deals and older than 60s, cancel immediately
+            age_sec = (datetime.now(timezone.utc) - updated_dt).total_seconds()
+            if not matches and age_sec > 60:
+                self.db.finish_intent(intent['intent_id'], 'CANCELED', {
+                    'request': request, 'reason': f'Stale TTL timeout ({int(age_sec)}s) pruned'
+                })
+                continue
+
             history=mt5.history_orders_get(start,end)
             if history is None:
                 continue
@@ -376,7 +384,7 @@ class StateRecoveryManager:
                     continue
                 self.db.finish_intent(intent['intent_id'],'CANCELED',{
                     'request':request,'broker_order':terminal[-1].ticket})
-            elif (datetime.now(timezone.utc) - updated_dt).total_seconds() > 60:
+            elif age_sec > 60:
                 # Orphaned intent: Not working in broker, no deals, and no terminal order in history
                 self.db.finish_intent(intent['intent_id'], 'CANCELED', {
                     'request': request, 'reason': 'Orphaned intent timed out after 60s'})
