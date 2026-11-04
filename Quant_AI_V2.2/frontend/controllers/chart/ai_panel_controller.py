@@ -325,10 +325,16 @@ def _build_analysis_panel(window):
 
 
 def _force_reanalyze(window):
-
-    if window.current_sym:
-
-        _run_analysis(window, window.current_sym, force=True)
+    sym = getattr(window, "current_sym", None) or getattr(window, "current_symbol", None)
+    if not sym and hasattr(window, "comboSymbol") and window.comboSymbol:
+        try:
+            sym = window.comboSymbol.currentText()
+        except Exception:
+            pass
+    if sym:
+        clean_sym = sym.split("\n")[0].strip() if isinstance(sym, str) else ""
+        if clean_sym:
+            _run_analysis(window, clean_sym, force=True)
 
 
 def _update_panel_with_result(window, result):
@@ -817,13 +823,15 @@ def _run_analysis(window, sym, force=False):
 
     sym = sym.split("\n")[0].strip()
 
-    window.ai_lbl_header.setText(f"{sym}  {window.current_tf_str}")
+    tf_str = getattr(window, "current_tf_str", "M15")
+    if hasattr(window, "ai_lbl_header") and window.ai_lbl_header:
+        window.ai_lbl_header.setText(f"{sym}  {tf_str}")
 
-    window.ai_lbl_status.setText("Analyzing...")
-
-    window.ai_lbl_status.setStyleSheet(
-        "color: #58A6FF; font-size: 10px; font-family: 'Segoe UI';"
-    )
+    if hasattr(window, "ai_lbl_status") and window.ai_lbl_status:
+        window.ai_lbl_status.setText("Analyzing...")
+        window.ai_lbl_status.setStyleSheet(
+            "color: #58A6FF; font-size: 10px; font-family: 'Segoe UI';"
+        )
 
     if not hasattr(window, "_active_ai_threads"):
 
@@ -870,7 +878,8 @@ def _run_analysis(window, sym, force=False):
         except Exception:
             active_strat_id = None
 
-    rates = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 5000)
+    curr_tf = getattr(window, "current_tf", mt5.TIMEFRAME_M15 if mt5 else 15)
+    rates = mt5.copy_rates_from_pos(sym, curr_tf, 0, 5000)
 
     if rates is None or len(rates) == 0:
         window.ai_lbl_status.setText("Awaiting MT5 feed...")
@@ -886,7 +895,7 @@ def _run_analysis(window, sym, force=False):
 
     tech_data = None
 
-    r_100 = mt5.copy_rates_from_pos(sym, window.current_tf, 0, 150)
+    r_100 = mt5.copy_rates_from_pos(sym, curr_tf, 0, 150)
 
     if r_100 is not None and len(r_100) >= 25:
 
@@ -937,7 +946,7 @@ def _run_analysis(window, sym, force=False):
         parent=window,
         sym=sym,
         rates=rates,
-        timeframe_str=window.current_tf_str,
+        timeframe_str=tf_str,
         active_id=active_id,
         force_refresh=force,
         tech_data=tech_data,

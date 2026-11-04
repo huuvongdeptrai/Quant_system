@@ -616,10 +616,12 @@ class SettingsManager:
         except Exception as e_plan:
             logger.debug(f"[SettingsController] Update trading plan panel error: {e_plan}")
 
-        # 4. Trigger reanalysis on current chart
+        # 4. Trigger reanalysis on current chart if chart/symbol is available
         try:
-            from frontend.controllers.chart.ai_panel_controller import _force_reanalyze
-            _force_reanalyze(self.window)
+            curr = getattr(self.window, "current_sym", None) or getattr(self.window, "current_symbol", None)
+            if curr:
+                from frontend.controllers.chart.ai_panel_controller import _force_reanalyze
+                _force_reanalyze(self.window)
         except Exception as e_an:
             logger.debug(f"[SettingsController] Force reanalyze error: {e_an}")
 

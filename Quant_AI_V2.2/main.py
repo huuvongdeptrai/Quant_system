@@ -125,6 +125,9 @@ class QuantTerminal(QObject):
 
         self._load_ui()
         self.window.quant_terminal = self
+        self.window.current_sym = "XAUUSD"
+        self.window.current_tf = mt5.TIMEFRAME_M15 if mt5 else 15
+        self.window.current_tf_str = "M15"
 
         # Initialize modular controllers
         from frontend.controllers.blotter_controller import BlotterController
